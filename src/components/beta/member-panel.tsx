@@ -16,14 +16,14 @@ export function MemberPanel({
 }) {
   const router = useRouter();
   return (
-    <Dialog
+    <Dialog appearance="standard"
       open
       title={person.name}
       onClose={() => router.push(`${base}/people`)}
     >
       {children ?? <p>This teammate can participate in the workspace.</p>}
       {canRevoke && (
-        <RevokeCompanyAccess
+        <RevokeCompanyAccess appearance="standard"
           base={base}
           userId={person.id}
           onRevoked={() => router.replace(`${base}/people`)}

@@ -43,7 +43,7 @@ it('uploads private evidence through existing routes, safely replays, preserves 
  expect(await getSupportTicket(f.head,ticket)).toMatchObject({version:2,status:'open'});expect((await supportDetail(f.head,ticket)).history[0]).toMatchObject({action:'attachment-add',version:2});
  const content=await get(result.id);expect(content.status).toBe(200);expect(content.headers.get('Cache-Control')).toBe('private, no-store');expect(content.headers.get('Content-Disposition')).toContain('attachment');expect(new Uint8Array(await content.arrayBuffer())).toEqual(bytes);
  if(previous===undefined)delete process.env.ERPX_ATTACHMENTS_V2;else process.env.ERPX_ATTACHMENTS_V2=previous;
- session.actor={...f.head,companyId:'other'};expect((await get(result.id)).status).toBe(404);session.actor={...f.head,branchId:'other'};expect((await get(result.id)).status).toBe(404);session.actor={...f.head,role:'employee'};expect((await get(result.id)).status).toBe(403);session.actor=f.head;
+ session.actor={...f.head,companyId:'other'};expect((await get(result.id)).status).toBe(404);session.actor={...f.head,branchId:'other'};expect((await get(result.id)).status).toBe(404);session.actor={...f.head,role:'employee'};expect((await get(result.id)).status).toBe(404);session.actor=f.head;
  const input={expectedVersion:2,attachmentId:result.id,reason:'Wrong simulated screenshot replaced by corrected evidence'},revokeKey=key(),receipt=await revokeSupportEvidence(f.head,ticket,input,revokeKey);expect(await revokeSupportEvidence(f.head,ticket,input,revokeKey)).toEqual(receipt);
  expect((await get(result.id)).status).toBe(200);expect((await supportEvidence(f.head,ticket)).items).toHaveLength(1);expect((await supportEvidence(f.head,ticket)).items[0].revoked_at).not.toBeNull();
  expect((await supportDetail(f.head,ticket)).history[0]).toMatchObject({action:'attachment-revoke',version:3});
@@ -77,7 +77,7 @@ it('rechecks source version and current assignment when completing a reserved up
  expect((await upload(reserved.id)).status).toBe(409);expect((await supportEvidence(f.head,ticket)).items).toEqual([]);
  const next=(await (await intent(2)).json()).data;
  await db.prepare('UPDATE assignments SET revoked_at=? WHERE id=?').bind(Date.now(),f.head.assignmentId).run();
- expect((await upload(next.id)).status).toBe(403);expect((await supportEvidence(f.owner,ticket)).items).toEqual([]);
+ expect((await upload(next.id)).status).toBe(404);expect((await supportEvidence(f.owner,ticket)).items).toEqual([]);
 });
 it('freezes evidence after proposed resolution and refuses signature mismatch or legal-hold revocation',async()=>{
  const reserved=(await (await intent()).json()).data;

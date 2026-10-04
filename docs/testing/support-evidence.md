@@ -1,5 +1,7 @@
 # Support — ไฟล์หลักฐานส่วนตัว
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 ไฟล์ของ ticket ใช้ upload intent/private object store/attachment download เดิม เพิ่ม owner type `support_ticket` และ version ต้นทางเฉพาะเจ้าของนี้ ไม่เปลี่ยนความหมาย upload เดิม
 
 ## ขั้นตอนและสิทธิ์

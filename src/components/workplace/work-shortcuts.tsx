@@ -1,7 +1,7 @@
 "use client";
 
 import { QuickAccessShelf } from "@/components/quick-access/shelf";
-import { defaultWorkCardIds, newWorkHref, workCardIds, type WorkActionCard, type WorkCardId } from "@/lib/work-cards";
+import { defaultWorkCardIds, newWorkHref, type WorkActionCard } from "@/lib/work-cards";
 import { workCardTone } from "@/lib/work-category-tone";
 import type { QuickAccessItem } from "@/lib/quick-access";
 import { selfServiceActions } from "@/lib/self-service";
@@ -19,9 +19,9 @@ function cardMeta(card: WorkActionCard) {
   return counts.length ? counts.join(" · ") : "No pending work";
 }
 
-/** The one holding-wide shelf, backed by the existing company-wide Work pins. */
-export function WorkShortcuts({ base }: { base: string }) {
-  const { quickAccess, quickAccessError, refresh, saveQuickAccess } = useNavigationCounts();
+/** Device-local pins; the authorized catalogue is available with the shell. */
+export function WorkShortcuts({ base, role }: { base: string; role?: string }) {
+  const { quickAccess, shortcutStorageKey } = useNavigationCounts();
   const pathname = usePathname();
   const search = useSearchParams();
   const current = pathname === `${base}/work` ? search.toString() : "";
@@ -29,11 +29,11 @@ export function WorkShortcuts({ base }: { base: string }) {
   const items: QuickAccessItem[] = cards.map((card) => ({
     id: card.id,
     title: card.title,
-    description: selfServiceActions.find((action) => action.id === (card.id === "purchases" ? "purchase_request" : card.id))?.description,
+    description: card.objective ?? selfServiceActions.find((action) => action.id === (card.id === "purchases" ? "purchase_request" : card.id))?.description,
     href: card.href,
     icon: card.icon,
-    tone: workCardTone[card.id],
-    meta: cardMeta(card),
+    tone: workCardTone[card.id] ?? "brand",
+    meta: card.destination ? undefined : cardMeta(card),
     ...(card.create ? {
       secondary: {
         label: card.create.kind === "conversation" ? card.create.label : `New ${card.create.label.toLowerCase()}`,
@@ -41,24 +41,15 @@ export function WorkShortcuts({ base }: { base: string }) {
       },
     } : {}),
   }));
-  return <QuickAccessShelf
+  return <QuickAccessShelf appearance="standard"
     items={items}
     initialPreferences={quickAccess?.preferences ?? { pinnedIds: null, version: 0 }}
-    defaultIds={defaultWorkCardIds(cards)}
+    defaultIds={defaultWorkCardIds(cards, role)}
     endpoint={`/api/v1${base}/work/card-preferences`}
-    title="Your shortcuts"
-    placement="rail"
+    localStorageKey={shortcutStorageKey}
+    title="My shortcuts"
+    placement="sidebar"
     embedded
     requestMode="work"
-    loading={!quickAccess && !quickAccessError}
-    error={quickAccessError || (quickAccess?.preferencesUnavailable ? "Your saved shortcuts are unavailable. Showing the default arrangement." : "")}
-    onRetry={() => void refresh()}
-    onSaved={(preference) => {
-      if (preference.pinnedIds?.some((id) => !workCardIds.includes(id as WorkCardId))) {
-        void refresh();
-        return;
-      }
-      saveQuickAccess({ pinnedIds: preference.pinnedIds as WorkCardId[] | null, version: preference.version });
-    }}
   />;
 }

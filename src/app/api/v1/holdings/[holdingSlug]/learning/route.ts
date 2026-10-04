@@ -9,6 +9,7 @@ import {
   learningAssignmentDetail,
   learningWorkspace,
 } from "@/server/learning";
+import { certificateRevocationSchema,revokeLearningCertificate } from "@/server/learning-eligibility";
 type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
 export async function GET(r: Request, c: C) {
@@ -48,7 +49,7 @@ export async function POST(r: Request, c: C) {
     const a = await requireWorkContext((await c.params).holdingSlug),
       input = await r.json(),
       data =
-        input.entity === "course"
+        input.entity==="certificate"?await revokeLearningCertificate(a,input.id,certificateRevocationSchema.parse({expectedAssignmentVersion:input.expectedAssignmentVersion,reason:input.reason}),key):input.entity === "course"
           ? typeof input.id === "string"
             ? await changeLearningCourse(a, input.id, input, key)
             : await createLearningCourse(a, input, key)

@@ -1,3 +1,5 @@
+
+import { PageContent } from "@/components/ui/patterns";
 import { FeaturePage } from "@/components/features/feature-page";
 import { MessagingInbox } from "@/components/messaging/inbox";
 import { InboxUpdates } from "@/components/messaging/inbox-updates";
@@ -12,12 +14,12 @@ export default async function Inbox({params,searchParams}:PageProps<"/holdings/[
   const actor=await requireWorkContext((await params).holdingSlug),base=workspaceBase(publicScope(actor)),query=await searchParams;
   const {write}=await holdingResources(actor.holdingId),summary=await inboxSummary(write,actor);
   const tab=query.view||query.tab==="updates"?"updates":query.tab==="teams"?"teams":"chats";
-  return <FeaturePage className="content" data-source="live">
-    <PageHeader title="Your inbox" description="Conversations, notices, and updates from your work."/>
+  return <PageContent as={FeaturePage} data-source="live">
+    <PageHeader appearance="standard" title="Your inbox" description="Conversations, notices, and updates from your work."/>
     <MessagingInbox key={tab} base={base} userId={actor.userId} initialTab={tab}
       initialPerson={typeof query.person==="string"?query.person:undefined}
       initialRoom={typeof query.room==="string"?query.room:undefined}
       notificationUnread={summary.unread}
       updates={tab==="updates"?<InboxUpdates base={base} canBroadcast={hasPermission(actor,"inbox.notice.broadcast")}/>:null}/>
-  </FeaturePage>;
+  </PageContent>;
 }

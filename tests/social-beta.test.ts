@@ -176,6 +176,39 @@ async function post() {
   );
   return publishPost(db, owner, draft.id, draft.version, key());
 }
+describe('governed Social engagement',()=>{
+ it('retains author comment corrections and replies while independently reported posts are moderated with replay-safe evidence',async()=>{
+  const p=await post(),commentKey=key(),replyKey=key();await postAction(db,worker,p.id,{action:'comment',body:'Correct this fictional incident detail'},commentKey);
+  const commentId=`comment-${commentKey}`;await postAction(db,reviewer,p.id,{action:'comment',body:'Independent follow-up evidence',parentCommentId:commentId},replyKey);
+  await expect(postAction(db,reviewer,p.id,{action:'edit_comment',commentId,body:'Forged author correction',richContent:plainRichContent('Forged author correction')},key())).rejects.toMatchObject({code:'COMMENT_AUTHOR_REQUIRED'});
+  await postAction(db,worker,p.id,{action:'edit_comment',commentId,body:'Corrected fictional incident detail',richContent:plainRichContent('Corrected fictional incident detail')},key());expect((await postComments(db,worker,p.id)).items.find(row=>row.id===commentId)?.body).toBe('Corrected fictional incident detail');
+  const deletion=key();await postAction(db,worker,p.id,{action:'delete_comment',commentId},deletion);await postAction(db,worker,p.id,{action:'delete_comment',commentId},deletion);
+  const comments=await postComments(db,reviewer,p.id);expect(comments.items.some(row=>row.id===commentId)).toBe(false);expect(comments.items.find(row=>row.id===`comment-${replyKey}`)).toMatchObject({body:'Independent follow-up evidence',parent_comment_id:commentId});
+  const reportKey=key();await postAction(db,reviewer,p.id,{action:'report',body:'Synthetic moderation policy concern'},reportKey);await postAction(db,reviewer,p.id,{action:'report',body:'Synthetic moderation policy concern'},reportKey);expect(await db.prepare('SELECT count(*) n FROM social_reports WHERE post_id=? AND reporter_id=?').bind(p.id,reviewer.userId).first('n')).toBe(1);
+  await expect(postAction(db,reviewer,p.id,{action:'hide'},key())).rejects.toMatchObject({code:'COMPANY_AUTHORITY_REQUIRED'});
+  const moderation=key();await postAction(db,owner,p.id,{action:'hide'},moderation);await postAction(db,owner,p.id,{action:'hide'},moderation);
+  await expect(postView(db,worker,p.id)).rejects.toMatchObject({code:'POST_NOT_FOUND'});expect((await homePosts(db,worker)).some(row=>row.id===p.id)).toBe(false);
+  expect(await db.prepare("SELECT count(*) n FROM audit_events WHERE record_id=? AND action='social.post.hide'").bind(p.id).first('n')).toBe(1);
+  await expect(postAction(db,reviewer,p.id,{action:'report',body:'Synthetic moderation policy concern'},reportKey)).rejects.toMatchObject({code:'POST_NOT_FOUND'});
+ });
+ it('keeps appreciation and following as unique non-decision signals across races, retries and current-source withdrawal',async()=>{
+  const p=await post(),appreciation=key(),following=key();await postAction(db,worker,p.id,{action:'appreciate',active:true},appreciation);await postAction(db,worker,p.id,{action:'appreciate',active:true},appreciation);
+  await Promise.all([1,2].map(()=>postAction(db,worker,p.id,{action:'appreciate',active:true},key())));await Promise.all([1,2].map(()=>postAction(db,worker,p.id,{action:'follow',active:true},key())));await postAction(db,worker,p.id,{action:'follow',active:true},following);
+  const view=await postView(db,worker,p.id);expect(view.appreciationCount).toBe(1);expect(Boolean(view.appreciated)).toBe(true);expect(Boolean(view.followed)).toBe(true);expect(view.version).toBe(p.version);expect((await homePosts(db,worker,{following:true})).map(row=>row.id)).toContain(p.id);
+  await postAction(db,worker,p.id,{action:'appreciate',active:false},key());await postAction(db,worker,p.id,{action:'follow',active:false},key());const cleared=await postView(db,worker,p.id);expect(cleared.appreciationCount).toBe(0);expect(Boolean(cleared.followed)).toBe(false);expect((await homePosts(db,worker,{following:true})).some(row=>row.id===p.id)).toBe(false);
+  await postAction(db,owner,p.id,{action:'hide'},key());await expect(postAction(db,worker,p.id,{action:'appreciate',active:true},appreciation)).rejects.toMatchObject({code:'POST_NOT_FOUND'});await expect(postAction(db,worker,p.id,{action:'follow',active:true},following)).rejects.toMatchObject({code:'POST_NOT_FOUND'});
+  expect(await db.prepare('SELECT count(*) n FROM social_reactions WHERE post_id=? AND principal_id=?').bind(p.id,worker.userId).first('n')).toBe(0);
+  expect(await db.prepare("SELECT count(*) n FROM approval_instances WHERE record_type='social' AND record_id=?").bind(p.id).first('n')).toBe(0);
+ });
+ it('filters hashtag feeds and suggestions by live audience membership and hides their content after revocation',async()=>{
+  const body=`Private release #governed${key().replaceAll('-','')}`,tag=body.split('#')[1],draft=await savePostDraft(db,owner,null,{body,audience:{kind:'participants',userIds:[worker.userId]},expectedVersion:1},key()),p=await publishPost(db,owner,draft.id,draft.version,key());
+  expect((await homePosts(db,worker,{tag})).map(row=>row.id)).toContain(p.id);expect(await textSuggestions(db,worker,'#',tag)).toContainEqual({kind:'tag',targetId:tag,label:tag,detail:'Hashtag'});
+  expect((await homePosts(db,reviewer,{tag}))).toEqual([]);expect(await textSuggestions(db,reviewer,'#',tag)).toEqual([]);await expect(postView(db,reviewer,p.id)).rejects.toMatchObject({code:'POST_NOT_FOUND'});
+  const follow=key();await postAction(db,worker,p.id,{action:'follow',active:true},follow);await db.prepare('UPDATE assignments SET revoked_at=? WHERE company_id=? AND user_id=?').bind(Date.now(),company,worker.userId).run();
+  expect(await homePosts(db,worker,{tag,following:true})).toEqual([]);expect(await textSuggestions(db,worker,'#',tag)).toEqual([]);await expect(postComments(db,worker,p.id)).rejects.toMatchObject({code:'POST_NOT_FOUND'});await expect(postAction(db,worker,p.id,{action:'follow',active:true},follow)).rejects.toMatchObject({code:'POST_NOT_FOUND'});
+  expect(JSON.stringify(await homePosts(db,reviewer,{tag}))).not.toContain(body);
+ });
+});
 async function readySocialImage(draftId: string, name: string) {
   const uploadId = key(), attachmentId = key(), now = Date.now();
   const objectKey = `test/social/${uploadId}`;
@@ -415,11 +448,16 @@ describe("social post audience and purpose", () => {
       await expect(readablePost(db, reviewer, published.id)).resolves.toMatchObject({ id: published.id });
       await db.prepare("UPDATE assignments SET scope_node_id=? WHERE id=?").bind(otherBranch, reviewer.assignmentId).run();
     }
+    expect(await homePosts(db, reviewer, { teamId: team })).toEqual([]);
     await db.prepare("UPDATE assignments SET scope_node_id=? WHERE id=?").bind(branch, reviewer.assignmentId).run();
     const draft = await savePostDraft(db, worker, null, { body: "Team note", audience: { kind: "team", id: team }, expectedVersion: 1 }, key());
     const published = await publishPost(db, worker, draft.id, draft.version, key());
+    const teamFeed = await homePosts(db, worker, { teamId: team });
+    expect(teamFeed.some(post => post.id === published.id)).toBe(true);
+    expect(teamFeed.every(post => post.audience_kind === "team" && post.audience_id === team)).toBe(true);
     await db.prepare("DELETE FROM messaging_team_members WHERE team_id=? AND user_id=?").bind(team, reviewer.userId).run();
     await expect(readablePost(db, reviewer, published.id)).rejects.toMatchObject({ code: "POST_NOT_FOUND" });
+    expect(await homePosts(db, reviewer, { teamId: team })).toEqual([]);
   });
 
   it("shows each linked task or project only to readers authorized by its own source", async () => {

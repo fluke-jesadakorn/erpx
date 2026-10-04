@@ -1,6 +1,6 @@
 # ERPX on this Mac
 
-The active deployment follows ADR-024 and ADR-032: Node 24.20.0, Bun 1.2.17, shared PostgreSQL 18.6 and a dedicated Cloudflare Tunnel. Historical Wrangler/OpenNext files and `scripts/legacy-cloudflare/` are references, not deployment commands.
+The active deployment follows ADR-024 and ADR-032: Node 24.20.0, Bun 1.2.17, shared PostgreSQL 18.6 and a dedicated Cloudflare Tunnel. The remaining Wrangler/D1 fixtures serve a historical E2E adapter, not deployment commands. Removed Workers/OpenNext tooling is recoverable through [CUTOVER.md](../../CUTOVER.md#2026-10-04-unused-legacy-code-cleanup).
 
 ## Layout and ports
 
@@ -20,7 +20,7 @@ The active deployment follows ADR-024 and ADR-032: Node 24.20.0, Bun 1.2.17, sha
 
    The current installation was migrated in place. New installations must provision only scoped roles/databases on `5432` and reuse the shared launchd service; update the legacy installer before using it for that purpose.
 6. Check `curl -fsS http://127.0.0.1:3101/api/health` and `/api/ready`, then `sudo /usr/bin/python3 '/Library/Application Support/ERPX/ops/erpxctl.py' doctor`. `/api/health` and doctor report the clamd engine, signature timestamp and HEIF/PDF tool readiness. Health fails without them even while the UI gate is closed because compatibility uploads use the same scanner; final reconciliation receipts become mandatory when the gate opens. `/ready` requires a jobs heartbeat newer than 45 seconds and no maintenance flag. Doctor reports pending/dead-letter totals per Holding without document contents or credentials.
-7. Keep production private on `3101`. The public `erpx.jesadakorn.com` host is reserved for staging on `3103`; development uses `dev-erpx.jesadakorn.com` on `3100`. The existing `erpx-local` Tunnel and DNS records are managed in Cloudflare Dashboard; do not modify epsx-dev or n8n.
+7. Keep production private on `3101`. The public `erpx.jesadakorn.com` host is reserved for staging on `3103`; development console uses `console-dev-erpx.jesadakorn.com` on `3100`. The existing `erpx-local` Tunnel and DNS records are managed in Cloudflare Dashboard; do not modify epsx-dev or n8n.
 8. Verify real Resend delivery, HTTPS redirects, auth reset/verification links, secure cookies, all static/PDF assets and registration in an isolated acceptance database before enabling signup in the installed env file and restarting only ERPX web/jobs. Sign up as the agreed admin, verify the email, then run `sudo /usr/bin/python3 '/Library/Application Support/ERPX/ops/erpxctl.py' bootstrap-admin`. This command refuses an absent/unverified account and all other emails.
 
 ## Services and secrets
@@ -41,10 +41,9 @@ Run a backup now with:
 
 ```sh
 sudo /usr/bin/python3 '/Library/Application Support/ERPX/ops/erpxctl.py' backup
-sudo /usr/bin/python3 '/Library/Application Support/ERPX-Staging/ops/erpxctl.py' --home '/Library/Application Support/ERPX-Staging' backup
 ```
 
-Each environment has its own operator lock, maintenance flag, scoped database manifests, files and backup directory. Production runs daily at 03:15; staging runs daily at 03:45. Maintenance denies requests, only that environment's web/jobs stop, and the command checks that its database sessions have exited before dumping its databases and copying private files, manifests and secrets. When MinIO is configured, the pinned release tool also copies and checksums every object under that environment's `environments/<environment>/` prefix in the existing bucket, including Holding and platform billing objects. It rejects unexpected keys and stops backup if any object cannot be copied. Dumps use PostgreSQL custom format. A snapshot becomes visible only after all files and SHA-256 checksums are written; incomplete `.partial` directories are not restorable backups. Services restart on backup failure. Seven complete local snapshots are retained, including a snapshot selected for restore.
+Each environment has its own operator lock, maintenance flag, scoped database manifests, files and backup directory. Production runs daily at 03:15; staging procedures are maintained in [the staging runbook](staging.md). Maintenance denies requests, only that environment's web/jobs stop, and the command checks that its database sessions have exited before dumping its databases and copying private files, manifests and secrets. When MinIO is configured, the pinned release tool also copies and checksums every object under that environment's `environments/<environment>/` prefix in the existing bucket, including Holding and platform billing objects. It rejects unexpected keys and stops backup if any object cannot be copied. Dumps use PostgreSQL custom format. A snapshot becomes visible only after all files and SHA-256 checksums are written; incomplete `.partial` directories are not restorable backups. Services restart on backup failure. Seven complete local snapshots are retained, including a snapshot selected for restore.
 
 For a filesystem-to-MinIO cutover, first configure an existing reachable instance and bucket with `ERPX_MINIO_ENDPOINT`, `ERPX_MINIO_BUCKET`, `ERPX_MINIO_ACCESS_KEY`, `ERPX_MINIO_SECRET_KEY`, and `ERPX_MINIO_REGION` in that environment's private env file. Install the release and updated backup operator before enabling MinIO for staging or production. The operator pauses that environment's web and jobs writers, runs the bundled migration tool, then resumes them:
 
@@ -54,7 +53,7 @@ sudo /usr/bin/python3 '/Library/Application Support/ERPX/ops/erpxctl.py' --expec
 sudo /usr/bin/python3 '/Library/Application Support/ERPX/ops/erpxctl.py' --expect-count <count-from-plan> migrate-files verify
 ```
 
-For staging, add `--home '/Library/Application Support/ERPX-Staging'` to each command. The migration checks every source and destination checksum, database file references, and object count; it keeps local originals. Verify a complete MinIO-inclusive snapshot and restore rehearsal before removing local copies. The local development variant is `bun scripts/local/migrate-files-to-minio.ts` with explicit `--data-dir`, `--environment local` and the same plan/apply/verify modes.
+Use the [staging runbook](staging.md) only when staging work is explicitly requested. The migration checks every source and destination checksum, database file references, and object count; it keeps local originals. Verify a complete MinIO-inclusive snapshot and restore rehearsal before removing local copies. The local development variant is `bun scripts/local/migrate-files-to-minio.ts` with explicit `--data-dir`, `--environment local` and the same plan/apply/verify modes.
 
 ### Encrypted off-machine copy
 

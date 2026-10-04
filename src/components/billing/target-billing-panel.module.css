@@ -1,54 +1,300 @@
-.root { display: grid; gap: 16px; }
-.heading { display: flex; align-items: end; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
-.heading h3 { margin: 0 0 4px; }
-.heading p { margin: 0; color: var(--muted); }
-.heading label, .formRow label { display: grid; gap: 5px; font-size: 13px; }
-.headingActions { display: flex; align-items: end; gap: 8px; flex-wrap: wrap; }
-.headingActions button { min-height: 38px; border: 1px solid var(--control-border); border-radius: 8px; padding: 7px 10px; background: var(--card); color: var(--ink); font: inherit; cursor: pointer; }
-.heading input, .formRow select { min-height: 38px; border: 1px solid var(--control-border); background: var(--card); color: var(--ink); border-radius: 8px; padding: 7px; font: inherit; }
-.mode { margin: 0; }
-.terms { margin: 0; color: var(--muted); }
-.evidenceSection { border: 1px solid var(--line); border-radius: 14px; padding: 18px; background: var(--card); display: grid; gap: 14px; }
-.evidenceHeading { display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 10px; }
-.evidenceHeading h4 { margin: 0 0 4px; font-size: 18px; }
-.evidenceHeading p { margin: 0; color: var(--muted); font-size: 13px; }
-.evidenceHeading > span { color: var(--muted); font-size: 12px; }
-.evidenceGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
-.evidenceCard { border: 1px solid var(--line); border-radius: 10px; padding: 13px; display: grid; align-content: start; gap: 7px; min-width: 0; }
-.evidenceCard > span { color: var(--muted); font-size: 12px; }
-.evidenceCard > strong { font-size: clamp(18px, 2vw, 25px); line-height: 1.15; overflow-wrap: anywhere; }
-.evidenceCard > small { color: var(--muted); font-size: 12px; line-height: 1.4; }
-.evidenceBreakdown { margin: 0; font-size: 13px; color: var(--muted); }
-.sourceDetails { border-top: 1px solid var(--line); padding-top: 10px; }
-.sourceDetails summary { cursor: pointer; font-weight: 650; }
-.stages { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
-.stages article { border: 1px solid var(--line); border-radius: 12px; padding: 15px; display: grid; align-content: start; gap: 6px; }
-.stages span, .stages small { color: var(--muted); font-size: 13px; }
-.stages strong { font-size: 18px; }
-.review { border-top: 1px solid var(--line); padding-top: 12px; }
-.review h4, .actions h4 { margin: 0 0 8px; }
-.review p, .actions p { margin: 6px 0; }
-.subtle { color: var(--muted); font-size: 13px; }
-.review button { border: 1px solid var(--control-border); border-radius: 8px; padding: 9px 13px; background: var(--card); color: var(--ink); font: inherit; cursor: pointer; }
-.review button:disabled { cursor: not-allowed; opacity: .5; }
-.review ul { margin: 8px 0; padding-left: 20px; }
-.financeAmounts { display: flex; flex-wrap: wrap; gap: 10px; }
-.financeAmounts span { display: grid; min-width: 120px; border: 1px solid var(--line); border-radius: 8px; padding: 9px; font-size: 12px; color: var(--muted); }
-.financeAmounts strong { color: var(--ink); font-size: 16px; }
-.scroll { overflow-x: auto; }
-.scroll table { width: 100%; }
-.scroll th, .scroll td { white-space: nowrap; }
-.actions { border: 1px solid var(--line); border-radius: 12px; padding: 15px; display: grid; justify-items: start; gap: 10px; }
-.actions button { border: 1px solid var(--control-border); border-radius: 8px; padding: 9px 13px; background: var(--card); color: var(--ink); font: inherit; cursor: pointer; }
-.actions button:disabled { cursor: not-allowed; opacity: .5; }
-.formRow { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; }
-.verification { width: 100%; border-top: 1px solid var(--line); padding-top: 10px; }
-.verification summary { cursor: pointer; font-weight: 650; }
-.verification form { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-top: 12px; }
-.evidenceUpload { width: 100%; border-top: 1px solid var(--line); padding-top: 10px; }
-.evidenceUpload label { display: grid; gap: 5px; font-size: 13px; }
-.evidenceUpload input { max-width: 100%; }
-.evidenceUpload p { overflow-wrap: anywhere; }
-.verification label { display: grid; gap: 5px; font-size: 13px; }
-.verification input, .verification select { min-height: 38px; min-width: 0; border: 1px solid var(--control-border); background: var(--card); color: var(--ink); border-radius: 8px; padding: 7px; font: inherit; }
-.error { color: var(--danger, #b42318); }
+.root {
+  display: grid;
+  gap: 16px;
+}
+.heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.heading h3 {
+  margin: 0 0 4px;
+}
+.heading p {
+  margin: 0;
+  color: var(--ui-muted);
+}
+.heading label,
+.formRow label {
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+}
+.headingActions {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.headingActions button {
+  min-height: 38px;
+  border: 1px solid var(--ui-control-border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: var(--ui-card);
+  color: var(--ui-ink);
+  font: inherit;
+  cursor: pointer;
+}
+.heading input,
+.formRow select {
+  min-height: 38px;
+  border: 1px solid var(--ui-control-border);
+  background: var(--ui-card);
+  color: var(--ui-ink);
+  border-radius: 8px;
+  padding: 7px;
+  font: inherit;
+}
+.mode {
+  margin: 0;
+}
+.terms {
+  margin: 0;
+  color: var(--ui-muted);
+}
+.evidenceSection {
+  border: 1px solid var(--ui-line);
+  border-radius: 14px;
+  padding: 18px;
+  background: var(--ui-card);
+  display: grid;
+  gap: 14px;
+}
+.evidenceHeading {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.evidenceHeading h4 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+.evidenceHeading p {
+  margin: 0;
+  color: var(--ui-muted);
+  font-size: 13px;
+}
+.evidenceHeading > span {
+  color: var(--ui-muted);
+  font-size: 12px;
+}
+.evidenceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+}
+.evidenceCard {
+  border: 1px solid var(--ui-line);
+  border-radius: 10px;
+  padding: 13px;
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-width: 0;
+}
+.evidenceCard > span {
+  color: var(--ui-muted);
+  font-size: 12px;
+}
+.evidenceCard > strong {
+  font-size: clamp(18px, 2vw, 25px);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.evidenceCard > small {
+  color: var(--ui-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.evidenceBreakdown {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ui-muted);
+}
+.sourceDetails {
+  border-top: 1px solid var(--ui-line);
+  padding-top: 10px;
+}
+.sourceDetails summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+.stages {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.stages article {
+  border: 1px solid var(--ui-line);
+  border-radius: 12px;
+  padding: 15px;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+.stages span,
+.stages small {
+  color: var(--ui-muted);
+  font-size: 13px;
+}
+.stages strong {
+  font-size: 18px;
+}
+.review {
+  border-top: 1px solid var(--ui-line);
+  padding-top: 12px;
+}
+.review h4,
+.actions h4 {
+  margin: 0 0 8px;
+}
+.review p,
+.actions p {
+  margin: 6px 0;
+}
+.subtle {
+  color: var(--ui-muted);
+  font-size: 13px;
+}
+.review button {
+  border: 1px solid var(--ui-control-border);
+  border-radius: 8px;
+  padding: 9px 13px;
+  background: var(--ui-card);
+  color: var(--ui-ink);
+  font: inherit;
+  cursor: pointer;
+}
+.review button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.review ul {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+.financeAmounts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.financeAmounts span {
+  display: grid;
+  min-width: 120px;
+  border: 1px solid var(--ui-line);
+  border-radius: 8px;
+  padding: 9px;
+  font-size: 12px;
+  color: var(--ui-muted);
+}
+.financeAmounts strong {
+  color: var(--ui-ink);
+  font-size: 16px;
+}
+.scroll {
+  overflow-x: auto;
+}
+.scroll table {
+  width: 100%;
+}
+.scroll th,
+.scroll td {
+  white-space: nowrap;
+}
+.actions {
+  border: 1px solid var(--ui-line);
+  border-radius: 12px;
+  padding: 15px;
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+}
+.actions button {
+  border: 1px solid var(--ui-control-border);
+  border-radius: 8px;
+  padding: 9px 13px;
+  background: var(--ui-card);
+  color: var(--ui-ink);
+  font: inherit;
+  cursor: pointer;
+}
+.actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.formRow {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.verification {
+  width: 100%;
+  border-top: 1px solid var(--ui-line);
+  padding-top: 10px;
+}
+.verification summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+.verification form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.evidenceUpload {
+  width: 100%;
+  border-top: 1px solid var(--ui-line);
+  padding-top: 10px;
+}
+.evidenceUpload label {
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+}
+.evidenceUpload input {
+  max-width: 100%;
+}
+.evidenceUpload p {
+  overflow-wrap: anywhere;
+}
+.verification label {
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+}
+.verification input,
+.verification select {
+  min-height: 38px;
+  min-width: 0;
+  border: 1px solid var(--ui-control-border);
+  background: var(--ui-card);
+  color: var(--ui-ink);
+  border-radius: 8px;
+  padding: 7px;
+  font: inherit;
+}
+.error {
+  color: var(--danger, #b42318);
+}
+
+/* Internal content shares the parent surface; use dividers for hierarchy. */
+.evidenceSection .evidenceCard, .review .financeAmounts, .actions { border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+.evidenceSection .evidenceCard { padding: 14px 0; border-bottom: 1px solid var(--ui-line); }
+.actions { padding-inline: 0; border-top: 1px solid var(--ui-line); }
+.financeAmounts span { border: 0; border-radius: 0; padding-inline: 0; }
+
+/* The enclosing widget already supplies this section's surface. */
+:global([data-slot="widget-content"]) > .evidenceSection {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}

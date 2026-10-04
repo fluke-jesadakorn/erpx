@@ -1,0 +1,25 @@
+import { expect, test } from "@playwright/test";
+test.beforeEach(async ({baseURL}) => { test.skip(!baseURL || !["localhost","127.0.0.1","console-dev-erpx.jesadakorn.com"].includes(new URL(baseURL).hostname), "Development gallery only"); });
+test("shared popup keyboard behavior works inside a dirty form drawer", async ({page}) => {
+ await page.goto("/dev/ui");
+ await page.getByRole("button",{name:"Record actions",exact:true}).click();
+ await page.getByRole("menuitem",{name:"Review record",exact:true}).press("Enter");
+ await expect(page.getByTestId("standard-menu-result")).toHaveText("Reviewed");
+ await page.getByRole("tab",{name:"Summary",exact:true}).press("ArrowRight");
+ await expect(page.getByRole("tab",{name:"History",exact:true})).toHaveAttribute("aria-selected","true");
+ await page.getByRole("button",{name:"Open standard drawer",exact:true}).click();
+ await page.getByLabel("Standard draft",{exact:true}).fill("ฉบับร่างที่ยังไม่ได้บันทึก");
+ await page.getByRole("button",{name:"Open Standard department",exact:true}).click();
+ await expect(page.getByRole("option",{name:"People · ฝ่ายบุคคล",exact:true})).toBeVisible();
+ await page.getByRole("option",{name:"People · ฝ่ายบุคคล",exact:true}).click();
+ await expect(page.getByTestId("standard-department-value")).toHaveText("people");
+ await page.getByLabel("Standard draft",{exact:true}).press("Escape");
+ const confirmation=page.getByRole("dialog",{name:"Discard changes?",exact:true});
+ await expect(confirmation).toBeVisible();
+ await confirmation.getByRole("button",{name:"Keep editing",exact:true}).click();
+ await expect(page.getByLabel("Standard draft",{exact:true})).toHaveValue("ฉบับร่างที่ยังไม่ได้บันทึก");
+ await page.keyboard.press("Escape");
+ await confirmation.getByRole("button",{name:"Discard draft",exact:true}).click();
+ await expect(page.getByRole("dialog",{name:"Standard editor",exact:true})).toBeHidden();
+ await expect(page.getByRole("button",{name:"Open standard drawer",exact:true})).toBeFocused();
+});

@@ -880,6 +880,7 @@ export async function grantIamAccess(
   key: string,
 ) {
   db = iamDb(db);
+  input = { ...input };
   const target = await (
     await runtimeEnv()
   ).CONTROL_DB.prepare('SELECT id FROM "user" WHERE id=?')

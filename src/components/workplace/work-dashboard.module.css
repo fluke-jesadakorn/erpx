@@ -1,25 +1,12 @@
-.tabs > a {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 8px;
+.personal {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: 16px;
 }
-
-.count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 24px;
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: var(--card);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 18px;
-  font-variant-numeric: tabular-nums;
+.personal a {
+  padding: 20px;
 }
-
-.tabs > a[aria-current="page"] .count {
-  background: var(--brand-soft);
-  color: var(--brand);
+.personal p {
+  color: var(--ui-muted);
+  font-size: 14px;
 }

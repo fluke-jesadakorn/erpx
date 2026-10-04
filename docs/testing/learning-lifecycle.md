@@ -1,5 +1,7 @@
 # Learning — lifecycle จำลอง
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 ## Flow ที่ทำงานแล้ว
 
 - Course catalog เก็บ title, provider, duration, content description และ optional eligibility code เป็น versioned draft; ผู้สร้าง publish เองไม่ได้และ reviewer ต้องมีสิทธิ์ปัจจุบัน

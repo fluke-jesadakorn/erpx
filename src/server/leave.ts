@@ -408,7 +408,8 @@ async function decide(
         bindingContract: {
           targetType: "leave_request",
           bindingType: "leave_approval",
-          contexts: ["medical_certificate", "leave_supporting_photo"].map(purposeKey => ({ purposeKey, componentKind: "record" as const, componentRef: `leave-evidence:${purposeKey}` })),
+          contexts: ["medical_certificate", "leave_supporting_photo"].flatMap(purposeKey =>
+            (["record", "action"] as const).map(componentKind => ({ purposeKey, componentKind, componentRef: `leave-evidence:${purposeKey}` }))),
         },
         targetId: id,
         expectedTargetVersion: input.expectedVersion,

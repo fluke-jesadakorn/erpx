@@ -1,3 +1,4 @@
+import {createEngineeringBrowserContext} from './helpers/engineering-browser-evidence';
 import { createHmac } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -83,9 +84,9 @@ test("Demo invitation activates a separate account and revocation removes access
   test.skip(!run, "Use an exact isolated Demo run; this test creates one disposable employee.");
   test.setTimeout(180_000);
   const credentials = JSON.parse(await readFile(resolve(`.runtime/browser/${run}/credentials.json`), "utf8")) as Credentials;
-  const ownerContext = await browser.newContext(testInfo.project.use);
-  const reviewerContext = await browser.newContext(testInfo.project.use);
-  const inviteeContext = await browser.newContext(testInfo.project.use);
+  const ownerContext = await createEngineeringBrowserContext(browser,testInfo);
+  const reviewerContext = await createEngineeringBrowserContext(browser,testInfo);
+  const inviteeContext = await createEngineeringBrowserContext(browser,testInfo);
   [ownerContext, reviewerContext, inviteeContext].forEach((context) => context.setDefaultTimeout(15_000));
   const ownerPage = await ownerContext.newPage();
   const reviewerPage = await reviewerContext.newPage();
@@ -149,11 +150,12 @@ test("Demo invitation activates a separate account and revocation removes access
     await ownerPage.goto(`${base}/people/${personId}?tab=access`);
 
     await ownerPage.goto(`${base}/people/${personId}?tab=access`);
-    await ownerPage.getByText("Invite to ERPX", { exact: true }).click();
-    await ownerPage.locator('select[name="role"]').selectOption("employee");
-    await ownerPage.getByLabel("Access expires", { exact: true }).fill("2030-01-01");
-    await ownerPage.getByRole("button", { name: "Create activation link", exact: true }).click();
-    const link = ownerPage.getByLabel("Activation link (expires in 48 hours)", { exact: true });
+    const access = ownerPage.locator('#workspace-content [data-feature-widget="person-access"]');
+    await access.locator("summary").filter({ hasText: /^Invite to ERPX$/ }).click();
+    await access.locator('select[name="role"]').selectOption("employee");
+    await access.getByLabel("Access expires", { exact: true }).fill("2030-01-01");
+    await access.getByRole("button", { name: "Create activation link", exact: true }).click();
+    const link = access.getByLabel("Activation link (expires in 48 hours)", { exact: true });
     await expect(link).toHaveValue(/\/activate\?token=/);
     activationLink = await link.inputValue();
 
@@ -165,7 +167,7 @@ test("Demo invitation activates a separate account and revocation removes access
     await reviewerPage.goto(`${base}/people/settings?section=reviews&refresh=${Date.now()}`);
     await expect(reviewerPage.locator("[data-work-stale]")).toHaveAttribute("data-work-stale", "false");
     await reviewerPage.goto(`${base}/people/settings?section=reviews`);
-    const invitation = reviewerPage.locator("article").filter({ hasText: "Authorize an employee invitation and initial grant." }).first();
+    const invitation = reviewerPage.locator("#workspace-content article").filter({ hasText: "Authorize an employee invitation and initial grant." }).first();
     await expect(invitation).toBeVisible();
     await invitation.locator('select[name="decision"]').selectOption("approve");
     await invitation.locator('textarea[name="reason"]').fill("Reviewed the employee identity and least-privilege scope.");
@@ -178,8 +180,8 @@ test("Demo invitation activates a separate account and revocation removes access
     await inviteePage.getByLabel("Confirm password", { exact: true }).fill(employeePassword);
     await inviteePage.getByRole("button", { name: "Activate account", exact: true }).click();
     await expect(inviteePage).toHaveURL(/\/login$/);
-    await inviteePage.getByLabel("Work email", { exact: true }).fill(employeeEmail);
-    await inviteePage.getByLabel("Password", { exact: true }).fill(employeePassword);
+    await inviteePage.getByRole("textbox", { name: "Work email", exact: true }).fill(employeeEmail);
+    await inviteePage.getByLabel(/^Password(?:\s*\*)?$/).fill(employeePassword);
     await inviteePage.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(inviteePage).toHaveURL(new RegExp(`${base}/(?:branches/[^/]+/)?home$|/work-role\\?`));
     if (inviteePage.url().includes("/work-role")) {
@@ -190,13 +192,14 @@ test("Demo invitation activates a separate account and revocation removes access
     await expect(inviteePage.getByRole("main")).toBeVisible();
 
     await ownerPage.goto(`${base}/people/${personId}?tab=access`);
-    await ownerPage.getByRole("button", { name: "Revoke role", exact: true }).click();
-    await expect(ownerPage.getByRole("button", { name: "Revoke role", exact: true })).toHaveCount(0);
-    await inviteePage.goto(`${base}/home`);
-    await expect(inviteePage).toHaveURL(/\/access\?reason=permission|\/login|\/work-role\?/);
-    if (inviteePage.url().includes("/work-role")) {
-      await expect(inviteePage.getByText("No active roles are available.", { exact: false })).toBeVisible();
-    }
+    await access.getByRole("button", { name: "Revoke role", exact: true }).click();
+    await expect(access.getByRole("button", { name: "Revoke role", exact: true })).toHaveCount(0);
+    const revokedNavigation = await inviteePage.goto(`${base}/home`);
+    expect(revokedNavigation?.status(), "revoked employee cannot open the protected home").toBe(403);
+    const denied = inviteePage.getByRole("region", { name: "Your role cannot open this view", exact: true });
+    await expect(denied).toHaveCount(1);
+    await expect(denied.getByRole("heading", { name: "Your role cannot open this view", exact: true })).toBeVisible();
+    await expect(inviteePage.locator("#workspace-content")).toHaveCount(0);
     await testInfo.attach("identity-activation-revocation-result", {
       contentType: "application/json",
       body: JSON.stringify({ run, employeeEmail, personId, ownerRole: "holding_owner", reviewerRole: "holding_owner", reviewerEmail: reviewer!.email, activated: true, revokedImmediately: true }, null, 2),

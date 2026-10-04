@@ -1,5 +1,7 @@
 # ยกเลิก quality hold ที่สร้างผิดก่อนตรวจ
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 เปิด Quality → hold → Request cancellation พร้อมเหตุผล. ระหว่างรออนุมัติ สินค้ายังถูกกัก ห้ามจองหรือส่งออก และการตรวจต้องรอให้ผู้จัดการตัดสินคำขอยกเลิกก่อน.
 
 Quality manager ที่ไม่ใช่ผู้สร้าง hold หรือผู้ขอยกเลิก เลือก reject เพื่อกลับไปตรวจตามปกติ หรือ approve เพื่อยกเลิก hold นี้. เก็บทุกคำขอและคำตัดสินแบบ immutable พร้อม actor/version/reason. ไม่สร้างผล pass ปลอม ไม่ลบ hold และไม่เปลี่ยนจำนวน/มูลค่าสต็อกหรือ GL.

@@ -82,10 +82,8 @@ export function HierarchyTree({
                 focus(next);
               } else if (e.key === "ArrowRight") {
                 e.preventDefault();
-                if (node.childCount && !expanded.has(node.id))
-                  toggle(node.id, true);
-                else if (visible[index + 1]?.level > level)
-                  focus(visible[index + 1].node.id);
+                if (node.childCount && !expanded.has(node.id)) toggle(node.id, true);
+                else if (visible[index + 1]?.level > level) focus(visible[index + 1].node.id);
               } else if (e.key === "ArrowLeft") {
                 e.preventDefault();
                 if (expanded.has(node.id)) toggle(node.id, false);
@@ -94,10 +92,7 @@ export function HierarchyTree({
                 e.preventDefault();
                 onSelect(node.id);
               } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-                const match = [
-                  ...visible.slice(index + 1),
-                  ...visible.slice(0, index),
-                ].find((v) =>
+                const match = [...visible.slice(index + 1), ...visible.slice(0, index)].find((v) =>
                   v.node.label.toLowerCase().startsWith(e.key.toLowerCase()),
                 );
                 if (match) focus(match.node.id);

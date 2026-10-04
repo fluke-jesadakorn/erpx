@@ -1,5 +1,7 @@
 # Acme staffing and workflow test data — 2026-09-14
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 เพิ่มพนักงานจำลอง **Acme Corporation บริษัทเดียว 92 คน** รวมกับเดิม 20 คนเป็น **112 โปรไฟล์** ใน Bangkok และ New York เก็บโปรไฟล์เดิม สายรายงานเดิม สิทธิ์เดิม และข้อมูล Beacon / Northstar ไว้ทั้งหมด
 
 ## โครงสร้าง

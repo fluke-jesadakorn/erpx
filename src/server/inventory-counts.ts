@@ -13,7 +13,7 @@ import { decimalToMinor,minorToDecimal } from "@/lib/finance-money";
 import { scaledAmount } from "@/lib/commerce-math";
 import { sha256 } from "./crypto";
 import { ApiError } from "./http";
-import { prepareAttachmentBinding } from "./attachments/service";
+import {prepareBusinessEvidence} from "./business-evidence";
 export type CountRow=Record<string,string|number|null>;
 export const countSchema=z.object({
   warehouseId:z.string().min(1),countDate:z.iso.date(),reason:z.string().trim().min(5).max(2000),
@@ -34,8 +34,8 @@ export async function listCounts(actor:WorkContext){
 export async function countsPage(actor:WorkContext,query:{q?:string;status?:string;cursor?:string}) {
   readable(actor);const {write}=await holdingResources(actor.holdingId);
   return readListPage<CountRow & {id:string;page_key:string}>(write,{
-    sql:`SELECT c.*,w.name warehouse_name,s.currency,c.updated_at::text AS page_key FROM inventory_counts c
-      JOIN commerce_warehouses w ON w.id=c.warehouse_id JOIN commerce_settings s ON s.company_id=c.company_id
+    sql:`SELECT c.*,w.name warehouse_name,chart.base_currency currency,c.updated_at::text AS page_key FROM inventory_counts c
+      JOIN commerce_warehouses w ON w.id=c.warehouse_id JOIN commerce_settings s ON s.company_id=c.company_id JOIN finance_charts chart ON chart.id=s.chart_id AND chart.company_id=s.company_id
       WHERE c.company_id=? AND (?::text IS NULL OR c.branch_id=?) AND (?='' OR c.status=?)
       AND (?='' OR strpos(lower(c.number||' '||w.name||' '||c.reason),lower(?))>0)`,
     args:[actor.companyId,actor.branchId,actor.branchId,query.status??'',query.status??'',query.q??'',query.q??''],
@@ -44,7 +44,7 @@ export async function countsPage(actor:WorkContext,query:{q?:string;status?:stri
 }
 export async function getCount(actor:WorkContext,id:string){
   readable(actor);const {write}=await holdingResources(actor.holdingId);
-  const row=await write.prepare("SELECT c.*,w.name warehouse_name,s.currency FROM inventory_counts c JOIN commerce_warehouses w ON w.id=c.warehouse_id JOIN commerce_settings s ON s.company_id=c.company_id WHERE c.id=? AND c.company_id=? AND (?::text IS NULL OR c.branch_id=?)").bind(id,actor.companyId,actor.branchId,actor.branchId).first<CountRow>();
+  const row=await write.prepare("SELECT c.*,w.name warehouse_name,chart.base_currency currency FROM inventory_counts c JOIN commerce_warehouses w ON w.id=c.warehouse_id JOIN commerce_settings s ON s.company_id=c.company_id JOIN finance_charts chart ON chart.id=s.chart_id AND chart.company_id=s.company_id WHERE c.id=? AND c.company_id=? AND (?::text IS NULL OR c.branch_id=?)").bind(id,actor.companyId,actor.branchId,actor.branchId).first<CountRow>();
   if(!row)throw new ApiError(404,"COUNT_NOT_FOUND","Stock count not found in your workspace.");return row;
 }
 export async function countDetail(actor:WorkContext,id:string){
@@ -65,7 +65,7 @@ export async function countOptions(actor:WorkContext){
     write.prepare("SELECT id,sku,name,unit,tracking_mode FROM commerce_products WHERE company_id=? AND status='active' ORDER BY sku").bind(actor.companyId).all<CountRow>(),
     write.prepare("SELECT s.* FROM commerce_stock s JOIN commerce_warehouses w ON w.id=s.warehouse_id WHERE w.company_id=? AND (?::text IS NULL OR w.branch_id=?)").bind(actor.companyId,actor.branchId,actor.branchId).all<CountRow>(),
     write.prepare("SELECT l.*,b.warehouse_id,b.quantity_milli,b.value_minor,b.version balance_version FROM inventory_lots l JOIN inventory_lot_balances b ON b.lot_id=l.id JOIN commerce_warehouses w ON w.id=b.warehouse_id WHERE l.company_id=? AND b.quantity_milli>0 AND (?::text IS NULL OR w.branch_id=?) ORDER BY l.expiry_date NULLS LAST,l.created_at,l.id").bind(actor.companyId,actor.branchId,actor.branchId).all<CountRow>(),
-    write.prepare("SELECT currency FROM commerce_settings WHERE company_id=?").bind(actor.companyId).first<{currency:string}>(),
+    write.prepare("SELECT c.base_currency currency FROM commerce_settings s JOIN finance_charts c ON c.id=s.chart_id AND c.company_id=s.company_id WHERE s.company_id=?").bind(actor.companyId).first<{currency:string}>(),
   ]);return {warehouses:warehouses.results,products:products.results,stock:stock.results,lots:lots.results,currency:settings?.currency??""};
 }
 function countGuard(db:SqlDatabase,key:string,row:CountRow,version:number,statuses:string[]){return assertion(db,key,"count-version",`EXISTS(SELECT 1 FROM inventory_counts WHERE id=? AND company_id=? AND version=? AND status IN (${statuses.map(()=>"?").join(",")}))`,[row.id,row.company_id,version,...statuses]);}
@@ -146,7 +146,7 @@ export async function transitionCount(actor:WorkContext,id:string,action:"submit
   if(action!=="submit"&&!input.reason)throw new ApiError(422,"REASON_REQUIRED","Record the reason for this decision.");
   const status=action==="submit"?"submitted":action==="post"?"posted":action==="approve"?"approved":action==="reject"?"rejected":"cancelled",now=Date.now();
   const steps=[countGuard(write,key,count,input.expectedVersion,action==="post"?["approved"]:action==="approve"?["submitted"]:review?["submitted","approved"]:["draft","rejected"])];let journalId:string|null=null,remainingHoldSteps:SqlStatement[]=[];
-  const attachmentBinding=action==="submit"&&input.attachmentSetIds.length?await prepareAttachmentBinding(write,actor,{attachmentSetIds:input.attachmentSetIds,bindingContract:{targetType:"stock_count",bindingType:"stock_count_submission",contexts:["count_sheet","count_photo","count_evidence"].map(purposeKey=>({purposeKey,componentKind:"action" as const,componentRef:"submit"}))},targetId:id,expectedTargetVersion:input.expectedVersion,commandId:key,bindingId:`count-submit-${key}`}):null;
+  const attachmentBinding=action==="submit"?await prepareBusinessEvidence(write,actor,{attachmentSetIds:input.attachmentSetIds,targetTypes:["stock_count","inventory_stock_count"],bindingType:"stock_count_submission",contexts:["count_sheet","count_photo","count_evidence"].map(purposeKey=>({purposeKey,componentKind:"action" as const,componentRef:"submit"})),targetId:id,expectedTargetVersion:input.expectedVersion,commandId:key,bindingId:`count-submit-${key}`}):null;
   if(attachmentBinding)steps.push(...attachmentBinding.guards);
   if(action==="submit"||action==="approve"||action==="post"){
     if(!lines.length)throw new ApiError(409,"EMPTY_COUNT","Enter the counted products first.");
@@ -164,7 +164,7 @@ export async function transitionCount(actor:WorkContext,id:string,action:"submit
     }
   }
   if(action==="post"){
-    const config=await write.prepare("SELECT s.*,a.id variance_account_id FROM commerce_settings s JOIN finance_accounts a ON a.chart_id=s.chart_id AND a.company_id=s.company_id AND a.code='5400' AND a.category='expense' AND a.status='active' WHERE s.company_id=?").bind(actor.companyId).first<CountRow>();if(!config)throw new ApiError(409,"VARIANCE_MAPPING_REQUIRED","Configure the stock count variance account (5400) in the operations ledger.");
+    const config=await write.prepare("SELECT s.*,c.base_currency currency,a.id variance_account_id FROM commerce_settings s JOIN finance_charts c ON c.id=s.chart_id AND c.company_id=s.company_id JOIN finance_accounts a ON a.chart_id=s.chart_id AND a.company_id=s.company_id AND a.currency=c.base_currency AND a.code='5400' AND a.category='expense' AND a.status='active' WHERE s.company_id=?").bind(actor.companyId).first<CountRow>();if(!config)throw new ApiError(409,"VARIANCE_MAPPING_REQUIRED","Configure the stock count variance account (5400) in the operations ledger.");
     const periods=await write.prepare("SELECT id FROM finance_periods WHERE company_id=? AND state='open' AND start_date<=? AND end_date>=?").bind(actor.companyId,count.count_date,count.count_date).all<CountRow>();if(periods.results.length!==1)throw new ApiError(409,"PERIOD_UNAVAILABLE","Exactly one open period must cover the count date.");
     if(qualityHold){
       const heldQuantity=Number(qualityHold.held_quantity_milli??0),dispositionQuantity=Number(qualityHold.disposition_quantity_milli??0),remainingQuantity=heldQuantity-dispositionQuantity;

@@ -4,6 +4,7 @@ import {
   featureSpecs,
   featureKinds,
   parseFeature,
+  privacyDecisionError,
   type FeatureRow,
   type FeatureSpec,
 } from "@/lib/legal/features";
@@ -215,6 +216,7 @@ export async function featureCommand(
         "remediation",
         "in_progress",
         "received",
+        "awaiting_information",
         "assessed",
         "requested",
         "pending",
@@ -248,6 +250,12 @@ export async function featureCommand(
             "LEGAL_INDEPENDENT_REVIEW",
             403,
           );
+        if (x.data && Object.entries(x.data).some(([field, value]) => field !== "evidence" && value !== (row.data[field] ?? "")))
+          fail("Return substantive changes for a new independent review.", "LEGAL_REVIEW_CONTENT_CHANGED", 409);
+      }
+      if (x.category === "privacy_case") {
+        const error = privacyDecisionError(data, state);
+        if (error) fail(error, "LEGAL_PRIVACY_REVIEW_REQUIRED", 409);
       }
       if (
         x.category === "counsel_entry" &&
@@ -279,6 +287,8 @@ export async function featureCommand(
           );
       }
     }
+    if (x.category === "privacy_case" && row.data.knownAt && data.knownAt !== row.data.knownAt && !x.reason.trim())
+      fail("Explain the correction to the known event time.", "LEGAL_PRIVACY_CORRECTION_REQUIRED", 409);
     snapshot = {
       ...row,
       state,

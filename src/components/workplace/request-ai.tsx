@@ -1,4 +1,7 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { Button } from "@/components/ui/foundation";
 
 import { workFetch } from "@/lib/work-fetch";
 import { useEffect, useState } from "react";
@@ -54,8 +57,7 @@ export function RequestAi({
             timer = setTimeout(() => void load(), 2500);
         }
       } catch (e) {
-        if (current)
-          setError(e instanceof Error ? e.message : "AI is unavailable.");
+        if (current) setError(e instanceof Error ? e.message : "AI is unavailable.");
       }
     }
     void load();
@@ -73,14 +75,8 @@ export function RequestAi({
         };
       if (!r.ok) throw Error(body.error?.message ?? "AI is unavailable.");
       setStatus(body.data);
-      if (
-        body.data.state !== "ready" ||
-        body.data.sourceVersion !== version ||
-        !body.data.result
-      )
-        throw Error(
-          "The source changed. Prepare new suggestions before applying them.",
-        );
+      if (body.data.state !== "ready" || body.data.sourceVersion !== version || !body.data.result)
+        throw Error("The source changed. Prepare new suggestions before applying them.");
       window.dispatchEvent(
         new CustomEvent("erpx:request-ai", {
           detail: {
@@ -100,10 +96,10 @@ export function RequestAi({
     <details className={`card ${styles.details}`}>
       <summary>AI preparation</summary>
       <p className={styles.quiet}>
-        Suggests wording and a service category from the saved request text.
-        Review suggestions before using them.
+        Suggests wording and a service category from the saved request text. Review suggestions
+        before using them.
       </p>
-      {status?.unavailable && <p role="status">{status.unavailable}</p>}
+      {status?.unavailable && <InlineNotice tone="info" role="status">{status.unavailable}</InlineNotice>}
       {status?.result && (
         <>
           <p className={styles.article}>{status.result.summary}</p>
@@ -111,37 +107,32 @@ export function RequestAi({
             Source: this saved request, version {status.sourceVersion}.
           </p>
           {editable &&
-            (
-              [
-                "title",
-                "description",
-                ...(kind === "service" ? ["category"] : []),
-              ] as const
-            ).map((name) => {
-              const value =
-                status.result?.[name as "title" | "description" | "category"];
-              return value ? (
-                <div className={styles.history} key={name}>
-                  <strong>Suggested {name}</strong>
-                  <p>{value}</p>
-                  <button
-                    type="button"
-                    className="button secondary"
-                    onClick={() =>
-                      void apply(name as "title" | "description" | "category")
-                    }
-                  >
-                    Use suggested {name}
-                  </button>
-                </div>
-              ) : null;
-            })}
+            (["title", "description", ...(kind === "service" ? ["category"] : [])] as const).map(
+              (name) => {
+                const value = status.result?.[name as "title" | "description" | "category"];
+                return value ? (
+                  <div className={styles.history} key={name}>
+                    <strong>Suggested {name}</strong>
+                    <p>{value}</p>
+                    <Button appearance="standard"
+                      variant="secondary"
+                      type="button"
+
+                      onClick={() => void apply(name as "title" | "description" | "category")}
+                    >
+                      Use suggested {name}
+                    </Button>
+                  </div>
+                ) : null;
+              },
+            )}
         </>
       )}
       {status?.allowed && (
-        <button
+        <Button appearance="standard"
+          variant="secondary"
           type="button"
-          className="button secondary"
+
           disabled={
             !ready ||
             command.busy ||
@@ -160,13 +151,13 @@ export function RequestAi({
             : status.state === "failed"
               ? "Retry AI preparation"
               : "Prepare with AI"}
-        </button>
+        </Button>
       )}
       {(error || command.error || status?.error) && (
-        <p role="alert">
-          {error || command.error || status?.error} Your saved request and
-          manual edits are preserved.
-        </p>
+        <InlineNotice tone="danger" role="alert">
+          {error || command.error || status?.error} Your saved request and manual edits are
+          preserved.
+        </InlineNotice>
       )}
     </details>
   );

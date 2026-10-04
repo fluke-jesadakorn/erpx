@@ -1,5 +1,7 @@
 # Talent lifecycle simulation
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 สถานะนี้เป็น **owner implementation บนข้อมูลจำลอง** สำหรับ S17/G16 ยังไม่ใช่ candidate portal, production หรือ business sign-off
 
 ## Flow ที่ส่งมอบ
@@ -18,4 +20,3 @@
 - `tests/talent.test.ts` ตรวจ complete lifecycle, privacy, stale source, self-review, owner revocation/reassignment และ immutable handoff
 - regression รวม People lifecycle, Work views และ migration replay: `docs/testing/evidence/2026-09-20-talent-tests.txt`
 - ยังเหลือ candidate self-service/verified email, interview scheduling/Calendar, offer e-signature/background check, People onboarding consumer, retention erasure/export, browser หลายบทบาท, UAT และ production sign-off
-

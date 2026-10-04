@@ -1,5 +1,7 @@
 # List loading audit and implementation — 2026-09-18
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 The investigation found that the main list routes already use Next.js Server Components. The expensive part is their data loading: whole-workspace reads, options for unopened editors, per-record lookups, and client polling. Moving another component to the server alone does not bound those costs.
 
 ## Implemented

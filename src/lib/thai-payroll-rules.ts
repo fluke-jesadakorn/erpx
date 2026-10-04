@@ -29,6 +29,10 @@ export type ThaiPayrollCalculation = {
   payDate: string;
   regularTaxableMinor: number;
   irregularTaxableMinor: number;
+  /** Actual prior occasional income in this tax year (RD ป.96/2543 example 4). */
+  irregularPaidBeforeMinor?: number;
+  /** Occurrences of this occasional payment; a one-off bonus has one, not twelve. */
+  irregularOccurrencesInYear?: number;
   /** One-time retirement/severance income has separate treatment and is not handled by ป.96/2543. */
   terminationSeveranceMinor?: number;
   nonTaxableMinor: number;
@@ -151,9 +155,14 @@ export function calculateThaiPayroll(input: ThaiPayrollCalculation, rules: ThaiP
   const withheldBefore = money(input.taxWithheldBeforeMinor, "taxWithheldBeforeMinor");
   const pays = BigInt(input.scheduledPaysInYear);
   const ordinaryAnnualTax = annualTax(regular * pays, deductions, rules);
-  const withIrregularAnnualTax = annualTax((regular + irregular) * pays, deductions, rules);
+  const irregularBefore = money(input.irregularPaidBeforeMinor ?? 0, "irregularPaidBeforeMinor");
+  if (!Number.isInteger(input.irregularOccurrencesInYear ?? 1) || (input.irregularOccurrencesInYear ?? 1) < 1 || (input.irregularOccurrencesInYear ?? 1) > 12) {
+    fail("INVALID_PAYROLL_INPUT", "Occasional income needs a verified occurrence count of 1–12.");
+  }
+  const beforeIrregularAnnualTax = annualTax(regular * pays + irregularBefore, deductions, rules);
+  const withIrregularAnnualTax = annualTax(regular * pays + irregularBefore + irregular * BigInt(input.irregularOccurrencesInYear ?? 1), deductions, rules);
   const regularWithholding = ordinaryAnnualTax / pays;
-  const irregularWithholding = withIrregularAnnualTax - ordinaryAnnualTax;
+  const irregularWithholding = withIrregularAnnualTax - beforeIrregularAnnualTax;
   const annualActualTax = annualTax(paidBefore + regular + irregular, deductions, rules);
   const tax = input.lastPayInYear ? annualActualTax - withheldBefore : regularWithholding + irregularWithholding;
   if (tax < BigInt(0)) fail("TAX_OVERWITHHELD_REVIEW", "Prior withholding exceeds final computed tax; an expert must review the correction.");
@@ -174,6 +183,7 @@ export function calculateThaiPayroll(input: ThaiPayrollCalculation, rules: ThaiP
     explanation: {
       ruleVersion: rules.version, ruleEffectiveFrom: rules.effectiveFrom, ruleEffectiveTo: rules.effectiveTo,
       ordinaryAnnualTaxMinor: safe(ordinaryAnnualTax), irregularAnnualTaxDifferenceMinor: safe(irregularWithholding),
+      irregularPaidBeforeMinor: safe(irregularBefore), irregularOccurrencesInYear: input.irregularOccurrencesInYear ?? 1,
       socialSecurityBaseMinor: safe(ssoBase), standardExpenseRateBps: rules.standardExpenseRateBps,
       scheduledPaysInYear: input.scheduledPaysInYear, lastPayInYear: input.lastPayInYear,
     },

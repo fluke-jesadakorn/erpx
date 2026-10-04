@@ -1,6 +1,11 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { Button, Field, TextInput } from "@/components/ui/foundation";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Card } from "@/components/ui/foundation";
 export function DirectoryLogin({
   id,
   name,
@@ -22,9 +27,7 @@ export function DirectoryLogin({
     setError("");
     try {
       const response = await fetch(
-        mode === "oidc"
-          ? "/api/auth/sign-in/social"
-          : "/api/auth/directory/sign-in",
+        mode === "oidc" ? "/api/auth/sign-in/social" : "/api/auth/directory/sign-in",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -40,8 +43,7 @@ export function DirectoryLogin({
         },
       );
       const r = await response.json();
-      if (!response.ok)
-        throw new Error(r.message ?? "Directory sign-in failed.");
+      if (!response.ok) throw new Error(r.message ?? "Directory sign-in failed.");
       if (r.url) window.location.assign(r.url);
       else {
         router.push(next);
@@ -54,40 +56,35 @@ export function DirectoryLogin({
     }
   }
   return (
-    <section className="card">
+    <Card as="section" appearance="standard" className="ui-panel">
       <h2>{name}</h2>
       <p>Use your approved corporate identity.</p>
       <form className="form" onSubmit={signIn}>
         {mode === "ldaps" && (
           <>
-            <label className="field">
+            <Field appearance="standard" className="field">
               Directory username
-              <input name="username" autoComplete="username" required />
-            </label>
-            <label className="field">
+              <TextInput appearance="standard" name="username" autoComplete="username" required />
+            </Field>
+            <Field appearance="standard" className="field">
               Directory password
-              <input
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-              />
-            </label>
+              <TextInput appearance="standard" name="password" type="password" autoComplete="current-password" required />
+            </Field>
           </>
         )}
         {error && (
-          <p className="error" role="alert">
+          <InlineNotice tone="danger" className="error" role="alert">
             {error}
-          </p>
+          </InlineNotice>
         )}
-        <button className="button" disabled={pending}>
+        <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending}>
           {pending
             ? "Connecting…"
             : mode === "oidc"
               ? "Continue to corporate sign-in"
               : "Sign in with directory"}
-        </button>
+        </Button>
       </form>
-    </section>
+    </Card>
   );
 }

@@ -54,9 +54,11 @@ The Thai starter pack contains six official-source review procedures and four or
 
 ## Verification and rollout
 
+> Recorded observations apply to their stated date/environment. Current coverage and remaining acceptance are in the [verification inventory](../../status/capability-delivery-matrix.md); old gaps do not override current owner behavior.
+
 Automated coverage includes organizational/confidential ACLs, stale writes/replay, shared sequential approvals, signer consent/MFA/order, immutable versions, all ten specialized workflow families, overlapping/cyclic holds, protected file paths, controlled destruction, imports, DOCX/PDF, enrollment tokens, governance/SLA, report/knowledge ACLs and reviewed AI acceptance. Separate Python fixtures cover trusted, unknown-revocation, revoked, expired and untrusted certificates. Native backup/restore integration was exercised.
 
-Browser checks use the existing authenticated session at `https://erpx.jesadakorn.com/holdings/acme/legal`. The fictional request and draft document are development fixtures; request information-response and report tables were exercised. No real external user was impersonated and no legal acceptance was fabricated.
+Browser checks use the existing authenticated session at `https://console-dev-erpx.jesadakorn.com/holdings/acme/legal`. The fictional request and draft document are development fixtures; request information-response and report tables were exercised. No real external user was impersonated and no legal acceptance was fabricated.
 
 Live rollout still requires legal-staff UAT, Company-specific trust/authority/retention review and real email/MFA onboarding verification. Failed uncommitted uploads can leave inaccessible private orphan bytes; no automatic orphan deletion is enabled. Full disaster-recovery and external-provider operational acceptance must be performed in the intended deployment environment. These are explicit acceptance boundaries, not claims of completed human review.
 

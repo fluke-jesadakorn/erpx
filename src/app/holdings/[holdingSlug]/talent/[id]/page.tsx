@@ -6,6 +6,7 @@ import { talentDetail } from "@/server/talent";
 import { TalentConsole } from "@/components/modules/talent-console";
 import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
 import { hasPermission } from "@/lib/permissions";
+import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Page({
   params,
@@ -19,7 +20,7 @@ export default async function Page({
     x = data.application,
     canReadDocuments = hasPermission(a, "talent.documents.read");
   return (
-    <div className="content-stack">
+    <PageContent as="div" className="ui-page-content">
       <Link href={`${base}/talent`}>Talent</Link>
       <h1>{String(x.candidate_name)}</h1>
       <p>
@@ -28,7 +29,7 @@ export default async function Page({
       </p>
       <TalentConsole base={base} detail={data} />
       {canReadDocuments && (
-        <RecordDocumentPanel
+        <RecordDocumentPanel appearance="standard"
           base={base}
           targetType="talent_candidate"
           targetId={String(x.candidate_id)}
@@ -62,7 +63,7 @@ export default async function Page({
         />
       )}
       {canReadDocuments && data.offer && (
-        <RecordDocumentPanel
+        <RecordDocumentPanel appearance="standard"
           base={base}
           targetType="talent_offer"
           targetId={String(data.offer.id)}
@@ -79,7 +80,7 @@ export default async function Page({
           ]}
         />
       )}
-      <section className="card">
+      <Card as="section" appearance="standard" className="ui-panel">
         <h2>Application history</h2>
         {data.history.map((h) => (
           <p key={String(h.id)}>
@@ -87,16 +88,16 @@ export default async function Page({
             {String(h.reason)}
           </p>
         ))}
-      </section>
+      </Card>
       {data.handoff && (
-        <section className="card">
+        <Card as="section" appearance="standard" className="ui-panel">
           <h2>Onboarding handoff</h2>
           <p>
             Open · accepted offer version{" "}
             {String(data.handoff.source_offer_version)}
           </p>
-        </section>
+        </Card>
       )}
-    </div>
+    </PageContent>
   );
 }

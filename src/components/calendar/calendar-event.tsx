@@ -1,4 +1,6 @@
 "use client";
+import { Button } from "@/components/ui/foundation";
+
 import type { CSSProperties, PointerEvent as ReactPointerEvent, PointerEventHandler } from "react";
 import { AlertCircle } from "lucide-react";
 import type { CalendarItem, CalendarLayer } from "@/lib/calendar";
@@ -14,6 +16,7 @@ export const layerNames: Record<CalendarLayer, string> = {
   quality_holds: "Quality holds",
   supplier_batches: "Supplier payments",
   refunds: "Refund instructions",
+  maintenance: "Maintenance and preventive due work",
   legal: "Legal deadlines",
   roster: "Shifts",
   leave: "Leave",
@@ -32,6 +35,7 @@ const palette: Record<CalendarLayer, [string, string, string]> = {
   quality_holds: ["#986327", "#fff3df", "#764a1a"],
   supplier_batches: ["#488775", "#ebf4ef", "#295d49"],
   refunds: ["#488775", "#ebf4ef", "#295d49"],
+  maintenance: ["#488775", "#ebf4ef", "#295d49"],
   legal: ["#6981c1", "#edf1fc", "#495f96"],
   roster: ["#488775", "#ebf4ef", "#295d49"],
   leave: ["#cf855b", "#fcf0e7", "#915832"],
@@ -57,8 +61,7 @@ export function eventTime(item: CalendarItem, zone: string) {
       minute: "2-digit",
       hourCycle: "h23",
     }).format(new Date(ms));
-  if (!item.endsAt || item.endsAt - item.startsAt <= 1)
-    return fmt(item.startsAt);
+  if (!item.endsAt || item.endsAt - item.startsAt <= 1) return fmt(item.startsAt);
   const dateInZone = (ms: number, timeZone: string) =>
     new Intl.DateTimeFormat("en-CA", {
       timeZone,
@@ -67,8 +70,7 @@ export function eventTime(item: CalendarItem, zone: string) {
       day: "2-digit",
     }).format(new Date(ms));
   const days = Math.round(
-    (Date.parse(dateInZone(item.endsAt, zone)) -
-      Date.parse(dateInZone(item.startsAt, zone))) /
+    (Date.parse(dateInZone(item.endsAt, zone)) - Date.parse(dateInZone(item.startsAt, zone))) /
       86400000,
   );
   return `${fmt(item.startsAt)}–${fmt(item.endsAt)}${days > 0 ? ` (+${days}d)` : ""}`;
@@ -95,7 +97,9 @@ export function CalendarEvent({
   compact?: boolean;
 }) {
   return (
-    <button
+    <Button
+      type="submit"
+      variant="plain"
       className={`${styles.event} ${dragging ? styles.dateDragging : ""}`}
       style={eventStyle(item.source)}
       data-calendar-event
@@ -115,7 +119,8 @@ export function CalendarEvent({
       )}
       {item.capacity !== undefined && (
         <small>
-          {item.assigned}/{item.capacity}{!compact && " assigned"}
+          {item.assigned}/{item.capacity}
+          {!compact && " assigned"}
         </small>
       )}
       {item.warnings.length > 0 && (
@@ -123,10 +128,22 @@ export function CalendarEvent({
           <AlertCircle size={11} /> {!compact && "Needs attention"}
         </small>
       )}
-      {resizeHandles && <>
-        <span className={styles.dateResizeHandle} data-edge="start" aria-label="Resize start date" onPointerDown={(event) => onResizePointerDown?.("start", event)} />
-        <span className={styles.dateResizeHandle} data-edge="end" aria-label="Resize end date" onPointerDown={(event) => onResizePointerDown?.("end", event)} />
-      </>}
-    </button>
+      {resizeHandles && (
+        <>
+          <span
+            className={styles.dateResizeHandle}
+            data-edge="start"
+            aria-label="Resize start date"
+            onPointerDown={(event) => onResizePointerDown?.("start", event)}
+          />
+          <span
+            className={styles.dateResizeHandle}
+            data-edge="end"
+            aria-label="Resize end date"
+            onPointerDown={(event) => onResizePointerDown?.("end", event)}
+          />
+        </>
+      )}
+    </Button>
   );
 }

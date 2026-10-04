@@ -910,9 +910,15 @@ it("runs every specialized register workflow to completion with evidence and rec
       ...(category === "counsel_entry"
         ? [{ entryType: "conflict" }]
         : category === "privacy_case"
-          ? [{ caseType: "subject_request" }]
+          ? [{ caseType: "subject_request", knownAt: "", riskLevel: "", notificationDecision: "", notificationBasis: "", identityVerification: "verified", missingInformation: "", thirdPartyData: "none", thirdPartyHandling: "", responseDecision: "provide", refusalReason: "" }]
           : category === "case_event"
             ? [{ eventType: "hearing" }]
+            : category === "corporate_action"
+              ? [{ actionType: "filing" }]
+              : category === "ip_action"
+                ? [{ actionType: "renewal" }]
+                : category === "schedule"
+                  ? [{ scheduleType: "delivery" }]
             : []),
     );
     if ("documentId" in childData) childData.documentId = doc.id;

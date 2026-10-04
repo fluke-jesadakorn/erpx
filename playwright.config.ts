@@ -17,10 +17,11 @@ export default defineConfig({
   use: {
     baseURL,
     launchOptions: {
-      args: ["--host-resolver-rules=MAP dev-pms.localhost 127.0.0.1,MAP dev-pos.localhost 127.0.0.1"],
+      args: ["--host-resolver-rules=MAP dev-pms.localhost 127.0.0.1,MAP dev-pos.localhost 127.0.0.1,MAP dev-erpx.localhost 127.0.0.1"],
     },
     trace: "retain-on-failure",
-    screenshot: "only-on-failure",
+    screenshot: process.env.ERPX_ENGINEERING_BROWSER_EVIDENCE === "1" ? "on" : "only-on-failure",
+    video: process.env.ERPX_ENGINEERING_BROWSER_EVIDENCE === "1" ? "on" : "off",
   },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },

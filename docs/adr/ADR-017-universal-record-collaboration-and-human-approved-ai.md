@@ -1,10 +1,10 @@
 # ADR-017: Universal record collaboration and human-approved AI
 
-> **Next.js era: Reconfirmed (2026-09-02) — still authoritative**
-> See `CUTOVER.md` (2026-09-02) and `ADR-020-nextjs-stack.md`.
+> **Retained architectural decision.** The delivery phases, Rust APIs and verification below describe the 2026-08 implementation. Current adapter coverage and executable owner workflows are in [the catalogue](../contracts/next/catalogue.md); no phase below certifies the present release.
+> See [cutover recovery](../../CUTOVER.md) and [ADR-020](ADR-020-nextjs-stack.md).
 
 
-- Status: Accepted; Phases 0-6 code-complete and locally verified; staged production rollout and external certification pending
+- Status: Accepted architectural intent; historical Phases 0–6 evidence remains date-scoped.
 - Date: 2026-08-21
 - Last verified: 2026-08-22
 

@@ -17,6 +17,10 @@ let f:Awaited<ReturnType<typeof expenseFixture>>,warehouse:string,supplier:strin
 beforeAll(async()=>{enableAttachmentV2ForTest();await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{
   f=await expenseFixture();
+  // Inventory, receipt clearing and counterparty controls must remain distinct
+  // so posted receipt/invoice/return journals prove actual stock and AP/AR.
+  for(const [suffix,category] of [['inventory','asset'],['clearing','liability'],['receivable','asset']] as const)await db.prepare("INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,?,?,?,'THB',1,1)").bind(`${f.company}-${suffix}`,f.company,f.chart,suffix,suffix,category).run();
+  await db.prepare('UPDATE commerce_settings SET inventory_account_id=?,clearing_account_id=?,receivable_account_id=? WHERE company_id=?').bind(`${f.company}-inventory`,`${f.company}-clearing`,`${f.company}-receivable`,f.company).run();
   for(const [actor,role] of [[f.head,'holding_owner'],[f.reviewer,'quality_inspector'],[f.manager,'quality_manager']] as const){actor.role=role;actor.branchId=null;actor.departmentId=null;actor.assignmentId=await f.grant(actor,role);}
   warehouse=String((await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Traceable warehouse'},key())).id);
   supplier=String((await saveMaster(f.owner,'parties',null,{kind:'supplier',code:key(),name:'Traceable supplier'},key())).id);

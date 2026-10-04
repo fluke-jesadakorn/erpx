@@ -1,4 +1,8 @@
-import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
+import { RecordSections } from "@/components/workplace/record-sections";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { ActionLink as UiActionLink } from "@/components/ui/foundation";
+import { FeaturePage, FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { PageHeader } from "@/components/ui/primitives";
 import { FlowPanel,documentFlow } from "@/components/workplace/flow-panel";
 import { RecordNextAction } from "@/components/workplace/record-next-action";
@@ -23,6 +27,7 @@ import { pageError } from "@/server/page-error";
 import { requestPageOptions } from "@/server/request-page";
 import { holdingResources } from "@/server/runtime";
 import Link from "next/link";
+import { Card } from "@/components/ui/foundation";
 export default async function RequestPage({
   params,
   searchParams,
@@ -46,7 +51,7 @@ export default async function RequestPage({
     : null;
   const back = new URLSearchParams(query.return ?? "");
   for (const key of [...back.keys()])
-    if (!["view", "q", "queue", "type", "responsibility"].includes(key))
+    if (!["view", "q", "queue", "type", "responsibility", "offset", "tracking"].includes(key))
       back.delete(key);
   const latestMessage = [...detail.events].reverse().find((e) => e.note);
   const flow = await documentFlow(actor,"request",id);
@@ -62,20 +67,20 @@ export default async function RequestPage({
       <Link href={`${base}/work${back.size ? `?${back}` : ""}`}>
         ← Back to Work
       </Link>
-      <PageHeader
+      <PageHeader appearance="standard"
         title={row.title || "Untitled request"}
         description={`${requestKinds.find(([id]) => id === row.kind)?.[1]} · ${categoryLabel(row.category)}`}
         action={<RequestState state={row.state} />}
-      /><FeatureTabs/><WidgetGrid pageKey="requests-detail">
+      /><RecordSections evidence={<RequestFiles base={base} detail={detail} />} history={<RequestHistory detail={detail} approverNames={approverNames} />}><WidgetGrid pageKey="requests-detail">
       <FlowPanel flow={flow} actor={actor} kind="request" id={id} base={base}/>
-      {purchaseProgress && <FeatureWidget id="requests-detail-purchase-progress" title="Purchase-to-payment progress"><PurchaseRequestProgress base={base} progress={purchaseProgress}/></FeatureWidget>}
+      {purchaseProgress && <FeatureWidget appearance="standard" id="requests-detail-purchase-progress" title="Purchase-to-payment progress"><PurchaseRequestProgress base={base} progress={purchaseProgress}/></FeatureWidget>}
       <section data-critical-notice><RecordNextAction flow={flow}/></section><RequestActions
         base={base}
         detail={{...detail,actions:detail.actions.filter(a=>flow.canAct||["edit","cancel","repair","comment","resource-request"].includes(a))}}
         userId={actor.userId}
         companyId={actor.companyId}
       />
-      <section className="card">
+      <Card as="section" appearance="standard" className="ui-panel">
         <div className={styles.status}>
           <div>
             <small>Responsible queue</small>
@@ -92,7 +97,7 @@ export default async function RequestPage({
           </div>
         </div>
         {detail.blockedReason && (
-          <div role="status">
+          <InlineNotice tone="info" role="status">
             <p>{detail.blockedReason}</p>
             {detail.actions.includes("repair") ? (
               <Link href={approvalAdminHref(base, "request", id)}>
@@ -109,10 +114,9 @@ export default async function RequestPage({
                 Review requester’s People setup
               </Link>
             </p>
-          </div>
+          </InlineNotice>
         )}
-      </section>
-      <RequestFiles base={base} detail={detail} />
+      </Card>
       {detail.actions.includes("edit") ? (
         <RequestEditor
           base={base}
@@ -122,8 +126,8 @@ export default async function RequestPage({
           returnTo={back.toString()}
         />
       ) : (
-        <FeatureWidget id="requests-detail-request-details" title="Request details"><section className="card">
-          
+        <FeatureWidget appearance="standard" id="requests-detail-request-details" title="Request details"><Card as="section" appearance="standard" className="ui-panel">
+
           <p className={styles.article}>{row.description}</p>
           {detail.items.map((item, i) => (
             <p key={i}>
@@ -141,21 +145,21 @@ export default async function RequestPage({
               {row.resolution}
             </p>
           )}
-        </section></FeatureWidget>
+        </Card></FeatureWidget>
       )}
       {latestMessage && (
-        <FeatureWidget id="requests-detail-latest-message" title="Latest message"><section className="card">
-          
+        <FeatureWidget appearance="standard" id="requests-detail-latest-message" title="Latest message"><Card as="section" appearance="standard" className="ui-panel">
+
           <p className={styles.article}>{latestMessage.note}</p>
-        </section></FeatureWidget>
+        </Card></FeatureWidget>
       )}
-      <RequestAi
+      <details><summary>Ask AI about this request</summary><RequestAi
         base={base}
         id={id}
         version={row.version}
         kind={row.kind}
         editable={detail.actions.includes("edit")}
-      />
+      /></details>
 
       {row.kind === "purchase" &&
         ![
@@ -166,8 +170,8 @@ export default async function RequestPage({
           "rejected",
           "cancelled",
         ].includes(row.state) && (
-          <FeatureWidget id="requests-detail-purchasing-handoff" title="Purchasing handoff"><section className="card">
-            
+          <FeatureWidget appearance="standard" id="requests-detail-purchasing-handoff" title="Purchasing handoff"><Card as="section" appearance="standard" className="ui-panel">
+
             {actor.beta ? (
               <p>
                 Purchasing execution is unavailable in this beta workspace. Your
@@ -197,13 +201,13 @@ export default async function RequestPage({
             <p className={styles.quiet}>
               Existing purchasing, stock, and finance permissions apply.
             </p>
-          </section></FeatureWidget>
+          </Card></FeatureWidget>
         )}
       {(detail.actions.includes("resource-request") ||
         row.parent_request_id ||
         detail.children.length > 0) && (
-        <FeatureWidget id="requests-detail-related-requests" title="Related requests"><section className="card">
-          
+        <FeatureWidget appearance="standard" id="requests-detail-related-requests" title="Related requests"><Card as="section" appearance="standard" className="ui-panel">
+
           {row.parent_request_id && (
             <Link href={`${base}/requests/${row.parent_request_id}`}>
               Original service request
@@ -217,23 +221,22 @@ export default async function RequestPage({
           ))}
           {detail.actions.includes("resource-request") && (
             <div className={styles.actions}>
-              <Link
-                className="button secondary"
+              <UiActionLink appearance="standard" variant="secondary"
+
                 href={`${base}/work?new=equipment_request&from=${row.id}`}
               >
                 Request equipment
-              </Link>
-              <Link
-                className="button secondary"
+              </UiActionLink>
+              <UiActionLink appearance="standard" variant="secondary"
+
                 href={`${base}/work?new=purchase_request&from=${row.id}`}
               >
                 Request purchase
-              </Link>
+              </UiActionLink>
             </div>
           )}
-        </section></FeatureWidget>
+        </Card></FeatureWidget>
       )}
-      <RequestHistory detail={detail} approverNames={approverNames} />
-    </WidgetGrid></FeaturePage>
+    </WidgetGrid></RecordSections></FeaturePage>
   );
 }

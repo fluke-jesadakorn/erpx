@@ -1,6 +1,6 @@
 # Business readiness and release acceptance
 
-Delivery scope is governed by [the production plan](../../production-plan.md), with machine-readable criteria in `src/data/production-scope.ts`. The 187-capability catalog is reference inventory, not the release acceptance set.
+Delivery scope is governed by [the production plan](../../production-plan.md), with Company release criteria in `src/data/production-scope.ts` and full-catalogue engineering scenarios tracked separately. The 187-capability catalog is reference inventory, not the Company release acceptance set.
 
 ## Independent meanings
 
@@ -10,7 +10,7 @@ Delivery scope is governed by [the production plan](../../production-plan.md), w
 - Capability reviews (`capability-gate-reviews.json`) are the durable source for generated inventory gates. Generator runs preserve explicit reviews and validate vocabulary, reviewer, evidence, timestamp and duplicates. They do not certify a Company release.
 - Company release acceptance is stored in PostgreSQL, not generated JSON. Every criterion in the current scope requires independent review. A review attests the submitted evidence; a recorded checksum alone does not establish the correctness of its contents.
 
-The capability inventory's **Flow accepted** label means an end-to-end workflow has passed in the system with the required evidence. It is a software capability status, not Company Setup Acceptance or Company Release Acceptance. A release criterion becomes `passed` only through its authorized, independent evidence review. The overall release is accepted only after every required criterion passes for the submitted Company, build and configuration.
+The compatible `implementation.status` field records dated, scoped inventory evidence; provider labels and Company release decisions are independent. The [verification report](../../status/capability-delivery-matrix.md) separates these axes and retains the original engineering source/candidate. The capability inventory's **Flow accepted** label means an end-to-end workflow has passed in the system with the required evidence. It is a software capability status, not Company Setup Acceptance or Company Release Acceptance. A release criterion becomes `passed` only through its authorized, independent evidence review. The overall release is accepted only after every required criterion passes for the submitted Company, build and configuration.
 
 Gate vocabulary is `pending / passed / not_applicable`. Only a provider **inventory** gate can be not applicable, with a reason. All current release criteria are required. `companySignOff` on the existing readiness response retains its old **setup-only** meaning for compatibility; clients should use explicit `setupSignOff` and `releaseSignOff` fields. The new `releaseAcceptance` field exposes scope/build/configuration, criteria and blockers.
 
@@ -47,7 +47,7 @@ Review/activation serialize against configuration revisions. A new build/scope/c
 
 Feature rollout remains separate (`off / pilot / available`). `pilot` denotes an explicitly activated rehearsal, not production sign-off. `available` requires the current complete release. Existing shared API, owner, AI-result and scheduled predicates reject an available rollout whose release becomes stale or revoked. Generating inventory JSON cannot enable a rollout. Module-level inventory acceptance is reported separately as `inventoryAccepted`.
 
-The current scope includes Thai payroll as required delivery, but its existing production API/page guards remain closed until the statutory adapter is implemented and validated. This contract does not claim that all owner/worker paths or full production business journeys have been audited; remaining work is tracked in the plan's SCOPE/PAY/AI rows. The public development Tunnel is not changed by acceptance APIs.
+Thai payroll is required engineering delivery. Production-mode runs require the recognized source-dated rule pack and independently approved employee statutory evidence; readiness checks the actual adapter/results rather than blocking all runs. [Payroll](payroll-core.md) defines these guards and unsupported categories. The recorded full-catalogue engineering run does not grant statutory certification or Company release acceptance. The public development Tunnel is not changed by acceptance APIs.
 
 ## Validation
 

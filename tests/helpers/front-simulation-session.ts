@@ -113,4 +113,10 @@ export async function signInFrontRole(
   await expect(html).toHaveAttribute("lang", nextLanguage);
   await page.getByRole("button", { name: initialLanguage === "th" ? "ไทย" : "EN", exact: true }).click();
   await expect(html).toHaveAttribute("lang", initialLanguage!);
+  // The journeys use English accessible labels after proving both language
+  // transitions; fictional Front accounts initially default to Thai.
+  if(initialLanguage==='th') {
+    await page.getByRole('button',{name:'EN',exact:true}).click();
+    await expect(html).toHaveAttribute('lang','en');
+  }
 }

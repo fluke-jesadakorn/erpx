@@ -1,5 +1,3 @@
 # ERPX documentation
 
-Start with the [current production plan](production-plan.md) and [documentation index](TOC.md).
-
-Current behavior is in [contracts](contracts/next/README.md); vocabulary is in [CONTEXT](../CONTEXT.md); decisions are in [ADR](adr/README.md). [Dated plans](archive/planning-2026-09/README.md) and [legacy recovery](plan/ARCHIVE.md) are historical. Evidence remains at its original checksum-addressed location.
+Start at the [documentation index](TOC.md). The [production plan](production-plan.md) is the sole active delivery plan; [owner contracts](contracts/next/README.md) define current behavior. [Recorded verification](status/capability-delivery-matrix.md) and [Company release acceptance](contracts/next/business-readiness.md) have independent meanings.

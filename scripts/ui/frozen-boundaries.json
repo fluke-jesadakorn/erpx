@@ -1,0 +1,537 @@
+[
+  {
+    "source": "src/app/book/[holdingSlug]/[propertyId]/page.tsx",
+    "fingerprint": "df8b02dcb548eec47a78d56ec028d9cacb192f5b6ddd54ae2ac68048c9daa815",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/book/[holdingSlug]/layout.tsx",
+    "fingerprint": "c8d4b162f08b00c71e091809bb8138b0c6bf721f4ce9e822f6b03faea3576ebe",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/book/[holdingSlug]/manage/page.tsx",
+    "fingerprint": "40040586371d77c5c6c3af386cc829aed0d48cbb735e8d42913ad5e0a87cf24d",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/book/[holdingSlug]/page.tsx",
+    "fingerprint": "902334b97219c5af7eaa3fc688997a5349dfc989888e24ab84c2b8654de60ec3",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/front-access/error.tsx",
+    "fingerprint": "bb4955d572103c523a725979306083aa16d43c43859f2172cd98f87d9e7addc3",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/front-access/forgot-password/page.tsx",
+    "fingerprint": "3e949dbca1a0f3a8473b3b99427aa03f142b1f47d8e8e0bf8031e6d7984a355e",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/front-access/front-access.module.css",
+    "fingerprint": "2a2ef23c96c63ac38e7011af41d9b0e7308a807411fd624ef85cab87644c899c",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/front-access/icon/[size]/route.ts",
+    "fingerprint": "4da8fceb72eed21980850a995aa1eb6b870aa85c5fddde3af4139e5d6bede7a3",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/front-access/layout.tsx",
+    "fingerprint": "6ab132d60df0b6dff2366f4b3e9291681dc9310d07c0c7231f064c43fa13ea5b",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/front-access/login/page.tsx",
+    "fingerprint": "c038fbd852059793aa39032a64fb8cbc9317d893172c221e1305b44766d02864",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/front-access/manifest.webmanifest/route.ts",
+    "fingerprint": "1d99b5de979e00aecb54cc797c12bf2bc07fdff53cc73736e253f75b858dd98c",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/front-access/page.tsx",
+    "fingerprint": "a1ea543181eaa689ed2895c5f60a3ba0b94b4a4ea4d7bd5c22dae9be4230f268",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/front-access/reset-password/page.tsx",
+    "fingerprint": "785b49f1d738a86121870d8dfcbb90d955800b276de22d28010bafedc24e1436",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/front-access/verify-email/page.tsx",
+    "fingerprint": "51c5a6f81f6b4aeb5b9cfb9bbde3da2a017fa8a4a7914096f82d0a43c0d93f8b",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/[[...path]]/page.tsx",
+    "fingerprint": "030ef368417b86d4f575ac11e7a80253108b874acb9c9c89caeeea2999172168",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/apple-icon.png/route.ts",
+    "fingerprint": "7de4ef56ebd0156bb41550e23e96ba5ea5b5d26b97a272c974967fc838a70e29",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/icon/[size]/route.ts",
+    "fingerprint": "b113b5b5888e8aec7ac8809a95690d1d457db68e2598319ef43703be13e1ea0a",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/logo/route.ts",
+    "fingerprint": "3121f2f73a5a12b5d8b2cf33c28408c3fa075623791abce29edb09ab563d23ee",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/manifest.webmanifest/route.ts",
+    "fingerprint": "023d219bd208a80f834b88c1b219dc56b449e5c13d96e38b805b30e6445836f0",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/front/error.tsx",
+    "fingerprint": "0922091cc9bb8083afb1e8f2e923724a8ff16f7fdddf789df87c61f0bd36893f",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/front/not-found.tsx",
+    "fingerprint": "a7cdf9f01ee399e9bc56a21ce1faeae990a70af95426c81007926248ca3ef82c",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/holdings/[holdingSlug]/calendar/page.tsx",
+    "fingerprint": "d6c23030b76f5e05a7f1dbb146c8ce2ad51a38a1495eba6697b0a63090d353bd",
+    "reason": "specialized calendar grid ancestor dimensions"
+  },
+  {
+    "source": "src/app/holdings/[holdingSlug]/hospitality/setup/page.tsx",
+    "fingerprint": "db2ab7bc97db15d71b924531600ecea32f4314df9299497be6895b37d54f0768",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/holdings/[holdingSlug]/pms/[[...section]]/page.tsx",
+    "fingerprint": "3103a5e5590265bec737c2d76abe7e7d2341156e71fb949ec148448f6c75b3db",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/holdings/[holdingSlug]/pms/documents/[id]/page.tsx",
+    "fingerprint": "66238f948b5b8e212e14572cd3ae0de80aa59d8f6c65bcbb5a830c9c06bbc9e8",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/holdings/[holdingSlug]/pms/import/page.tsx",
+    "fingerprint": "b9114aba115fd388f54999401a9f00f6601e20baee738c7784510134d49fba67",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/holdings/[holdingSlug]/pos/page.tsx",
+    "fingerprint": "1bb4c44d364bfad8bb288c10afea61234fb2a51408a7caf2585fe0c9e853ea32",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/app/marketing/page.tsx",
+    "fingerprint": "9201198bbdc623800b6badef101b205e6a2070fcc64139a5199b13000a8290cf",
+    "reason": "deferred-public-marketing"
+  },
+  {
+    "source": "src/app/marketing/site.module.css",
+    "fingerprint": "1f529fda3e275e8846192b1deb3213a4fe781936ccf87de8162c1ec2723c88be",
+    "reason": "deferred-public-marketing"
+  },
+  {
+    "source": "src/components/beta/social-advanced-editor.tsx",
+    "fingerprint": "d93d31e31f665d59f30c8179438be9ffa51ce471cc8cca1d55bed7ce4b2777e6",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/beta/social-post-content-editor.tsx",
+    "fingerprint": "6a538204445bb07c1bc9f3b553652158c02d11c836ba4c86492339ef628375f8",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/beta/social-text.module.css",
+    "fingerprint": "9ba4b386f449c7a8b424fff4c534f2b351bf880ac5e0b9f327bf1347cc62afca",
+    "reason": "frozen-specialized imported stylesheet"
+  },
+  {
+    "source": "src/components/calendar/calendar-day-timeline.tsx",
+    "fingerprint": "2de4a14af85fe56dfcac31e993265adc81e7060296bff0afb914327a3248e721",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/calendar/calendar-event.tsx",
+    "fingerprint": "3fd32c94dfa4e11fd6366aa9f60607414c5f42d1ec71e24989e3dd8173b03111",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/calendar/calendar-forms.tsx",
+    "fingerprint": "c45c2b314baa173631973088ef7ca91e351d6c15eb45cd9da138dceb2efc94f9",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/calendar/calendar-workspace.tsx",
+    "fingerprint": "0ae468a190ca915f1356ced00a5c5f281483324bfa3d79e7e261321681fec2cc",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/calendar/calendar.module.css",
+    "fingerprint": "0c13ecd0f0a8d510c37c290b1e99f0b5c6d87ec7d32e642070e9725891a2f55c",
+    "reason": "frozen-specialized imported stylesheet"
+  },
+  {
+    "source": "src/components/calendar/month-grid.tsx",
+    "fingerprint": "84c16f10567d3f80f7d6c8c26e351d18118dfe4df44ace463f9071e2506c9364",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/calendar/personal-time-grid.module.css",
+    "fingerprint": "ffdd38a89ef9239b052b3475a68c3dab60ca20c344d9734a4e812204464f796a",
+    "reason": "Style owner of a frozen component"
+  },
+  {
+    "source": "src/components/calendar/personal-time-grid.tsx",
+    "fingerprint": "b88eece52bd6500b6a0795747c38f87e4af24b909bc4a94cd167fb5764e3d454",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/executive/canvas.module.css",
+    "fingerprint": "2fce55ae4cdc86124a03b3e9a426bf4b3d853e9c09682ac49b7f87cf61259841",
+    "reason": "Style owner of a frozen component"
+  },
+  {
+    "source": "src/components/executive/canvas.tsx",
+    "fingerprint": "b20d7bdf9d4f893ae7f949e35e165801bf964d9ec736cd92ac282f5f5c928602",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/executive/chart.tsx",
+    "fingerprint": "d33ac504a8b657ef14b92cd6cc222973aa6820cd4bf880411afdffe2b7388413",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/executive/resizable-widget.tsx",
+    "fingerprint": "8be2e5ed8564e7ac4019e3d4643e0671f0138ae63520c7f6c999f4971211e00d",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/executive/widget.tsx",
+    "fingerprint": "dd37976406877f8a8dd88054ec0aedb0011b1c006e1b1751755f417cbb4d7448",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/features/features.module.css",
+    "fingerprint": "25a2ffaa2f3d78d77a3986b1a9b99c507c0aa725d6741a8869ef31964e64943e",
+    "reason": "frozen-specialized imported stylesheet"
+  },
+  {
+    "source": "src/components/features/layout-editor.tsx",
+    "fingerprint": "03583ee4eec765cf315203d3887d788edf88551030318186b719fd20714c3dc2",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/front/front-app-shell.module.css",
+    "fingerprint": "f45c657a3939c67d45fa64a81a2b43d4f67d3c97fd65d23b745d55c8d80950b6",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/front/front-app-shell.tsx",
+    "fingerprint": "c89e572fb24697cf321ecaf9d61ab42a4f88e0091f486c7507d65761767155e2",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/front/front-error.tsx",
+    "fingerprint": "6b09521504bc9578fb45adfe07f2ca57484285ed010027416daf08ee929041d2",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/front/front-language.tsx",
+    "fingerprint": "ac3cfd20b65cbedbd14caa0faac5374e53f623632df31a443110bb5930d5cfda",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/hospitality/module-menu.ts",
+    "fingerprint": "5b1e3780ec063b1b0937d0098896766d4f9b9faaecdbc3195ca1ae5d4c6f01c5",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/hospitality/module-tiles.module.css",
+    "fingerprint": "5a31cb4c31e756b7f75bcc8aed358f74a0d8f08458363c84906bc2051cddd873",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/hospitality/module-tiles.tsx",
+    "fingerprint": "98855c623496fdfd7d0bf40f325169f6662c5968a12c0a60f078e9b9db0af8e6",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/hospitality/setup-guide.module.css",
+    "fingerprint": "cacd09ecdd23936d819cb8d7e470aaa460599df0a11a7a2cbebe7ba2c2c4377d",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/hospitality/setup-guide.tsx",
+    "fingerprint": "aa34b4eb585264d4aa8844aac85d621307fb28619a4920b3f824016283660a71",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/hospitality/tax-document-reference.tsx",
+    "fingerprint": "d655d1bbac577210a2f3d00bb04958a946318fb6412c06c77d07f30e65c40387",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/modules/organization-chart.module.css",
+    "fingerprint": "ee89414fa9d66ecb60ee564b2abd32d110c6ab19273bf1f0ed8479a6c00a09d2",
+    "reason": "Style owner of a frozen component"
+  },
+  {
+    "source": "src/components/modules/organization-chart.tsx",
+    "fingerprint": "c0f9c1a5cc7469897bea8cec9890146a346c7d7f9181df3de427c7ace0e9cb78",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/modules/organization-person-card.tsx",
+    "fingerprint": "ea56207ccee32f3d5c96e278d9d4a25a67e87dbfae76d6bd2eb97e93f912b6ba",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/modules/organization-person-details.tsx",
+    "fingerprint": "1950b607776e3e5c40729c243ffa31c7e753068c1336265182cb75546dc7e524",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/modules/organization-team-view.tsx",
+    "fingerprint": "860800cea23e6aadd9901e1ee837b5240487aaa842398037984c50c76c750bd8",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/people/lifecycle-workspace.tsx",
+    "fingerprint": "ede5c22b679f6a28fa802a4592450f895b773024e512f110ee5e967691a292c3",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/people/lifecycle.module.css",
+    "fingerprint": "996912d8b663c6e58c2d7917d5ff91d78e634037b188c723037ecdf7fe64a491",
+    "reason": "frozen-specialized imported stylesheet"
+  },
+  {
+    "source": "src/components/people/organization-draft-workspace.module.css",
+    "fingerprint": "dde20b85fee732b113946b5e39029654d3f69108a70283b9e2d5cc4f12056378",
+    "reason": "Style owner of a frozen component"
+  },
+  {
+    "source": "src/components/people/organization-draft-workspace.tsx",
+    "fingerprint": "03fcd3fa3f5bdc684ef0e806898139f46ec88da9a0a9fe177bb8c5b16cdf4a1d",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/people/organization-explorer.module.css",
+    "fingerprint": "0cd580e7833554dd0bb7d4acdc6e086b39325818af2e24095f26505dd7f8adc5",
+    "reason": "Style owner of a frozen component"
+  },
+  {
+    "source": "src/components/people/organization-explorer.tsx",
+    "fingerprint": "fb67fd85709a8d78ff23d82aa7ab2e0b2657cdf7ac547522bd3925774562457e",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/people/organization-panel-rows.module.css",
+    "fingerprint": "0067898f60c40b6b126a8e1f072e8fed971dd8a64dfa931320497855a4799674",
+    "reason": "Style owner of a frozen component"
+  },
+  {
+    "source": "src/components/people/organization-panel-rows.tsx",
+    "fingerprint": "d06ceaad608ff34e7f578c09aa63e4b67ffc07517011f74fb0606c05ceb85080",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/people/people-directory.module.css",
+    "fingerprint": "68348708024723ffbb5390d89ee12fc02196faf560772a5de783c67480a3f9f7",
+    "reason": "Style owner of a frozen component"
+  },
+  {
+    "source": "src/components/people/people-directory.tsx",
+    "fingerprint": "abcb293c017d7cd3b9e7843b35174d618e6b5a8f0a6900cec6e1d78e1e94bf0e",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/people/people-hr-settings.module.css",
+    "fingerprint": "e50770db60df477a5cec56bc6784855139108f8eb436cad4ac6b2e3c481892a4",
+    "reason": "frozen-specialized imported stylesheet"
+  },
+  {
+    "source": "src/components/people/people-organization-workspace.module.css",
+    "fingerprint": "078e84088f1ed31887010516f1c9b60eb9f6711a833096cdf0806b480f3f2b5e",
+    "reason": "Style owner of a frozen component"
+  },
+  {
+    "source": "src/components/people/people-organization-workspace.tsx",
+    "fingerprint": "a778a94e850d0fec6d82a2b1df16dc5d862e28eba7bf2bdf8987a4b405bc124e",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/people/people-structure-workspace.module.css",
+    "fingerprint": "592deca031aa7cf94dad42c912b0219536ebbe8172fe453d121227ebf7f9feb4",
+    "reason": "Style owner of a frozen component"
+  },
+  {
+    "source": "src/components/people/people-structure-workspace.tsx",
+    "fingerprint": "316a87a043c5154a1de3e2b4c164a54c078ce41b874597e44d08d01f84ebae09",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/people/people-team-schedule.tsx",
+    "fingerprint": "0f0ff5a573403d6084b6aff53ebb87465a52c884f041d78d388e4f66d3d5d0ba",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/people/roster-workspace.tsx",
+    "fingerprint": "c45c04f4ad0bd4446273d353cedbc5b43b55491bb54dffffab9b86d486626eb4",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/people/roster.module.css",
+    "fingerprint": "bae7c8eca153890422a65cf01553703350de8ee3008443d453769a28cc2504b2",
+    "reason": "frozen-specialized imported stylesheet"
+  },
+  {
+    "source": "src/components/people/user-management.module.css",
+    "fingerprint": "01d062544780eb3b16a56b05c96196dc6c7c11313e4296bc9c08893878b5a69e",
+    "reason": "Style owner of a frozen component"
+  },
+  {
+    "source": "src/components/people/user-management.tsx",
+    "fingerprint": "78fd9ae9cf3115088031426d538bf645a37596b7faaa6ab1b3f109b70e0b0147",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/pms/booking-flow.tsx",
+    "fingerprint": "62298e2198a156460eb4c08bb6b6dfd54d5bde1b4caa1cbb407dbb6b498c73b2",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/pms/booking-refunds.tsx",
+    "fingerprint": "0d3fe6d40a615155ede51b62d336cae2b4305d10c52c262461452d4ed3e9c9b4",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/pms/booking-settings.tsx",
+    "fingerprint": "e4ae3dd6de0a707563361e2895d9a85d2bdd53f583abf2a44f63c4e69e119d62",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/pms/booking.module.css",
+    "fingerprint": "15fbb24f82e5b1adfeb3546609e712d46d5c25e5440995f3d21c5515465c2aca",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/pms/counter-refunds.tsx",
+    "fingerprint": "a1600e207b7c7debc2c128450ddadf10da94defb8ae8c8dc63a20fc07c9e3f86",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/pms/document.module.css",
+    "fingerprint": "d7c78fbd242cd4f8a8b25ebd43000415f124e53bfe3fd868180ec21c8d798062",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/pms/guest-booking-manager.tsx",
+    "fingerprint": "96df71b542a00f73829e4bcfc9c2319fc6688f0b9cca8cd40da17fbfff93d3f9",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/pms/home.module.css",
+    "fingerprint": "52e1af25979b278a914c541e40af602cd92599dcd97ca972b83e0227e1449f34",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/pms/home.tsx",
+    "fingerprint": "28457b3f4723882e4617b6dcf59e068cfcf285bc527a69b0a921b32ee56da658",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/pms/import.tsx",
+    "fingerprint": "7a4fce26e825167f46ef51674aa05534a2494b326ad01a723a0004ec0465baa5",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/pms/promptpay-counter.tsx",
+    "fingerprint": "1d054363d833fd8350c3fdc075834e0ccac89ca06bed0a66f01e8232d34622f5",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/pms/workspace.module.css",
+    "fingerprint": "89fe9afb666e37d989568b7e5b05a1064d8b25e9cc69467f4b86b24736182a50",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/pms/workspace.tsx",
+    "fingerprint": "86e79c9f0433f2142b19f3455d8bf388cfca28304ebc0b84eeb2338b1c763913",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/pos/pos-closing.tsx",
+    "fingerprint": "2f0a20809d2b883028eee0d2913d79cbc148331845615ff0e1535c36d8c932c7",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/pos/pos-console.tsx",
+    "fingerprint": "045f3019318f7deea3ec36c6bc2b2dd22483c0caf18859d3d4a3de783241f4ae",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/pos/pos-sales.tsx",
+    "fingerprint": "ba064e9b6a34c013e78ab4411223f63726ce741bbdcb4f41a0a405715378efa4",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/pos/pos.module.css",
+    "fingerprint": "8a33ad32c6662620292d6282be19a0ff6ff576caddf9125d8729d19bbf147f29",
+    "reason": "deferred-pms-pos"
+  },
+  {
+    "source": "src/components/technology/directory-console.module.css",
+    "fingerprint": "d250ab3cadb8720b3596a581a7e80d859d230b267eb1f1af424833b6de48a8e4",
+    "reason": "Style owner of a frozen component"
+  },
+  {
+    "source": "src/components/technology/directory-console.tsx",
+    "fingerprint": "1e16bc266f1f0107f4eb0034c4c2129da2b292777895cc93f5d68679cbe889b1",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/technology/organization-access-workspace.module.css",
+    "fingerprint": "0a1934b18d49c1a3e32d4057b1e42b23b87a7c867191e325c8092e109e73c91d",
+    "reason": "Style owner of a frozen component"
+  },
+  {
+    "source": "src/components/technology/organization-access-workspace.tsx",
+    "fingerprint": "779c3ea44a5c528e9cafbe344a3d7ae205ae5ba85edaad4317955461be6b16f9",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/technology/position-console.module.css",
+    "fingerprint": "6e8c9de6ae3e19ae270908a0b8c73e08ee4aed128a621ab597ab49f5c6b15298",
+    "reason": "Style owner of a frozen component"
+  },
+  {
+    "source": "src/components/technology/position-console.tsx",
+    "fingerprint": "c7f63d247be6ce549748d6e26e24226057ef9ccad3b7885f6b53c546e751710f",
+    "reason": "frozen-specialized"
+  },
+  {
+    "source": "src/components/technology/resource-console.module.css",
+    "fingerprint": "c0da1a94ff6f6070c4cb9bb4cbe2d6773f30064fa957491c25e733990814b8ac",
+    "reason": "frozen-specialized imported stylesheet"
+  },
+  {
+    "source": "src/components/ui/tokens.css",
+    "fingerprint": "9c7419347429216a3e2caee9931727ab70cf22da04d4b96eeec586d2f27d0671",
+    "reason": "Preserve inherited ERPX tokens"
+  }
+]

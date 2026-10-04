@@ -9,9 +9,9 @@
   justify-self: start;
   gap: 4px;
   padding: 4px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 10px;
-  background: var(--card);
+  background: var(--ui-card);
 }
 
 .viewTabs a {
@@ -20,15 +20,15 @@
   align-items: center;
   padding: 0 14px;
   border-radius: 7px;
-  color: var(--muted);
+  color: var(--ui-muted);
   text-decoration: none;
   font-size: 13px;
   font-weight: 600;
 }
 
 .viewTabs a[aria-current="page"] {
-  color: var(--ink);
-  background: var(--card-2);
+  color: var(--ui-ink);
+  background: var(--ui-card-2);
 }
 
 .directory > :global(.card) > :global(.section-head) {
@@ -55,7 +55,7 @@
 .setup :global(.row) {
   padding: 4px 0;
   border: 0;
-  color: var(--brand);
+  color: var(--ui-brand);
   font-size: 13px;
 }
 
@@ -78,7 +78,7 @@
 .filters {
   grid-column: 1 / -1;
   font-size: 13px;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 
 .filters summary {
@@ -93,7 +93,7 @@
   gap: 16px;
   margin-top: 14px;
   padding-top: 16px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--ui-line);
 }
 
 .directory :global(.row-main) {

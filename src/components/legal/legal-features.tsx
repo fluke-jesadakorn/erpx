@@ -1,7 +1,13 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { FormDisclosure } from "@/components/ui/form-disclosure";
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
+
 import { useEffect, useState } from "react";
 import {
   featureSpecs,
+  workflowFieldChoices,
   type FeatureKind,
   type FeatureRow,
   type FeatureSpec,
@@ -49,19 +55,17 @@ export function LegalFeatures({
       live = false;
     };
   }, [detail.item.id, detail.item.version, call, category, page, search]);
-  const owners = people.filter((p) =>
-    detail.members.some((m) => m.user_id === p.id),
-  );
+  const owners = people.filter((p) => detail.members.some((m) => m.user_id === p.id));
   return (
     <div className={s.detail}>
       {error && (
-        <p role="alert" className={s.error}>
+        <InlineNotice tone="danger" role="alert" className={s.error}>
           {error}
-        </p>
+        </InlineNotice>
       )}
-      <label className={s.field}>
+      <Field appearance="standard" className={s.field}>
         Workflow
-        <select
+        <Select appearance="standard"
           value={category}
           onChange={(e) => {
             setCategory(e.target.value as FeatureKind);
@@ -73,8 +77,8 @@ export function LegalFeatures({
               {v.label}
             </option>
           ))}
-        </select>
-      </label>
+        </Select>
+      </Field>
       <h3>{spec.label}</h3>
       <form
         onSubmit={(e) => {
@@ -83,35 +87,37 @@ export function LegalFeatures({
           setPage(1);
         }}
       >
-        <input
+        <TextInput appearance="standard"
           name="search"
           aria-label="Filter workflow items"
           placeholder="Filter workflow items"
         />
-        <button className={s.button}>Filter</button>
+        <Button appearance="standard" clientManaged type="submit" variant="ghost" className={s.button}>
+          Filter
+        </Button>
       </form>
       <p className={s.small}>
-        {groups.find((g) => g.category === category)?.total ?? 0} workflow items
-        · page {page}
+        {groups.find((g) => g.category === category)?.total ?? 0} workflow items · page {page}
       </p>
       <div className={s.actions}>
-        <button
+        <Button appearance="standard"
+          type="submit"
+          variant="ghost"
           className={s.button}
           disabled={page === 1}
           onClick={() => setPage(page - 1)}
         >
           Previous
-        </button>
-        <button
+        </Button>
+        <Button appearance="standard"
+          type="submit"
+          variant="ghost"
           className={s.button}
-          disabled={
-            page * 50 >=
-            (groups.find((g) => g.category === category)?.total ?? 0)
-          }
+          disabled={page * 50 >= (groups.find((g) => g.category === category)?.total ?? 0)}
           onClick={() => setPage(page + 1)}
         >
           Next
-        </button>
+        </Button>
       </div>
       <form
         key={category}
@@ -120,9 +126,7 @@ export function LegalFeatures({
           e.preventDefault();
           const form = e.currentTarget,
             v = Object.fromEntries(new FormData(form)),
-            data = Object.fromEntries(
-              spec.fields.map((f) => [f.key, String(v[f.key] ?? "")]),
-            );
+            data = Object.fromEntries(spec.fields.map((f) => [f.key, String(v[f.key] ?? "")]));
           if (
             await command({
               action: "feature.create",
@@ -136,62 +140,59 @@ export function LegalFeatures({
             form.reset();
         }}
       >
-        <label className={s.field}>
+        <Field appearance="standard" className={s.field}>
           Title
-          <input name="title" required minLength={3} />
-        </label>
+          <TextInput appearance="standard" name="title" required minLength={3} />
+        </Field>
         <div className={s.grid}>
-          <label className={s.field}>
+          <Field appearance="standard" className={s.field}>
             Owner
-            <select name="ownerId" required>
+            <Select appearance="standard" name="ownerId" required>
               {owners.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>
               ))}
-            </select>
-          </label>
-          <label className={s.field}>
+            </Select>
+          </Field>
+          <Field appearance="standard" className={s.field}>
             Due date
-            <input name="dueDate" type="date" />
-          </label>
+            <TextInput appearance="standard" name="dueDate" type="date" />
+          </Field>
         </div>
         {spec.fields.map((f) => (
-          <label className={s.field} key={f.key}>
+          <Field appearance="standard" className={s.field} key={f.key}>
             {f.label}
             {f.key === "documentId" ? (
-              <select name={f.key} required>
+              <Select appearance="standard" name={f.key} required>
                 {detail.documents.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name} · v{d.version}
                   </option>
                 ))}
-              </select>
+              </Select>
+            ) : workflowFieldChoices[category]?.[f.key] ? (
+              <Select appearance="standard" name={f.key} required={f.required} defaultValue=""><option value="">Select when applicable</option>{workflowFieldChoices[category]![f.key].map(value=><option key={value} value={value}>{value.replaceAll("_"," ")}</option>)}</Select>
             ) : f.type === "textarea" ? (
-              <textarea name={f.key} required={f.required} />
+              <TextArea appearance="standard" name={f.key} required={f.required} />
             ) : (
-              <input
-                name={f.key}
-                type={f.type ?? "text"}
-                required={f.required}
-                min={0}
-              />
+              <TextInput appearance="standard" name={f.key} type={f.type ?? "text"} required={f.required} min={0} />
             )}
-          </label>
+          </Field>
         ))}
-        <button className={s.button} disabled={busy || !owners.length}>
+        <Button appearance="standard"
+          clientManaged type="submit"
+          variant="ghost"
+          className={s.button}
+          disabled={busy || !owners.length}
+        >
           Create workflow item
-        </button>
+        </Button>
       </form>
       {groups
         .find((g) => g.category === category)
         ?.rows.map((row) => (
-          <FeatureEntry
-            key={`${row.id}:${row.version}`}
-            row={row}
-            busy={busy}
-            command={command}
-          />
+          <FeatureEntry key={`${row.id}:${row.version}`} row={row} busy={busy} command={command} />
         ))}
     </div>
   );
@@ -231,11 +232,12 @@ function FeatureEntry({
         "remediation",
         "in_progress",
         "received",
+        "awaiting_information",
         "assessed",
         "requested",
         "pending",
       ].includes(row.state) && (
-        <details>
+        <FormDisclosure appearance="standard">
           <summary>Edit workflow details</summary>
           <form
             className={s.detail}
@@ -247,32 +249,26 @@ function FeatureEntry({
                 category: row.category,
                 featureId: row.id,
                 featureVersion: row.version,
-                data: Object.fromEntries(
-                  spec.fields.map((f) => [f.key, String(v[f.key] ?? "")]),
-                ),
+                data: Object.fromEntries(spec.fields.map((f) => [f.key, String(v[f.key] ?? "")])),
                 reason: v.reason,
               });
             }}
           >
             {spec.fields.map((f) => (
-              <label className={s.field} key={f.key}>
+              <Field appearance="standard" className={s.field} key={f.key}>
                 {f.label}
-                <textarea
-                  name={f.key}
-                  required={f.required}
-                  defaultValue={row.data[f.key]}
-                />
-              </label>
+                {workflowFieldChoices[row.category]?.[f.key] ? <Select appearance="standard" name={f.key} required={f.required} defaultValue={row.data[f.key]??""}><option value="">Select when applicable</option>{workflowFieldChoices[row.category]![f.key].map(value=><option key={value} value={value}>{value.replaceAll("_"," ")}</option>)}</Select> : <TextArea appearance="standard" name={f.key} required={f.required} defaultValue={row.data[f.key]} />}
+              </Field>
             ))}
-            <label className={s.field}>
+            <Field appearance="standard" className={s.field}>
               Change reason
-              <input name="reason" required minLength={3} />
-            </label>
-            <button className={s.button} disabled={busy}>
+              <TextInput appearance="standard" name="reason" required minLength={3} />
+            </Field>
+            <Button appearance="standard" clientManaged type="submit" variant="ghost" className={s.button} disabled={busy}>
               Save workflow details
-            </button>
+            </Button>
           </form>
-        </details>
+        </FormDisclosure>
       )}
       {states.length > 0 && (
         <form
@@ -290,38 +286,36 @@ function FeatureEntry({
               data: {
                 ...row.data,
                 evidence: String(v.evidence ?? ""),
-                ...(row.category === "intake"
-                  ? { response: String(v.response ?? "") }
-                  : {}),
+                ...(row.category === "intake" ? { response: String(v.response ?? "") } : {}),
               },
             });
           }}
         >
-          <label className={s.field}>
+          <Field appearance="standard" className={s.field}>
             Next state
-            <select name="state">
+            <Select appearance="standard" name="state">
               {states.map((state) => (
                 <option key={state}>{state}</option>
               ))}
-            </select>
-          </label>
+            </Select>
+          </Field>
           {row.category === "intake" && (
-            <label className={s.field}>
+            <Field appearance="standard" className={s.field}>
               Response
-              <textarea name="response" defaultValue={row.data.response} />
-            </label>
+              <TextArea appearance="standard" name="response" defaultValue={row.data.response} />
+            </Field>
           )}
-          <label className={s.field}>
+          <Field appearance="standard" className={s.field}>
             Evidence
-            <textarea name="evidence" defaultValue={row.data.evidence} />
-          </label>
-          <label className={s.field}>
+            <TextArea appearance="standard" name="evidence" defaultValue={row.data.evidence} />
+          </Field>
+          <Field appearance="standard" className={s.field}>
             Decision reason
-            <input name="reason" required minLength={3} />
-          </label>
-          <button className={s.button} disabled={busy}>
+            <TextInput appearance="standard" name="reason" required minLength={3} />
+          </Field>
+          <Button appearance="standard" clientManaged type="submit" variant="ghost" className={s.button} disabled={busy}>
             Apply workflow decision
-          </button>
+          </Button>
         </form>
       )}
     </article>

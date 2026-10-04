@@ -1,5 +1,7 @@
 # คืนสินค้าและคืนเงิน — simulation acceptance S04
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 วันที่ 2026-09-20 · ครอบคลุมบางส่วนของช่วง 1 / G04 และ G12 · ยังไม่ใช่ production sign-off
 
 ## ขอบเขตที่ implement

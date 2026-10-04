@@ -1,5 +1,10 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
+
 import { useStaffCommand, type StaffOptions } from "./staff-work-controls";
+import { FormLayout } from "@/components/ui/foundation";
 export function LevelAssignmentEditor({
   base,
   engagementId,
@@ -15,10 +20,10 @@ export function LevelAssignmentEditor({
 }) {
   const { send, busy, error } = useStaffCommand(base);
   return (
-    <details className="card">
+    <details className="ui-panel">
       <summary>Change staff level</summary>
-      <form
-        className="business-form"
+      <FormLayout
+        className="ui-form-grid"
         onSubmit={(e) => {
           e.preventDefault();
           const data = new FormData(e.currentTarget);
@@ -29,9 +34,9 @@ export function LevelAssignmentEditor({
           });
         }}
       >
-        <label>
+        <Field appearance="standard">
           New level
-          <select name="levelId" defaultValue={levelId ?? ""} required>
+          <Select appearance="standard" name="levelId" defaultValue={levelId ?? ""} required>
             <option value="">Choose a level</option>
             {levels
               .filter((l) => l.active)
@@ -40,17 +45,17 @@ export function LevelAssignmentEditor({
                   {l.name}
                 </option>
               ))}
-          </select>
-        </label>
-        <label>
+          </Select>
+        </Field>
+        <Field appearance="standard">
           Change reason
-          <input name="reason" required minLength={3} maxLength={1000} />
-        </label>
-        <button className="button" disabled={busy}>
+          <TextInput appearance="standard" name="reason" required minLength={3} maxLength={1000} />
+        </Field>
+        <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
           Record level change
-        </button>
-        {error && <p role="alert">{error}</p>}
-      </form>
+        </Button>
+        {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+      </FormLayout>
     </details>
   );
 }

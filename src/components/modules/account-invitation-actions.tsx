@@ -1,4 +1,7 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { Button } from "@/components/ui/foundation";
 
 import { useStaffCommand } from "./staff-work-controls";
 
@@ -20,24 +23,28 @@ export function AccountInvitationActions({
   return (
     <div>
       {deliveryState === "failed" && invitationStatus === "pending" && (
-        <button
-          className="button secondary"
+        <Button appearance="standard"
+          type="submit"
+          variant="secondary"
+
           disabled={busy}
           onClick={() => void send(`${path}/retry`, {})}
         >
           Retry delivery
-        </button>
+        </Button>
       )}
       {invitationStatus === "pending" && (
-        <button
-          className="button secondary"
+        <Button appearance="standard"
+          type="submit"
+          variant="secondary"
+
           disabled={busy}
           onClick={() => void send(`${path}/revoke`, {})}
         >
           Revoke invitation
-        </button>
+        </Button>
       )}
-      {error && <p role="alert">{error}</p>}
+      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
     </div>
   );
 }

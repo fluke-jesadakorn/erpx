@@ -1,15 +1,13 @@
 "use client";
+import { ActionLink as UiActionLink } from "@/components/ui/foundation";
+
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
+
 import { TimeText } from "@/components/time/time-preference-context";
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  Plus,
-  ShieldCheck,
-  BriefcaseBusiness,
-  ClipboardList,
-  ArrowRight,
-} from "lucide-react";
+import { Plus, ShieldCheck, BriefcaseBusiness, ClipboardList, ArrowRight } from "lucide-react";
 import { SetupChecklist } from "@/components/ui/setup-checklist";
 import { Dialog } from "@/components/ui/dialog";
 import { workFetch } from "@/lib/work-fetch";
@@ -41,22 +39,16 @@ function useCommand(base: string) {
     setBusy(true);
     setError("");
     try {
-      const response = await workFetch(
-        `/api/v1${base}/people/lifecycle/${path}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Idempotency-Key": receipt.current.key,
-          },
-          body,
+      const response = await workFetch(`/api/v1${base}/people/lifecycle/${path}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": receipt.current.key,
         },
-      );
+        body,
+      });
       const result = await response.json();
-      if (!response.ok)
-        throw Error(
-          result.error?.message ?? "Unable to save. Please try again.",
-        );
+      if (!response.ok) throw Error(result.error?.message ?? "Unable to save. Please try again.");
       receipt.current = null;
       if (!path.endsWith("preview")) router.refresh();
       return result.data as T;
@@ -68,11 +60,7 @@ function useCommand(base: string) {
   }
   return { send, busy, error };
 }
-export function AccessRecipe({
-  definition,
-}: {
-  definition: AccessPackageDefinition;
-}) {
+export function AccessRecipe({ definition }: { definition: AccessPackageDefinition }) {
   return (
     <div className={styles.recipe}>
       <p>
@@ -87,16 +75,21 @@ export function AccessRecipe({
         <ShieldCheck size={17} />
         <span>
           {definition.grants.length
-            ? definition.grants.map((g, index) => <span key={`${g.roleId}:${index}`}>{index > 0 ? "; " : ""}{g.roleId} · {g.scopeKind === "holding" ? "Company" : g.scopeKind} · until <TimeText value={g.validUntil} /></span>)
+            ? definition.grants.map((g, index) => (
+                <span key={`${g.roleId}:${index}`}>
+                  {index > 0 ? "; " : ""}
+                  {g.roleId} · {g.scopeKind === "holding" ? "Company" : g.scopeKind} · until{" "}
+                  <TimeText value={g.validUntil} />
+                </span>
+              ))
             : "No ERPX roles requested"}
         </span>
       </div>
       <div>
         <BriefcaseBusiness size={17} />
         <span>
-          {definition.groupIds.length} ERPX groups ·{" "}
-          {definition.directoryGroupIds.length} directory groups ·{" "}
-          {definition.windowsPolicies.length} Windows policies
+          {definition.groupIds.length} ERPX groups · {definition.directoryGroupIds.length} directory
+          groups · {definition.windowsPolicies.length} Windows policies
         </span>
       </div>
       {definition.tasks.map((t, i) => (
@@ -108,12 +101,9 @@ export function AccessRecipe({
       {definition.windowsPolicies.map((p) => (
         <p key={p.id}>
           {p.name} ·{" "}
-          {p.processor === "admx"
-            ? "Windows administrative policy"
-            : "Drive / printer preference"}{" "}
+          {p.processor === "admx" ? "Windows administrative policy" : "Drive / printer preference"}{" "}
           · OU: {p.targetOu}
-          {p.computerTarget ? ` · Computers: ${p.computerTarget}` : ""} · IT
-          verification required
+          {p.computerTarget ? ` · Computers: ${p.computerTarget}` : ""} · IT verification required
         </p>
       ))}
     </div>
@@ -133,7 +123,9 @@ export function PositionPreparation({
   surface?: "people" | "technology";
 }) {
   const [selected, setSelected] = useState(positionId ?? null),
-    [packageId, setPackageId] = useState(data.positions.find((p) => p.id === positionId)?.package_id ?? ""),
+    [packageId, setPackageId] = useState(
+      data.positions.find((p) => p.id === positionId)?.package_id ?? "",
+    ),
     [search, setSearch] = useState(""),
     [branchId, setBranchId] = useState(""),
     [readiness, setReadiness] = useState<"all" | "unbound" | "pending" | "prepared">("all"),
@@ -146,9 +138,7 @@ export function PositionPreparation({
   const { send, busy, error } = useCommand(base),
     position = data.positions.find((p) => p.id === selected),
     pkg = data.packages.find((p) => p.id === packageId),
-    task = data.tasks.find(
-      (t) => t.position_id === selected && t.kind === "position",
-    );
+    task = data.tasks.find((t) => t.position_id === selected && t.kind === "position");
   const input =
     position && pkg
       ? {
@@ -160,10 +150,11 @@ export function PositionPreparation({
       : null;
   const activePositions = data.positions.filter((p) => p.active);
   const publishedPackages = data.packages.filter((p) => p.published_revision > 0);
-  const isPrepared = (id: string) => data.tasks.some(
-    (task) => task.position_id === id && task.kind === "position" && task.status === "completed",
-  );
-  const positionState = (p: typeof data.positions[number]) =>
+  const isPrepared = (id: string) =>
+    data.tasks.some(
+      (task) => task.position_id === id && task.kind === "position" && task.status === "completed",
+    );
+  const positionState = (p: (typeof data.positions)[number]) =>
     !p.package_id ? "unbound" : isPrepared(p.id) ? "prepared" : "pending";
   const counts = {
     all: activePositions.length,
@@ -171,17 +162,25 @@ export function PositionPreparation({
     pending: activePositions.filter((p) => positionState(p) === "pending").length,
     prepared: activePositions.filter((p) => positionState(p) === "prepared").length,
   };
-  const branches = [...new Set(activePositions.map((p) => p.branch_id).filter((id): id is string => !!id))]
+  const branches = [
+    ...new Set(activePositions.map((p) => p.branch_id).filter((id): id is string => !!id)),
+  ]
     .map((id) => ({ id, name: data.nodes.find((node) => node.id === id)?.name ?? "Branch" }))
     .sort((a, b) => a.name.localeCompare(b.name));
   const matchingPositions = activePositions.filter((p) => {
     const branch = data.nodes.find((node) => node.id === p.branch_id)?.name ?? "Company";
-    const department = data.nodes.find((node) => node.id === p.department_id)?.name ?? "All departments";
-    return (!branchId || p.branch_id === branchId)
-      && (readiness === "all" || positionState(p) === readiness)
-      && `${p.title} ${branch} ${department}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase());
+    const department =
+      data.nodes.find((node) => node.id === p.department_id)?.name ?? "All departments";
+    return (
+      (!branchId || p.branch_id === branchId) &&
+      (readiness === "all" || positionState(p) === readiness) &&
+      `${p.title} ${branch} ${department}`
+        .toLocaleLowerCase()
+        .includes(search.trim().toLocaleLowerCase())
+    );
   });
-  const visiblePositions = surface === "technology" ? matchingPositions.slice(0, visibleCount) : activePositions;
+  const visiblePositions =
+    surface === "technology" ? matchingPositions.slice(0, visibleCount) : activePositions;
   function chooseReadiness(value: typeof readiness) {
     setReadiness(value);
     setVisibleCount(12);
@@ -195,39 +194,40 @@ export function PositionPreparation({
     <section className="card">
       {data.canPrepare && publishedPackages.length > 0 && (
         <details className={styles.packageShelf}>
-          <summary>Published access packages <span>{publishedPackages.length}</span></summary>
+          <summary>
+            Published access packages <span>{publishedPackages.length}</span>
+          </summary>
           <p>Open a position to choose a package, or drag one onto a position.</p>
           <div className={styles.actions}>
             {publishedPackages.map((p) => (
-                <span
-                  key={p.id}
-                  className="pill"
-                  draggable
-                  onDragStart={(e) =>
-                    e.dataTransfer.setData(
-                      "application/erpx-access-package",
-                      p.id,
-                    )
-                  }
-                >
-                  {p.definition.name} · revision {p.published_revision}
-                </span>
+              <span
+                key={p.id}
+                className="pill"
+                draggable
+                onDragStart={(e) => e.dataTransfer.setData("application/erpx-access-package", p.id)}
+              >
+                {p.definition.name} · revision {p.published_revision}
+              </span>
             ))}
           </div>
         </details>
       )}
       <div className={styles.heading}>
         <div>
-          <h2>{surface === "people" ? "Positions for HR placement" : "Position access preparation"}</h2>
+          <h2>
+            {surface === "people" ? "Positions for HR placement" : "Position access preparation"}
+          </h2>
           <p className="muted">
             {surface === "people"
               ? "Select a position to review its HR placement details."
               : "Choose a position to review its access package and Directory policy. HR placement can proceed while IT prepares access."}
           </p>
         </div>
-        {surface === "technology" && <Link href={`${base}/work?type=people_lifecycle`}>
-          Open IT queue <ArrowRight size={15} />
-        </Link>}
+        {surface === "technology" && (
+          <Link href={`${base}/work?type=people_lifecycle`}>
+            Open IT queue <ArrowRight size={15} />
+          </Link>
+        )}
       </div>
       {surface === "technology" && data.canPrepare && publishedPackages.length === 0 && (
         <div className={styles.packageEmpty}>
@@ -235,103 +235,152 @@ export function PositionPreparation({
             <strong>No published access packages yet</strong>
             <p>Create a package in Resources, then return to a position to assign it.</p>
           </div>
-          <Link href={`${base}/technology?view=resources`}>Open Resources <ArrowRight size={15} /></Link>
+          <Link href={`${base}/technology?view=resources`}>
+            Open Resources <ArrowRight size={15} />
+          </Link>
         </div>
       )}
       {surface === "technology" && (
         <div className={styles.positionControls}>
-          <div className={styles.positionStatusFilters} role="group" aria-label="Filter positions by access status">
-            {([
-              ["all", "All positions"],
-              ["unbound", "No package"],
-              ["pending", "In preparation"],
-              ["prepared", "Prepared"],
-            ] as const).map(([value, label]) => (
-              <button key={value} type="button" aria-pressed={readiness === value} onClick={() => chooseReadiness(value)}>
-                <strong>{counts[value]}</strong><span>{label}</span>
-              </button>
+          <div
+            className={styles.positionStatusFilters}
+            role="group"
+            aria-label="Filter positions by access status"
+          >
+            {(
+              [
+                ["all", "All positions"],
+                ["unbound", "No package"],
+                ["pending", "In preparation"],
+                ["prepared", "Prepared"],
+              ] as const
+            ).map(([value, label]) => (
+              <Button
+                variant="plain"
+                key={value}
+                type="button"
+                aria-pressed={readiness === value}
+                onClick={() => chooseReadiness(value)}
+              >
+                <strong>{counts[value]}</strong>
+                <span>{label}</span>
+              </Button>
             ))}
           </div>
           <div className={styles.positionToolbar}>
-            <label>
+            <Field>
               <span>Search positions</span>
-              <input type="search" value={search} onChange={(event) => { setSearch(event.target.value); setVisibleCount(12); }} placeholder="Title, branch, or department" />
-            </label>
-            <label>
+              <TextInput
+                type="search"
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setVisibleCount(12);
+                }}
+                placeholder="Title, branch, or department"
+              />
+            </Field>
+            <Field>
               <span>Branch</span>
-              <select value={branchId} onChange={(event) => { setBranchId(event.target.value); setVisibleCount(12); }}>
+              <Select
+                value={branchId}
+                onChange={(event) => {
+                  setBranchId(event.target.value);
+                  setVisibleCount(12);
+                }}
+              >
                 <option value="">All branches</option>
-                {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-              </select>
-            </label>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
           </div>
-          <p className={styles.positionResultCount} role="status">Showing {visiblePositions.length} of {matchingPositions.length} matching positions</p>
+          <p className={styles.positionResultCount} role="status">
+            Showing {visiblePositions.length} of {matchingPositions.length} matching positions
+          </p>
         </div>
       )}
       <div className={styles.positionGrid}>
         {visiblePositions.map((p) => (
-            <button
-              className={styles.positionCard}
-              key={p.id}
-              onClick={() => select(p.id)}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={async (e) => {
-                e.preventDefault();
-                const id = e.dataTransfer.getData(
-                  "application/erpx-access-package",
-                );
-                if (
-                  data.canPrepare &&
-                  data.packages.some((x) => x.id === id && x.published_revision)
-                ) {
-                  select(p.id);
-                  setPackageId(id);
-                  const pkg = data.packages.find((x) => x.id === id)!;
-                  const result = await send<typeof preview>(
-                    "position/preview",
-                    {
-                      positionId: p.id,
-                      expectedVersion: p.version,
-                      packageId: id,
-                      revision: pkg.published_revision,
-                    },
-                  );
-                  if (result) setPreview(result);
-                }
-              }}
+          <Button
+            type="submit"
+            variant="plain"
+            className={styles.positionCard}
+            key={p.id}
+            onClick={() => select(p.id)}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={async (e) => {
+              e.preventDefault();
+              const id = e.dataTransfer.getData("application/erpx-access-package");
+              if (
+                data.canPrepare &&
+                data.packages.some((x) => x.id === id && x.published_revision)
+              ) {
+                select(p.id);
+                setPackageId(id);
+                const pkg = data.packages.find((x) => x.id === id)!;
+                const result = await send<typeof preview>("position/preview", {
+                  positionId: p.id,
+                  expectedVersion: p.version,
+                  packageId: id,
+                  revision: pkg.published_revision,
+                });
+                if (result) setPreview(result);
+              }
+            }}
+          >
+            <BriefcaseBusiness size={19} />
+            <strong>{p.title}</strong>
+            <span>
+              {data.nodes.find((n) => n.id === p.branch_id)?.name ?? "Company"} ·{" "}
+              {data.nodes.find((n) => n.id === p.department_id)?.name ?? "All departments"}
+            </span>
+            {surface === "people" && (
+              <span data-ready={!!p.active}>Available for HR placement</span>
+            )}
+            <span
+              data-ready={surface === "technology" ? positionState(p) === "prepared" : undefined}
             >
-              <BriefcaseBusiness size={19} />
-              <strong>{p.title}</strong>
-              <span>
-                {data.nodes.find((n) => n.id === p.branch_id)?.name ??
-                  "Company"}{" "}
-                ·{" "}
-                {data.nodes.find((n) => n.id === p.department_id)?.name ??
-                  "All departments"}
-              </span>
-              {surface === "people" && <span data-ready={!!p.active}>Available for HR placement</span>}
-              <span
-                data-ready={surface === "technology" ? positionState(p) === "prepared" : undefined}
-              >
-                {surface === "people"
-                  ? positionGpoStatus(p.gpo)
-                  : positionState(p) === "prepared" ? "Access package prepared"
-                    : positionState(p) === "pending" ? "Preparation in progress" : "No access package"}
-              </span>
-            </button>
-          ))}
+              {surface === "people"
+                ? positionGpoStatus(p.gpo)
+                : positionState(p) === "prepared"
+                  ? "Access package prepared"
+                  : positionState(p) === "pending"
+                    ? "Preparation in progress"
+                    : "No access package"}
+            </span>
+          </Button>
+        ))}
       </div>
       {surface === "technology" && matchingPositions.length === 0 && (
         <div className={styles.positionEmpty}>
           <strong>No positions match these filters</strong>
           <p>Try a different title, branch, or access status.</p>
-          <button type="button" className="button secondary" onClick={() => { setSearch(""); setBranchId(""); chooseReadiness("all"); }}>Clear filters</button>
+          <Button
+            variant="secondary"
+            type="button"
+            onClick={() => {
+              setSearch("");
+              setBranchId("");
+              chooseReadiness("all");
+            }}
+          >
+            Clear filters
+          </Button>
         </div>
       )}
       {surface === "technology" && matchingPositions.length > visibleCount && (
-        <button type="button" className={styles.showMore} onClick={() => setVisibleCount((count) => count + 12)}>
+        <Button
+          variant="plain"
+          type="button"
+          className={styles.showMore}
+          onClick={() => setVisibleCount((count) => count + 12)}
+        >
           Show more positions ({matchingPositions.length - visibleCount} remaining)
-        </button>
+        </Button>
       )}
       <Dialog
         open={!!position}
@@ -342,63 +391,83 @@ export function PositionPreparation({
         {position && (
           <div className={styles.stack}>
             <p>
-              {data.nodes.find((n) => n.id === position.branch_id)?.name ??
-                "Company"}{" "}
-              ·{" "}
-              {data.nodes.find((n) => n.id === position.department_id)?.name ??
-                "All departments"}
+              {data.nodes.find((n) => n.id === position.branch_id)?.name ?? "Company"} ·{" "}
+              {data.nodes.find((n) => n.id === position.department_id)?.name ?? "All departments"}
             </p>
             <p>{position.requirements || "No additional work requirements."}</p>
-            <p>
-              Available for HR placement · {positionGpoStatus(position.gpo)}
-            </p>
-            {surface === "technology" && <p>Access package: {positionState(position) === "prepared" ? "prepared" : positionState(position) === "pending" ? "preparation pending" : "none assigned"} · {task?.assignee_id ? "Assigned to configured IT owner" : "Unassigned IT queue"}</p>}
-            {surface === "technology" && <Link href={`${base}/technology?view=organization&position=${encodeURIComponent(position.id)}`}>View Directory & GPO for this position</Link>}
-            {surface === "people" && <p className="muted">GPO Directory status does not confirm application on an employee device. IT tracks delivery in Technology.</p>}
-            {data.canManage && (
+            <p>Available for HR placement · {positionGpoStatus(position.gpo)}</p>
+            {surface === "technology" && (
+              <p>
+                Access package:{" "}
+                {positionState(position) === "prepared"
+                  ? "prepared"
+                  : positionState(position) === "pending"
+                    ? "preparation pending"
+                    : "none assigned"}{" "}
+                · {task?.assignee_id ? "Assigned to configured IT owner" : "Unassigned IT queue"}
+              </p>
+            )}
+            {surface === "technology" && (
               <Link
-                className="button"
+                href={`${base}/technology?view=organization&position=${encodeURIComponent(position.id)}`}
+              >
+                View Directory & GPO for this position
+              </Link>
+            )}
+            {surface === "people" && (
+              <p className="muted">
+                GPO Directory status does not confirm application on an employee device. IT tracks
+                delivery in Technology.
+              </p>
+            )}
+            {data.canManage && (
+              <UiActionLink
+                variant="primary"
+
                 href={`${base}/people?new=person&position=${encodeURIComponent(position.id)}`}
               >
                 Onboard into this position
-              </Link>
+              </UiActionLink>
             )}
             {hrDetails?.(position.id)}
             {data.canPrepare && (
               <>
-                {publishedPackages.length > 0 && <label>
-                  Published access package
-                  <select
-                    value={packageId}
-                    onChange={(e) => {
-                      setPackageId(e.target.value);
-                      setPreview(null);
-                    }}
-                  >
-                    <option value="">Choose a package</option>
-                    {publishedPackages.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.definition.name} · revision {p.published_revision}
-                      </option>
-                    ))}
-                  </select>
-                </label>}
+                {publishedPackages.length > 0 && (
+                  <Field>
+                    Published access package
+                    <Select
+                      value={packageId}
+                      onChange={(e) => {
+                        setPackageId(e.target.value);
+                        setPreview(null);
+                      }}
+                    >
+                      <option value="">Choose a package</option>
+                      {publishedPackages.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.definition.name} · revision {p.published_revision}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                )}
                 <Link href={`${base}/technology?view=resources`}>
                   Create or prepare an access package
                 </Link>
-                {publishedPackages.length > 0 && <button
-                  className="button secondary"
-                  disabled={busy || !input}
-                  onClick={async () => {
-                    const p = await send<typeof preview>(
-                      "position/preview",
-                      input,
-                    );
-                    if (p) setPreview(p);
-                  }}
-                >
-                  Preview position access
-                </button>}
+                {publishedPackages.length > 0 && (
+                  <Button
+                    type="submit"
+                    variant="secondary"
+
+                    disabled={busy || !input}
+                    onClick={async () => {
+                      const p = await send<typeof preview>("position/preview", input);
+                      if (p) setPreview(p);
+                    }}
+                  >
+                    Preview position access
+                  </Button>
+                )}
               </>
             )}
             {preview && (
@@ -410,10 +479,13 @@ export function PositionPreparation({
                     : "This position has no current occupants."}
                 </p>
                 <p>
-                  Binding this package updates the position recipe. IT selects employees and applies it separately. ERPX roles require independent review.
+                  Binding this package updates the position recipe. IT selects employees and applies
+                  it separately. ERPX roles require independent review.
                 </p>
-                <button
-                  className="button"
+                <Button
+                  type="submit"
+                  variant="primary"
+
                   disabled={busy}
                   onClick={async () => {
                     if (
@@ -426,7 +498,7 @@ export function PositionPreparation({
                   }}
                 >
                   Assign published package
-                </button>
+                </Button>
               </>
             )}
             {error && <p role="alert">{error}</p>}
@@ -491,85 +563,131 @@ export function AccessPackages({
     setDefinition(next);
     setPreview(null);
   }
-  const visiblePackages = data.packages.filter((item) => item.definition.name.toLocaleLowerCase().includes(packageSearch.trim().toLocaleLowerCase()));
-  const selectedPackage = visiblePackages.find((item) => item.id === selectedPackageId) ?? visiblePackages[0];
+  const visiblePackages = data.packages.filter((item) =>
+    item.definition.name.toLocaleLowerCase().includes(packageSearch.trim().toLocaleLowerCase()),
+  );
+  const selectedPackage =
+    visiblePackages.find((item) => item.id === selectedPackageId) ?? visiblePackages[0];
   return (
     <section className={resourceStyles.workspace} data-mobile-detail={mobileDetail}>
       <div className={resourceStyles.toolbar}>
-        <label>
+        <Field>
           <span>Search packages</span>
-          <input type="search" value={packageSearch} onChange={(event) => setPackageSearch(event.target.value)} placeholder="Package name" />
-        </label>
+          <TextInput
+            type="search"
+            value={packageSearch}
+            onChange={(event) => setPackageSearch(event.target.value)}
+            placeholder="Package name"
+          />
+        </Field>
         {data.canPrepare && (
-          <button className="button" onClick={() => edit("new")}>
+          <Button type="submit" variant="primary" onClick={() => edit("new")}>
             <Plus size={16} /> New package
-          </button>
+          </Button>
         )}
       </div>
       <div className={resourceStyles.panes} data-mobile-detail={mobileDetail}>
         <div className={resourceStyles.list} aria-label="Access packages">
           <div className={resourceStyles.listHeading}>{visiblePackages.length} packages</div>
           {visiblePackages.map((p) => (
-          <button
-            className={resourceStyles.row}
-            key={p.id}
-            aria-pressed={selectedPackage?.id === p.id}
-            draggable={data.canPrepare && p.published_revision > 0}
-            onDragStart={(e) =>
-              e.dataTransfer.setData("application/erpx-access-package", p.id)
-            }
-            onClick={() => { setSelectedPackageId(p.id); setMobileDetail(true); }}
-          >
-            <ShieldCheck size={18} aria-hidden="true" />
-            <span><strong>{p.definition.name}</strong><small>{p.published_revision ? `Published revision ${p.published_revision}` : "Draft"} · {data.positions.filter((x) => x.package_id === p.id).length} positions</small></span>
-          </button>
-        ))}
-          {!visiblePackages.length && <p className={resourceStyles.empty}>{data.packages.length ? "No packages match your search." : "No packages yet. Create the first package to prepare access."}</p>}
+            <Button
+              type="submit"
+              variant="plain"
+              className={resourceStyles.row}
+              key={p.id}
+              aria-pressed={selectedPackage?.id === p.id}
+              draggable={data.canPrepare && p.published_revision > 0}
+              onDragStart={(e) => e.dataTransfer.setData("application/erpx-access-package", p.id)}
+              onClick={() => {
+                setSelectedPackageId(p.id);
+                setMobileDetail(true);
+              }}
+            >
+              <ShieldCheck size={18} aria-hidden="true" />
+              <span>
+                <strong>{p.definition.name}</strong>
+                <small>
+                  {p.published_revision ? `Published revision ${p.published_revision}` : "Draft"} ·{" "}
+                  {data.positions.filter((x) => x.package_id === p.id).length} positions
+                </small>
+              </span>
+            </Button>
+          ))}
+          {!visiblePackages.length && (
+            <p className={resourceStyles.empty}>
+              {data.packages.length
+                ? "No packages match your search."
+                : "No packages yet. Create the first package to prepare access."}
+            </p>
+          )}
         </div>
         <aside className={resourceStyles.detail} aria-label="Package details">
-          <button type="button" className={resourceStyles.mobileBack} onClick={() => setMobileDetail(false)}>← Back to packages</button>
-          {selectedPackage ? <>
-            <div className={resourceStyles.detailHeading}>
-              <div><h2>{selectedPackage.definition.name}</h2><p>{selectedPackage.published_revision ? `Published revision ${selectedPackage.published_revision}` : "Draft package"}</p></div>
-              {data.canPrepare && <button type="button" className="button secondary" onClick={() => edit(selectedPackage)}>Edit package</button>}
+          <Button
+            variant="plain"
+            type="button"
+            className={resourceStyles.mobileBack}
+            onClick={() => setMobileDetail(false)}
+          >
+            ← Back to packages
+          </Button>
+          {selectedPackage ? (
+            <>
+              <div className={resourceStyles.detailHeading}>
+                <div>
+                  <h2>{selectedPackage.definition.name}</h2>
+                  <p>
+                    {selectedPackage.published_revision
+                      ? `Published revision ${selectedPackage.published_revision}`
+                      : "Draft package"}
+                  </p>
+                </div>
+                {data.canPrepare && (
+                  <Button variant="secondary" type="button" onClick={() => edit(selectedPackage)}>
+                    Edit package
+                  </Button>
+                )}
+              </div>
+              <p className={resourceStyles.summary}>
+                {data.positions.filter((item) => item.package_id === selectedPackage.id).length}{" "}
+                positions use this package. Binding it to a position does not apply access to
+                employees automatically.
+              </p>
+              <AccessRecipe definition={selectedPackage.definition} />
+            </>
+          ) : (
+            <div className={resourceStyles.empty}>
+              Select a package to view its resources and preparation steps.
             </div>
-            <p className={resourceStyles.summary}>{data.positions.filter((item) => item.package_id === selectedPackage.id).length} positions use this package. Binding it to a position does not apply access to employees automatically.</p>
-            <AccessRecipe definition={selectedPackage.definition} />
-          </> : <div className={resourceStyles.empty}>Select a package to view its resources and preparation steps.</div>}
+          )}
         </aside>
       </div>
       <Dialog
         open={!!editing}
         onClose={() => setEditing(null)}
-        title={
-          editing === "new" ? "New access package" : "Prepare access package"
-        }
-        presentation="responsive-panel"
+        title={editing === "new" ? "New access package" : "Prepare access package"}
+        presentation="form-drawer"
       >
         <form
           className={styles.stack}
           onSubmit={async (e: FormEvent) => {
             e.preventDefault();
-            const result = await send<typeof preview>(
-              "packages/preview",
-              input,
-            );
+            const result = await send<typeof preview>("packages/preview", input);
             if (result) setPreview(result);
           }}
         >
-          <label>
+          <Field>
             Package name
-            <input
+            <TextInput
               required
               minLength={2}
               maxLength={160}
               value={definition.name}
               onChange={(e) => change({ ...definition, name: e.target.value })}
             />
-          </label>
-          <label>
+          </Field>
+          <Field>
             Account provider
-            <select
+            <Select
               value={definition.account}
               onChange={(e) =>
                 change({
@@ -584,12 +702,12 @@ export function AccessPackages({
               <option value="local">Local ERPX</option>
               <option value="univention">UCS / Samba AD</option>
               <option value="active_directory">Active Directory</option>
-            </select>
-          </label>
+            </Select>
+          </Field>
           {definition.account !== "local" && (
-            <label>
+            <Field>
               Directory connection
-              <select
+              <Select
                 required
                 value={definition.connectionId ?? ""}
                 onChange={(e) =>
@@ -609,16 +727,16 @@ export function AccessPackages({
                       {c.name}
                     </option>
                   ))}
-              </select>
-            </label>
+              </Select>
+            </Field>
           )}
           <fieldset>
             <legend>ERPX roles</legend>
             {definition.grants.map((g, i) => (
               <div key={i} className={styles.grant}>
-                <label>
+                <Field>
                   Role
-                  <select
+                  <Select
                     value={g.roleId}
                     onChange={(e) => {
                       const role = roles.find((r) => r.id === e.target.value);
@@ -641,11 +759,11 @@ export function AccessPackages({
                         {r.name}
                       </option>
                     ))}
-                  </select>
-                </label>
-                <label>
+                  </Select>
+                </Field>
+                <Field>
                   Scope
-                  <select
+                  <Select
                     value={g.scopeKind}
                     onChange={(e) =>
                       change({
@@ -665,12 +783,12 @@ export function AccessPackages({
                     <option value="holding">Company</option>
                     <option value="branch">Branch</option>
                     <option value="department">Department</option>
-                  </select>
-                </label>
+                  </Select>
+                </Field>
                 {g.scopeKind !== "holding" && (
-                  <label>
+                  <Field>
                     Access scope
-                    <select
+                    <Select
                       required
                       value={g.scopeNodeId ?? ""}
                       onChange={(e) =>
@@ -690,12 +808,12 @@ export function AccessPackages({
                             {n.name}
                           </option>
                         ))}
-                    </select>
-                  </label>
+                    </Select>
+                  </Field>
                 )}
-                <label>
+                <Field>
                   Access expires
-                  <input
+                  <TextInput
                     type="date"
                     required
                     value={new Date(g.validUntil).toISOString().slice(0, 10)}
@@ -707,18 +825,18 @@ export function AccessPackages({
                             i === j
                               ? {
                                   ...x,
-                                  validUntil:
-                                    Date.parse(e.target.value) + 86400000,
+                                  validUntil: Date.parse(e.target.value) + 86400000,
                                 }
                               : x,
                           ),
                         });
                     }}
                   />
-                </label>
-                <button
+                </Field>
+                <Button
+                  variant="secondary"
                   type="button"
-                  className="button secondary"
+
                   onClick={() =>
                     change({
                       ...definition,
@@ -727,12 +845,13 @@ export function AccessPackages({
                   }
                 >
                   Remove role
-                </button>
+                </Button>
               </div>
             ))}
-            <button
+            <Button
+              variant="secondary"
               type="button"
-              className="button secondary"
+
               disabled={!roles.length}
               onClick={() => {
                 const r = roles.find((r) => r.id === "employee") ?? roles[0];
@@ -752,14 +871,14 @@ export function AccessPackages({
               }}
             >
               Add role
-            </button>
+            </Button>
           </fieldset>
           <fieldset>
             <legend>ERPX groups</legend>
             {groups.length ? (
               groups.map((g) => (
-                <label className={styles.check} key={g.id}>
-                  <input
+                <Field orientation="inline" className={styles.check} key={g.id}>
+                  <TextInput
                     type="checkbox"
                     checked={definition.groupIds.includes(g.id)}
                     onChange={(e) =>
@@ -772,7 +891,7 @@ export function AccessPackages({
                     }
                   />
                   {g.name}
-                </label>
+                </Field>
               ))
             ) : (
               <p>Create groups in Groups before adding them to a package.</p>
@@ -784,8 +903,8 @@ export function AccessPackages({
               {directoryGroups
                 .filter((g) => g.connectionId === definition.connectionId)
                 .map((g) => (
-                  <label className={styles.check} key={g.id}>
-                    <input
+                  <Field orientation="inline" className={styles.check} key={g.id}>
+                    <TextInput
                       type="checkbox"
                       checked={definition.directoryGroupIds.includes(g.id)}
                       onChange={(e) =>
@@ -793,77 +912,69 @@ export function AccessPackages({
                           ...definition,
                           directoryGroupIds: e.target.checked
                             ? [...definition.directoryGroupIds, g.id]
-                            : definition.directoryGroupIds.filter(
-                                (id) => id !== g.id,
-                              ),
+                            : definition.directoryGroupIds.filter((id) => id !== g.id),
                         })
                       }
                     />
                     {g.name}
-                  </label>
+                  </Field>
                 ))}
-              <p className="muted">
-                Membership changes require IT completion in the directory.
-              </p>
+              <p className="muted">Membership changes require IT completion in the directory.</p>
             </fieldset>
           )}
           {definition.connectionId && (
             <fieldset>
               <legend>Windows policy references</legend>
               <p className="muted">
-                Record an existing GPO and its intended targets. IT must apply
-                it and verify the result in Windows.
+                Record an existing GPO and its intended targets. IT must apply it and verify the
+                result in Windows.
               </p>
               {definition.windowsPolicies.map((policy, i) => (
                 <div className={styles.stack} key={i}>
-                  <label>
+                  <Field>
                     GPO ID
-                    <input
+                    <TextInput
                       required
                       value={policy.id}
                       onChange={(e) =>
                         change({
                           ...definition,
-                          windowsPolicies: definition.windowsPolicies.map(
-                            (p, j) =>
-                              i === j ? { ...p, id: e.target.value } : p,
+                          windowsPolicies: definition.windowsPolicies.map((p, j) =>
+                            i === j ? { ...p, id: e.target.value } : p,
                           ),
                         })
                       }
                     />
-                  </label>
-                  <label>
+                  </Field>
+                  <Field>
                     Policy name
-                    <input
+                    <TextInput
                       required
                       value={policy.name}
                       onChange={(e) =>
                         change({
                           ...definition,
-                          windowsPolicies: definition.windowsPolicies.map(
-                            (p, j) =>
-                              i === j ? { ...p, name: e.target.value } : p,
+                          windowsPolicies: definition.windowsPolicies.map((p, j) =>
+                            i === j ? { ...p, name: e.target.value } : p,
                           ),
                         })
                       }
                     />
-                  </label>
-                  <label>
+                  </Field>
+                  <Field>
                     Policy type
-                    <select
+                    <Select
                       value={policy.processor}
                       onChange={(e) =>
                         change({
                           ...definition,
-                          windowsPolicies: definition.windowsPolicies.map(
-                            (p, j) =>
-                              i === j
-                                ? {
-                                    ...p,
-                                    processor: e.target
-                                      .value as typeof policy.processor,
-                                  }
-                                : p,
+                          windowsPolicies: definition.windowsPolicies.map((p, j) =>
+                            i === j
+                              ? {
+                                  ...p,
+                                  processor: e.target.value as typeof policy.processor,
+                                }
+                              : p,
                           ),
                         })
                       }
@@ -871,112 +982,105 @@ export function AccessPackages({
                       <option value="admx">
                         Administrative policy · USB / lock screen / desktop
                       </option>
-                      <option value="preferences">
-                        Preference · drive / printer
-                      </option>
-                    </select>
-                  </label>
-                  <label>
+                      <option value="preferences">Preference · drive / printer</option>
+                    </Select>
+                  </Field>
+                  <Field>
                     Scope
-                    <select
+                    <Select
                       value={policy.scope}
                       onChange={(e) =>
                         change({
                           ...definition,
-                          windowsPolicies: definition.windowsPolicies.map(
-                            (p, j) =>
-                              i === j
-                                ? {
-                                    ...p,
-                                    scope: e.target
-                                      .value as typeof policy.scope,
-                                  }
-                                : p,
+                          windowsPolicies: definition.windowsPolicies.map((p, j) =>
+                            i === j
+                              ? {
+                                  ...p,
+                                  scope: e.target.value as typeof policy.scope,
+                                }
+                              : p,
                           ),
                         })
                       }
                     >
                       <option value="user">User</option>
                       <option value="computer">Computer</option>
-                    </select>
-                  </label>
-                  <label>
+                    </Select>
+                  </Field>
+                  <Field>
                     Target OU
-                    <input
+                    <TextInput
                       required
                       value={policy.targetOu}
                       onChange={(e) =>
                         change({
                           ...definition,
-                          windowsPolicies: definition.windowsPolicies.map(
-                            (p, j) =>
-                              i === j ? { ...p, targetOu: e.target.value } : p,
+                          windowsPolicies: definition.windowsPolicies.map((p, j) =>
+                            i === j ? { ...p, targetOu: e.target.value } : p,
                           ),
                         })
                       }
                     />
-                  </label>
-                  <label>
+                  </Field>
+                  <Field>
                     Security filter group
-                    <input
+                    <TextInput
                       value={policy.securityGroup ?? ""}
                       onChange={(e) =>
                         change({
                           ...definition,
-                          windowsPolicies: definition.windowsPolicies.map(
-                            (p, j) =>
-                              i === j
-                                ? {
-                                    ...p,
-                                    securityGroup: e.target.value || null,
-                                  }
-                                : p,
+                          windowsPolicies: definition.windowsPolicies.map((p, j) =>
+                            i === j
+                              ? {
+                                  ...p,
+                                  securityGroup: e.target.value || null,
+                                }
+                              : p,
                           ),
                         })
                       }
                     />
-                  </label>
+                  </Field>
                   {policy.scope === "computer" && (
-                    <label>
+                    <Field>
                       Computer group or OU
-                      <input
+                      <TextInput
                         required
                         value={policy.computerTarget ?? ""}
                         onChange={(e) =>
                           change({
                             ...definition,
-                            windowsPolicies: definition.windowsPolicies.map(
-                              (p, j) =>
-                                i === j
-                                  ? {
-                                      ...p,
-                                      computerTarget: e.target.value || null,
-                                    }
-                                  : p,
+                            windowsPolicies: definition.windowsPolicies.map((p, j) =>
+                              i === j
+                                ? {
+                                    ...p,
+                                    computerTarget: e.target.value || null,
+                                  }
+                                : p,
                             ),
                           })
                         }
                       />
-                    </label>
+                    </Field>
                   )}
-                  <button
-                    className="button secondary"
+                  <Button
+                    variant="secondary"
+
                     type="button"
                     onClick={() =>
                       change({
                         ...definition,
-                        windowsPolicies: definition.windowsPolicies.filter(
-                          (_, j) => j !== i,
-                        ),
+                        windowsPolicies: definition.windowsPolicies.filter((_, j) => j !== i),
                       })
                     }
                   >
                     Remove reference
-                  </button>
+                  </Button>
                 </div>
               ))}
-              <button
-                className="button secondary"
+              <Button
+                variant="secondary"
+
                 type="button"
                 onClick={() =>
                   change({
@@ -997,46 +1101,38 @@ export function AccessPackages({
                 }
               >
                 Add existing GPO reference
-              </button>
+              </Button>
             </fieldset>
           )}
           <fieldset>
             <legend>Preparation tasks</legend>
             {definition.tasks.map((task, i) => (
               <div className={styles.grant} key={i}>
-                <label>
+                <Field>
                   Type
-                  <select
+                  <Select
                     value={task.kind}
                     onChange={(e) =>
                       change({
                         ...definition,
                         tasks: definition.tasks.map((t, j) =>
-                          i === j
-                            ? { ...t, kind: e.target.value as typeof task.kind }
-                            : t,
+                          i === j ? { ...t, kind: e.target.value as typeof task.kind } : t,
                         ),
                       })
                     }
                   >
-                    {(
-                      [
-                        "equipment",
-                        "drive",
-                        "printer",
-                        "directory",
-                        "handover",
-                      ] as const
-                    ).map((kind) => (
-                      <option key={kind} value={kind}>
-                        {kind}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
+                    {(["equipment", "drive", "printer", "directory", "handover"] as const).map(
+                      (kind) => (
+                        <option key={kind} value={kind}>
+                          {kind}
+                        </option>
+                      ),
+                    )}
+                  </Select>
+                </Field>
+                <Field>
                   Task
-                  <input
+                  <TextInput
                     required
                     minLength={2}
                     maxLength={300}
@@ -1050,9 +1146,10 @@ export function AccessPackages({
                       })
                     }
                   />
-                </label>
-                <button
-                  className="button secondary"
+                </Field>
+                <Button
+                  variant="secondary"
+
                   type="button"
                   onClick={() =>
                     change({
@@ -1062,28 +1159,26 @@ export function AccessPackages({
                   }
                 >
                   Remove task
-                </button>
+                </Button>
               </div>
             ))}
-            <button
-              className="button secondary"
+            <Button
+              variant="secondary"
+
               type="button"
               onClick={() =>
                 change({
                   ...definition,
-                  tasks: [
-                    ...definition.tasks,
-                    { kind: "equipment", label: "" },
-                  ],
+                  tasks: [...definition.tasks, { kind: "equipment", label: "" }],
                 })
               }
             >
               Add preparation task
-            </button>
+            </Button>
           </fieldset>
-          <label>
+          <Field>
             Reason
-            <input
+            <TextInput
               required
               minLength={3}
               value={reason}
@@ -1092,42 +1187,39 @@ export function AccessPackages({
                 setPreview(null);
               }}
             />
-          </label>
+          </Field>
           {data.canPrepare && (
             <div className={styles.actions}>
-              <button
+              <Button
+                variant="secondary"
                 type="button"
-                className="button secondary"
+
                 disabled={busy || reason.length < 3}
                 onClick={async () => {
                   if (await send("packages/draft", input)) setEditing(null);
                 }}
               >
                 Save draft
-              </button>
-              <button className="button" disabled={busy}>
+              </Button>
+              <Button clientManaged type="submit" variant="primary" disabled={busy}>
                 Preview publication
-              </button>
+              </Button>
             </div>
           )}
           {preview && (
             <div className={styles.preview}>
               <h3>Publication impact</h3>
-              <p>
-                Positions: {preview.affectedPositions.join(", ") || "None yet"}
-              </p>
+              <p>Positions: {preview.affectedPositions.join(", ") || "None yet"}</p>
               <p>People: {preview.affectedPeople.join(", ") || "None yet"}</p>
+              <p>Computer targets: {preview.affectedComputers.join(", ") || "None"}</p>
               <p>
-                Computer targets:{" "}
-                {preview.affectedComputers.join(", ") || "None"}
+                Existing personal grants remain on their reviewed revision until a new lifecycle
+                request.
               </p>
-              <p>
-                Existing personal grants remain on their reviewed revision until
-                a new lifecycle request.
-              </p>
-              <button
+              <Button
+                variant="primary"
                 type="button"
-                className="button"
+
                 disabled={busy}
                 onClick={async () => {
                   if (
@@ -1140,7 +1232,7 @@ export function AccessPackages({
                 }}
               >
                 Publish access package
-              </button>
+              </Button>
             </div>
           )}
           {error && <p role="alert">{error}</p>}
@@ -1173,7 +1265,9 @@ export function LifecyclePanel({
   initialKind?: LifecycleInput["kind"];
 }) {
   const editableInitial =
-    initialCase && initialCase.workflow !== "legacy" && ["draft", "waiting_it"].includes(initialCase.status)
+    initialCase &&
+    initialCase.workflow !== "legacy" &&
+    ["draft", "waiting_it"].includes(initialCase.status)
       ? initialCase
       : undefined;
   const { send, busy, error } = useCommand(base),
@@ -1197,60 +1291,86 @@ export function LifecyclePanel({
     [confirmSupersede, setConfirmSupersede] = useState(false),
     [initialTime] = useState(() => Date.now() + 3600000),
     [rehireOpen, setRehireOpen] = useState(false);
-  const [departureReason,setDepartureReason] = useState<"retirement"|"other">(initialCase?.definition.departureReason ?? "other");
-  const [timezone,setTimezone] = useState(initialCase?.definition.timezone ?? "Asia/Bangkok");
-  const [effectiveLocal,setEffectiveLocal] = useState(() => retirementLocalTime(initialCase?.effective_at ?? initialTime,initialCase?.definition.timezone ?? "Asia/Bangkok"));
-  const [dateError,setDateError] = useState("");
-  const cases = data.cases.filter(
-    (c): c is LifecycleCase =>
-      c.person_id === person.id && hasLifecycleCaseDetail(c),
+  const [departureReason, setDepartureReason] = useState<"retirement" | "other">(
+    initialCase?.definition.departureReason ?? "other",
   );
-  const gpoDelivery=data.roster.find(p=>p.engagementId===person.engagementId)?.gpoDelivery??"none";
+  const [timezone, setTimezone] = useState(initialCase?.definition.timezone ?? "Asia/Bangkok");
+  const [effectiveLocal, setEffectiveLocal] = useState(() =>
+    retirementLocalTime(
+      initialCase?.effective_at ?? initialTime,
+      initialCase?.definition.timezone ?? "Asia/Bangkok",
+    ),
+  );
+  const [dateError, setDateError] = useState("");
+  const cases = data.cases.filter(
+    (c): c is LifecycleCase => c.person_id === person.id && hasLifecycleCaseDetail(c),
+  );
+  const gpoDelivery =
+    data.roster.find((p) => p.engagementId === person.engagementId)?.gpoDelivery ?? "none";
   return (
     <section className="card">
       <div className={styles.heading}>
         <div>
           <h2>Employment & position</h2>
           <p>HR placement is managed here. {personGpoStatus(gpoDelivery)}.</p>
-          <p className="muted">Directory verification does not confirm application on an employee device.</p>
-          {data.canPrepare&&<Link href={`${base}/technology?view=employees`}>Open in Technology</Link>}
           <p className="muted">
-            Onboard, transfer, suspend, leave, or retire in this Company.
+            Directory verification does not confirm application on an employee device.
           </p>
+          {data.canPrepare && (
+            <Link href={`${base}/technology?view=employees`}>Open in Technology</Link>
+          )}
+          <p className="muted">Onboard, transfer, suspend, leave, or retire in this Company.</p>
         </div>
         {data.canManage && person.status !== "ended" && (
-          <button
-            className="button"
+          <Button
+            type="submit"
+            variant="primary"
+
             onClick={() => {
               setDraft(null);
               setDepartureReason("other");
               setPreview(null);
               setConfirmSupersede(false);
-              setKind(
-                person.status === "onboarding" ? "onboarding" : "transfer",
-              );
+              setKind(person.status === "onboarding" ? "onboarding" : "transfer");
               setOpen(true);
               setStep(1);
             }}
           >
             Start a change
-          </button>
+          </Button>
         )}
       </div>
-      {data.canManage && person.status !== "ended" && <button className="button secondary" onClick={() => {setDraft(null);setDepartureReason("retirement");setKind("offboarding");setPreview(null);setStep(1);setOpen(true);}}>Retire employee</button>}
+      {data.canManage && person.status !== "ended" && (
+        <Button
+          type="submit"
+          variant="secondary"
+          onClick={() => {
+            setDraft(null);
+            setDepartureReason("retirement");
+            setKind("offboarding");
+            setPreview(null);
+            setStep(1);
+            setOpen(true);
+          }}
+        >
+          Retire employee
+        </Button>
+      )}
       {data.canManage && person.status === "ended" && (
-        <button
-          className="button secondary"
+        <Button
+          type="submit"
+          variant="secondary"
+
           onClick={() => setRehireOpen(true)}
         >
           Create a new engagement for rehire
-        </button>
+        </Button>
       )}
       <Dialog
         open={rehireOpen}
         onClose={() => setRehireOpen(false)}
         title="Rehire · new engagement"
-        presentation="responsive-panel"
+        presentation="form-drawer"
       >
         <form
           className={styles.stack}
@@ -1270,65 +1390,88 @@ export function LifecyclePanel({
           }}
         >
           <p>
-            Previous employment and revoked access remain in history. The new
-            engagement starts with onboarding and requires new access review.
+            Previous employment and revoked access remain in history. The new engagement starts with
+            onboarding and requires new access review.
           </p>
-          <label>
+          <Field>
             New position
-            <select name="position" required>
+            <Select name="position" required>
               <option value="">Choose a position</option>
               {data.positions
                 .filter((p) => p.active)
                 .map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.title} ·{" "}
-                    {data.nodes.find((n) => n.id === p.branch_id)?.name ??
-                      "Company"}{" "}
-                    ·{" "}
-                    {data.nodes.find((n) => n.id === p.department_id)?.name ??
-                      "All departments"}
+                    {p.title} · {data.nodes.find((n) => n.id === p.branch_id)?.name ?? "Company"} ·{" "}
+                    {data.nodes.find((n) => n.id === p.department_id)?.name ?? "All departments"}
                   </option>
                 ))}
-            </select>
-          </label>
-          <label>
+            </Select>
+          </Field>
+          <Field>
             Start date
-            <input type="date" name="startDate" required />
-          </label>
-          <label>
+            <TextInput type="date" name="startDate" required />
+          </Field>
+          <Field>
             Reason
-            <input name="reason" required minLength={3} />
-          </label>
-          <button className="button" disabled={busy}>
+            <TextInput name="reason" required minLength={3} />
+          </Field>
+          <Button clientManaged type="submit" variant="primary" disabled={busy}>
             Create onboarding engagement
-          </button>
+          </Button>
           {error && <p role="alert">{error}</p>}
         </form>
       </Dialog>
       {cases.map((c) => (
         <div className={styles.case} key={c.id}>
           <strong>
-            {c.definition.departureReason === "retirement" ? "Retirement" : c.kind} · {c.status.replaceAll("_", " ")}
+            {c.definition.departureReason === "retirement" ? "Retirement" : c.kind} ·{" "}
+            {c.status.replaceAll("_", " ")}
           </strong>
           <p>
-            Effective <TimeText value={c.effective_at} /> {c.definition.timezone ?? "Asia/Bangkok"} ·{" "}
-            {c.definition.reason}
+            Effective <TimeText value={c.effective_at} /> {c.definition.timezone ?? "Asia/Bangkok"}{" "}
+            · {c.definition.reason}
           </p>
-          {c.definition.departureReason === "retirement" && <div className={styles.stack}><p>Retirement: {c.cutoffEffective ? "Effective" : c.status === "cancelled" ? "Cancelled" : "Not yet effective"} · Last working day: {c.definition.lastWorkingDate}</p><p>Clearance: {data.tasks.some(t=>t.case_id===c.id && t.clearance_type && t.status==="pending") ? "In progress" : ["draft","cancelled"].includes(c.status) ? "Not started" : "Complete"}</p>{!["draft","cancelled"].includes(c.status) && <Link className="button secondary" href={`${base}/people/clearance/${c.id}`}>Track all six departments</Link>}</div>}
-          {data.tasks.some(
-            (t) => t.case_id === c.id && t.status === "pending",
-          ) && (
+          {c.definition.departureReason === "retirement" && (
+            <div className={styles.stack}>
+              <p>
+                Retirement:{" "}
+                {c.cutoffEffective
+                  ? "Effective"
+                  : c.status === "cancelled"
+                    ? "Cancelled"
+                    : "Not yet effective"}{" "}
+                · Last working day: {c.definition.lastWorkingDate}
+              </p>
+              <p>
+                Clearance:{" "}
+                {data.tasks.some(
+                  (t) => t.case_id === c.id && t.clearance_type && t.status === "pending",
+                )
+                  ? "In progress"
+                  : ["draft", "cancelled"].includes(c.status)
+                    ? "Not started"
+                    : "Complete"}
+              </p>
+              {!["draft", "cancelled"].includes(c.status) && (
+                <UiActionLink variant="secondary" href={`${base}/people/clearance/${c.id}`}>
+                  Track all six departments
+                </UiActionLink>
+              )}
+            </div>
+          )}
+          {data.tasks.some((t) => t.case_id === c.id && t.status === "pending") && (
             <p>
-              <Link href={c.definition.departureReason === "retirement" ? `${base}/people/clearance/${c.id}` : `${base}/people/access?view=devices`}>
-                {
-                  data.tasks.filter(
-                    (t) => t.case_id === c.id && t.status === "pending",
-                  ).length
-                }{" "}
+              <Link
+                href={
+                  c.definition.departureReason === "retirement"
+                    ? `${base}/people/clearance/${c.id}`
+                    : `${base}/people/access?view=devices`
+                }
+              >
+                {data.tasks.filter((t) => t.case_id === c.id && t.status === "pending").length}{" "}
                 preparation tasks pending
               </Link>
-              {c.status === "completed" &&
-              ["offboarding", "suspend"].includes(c.kind)
+              {c.status === "completed" && ["offboarding", "suspend"].includes(c.kind)
                 ? " · ERPX access revoked; directory completion tracked separately"
                 : ""}
             </p>
@@ -1336,10 +1479,7 @@ export function LifecyclePanel({
           {["offboarding", "suspend"].includes(c.kind) &&
             ["scheduled", "completed"].includes(c.status) && (
               <p>
-                {c.cutoffEffective
-                  ? "ERPX access revoked"
-                  : "ERPX revocation scheduled"}{" "}
-                ·{" "}
+                {c.cutoffEffective ? "ERPX access revoked" : "ERPX revocation scheduled"} ·{" "}
                 {c.directoryStatus === "verified"
                   ? "Directory disable verified"
                   : c.directoryStatus === "not_required"
@@ -1356,50 +1496,66 @@ export function LifecyclePanel({
           )}
           {c.status === "waiting_it" && (
             <p>
-              This older access request is waiting for IT preparation or
-              account linking. HR placement can continue separately.
+              This older access request is waiting for IT preparation or account linking. HR
+              placement can continue separately.
             </p>
           )}
-          {data.canManage && c.workflow !== "legacy" && ["draft", "waiting_it"].includes(c.status) && (
-            <button
-              className="button secondary"
-              onClick={() => {
-                setDraft({
-                  ...c.definition,
-                  id: c.id,
-                  expectedVersion: c.version,
-                });
-                setKind(c.kind);
-                setDepartureReason(c.definition.departureReason ?? "other");
-                setTimezone(c.definition.timezone ?? "Asia/Bangkok");
-                setEffectiveLocal(retirementLocalTime(c.effective_at,c.definition.timezone ?? "Asia/Bangkok"));
-                setOpen(true);
-                setStep(1);
-              }}
-            >
-              Continue draft
-            </button>
-          )}
-          {data.canManage && c.workflow === "legacy" && ["waiting_it", "pending_review", "scheduled"].includes(c.status) && !c.cutoffEffective && ["onboarding", "transfer"].includes(c.kind) && (
-            <button
-              className="button secondary"
-              onClick={() => {
-                setDraft({...c.definition,id:undefined,expectedVersion:0});
-                setKind(c.kind);
-                setTimezone(c.definition.timezone ?? "Asia/Bangkok");
-                setEffectiveLocal(retirementLocalTime(c.effective_at,c.definition.timezone ?? "Asia/Bangkok"));
-                setPreview(null);
-                setConfirmSupersede(false);
-                setStep(1);
-                setOpen(true);
-              }}
-            >
-              Continue as HR placement
-            </button>
-          )}
+          {data.canManage &&
+            c.workflow !== "legacy" &&
+            ["draft", "waiting_it"].includes(c.status) && (
+              <Button
+                type="submit"
+                variant="secondary"
+
+                onClick={() => {
+                  setDraft({
+                    ...c.definition,
+                    id: c.id,
+                    expectedVersion: c.version,
+                  });
+                  setKind(c.kind);
+                  setDepartureReason(c.definition.departureReason ?? "other");
+                  setTimezone(c.definition.timezone ?? "Asia/Bangkok");
+                  setEffectiveLocal(
+                    retirementLocalTime(c.effective_at, c.definition.timezone ?? "Asia/Bangkok"),
+                  );
+                  setOpen(true);
+                  setStep(1);
+                }}
+              >
+                Continue draft
+              </Button>
+            )}
+          {data.canManage &&
+            c.workflow === "legacy" &&
+            ["waiting_it", "pending_review", "scheduled"].includes(c.status) &&
+            !c.cutoffEffective &&
+            ["onboarding", "transfer"].includes(c.kind) && (
+              <Button
+                type="submit"
+                variant="secondary"
+
+                onClick={() => {
+                  setDraft({ ...c.definition, id: undefined, expectedVersion: 0 });
+                  setKind(c.kind);
+                  setTimezone(c.definition.timezone ?? "Asia/Bangkok");
+                  setEffectiveLocal(
+                    retirementLocalTime(c.effective_at, c.definition.timezone ?? "Asia/Bangkok"),
+                  );
+                  setPreview(null);
+                  setConfirmSupersede(false);
+                  setStep(1);
+                  setOpen(true);
+                }}
+              >
+                Continue as HR placement
+              </Button>
+            )}
           {data.canReview && c.status === "pending_review" && (
-            <button
-              className="button secondary"
+            <Button
+              type="submit"
+              variant="secondary"
+
               disabled={busy}
               onClick={() =>
                 void send(`cases/${c.id}/request-access`, {
@@ -1408,11 +1564,13 @@ export function LifecyclePanel({
               }
             >
               Request individual access review
-            </button>
+            </Button>
           )}
           {data.canManage && !["completed", "cancelled"].includes(c.status) && (
-            <button
-              className="button secondary"
+            <Button
+              type="submit"
+              variant="secondary"
+
               disabled={busy}
               onClick={() =>
                 void send(`cases/${c.id}/cancel`, {
@@ -1421,18 +1579,16 @@ export function LifecyclePanel({
               }
             >
               {c.status === "draft" ? "Cancel draft" : "Cancel scheduled change"}
-            </button>
+            </Button>
           )}
-          <Link href={`${base}/work?type=people_lifecycle`}>
-            Track preparation and reviews
-          </Link>
+          <Link href={`${base}/work?type=people_lifecycle`}>Track preparation and reviews</Link>
         </div>
       ))}
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
         title={`${person.name} · employment change`}
-        presentation="responsive-panel"
+        presentation="form-drawer"
       >
         <div className={styles.steps} aria-label="Onboarding steps">
           <span data-active={step === 1}>1 · Person & position</span>
@@ -1447,8 +1603,13 @@ export function LifecyclePanel({
               const f = new FormData(e.currentTarget),
                 existing = cases.find((c) => c.id === draft?.id);
               let cutoff: number;
-              try {cutoff = retirementInstant(effectiveLocal,timezone); setDateError("");}
-              catch (error) {setDateError(error instanceof Error ? error.message : "Choose a valid time.");return;}
+              try {
+                cutoff = retirementInstant(effectiveLocal, timezone);
+                setDateError("");
+              } catch (error) {
+                setDateError(error instanceof Error ? error.message : "Choose a valid time.");
+                return;
+              }
               const input: LifecycleInput = {
                 id: existing?.id,
                 expectedVersion: existing?.version ?? 0,
@@ -1459,19 +1620,20 @@ export function LifecyclePanel({
                   ? String(f.get("position"))
                   : null,
                 managerPersonId: String(f.get("manager") ?? "") || null,
-                acceptRecommendedPay:f.get("acceptRecommendedPay")==="on",
-                acceptRecommendedLeave:f.get("acceptRecommendedLeave")==="on",
+                acceptRecommendedPay: f.get("acceptRecommendedPay") === "on",
+                acceptRecommendedLeave: f.get("acceptRecommendedLeave") === "on",
                 effectiveAt: cutoff,
                 departureReason: kind === "offboarding" ? departureReason : "other",
                 timezone,
-                clearanceOwners: {equipment:String(f.get("equipment")??"")||null,payroll:String(f.get("payroll")??"")||null,finance:String(f.get("finance")??"")||null},
+                clearanceOwners: {
+                  equipment: String(f.get("equipment") ?? "") || null,
+                  payroll: String(f.get("payroll") ?? "") || null,
+                  finance: String(f.get("finance") ?? "") || null,
+                },
                 lastWorkingDate: String(f.get("lastWorkingDate") ?? "") || null,
                 reason: String(f.get("reason")),
               };
-              const result = await send<LifecyclePreview>(
-                "placements/preview",
-                input,
-              );
+              const result = await send<LifecyclePreview>("placements/preview", input);
               if (result) {
                 setDraft(input);
                 setPreview(result);
@@ -1481,9 +1643,9 @@ export function LifecyclePanel({
             }}
           >
             <p>{person.name} · Existing person and engagement</p>
-            <label>
+            <Field>
               Change
-              <select
+              <Select
                 value={kind}
                 disabled={!!draft?.id}
                 onChange={(e) => setKind(e.target.value as typeof kind)}
@@ -1491,24 +1653,17 @@ export function LifecyclePanel({
                 <option value="onboarding">Onboarding / new engagement</option>
                 <option value="transfer">Transfer position or branch</option>
                 <option value="suspend">Temporary suspension</option>
-                <option value="offboarding">
-                  End employment & revoke Company access
-                </option>
-              </select>
-            </label>
+                <option value="offboarding">End employment & revoke Company access</option>
+              </Select>
+            </Field>
             {["onboarding", "transfer"].includes(kind) && (
               <>
-                <label>
+                <Field>
                   Position
-                  <select
+                  <Select
                     name="position"
                     required
-                    defaultValue={
-                      draft?.positionId ??
-                      initialPositionId ??
-                      person.positionId ??
-                      ""
-                    }
+                    defaultValue={draft?.positionId ?? initialPositionId ?? person.positionId ?? ""}
                   >
                     <option value="">Choose a position</option>
                     {data.positions
@@ -1516,26 +1671,36 @@ export function LifecyclePanel({
                       .map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.title} ·{" "}
-                          {data.nodes.find((n) => n.id === p.branch_id)?.name ??
-                            "Company"}{" "}
-                          ·{" "}
-                          {data.nodes.find((n) => n.id === p.department_id)
-                            ?.name ?? "All departments"}{" "}
-                          ·{" "}
-                          {positionGpoStatus(p.gpo)} · HR placement available
+                          {data.nodes.find((n) => n.id === p.branch_id)?.name ?? "Company"} ·{" "}
+                          {data.nodes.find((n) => n.id === p.department_id)?.name ??
+                            "All departments"}{" "}
+                          · {positionGpoStatus(p.gpo)} · HR placement available
                         </option>
                       ))}
-                  </select>
-                </label>
-                <label><input type="checkbox" name="acceptRecommendedPay" defaultChecked={draft?.acceptRecommendedPay??false}/> Create a pay draft from the Position default if this engagement has no compensation history</label>
-                <label><input type="checkbox" name="acceptRecommendedLeave" defaultChecked={draft?.acceptRecommendedLeave??true}/> Assign the Level leave default</label>
-                <label>
+                  </Select>
+                </Field>
+                <Field orientation="inline">
+                  <TextInput
+                    type="checkbox"
+                    name="acceptRecommendedPay"
+                    defaultChecked={draft?.acceptRecommendedPay ?? false}
+                  />{" "}
+                  Create a pay draft from the Position default if this engagement has no
+                  compensation history
+                </Field>
+                <Field orientation="inline">
+                  <TextInput
+                    type="checkbox"
+                    name="acceptRecommendedLeave"
+                    defaultChecked={draft?.acceptRecommendedLeave ?? true}
+                  />{" "}
+                  Assign the Level leave default
+                </Field>
+                <Field>
                   Actual reporting manager
-                  <select
+                  <Select
                     name="manager"
-                    defaultValue={
-                      draft?.managerPersonId ?? person.managerPersonId ?? ""
-                    }
+                    defaultValue={draft?.managerPersonId ?? person.managerPersonId ?? ""}
                   >
                     <option value="">Choose a manager</option>
                     {data.managers
@@ -1545,70 +1710,168 @@ export function LifecyclePanel({
                           {m.name}
                         </option>
                       ))}
-                  </select>
-                </label>
+                  </Select>
+                </Field>
               </>
             )}
-            {kind === "offboarding" && <label>Departure reason<select value={departureReason} onChange={e=>setDepartureReason(e.target.value as "retirement"|"other")}><option value="other">Other departure</option><option value="retirement">Retirement</option></select></label>}
             {kind === "offboarding" && (
-              <label>
+              <Field>
+                Departure reason
+                <Select
+                  value={departureReason}
+                  onChange={(e) => setDepartureReason(e.target.value as "retirement" | "other")}
+                >
+                  <option value="other">Other departure</option>
+                  <option value="retirement">Retirement</option>
+                </Select>
+              </Field>
+            )}
+            {kind === "offboarding" && (
+              <Field>
                 Last working date
-                <input
+                <TextInput
                   type="date"
                   name="lastWorkingDate"
                   required
                   defaultValue={draft?.lastWorkingDate ?? ""}
-                  onChange={e=>{if(e.target.value)setEffectiveLocal(nextRetirementDay(e.target.value));}}
+                  onChange={(e) => {
+                    if (e.target.value) setEffectiveLocal(nextRetirementDay(e.target.value));
+                  }}
                 />
-              </label>
+              </Field>
             )}
-            <label>Timezone<select value={timezone} onChange={e=>setTimezone(e.target.value)}>{[...new Set([timezone,"Asia/Bangkok","UTC","Asia/Singapore","Europe/London","America/New_York"])].map(zone=><option key={zone}>{zone}</option>)}</select></label>
-            <label>{kind === "offboarding" ? "Retirement / departure and access cutoff" : "Effective date and time"}<input type="datetime-local" name="effective" required value={effectiveLocal} onChange={e=>setEffectiveLocal(e.target.value)}/></label>
-            {dateError && <p role="alert">{dateError}</p>}
-            {kind === "offboarding" && <p className="muted">Default: midnight after the last working day in {timezone}. Review or change it before confirming. Pending clearance does not delay cutoff.</p>}
-            {kind === "offboarding" && departureReason === "retirement" && <fieldset><legend>Clearance owners</legend><p>HR: you · Handover: eligible reporting manager · Directory: configured IT owner</p>{(["equipment","payroll","finance"] as const).map(kind=><label key={kind}>{kind === "equipment" ? "Equipment and assets" : kind === "payroll" ? "Final payroll" : "Finance clearance"}<select name={kind} defaultValue={draft?.clearanceOwners?.[kind]??""}><option value="">Unassigned — keep in department queue</option>{data.clearanceOwners?.filter(owner=>owner[kind]).map(owner=><option key={owner.id} value={owner.id}>{owner.name}</option>)}</select></label>)}</fieldset>}
-            <label>
-              Reason
-              <textarea
-                name="reason"
+            <Field>
+              Timezone
+              <Select value={timezone} onChange={(e) => setTimezone(e.target.value)}>
+                {[
+                  ...new Set([
+                    timezone,
+                    "Asia/Bangkok",
+                    "UTC",
+                    "Asia/Singapore",
+                    "Europe/London",
+                    "America/New_York",
+                  ]),
+                ].map((zone) => (
+                  <option key={zone}>{zone}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field>
+              {kind === "offboarding"
+                ? "Retirement / departure and access cutoff"
+                : "Effective date and time"}
+              <TextInput
+                type="datetime-local"
+                name="effective"
                 required
-                minLength={3}
-                defaultValue={draft?.reason}
+                value={effectiveLocal}
+                onChange={(e) => setEffectiveLocal(e.target.value)}
               />
-            </label>
-            <button className="button" disabled={busy}>
+            </Field>
+            {dateError && <p role="alert">{dateError}</p>}
+            {kind === "offboarding" && (
+              <p className="muted">
+                Default: midnight after the last working day in {timezone}. Review or change it
+                before confirming. Pending clearance does not delay cutoff.
+              </p>
+            )}
+            {kind === "offboarding" && departureReason === "retirement" && (
+              <fieldset>
+                <legend>Clearance owners</legend>
+                <p>
+                  HR: you · Handover: eligible reporting manager · Directory: configured IT owner
+                </p>
+                {(["equipment", "payroll", "finance"] as const).map((kind) => (
+                  <Field key={kind}>
+                    {kind === "equipment"
+                      ? "Equipment and assets"
+                      : kind === "payroll"
+                        ? "Final payroll"
+                        : "Finance clearance"}
+                    <Select name={kind} defaultValue={draft?.clearanceOwners?.[kind] ?? ""}>
+                      <option value="">Unassigned — keep in department queue</option>
+                      {data.clearanceOwners
+                        ?.filter((owner) => owner[kind])
+                        .map((owner) => (
+                          <option key={owner.id} value={owner.id}>
+                            {owner.name}
+                          </option>
+                        ))}
+                    </Select>
+                  </Field>
+                ))}
+              </fieldset>
+            )}
+            <Field>
+              Reason
+              <TextArea name="reason" required minLength={3} defaultValue={draft?.reason} />
+            </Field>
+            <Button clientManaged type="submit" variant="primary" disabled={busy}>
               Review placement <ArrowRight size={16} />
-            </button>
+            </Button>
           </form>
         )}
         {step === 2 && preview && draft && (
           <div className={styles.stack}>
-            <p className="muted">This HR placement can be scheduled independently of GPO mapping and IT access preparation.</p>
+            <p className="muted">
+              This HR placement can be scheduled independently of GPO mapping and IT access
+              preparation.
+            </p>
             {preview.legacyCaseToSupersede && (
               <section className="card" aria-label="Replace older access request">
                 <h3>Replace older access request</h3>
                 <p>
-                  An older {preview.legacyCaseToSupersede.kind} request is {preview.legacyCaseToSupersede.status.replaceAll("_", " ")}
-                  {" "}for <TimeText value={preview.legacyCaseToSupersede.effectiveAt} /> {draft.timezone}.
-                  Submitting this HR placement will supersede that request. IT will prepare access separately.
+                  An older {preview.legacyCaseToSupersede.kind} request is{" "}
+                  {preview.legacyCaseToSupersede.status.replaceAll("_", " ")} for{" "}
+                  <TimeText value={preview.legacyCaseToSupersede.effectiveAt} /> {draft.timezone}.
+                  Submitting this HR placement will supersede that request. IT will prepare access
+                  separately.
                 </p>
-                <label>
-                  <input type="checkbox" checked={confirmSupersede} onChange={event=>setConfirmSupersede(event.target.checked)} />
+                <Field orientation="inline">
+                  <TextInput
+                    type="checkbox"
+                    checked={confirmSupersede}
+                    onChange={(event) => setConfirmSupersede(event.target.checked)}
+                  />
                   I understand that the older request will be replaced.
-                </label>
+                </Field>
               </section>
             )}
-            {preview.recommendation&&<section className="card"><strong>Recommended defaults to confirm</strong><p>Level: {preview.recommendation.levelName??"No level default"}</p><p>Pay: {preview.recommendation.monthlyAmountMinor!=null?`${preview.recommendation.currency} ${(preview.recommendation.monthlyAmountMinor/100).toLocaleString()} / month`:"Unavailable"} {draft.acceptRecommendedPay?"· Create draft for independent approval":"· Not selected"}</p><p>Leave: {preview.recommendation.annualDays??"—"} annual days · {preview.recommendation.sickDays??"—"} sick days {draft.acceptRecommendedLeave?"· Assign at effective date":"· Not selected"}</p></section>}
-            {preview.definition && (
-              <AccessRecipe definition={preview.definition} />
+            {preview.recommendation && (
+              <section className="card">
+                <strong>Recommended defaults to confirm</strong>
+                <p>Level: {preview.recommendation.levelName ?? "No level default"}</p>
+                <p>
+                  Pay:{" "}
+                  {preview.recommendation.monthlyAmountMinor != null
+                    ? `${preview.recommendation.currency} ${(preview.recommendation.monthlyAmountMinor / 100).toLocaleString()} / month`
+                    : "Unavailable"}{" "}
+                  {draft.acceptRecommendedPay
+                    ? "· Create draft for independent approval"
+                    : "· Not selected"}
+                </p>
+                <p>
+                  Leave: {preview.recommendation.annualDays ?? "—"} annual days ·{" "}
+                  {preview.recommendation.sickDays ?? "—"} sick days{" "}
+                  {draft.acceptRecommendedLeave ? "· Assign at effective date" : "· Not selected"}
+                </p>
+              </section>
             )}
-            <p>{departureReason === "retirement" ? "Retirement" : "Change"} effective: <TimeText value={draft.effectiveAt} /> {draft.timezone}</p>
-            {draft.lastWorkingDate && <p>Engagement ends: {draft.lastWorkingDate} · Access cutoff is tracked separately.</p>}
+            {preview.definition && <AccessRecipe definition={preview.definition} />}
+            <p>
+              {departureReason === "retirement" ? "Retirement" : "Change"} effective:{" "}
+              <TimeText value={draft.effectiveAt} /> {draft.timezone}
+            </p>
+            {draft.lastWorkingDate && (
+              <p>Engagement ends: {draft.lastWorkingDate} · Access cutoff is tracked separately.</p>
+            )}
             <p>Verified linked accounts: {preview.accounts.length}</p>
             <p>Access ending: {preview.removed.join(", ") || "None"}</p>
             {kind === "transfer" && (
               <p>
-                Applied access stays in place until IT changes it, subject to its expiry and revocation conditions. IT manages resources in Technology.
+                Applied access stays in place until IT changes it, subject to its expiry and
+                revocation conditions. IT manages resources in Technology.
               </p>
             )}
             {preview.blockers.map((b) => (
@@ -1618,57 +1881,74 @@ export function LifecyclePanel({
             ))}
             {["offboarding", "suspend"].includes(kind) && (
               <p>
-                ERPX access ends across every verified account in this Company
-                at the selected time. Directory changes and equipment handover
-                are tracked separately.
+                ERPX access ends across every verified account in this Company at the selected time.
+                Directory changes and equipment handover are tracked separately.
               </p>
             )}
             <div className={styles.actions}>
-              <button className="button secondary" onClick={() => setStep(1)}>
+              <Button type="submit" variant="secondary" onClick={() => setStep(1)}>
                 Back
-              </button>
-              {!preview.legacyCaseToSupersede && <button
-                className="button secondary"
-                disabled={busy}
-                onClick={async () => {
-                  if (await send("placements/draft", draft)) {
-                    setStep(3);
-                  }
-                }}
-              >
-                Save draft
-              </button>}
-              <button
-                className="button"
-                disabled={busy || !preview.ready || (!!preview.legacyCaseToSupersede && !confirmSupersede)}
+              </Button>
+              {!preview.legacyCaseToSupersede && (
+                <Button
+                  type="submit"
+                  variant="secondary"
+
+                  disabled={busy}
+                  onClick={async () => {
+                    if (await send("placements/draft", draft)) {
+                      setStep(3);
+                    }
+                  }}
+                >
+                  Save draft
+                </Button>
+              )}
+              <Button
+                type="submit"
+                variant="primary"
+
+                disabled={
+                  busy || !preview.ready || (!!preview.legacyCaseToSupersede && !confirmSupersede)
+                }
                 onClick={async () => {
                   if (
                     await send("placements/submit", {
                       ...draft,
                       previewToken: preview.token,
-                      ...(preview.legacyCaseToSupersede ? {supersedeLegacyCase:{id:preview.legacyCaseToSupersede.id,expectedVersion:preview.legacyCaseToSupersede.version}} : {}),
+                      ...(preview.legacyCaseToSupersede
+                        ? {
+                            supersedeLegacyCase: {
+                              id: preview.legacyCaseToSupersede.id,
+                              expectedVersion: preview.legacyCaseToSupersede.version,
+                            },
+                          }
+                        : {}),
                     })
                   )
                     setStep(3);
                 }}
               >
-                {preview.ready
-                  ? "Submit for scheduled processing"
-                  : "Save and track pending work"}
-              </button>
+                {preview.ready ? "Submit for scheduled processing" : "Save and track pending work"}
+              </Button>
             </div>
           </div>
         )}
         {step === 3 && (
           <div className={styles.stack}>
             <h3>Request saved</h3>
-            <p>Track responsible colleagues in Work. Departure cutoff and clearance progress are independent; HR placement proceeds on the effective date. IT provisions resources separately.</p>
-            <Link
-              className="button"
+            <p>
+              Track responsible colleagues in Work. Departure cutoff and clearance progress are
+              independent; HR placement proceeds on the effective date. IT provisions resources
+              separately.
+            </p>
+            <UiActionLink
+              variant="primary"
+
               href={`${base}/work?type=people_lifecycle`}
             >
               Open Work
-            </Link>
+            </UiActionLink>
           </div>
         )}
         {error && <p role="alert">{error}</p>}
@@ -1678,47 +1958,116 @@ export function LifecyclePanel({
   );
 }
 
-export function PreparationTasks({
-  base,
-  data,
-}: {
-  base: string;
-  data: PeopleLifecycleData;
-}) {
+export function PreparationTasks({ base, data }: { base: string; data: PeopleLifecycleData }) {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [taskSearch, setTaskSearch] = useState("");
   const [taskStatus, setTaskStatus] = useState("all");
   const [mobileDetail, setMobileDetail] = useState(false);
   const { send, busy, error } = useCommand(base);
   const tasks = data.tasks.filter((task) => task.kind !== "position");
-  const visibleTasks = tasks.filter((task) =>
-    (taskStatus === "all" || task.status === taskStatus)
-    && task.title.toLocaleLowerCase().includes(taskSearch.trim().toLocaleLowerCase()),
+  const visibleTasks = tasks.filter(
+    (task) =>
+      (taskStatus === "all" || task.status === taskStatus) &&
+      task.title.toLocaleLowerCase().includes(taskSearch.trim().toLocaleLowerCase()),
   );
   const selectedTask = visibleTasks.find((task) => task.id === selectedTaskId) ?? visibleTasks[0];
   return (
     <section className={resourceStyles.workspace} data-mobile-detail={mobileDetail}>
       <div className={resourceStyles.toolbar}>
-        <label><span>Search tasks</span><input type="search" value={taskSearch} onChange={(event) => setTaskSearch(event.target.value)} placeholder="Task title" /></label>
-        <label><span>Status</span><select value={taskStatus} onChange={(event) => setTaskStatus(event.target.value)}><option value="all">All statuses</option><option value="pending">Pending</option><option value="completed">Completed</option></select></label>
+        <Field>
+          <span>Search tasks</span>
+          <TextInput
+            type="search"
+            value={taskSearch}
+            onChange={(event) => setTaskSearch(event.target.value)}
+            placeholder="Task title"
+          />
+        </Field>
+        <Field>
+          <span>Status</span>
+          <Select value={taskStatus} onChange={(event) => setTaskStatus(event.target.value)}>
+            <option value="all">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="completed">Completed</option>
+          </Select>
+        </Field>
       </div>
       <div className={resourceStyles.panes} data-mobile-detail={mobileDetail}>
         <div className={resourceStyles.list} aria-label="Preparation tasks">
           <div className={resourceStyles.listHeading}>{visibleTasks.length} tasks</div>
-          {visibleTasks.map((task) => <button type="button" key={task.id} className={resourceStyles.row} aria-pressed={selectedTask?.id === task.id} onClick={() => { setSelectedTaskId(task.id); setMobileDetail(true); }}>
-            <ClipboardList size={18} aria-hidden="true" />
-            <span><strong>{task.title}</strong><small>{task.status.replaceAll("_", " ")} · {task.assignee_id ?? "Unassigned IT"}</small></span>
-          </button>)}
-          {!visibleTasks.length && <p className={resourceStyles.empty}>No tasks match this view.</p>}
+          {visibleTasks.map((task) => (
+            <Button
+              variant="plain"
+              type="button"
+              key={task.id}
+              className={resourceStyles.row}
+              aria-pressed={selectedTask?.id === task.id}
+              onClick={() => {
+                setSelectedTaskId(task.id);
+                setMobileDetail(true);
+              }}
+            >
+              <ClipboardList size={18} aria-hidden="true" />
+              <span>
+                <strong>{task.title}</strong>
+                <small>
+                  {task.status.replaceAll("_", " ")} · {task.assignee_id ?? "Unassigned IT"}
+                </small>
+              </span>
+            </Button>
+          ))}
+          {!visibleTasks.length && (
+            <p className={resourceStyles.empty}>No tasks match this view.</p>
+          )}
         </div>
         <aside className={resourceStyles.detail} aria-label="Task details">
-          <button type="button" className={resourceStyles.mobileBack} onClick={() => setMobileDetail(false)}>← Back to tasks</button>
-          {selectedTask ? <>
-            <div className={resourceStyles.detailHeading}><div><h2>{selectedTask.title}</h2><p>{selectedTask.status.replaceAll("_", " ")}</p></div></div>
-            <dl className={resourceStyles.facts}><dt>Owner</dt><dd>{selectedTask.assignee_id ?? "Unassigned IT"}</dd><dt>Due date</dt><dd>{selectedTask.due_date ?? "No due date"}</dd></dl>
-            {selectedTask.clearance_type && <Link href={`${base}/people/clearance/${selectedTask.case_id}`}>Open retirement clearance</Link>}
-            {!selectedTask.clearance_type && data.canPrepare && selectedTask.status === "pending" && <button type="button" className="button secondary" disabled={busy} onClick={() => void send(`tasks/${selectedTask.id}/complete`, { expectedVersion: selectedTask.version })}>Confirm task completed</button>}
-          </> : <p className={resourceStyles.empty}>Select a task to view its details.</p>}
+          <Button
+            variant="plain"
+            type="button"
+            className={resourceStyles.mobileBack}
+            onClick={() => setMobileDetail(false)}
+          >
+            ← Back to tasks
+          </Button>
+          {selectedTask ? (
+            <>
+              <div className={resourceStyles.detailHeading}>
+                <div>
+                  <h2>{selectedTask.title}</h2>
+                  <p>{selectedTask.status.replaceAll("_", " ")}</p>
+                </div>
+              </div>
+              <dl className={resourceStyles.facts}>
+                <dt>Owner</dt>
+                <dd>{selectedTask.assignee_id ?? "Unassigned IT"}</dd>
+                <dt>Due date</dt>
+                <dd>{selectedTask.due_date ?? "No due date"}</dd>
+              </dl>
+              {selectedTask.clearance_type && (
+                <Link href={`${base}/people/clearance/${selectedTask.case_id}`}>
+                  Open retirement clearance
+                </Link>
+              )}
+              {!selectedTask.clearance_type &&
+                data.canPrepare &&
+                selectedTask.status === "pending" && (
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      void send(`tasks/${selectedTask.id}/complete`, {
+                        expectedVersion: selectedTask.version,
+                      })
+                    }
+                  >
+                    Confirm task completed
+                  </Button>
+                )}
+            </>
+          ) : (
+            <p className={resourceStyles.empty}>Select a task to view its details.</p>
+          )}
         </aside>
       </div>
       {error && <p role="alert">{error}</p>}
@@ -1739,66 +2088,97 @@ export function LifecycleSettings({
     [editing, setEditing] = useState(false);
   return (
     <section className="card">
-      <SetupChecklist title="Technology handoff status" items={[{id:"it",label:"Default IT task owner",ready:!!data.settings.itAssigneeId,owner:"HR / IT administrator",href:`${base}/people/settings?section=templates`,detail:data.settings.itAssigneeId ? "Default owner selected" : "Choose a current IT owner below"},{id:"positions",label:"Access package preparation",ready:!data.tasks.some(t=>t.kind==="position"&&t.status==="pending"),owner:"IT",href:`${base}/technology?view=organization`,detail:"IT can prepare access packages for active positions"}]} />
-      <p className="muted">These handoff items route IT work. HR can select positions and schedule placement while IT work is pending.</p>
+      <SetupChecklist
+        title="Technology handoff status"
+        items={[
+          {
+            id: "it",
+            label: "Default IT task owner",
+            ready: !!data.settings.itAssigneeId,
+            owner: "HR / IT administrator",
+            href: `${base}/people/settings?section=templates`,
+            detail: data.settings.itAssigneeId
+              ? "Default owner selected"
+              : "Choose a current IT owner below",
+          },
+          {
+            id: "positions",
+            label: "Access package preparation",
+            ready: !data.tasks.some((t) => t.kind === "position" && t.status === "pending"),
+            owner: "IT",
+            href: `${base}/technology?view=organization`,
+            detail: "IT can prepare access packages for active positions",
+          },
+        ]}
+      />
+      <p className="muted">
+        These handoff items route IT work. HR can select positions and schedule placement while IT
+        work is pending.
+      </p>
       <h2>HR → IT handoff</h2>
-      <p>IT owner: {owners.find(owner => owner.id === data.settings.itAssigneeId)?.name ?? (data.settings.itAssigneeId ? "Assigned" : "Unassigned IT queue")}</p>
-      <p>{data.settings.onboardingTasks.length} onboarding tasks · {data.settings.offboardingTasks.length} offboarding tasks</p>
-      <button className="button secondary" type="button" onClick={() => setEditing(true)}>Edit handoff settings</button>
+      <p>
+        IT owner:{" "}
+        {owners.find((owner) => owner.id === data.settings.itAssigneeId)?.name ??
+          (data.settings.itAssigneeId ? "Assigned" : "Unassigned IT queue")}
+      </p>
+      <p>
+        {data.settings.onboardingTasks.length} onboarding tasks ·{" "}
+        {data.settings.offboardingTasks.length} offboarding tasks
+      </p>
+      <Button variant="secondary" type="button" onClick={() => setEditing(true)}>
+        Edit handoff settings
+      </Button>
       {saved && <p role="status">Settings saved.</p>}
-      <Dialog open={editing} onClose={() => { if (!busy) setEditing(false); }} title="Edit HR to IT handoff" presentation="responsive-panel">
-      <form
-        className={styles.stack}
-        onSubmit={async (e) => {
-          e.preventDefault();
-          const f = new FormData(e.currentTarget);
-          if (
-            await send("settings", {
-              expectedVersion: data.settings.version,
-              itAssigneeId: String(f.get("owner")) || null,
-              onboardingTasks: String(f.get("onboarding"))
-                .split("\n")
-                .filter(Boolean),
-              offboardingTasks: String(f.get("offboarding"))
-                .split("\n")
-                .filter(Boolean),
-            })
-          ) {
-            setSaved(true);
-            setEditing(false);
-          }
+      <Dialog
+        open={editing}
+        onClose={() => {
+          if (!busy) setEditing(false);
         }}
+        title="Edit HR to IT handoff"
+        presentation="form-drawer"
       >
-        <label>
-          IT owner
-          <select name="owner" defaultValue={data.settings.itAssigneeId ?? ""}>
-            <option value="">Unassigned IT queue</option>
-            {owners.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Standard onboarding tasks
-          <textarea
-            name="onboarding"
-            defaultValue={data.settings.onboardingTasks.join("\n")}
-          />
-        </label>
-        <label>
-          Standard offboarding tasks
-          <textarea
-            name="offboarding"
-            defaultValue={data.settings.offboardingTasks.join("\n")}
-          />
-        </label>
-        <button className="button" disabled={busy}>
-          Save templates & handoff
-        </button>
-        {error && <p role="alert">{error}</p>}
-      </form>
+        <form
+          className={styles.stack}
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const f = new FormData(e.currentTarget);
+            if (
+              await send("settings", {
+                expectedVersion: data.settings.version,
+                itAssigneeId: String(f.get("owner")) || null,
+                onboardingTasks: String(f.get("onboarding")).split("\n").filter(Boolean),
+                offboardingTasks: String(f.get("offboarding")).split("\n").filter(Boolean),
+              })
+            ) {
+              setSaved(true);
+              setEditing(false);
+            }
+          }}
+        >
+          <Field>
+            IT owner
+            <Select name="owner" defaultValue={data.settings.itAssigneeId ?? ""}>
+              <option value="">Unassigned IT queue</option>
+              {owners.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field>
+            Standard onboarding tasks
+            <TextArea name="onboarding" defaultValue={data.settings.onboardingTasks.join("\n")} />
+          </Field>
+          <Field>
+            Standard offboarding tasks
+            <TextArea name="offboarding" defaultValue={data.settings.offboardingTasks.join("\n")} />
+          </Field>
+          <Button clientManaged type="submit" variant="primary" disabled={busy}>
+            Save templates & handoff
+          </Button>
+          {error && <p role="alert">{error}</p>}
+        </form>
       </Dialog>
     </section>
   );

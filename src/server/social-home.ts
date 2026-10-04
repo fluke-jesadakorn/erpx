@@ -637,11 +637,11 @@ export async function postViews(db:SqlDatabase,actor:StaffActor,ids:string[],com
         if (s.source_kind === "staff_task") {
           const task = await getTask(db, actor, s.source_id);
           return { kind: s.source_kind, available: true as const, id: task.id, title: task.title,
-            href: `/staff-tasks/${encodeURIComponent(task.id)}` };
+            sourceKind: "staff_task", version: task.version, label: "Task", href: `/staff-tasks/${encodeURIComponent(task.id)}` };
         }
         const project = await getProject(db, actor, s.source_id);
         return { kind: s.source_kind, available: true as const, id: project.id, title: project.title,
-          href: `/projects/${encodeURIComponent(project.id)}` };
+          sourceKind: "staff_project", version: project.version, label: "Project", href: `/projects/${encodeURIComponent(project.id)}` };
       } catch (error) {
         if (!(error instanceof ApiError) || ![403, 404].includes(error.status)) throw error;
         return { kind: s.source_kind, available: false as const };
@@ -667,11 +667,13 @@ export async function homePosts(
     tag?: string;
     following?: boolean;
     branchId?: string;
+    teamId?: string;
     before?: number;
     beforeId?: string;
     limit?: number;
     propertyId?: string;
     purpose?: PostPurpose;
+    stream?: "conversations" | "milestones";
   } = {},
 ) {
   const now = Date.now();
@@ -679,9 +681,11 @@ export async function homePosts(
   const result = await db
     .prepare(
       `SELECT p.id FROM social_posts p WHERE p.company_id=? AND p.state='published' AND p.linked_module IS NULL AND ${sourceAccessSql("p","?::text")} AND (?::text IS NULL OR p.branch_id=? OR p.branch_id IS NULL) AND (?::text IS NULL OR p.branch_id=?) AND (p.created_at<? OR (p.created_at=? AND p.id<?)) AND (?=0 OR EXISTS(SELECT 1 FROM social_follows f WHERE f.principal_id=? AND f.target_type='post' AND f.target_id=p.id)) AND (?::text IS NULL OR EXISTS(SELECT 1 FROM social_post_topics pt WHERE pt.post_id=p.id AND pt.tag=?) OR EXISTS(SELECT 1 FROM social_comment_topics ct JOIN social_comments c ON c.id=ct.comment_id WHERE c.post_id=p.id AND c.state='published' AND ct.tag=?))
+        AND (?::text IS NULL OR (p.audience_kind='team' AND p.audience_id=?))
         AND (?::text IS NULL OR p.purpose=?) AND (?::text IS NULL OR NOT EXISTS(SELECT 1 FROM social_post_sources s WHERE s.post_id=p.id AND s.source_kind='pms_record')
           OR EXISTS(SELECT 1 FROM social_post_sources s JOIN (${pmsSourcesSql}) pr ON pr.id=s.source_id
             WHERE s.post_id=p.id AND s.source_kind='pms_record' AND pr.company_id=p.company_id AND pr.property_id=?))
+        AND (?::text IS NULL OR (?='milestones' AND p.kind='system') OR (?='conversations' AND p.kind<>'system'))
         ORDER BY p.created_at DESC,p.id DESC LIMIT ?`,
     )
     .bind(
@@ -700,7 +704,9 @@ export async function homePosts(
       filter.following ? 1 : 0,
       actor.userId,
       filter.tag ?? null, filter.tag ?? null, filter.tag ?? null,
+      filter.teamId ?? null, filter.teamId ?? null,
       filter.purpose ?? null, filter.purpose ?? null, filter.propertyId ?? null, filter.propertyId ?? null,
+      filter.stream ?? null, filter.stream ?? null, filter.stream ?? null,
       limit,
     )
     .all<{ id: string }>();
@@ -746,7 +752,15 @@ export async function postAction(
     id,
     input,
   );
-  if (replayed) return replayed;
+  if (replayed) {
+    if(input.action==='retract')await postRevisionHistory(db,actor,id);
+    else if(input.action==='hide'){
+      await requireCompanyAuthority(db,actor,['holding_owner']);
+      const now=Date.now();
+      if(!await db.prepare(`SELECT 1 FROM social_posts p WHERE p.id=? AND p.company_id=? AND ${sourceAccessSql('p',actor.assignmentId?'?::text':undefined)}`).bind(id,actor.companyId,actor.userId,now,now,...(actor.assignmentId?[actor.assignmentId]:[])).first())throw new ApiError(404,'POST_NOT_FOUND','This post is unavailable.');
+    }else await readablePost(db,actor,id);
+    return replayed;
+  }
   const post = await readablePost(db, actor, id),
     now = Date.now(),
     steps = [sourceGuard(db, key, post, actor.userId, "source")];

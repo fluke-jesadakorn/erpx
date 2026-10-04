@@ -1,5 +1,7 @@
 # Support — incident ที่เชื่อมเคสลูกค้า
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 Incident เป็นงานสืบสวนและแก้สาเหตุร่วม ส่วน ticket แต่ละรายเป็นเจ้าของการให้บริการลูกค้า นาฬิกา SLA และการรับรองผล ไม่คัดลอกสถานะ incident ไปปิด ticket
 
 ## ขั้นตอนจำลอง

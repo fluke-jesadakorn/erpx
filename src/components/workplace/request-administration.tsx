@@ -9,6 +9,7 @@ import {
 import { RequestRepair } from "./service-teams";
 import { approvalAdminHref } from "@/lib/administration";
 import { resourceRequestRoute } from "@/server/expense-routing";
+import { Card } from "@/components/ui/foundation";
 export async function RequestAdministration({
   actor,
   base,
@@ -34,10 +35,10 @@ export async function RequestAdministration({
   const issues = record
     ? details
     : details.filter(
-        (d) => d.blockedReason || d.request.state === "awaiting_approval",
+        (d) => !!d.blockedReason,
       );
   return (
-    <section className="card">
+    <Card as="section" appearance="standard" className="ui-panel">
       <h2>Employee request routing</h2>
       <p>
         Resolve missing service coverage, unavailable handlers, or independent
@@ -63,7 +64,7 @@ export async function RequestAdministration({
                 )
               : null;
           return (
-            <article className="card" key={d.request.id}>
+            <Card as="article" appearance="standard" className="ui-panel" key={d.request.id}>
               <h3>
                 <Link href={`${base}/requests/${d.request.id}`}>
                   {d.request.title || "Untitled request"}
@@ -84,10 +85,10 @@ export async function RequestAdministration({
                   Resolve routing issue
                 </Link>
               )}
-            </article>
+            </Card>
           );
         }),
       )}
-    </section>
+    </Card>
   );
 }

@@ -1,3 +1,5 @@
+
+import { PageContent } from "@/components/ui/patterns";
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { PageHeader } from "@/components/ui/primitives";
 import { CountEditor,ExpenseEditor,LeaveControls,RequestEditor,TransferEditor } from "@/components/workplace/work-editors";
@@ -43,12 +45,12 @@ export async function CreateWork({actor,base,newKind,current,query}:{actor:WorkC
     requestOptions.departmentId = parent.department_id;
   }
   return (
-    <FeaturePage className="content" data-source="live">
-      <PageHeader
+    <PageContent as={FeaturePage} data-source="live">
+      <PageHeader appearance="standard"
         title="Your work"
         description="Your next steps, across the workspace."
       /><FeatureTabs/><WidgetGrid pageKey="work-create">
-      <FeatureWidget id="work-draft" title="New work">
+      <FeatureWidget appearance="standard" id="work-draft" title="New work">
         <Link href={`?${current}`} className="back-link">
           Close new work
         </Link>
@@ -63,27 +65,27 @@ export async function CreateWork({actor,base,newKind,current,query}:{actor:WorkC
           />
         )}
         {newKind === "expense" && (
-          <FeatureWidget id="work-expense-details" title="Expense details"><ExpenseEditor
+          <FeatureWidget appearance="standard" id="work-expense-details" title="Expense details"><ExpenseEditor
             base={base}
             options={await expenseOptions(actor)}
             initialOpen
           /></FeatureWidget>
         )}
         {newKind === "stock_count" && (
-          <FeatureWidget id="work-stock-count" title="Stock count"><CountEditor
+          <FeatureWidget appearance="standard" id="work-stock-count" title="Stock count"><CountEditor
             base={base}
             options={await countOptions(actor)}
             initialOpen
           /></FeatureWidget>
         )}
         {newKind === "transfer" && (
-          <FeatureWidget id="work-warehouse-transfer" title="Warehouse transfer"><TransferEditor
+          <FeatureWidget appearance="standard" id="work-warehouse-transfer" title="Warehouse transfer"><TransferEditor
             base={base}
             options={await transferOptions(actor)}
             initialOpen
           /></FeatureWidget>
         )}
       </FeatureWidget>
-    </WidgetGrid></FeaturePage>
+    </WidgetGrid></PageContent>
   );
 }

@@ -1,7 +1,11 @@
 "use client";
-import { TimeText } from "@/components/time/time-preference-context";
-import { FeatureTabBar,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
+import { InlineNotice } from "@/components/ui/foundation";
 
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
+
+import { Dialog } from "@/components/ui/dialog";
+import { TimeText } from "@/components/time/time-preference-context";
+import { FeatureTabBar, FeatureWidget, WidgetGrid } from "@/components/features/feature-page";
 
 import { PersonAvatar } from "@/components/ui/person-avatar";
 import { workFetch } from "@/lib/work-fetch";
@@ -9,42 +13,33 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 import type {
-MessagingHistory,
-MessagingMessage,
-MessagingOverview,
-MessagingPerson,
-MessagingRoom,
-MessagingTeam,
+  MessagingHistory,
+  MessagingMessage,
+  MessagingOverview,
+  MessagingPerson,
+  MessagingRoom,
+  MessagingTeam,
 } from "@/lib/messaging";
 import {
-ArrowLeft,
-Hash,
-LockKeyhole,
-MessageCircle,
-Paperclip,
-Plus,
-Send,
-Settings,
-Users,
-X,
+  ArrowLeft,
+  Hash,
+  LockKeyhole,
+  MessageCircle,
+  Paperclip,
+  Plus,
+  Send,
+  Settings,
+  Users,
+  X,
 } from "lucide-react";
-import {
-useCallback,
-useEffect,
-useRef,
-useState,
-type FormEvent,
-type ReactNode,
-} from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import styles from "./inbox.module.css";
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await workFetch(url, { ...init, cache: "no-store" });
   const result = await response.json();
   if (!response.ok)
-    throw new Error(
-      result.error?.message ?? "Unable to connect. Please try again.",
-    );
+    throw new Error(result.error?.message ?? "Unable to connect. Please try again.");
   return result.data as T;
 }
 type MessageFileUpload = {
@@ -68,15 +63,13 @@ async function waitForMessageFile(root: string, upload: MessageFileUpload) {
     const status = await api<{
       sourceState: string | null;
       scan?: { lastError?: string | null };
-    }>(
-      `${attachmentRoot}/attachment-links/${encodeURIComponent(upload.attachmentLinkId)}/status`,
-    );
+    }>(`${attachmentRoot}/attachment-links/${encodeURIComponent(upload.attachmentLinkId)}/status`);
     if (status.sourceState === "available") return;
     if (["malware_rejected", "scan_error", "destroyed"].includes(status.sourceState ?? ""))
       throw new Error(
         status.sourceState === "malware_rejected"
           ? "The attachment was rejected by malware scanning."
-          : status.scan?.lastError ?? "The attachment could not be scanned.",
+          : (status.scan?.lastError ?? "The attachment could not be scanned."),
       );
     await new Promise((resolve) => setTimeout(resolve, 750));
   }
@@ -103,7 +96,7 @@ export function MessagingInbox({
   initialTab,
   initialPerson,
   initialRoom,
-  notificationUnread=0,
+  notificationUnread = 0,
 }: {
   base: string;
   userId: string;
@@ -120,7 +113,7 @@ export function MessagingInbox({
     teams: [],
     rooms: [],
   });
-  const [selected, setSelected] = useState<string | null>(initialRoom??null);
+  const [selected, setSelected] = useState<string | null>(initialRoom ?? null);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [error, setError] = useState(""),
     [loading, setLoading] = useState(true);
@@ -133,12 +126,21 @@ export function MessagingInbox({
       current && result.rooms.some((r) => r.id === current) ? current : null,
     );
   }, [root]);
-  useEffect(()=>{
-    if(!initialPerson||initialPerson===userId)return;
-    let stopped=false;
-    void post<{id:string}>(`${root}/rooms`,{kind:"direct",members:[initialPerson]}).then(async result=>{await refresh();if(!stopped)setSelected(result.id);}).catch(e=>{if(!stopped)setError((e as Error).message);});
-    return ()=>{stopped=true;};
-  },[root,initialPerson,userId,refresh]);
+  useEffect(() => {
+    if (!initialPerson || initialPerson === userId) return;
+    let stopped = false;
+    void post<{ id: string }>(`${root}/rooms`, { kind: "direct", members: [initialPerson] })
+      .then(async (result) => {
+        await refresh();
+        if (!stopped) setSelected(result.id);
+      })
+      .catch((e) => {
+        if (!stopped) setError((e as Error).message);
+      });
+    return () => {
+      stopped = true;
+    };
+  }, [root, initialPerson, userId, refresh]);
   useEffect(() => {
     if (tab === "updates") return;
     let stopped = false,
@@ -178,7 +180,9 @@ export function MessagingInbox({
   }
   function roomButton(r: MessagingRoom) {
     return (
-      <button
+      <Button appearance="standard"
+        type="submit"
+        variant="ghost"
         key={r.id}
         className={`${styles.room} ${selected === r.id ? styles.selected : ""}`}
         onClick={() => choose(r.id)}
@@ -206,35 +210,37 @@ export function MessagingInbox({
             {r.unread}
           </span>
         )}
-      </button>
+      </Button>
     );
   }
   return (
     <>
-      <FeatureTabBar  aria-label="Inbox sections">
+      <FeatureTabBar appearance="standard" aria-label="Inbox sections">
         {(["chats", "teams", "updates"] as const).map((value) => (
-          <button
+          <Button appearance="standard"
+            type="submit"
+            variant="ghost"
             key={value}
             aria-current={tab === value ? "page" : undefined}
             onClick={() => {
-              router.push(`${base}/inbox?tab=${value}`,{scroll:false});
+              router.push(`${base}/inbox?tab=${value}`, { scroll: false });
             }}
           >
-            {{chats:"Messages",teams:"Teams",updates:"Notifications"}[value]}
-            {value==="updates"&&notificationUnread>0&&<span className={styles.badge}>{notificationUnread}</span>}
+            {{ chats: "Messages", teams: "Teams", updates: "Notifications" }[value]}
+            {value === "updates" && notificationUnread > 0 && (
+              <span className={styles.badge}>{notificationUnread}</span>
+            )}
             {value !== "updates" &&
               overview.rooms
                 .filter((r) => (value === "teams") === (r.kind === "channel"))
                 .reduce((sum, r) => sum + r.unread, 0) > 0 && (
                 <span className={styles.badge}>
                   {overview.rooms
-                    .filter(
-                      (r) => (value === "teams") === (r.kind === "channel"),
-                    )
+                    .filter((r) => (value === "teams") === (r.kind === "channel"))
                     .reduce((sum, r) => sum + r.unread, 0)}
                 </span>
               )}
-          </button>
+          </Button>
         ))}
       </FeatureTabBar>
       {tab === "updates" ? (
@@ -242,146 +248,149 @@ export function MessagingInbox({
       ) : (
         <>
           {error && (
-            <p className={styles.error} role="status">
+            <InlineNotice tone="info" className={styles.error} role="status">
               {error} Reconnecting…
-            </p>
+            </InlineNotice>
           )}
-          <WidgetGrid pageKey={`inbox-${tab}`}><FeatureWidget id="inbox-conversations" title={tab === "chats" ? "Messages" : "Teams"}><section
-            className={`${styles.workspace} ${room ? styles.hasRoom : ""}`}
-          >
-            <aside
-              className={styles.sidebar}
-              aria-label={
-                tab === "chats" ? "Conversations" : "Teams and channels"
-              }
-            >
-              <div className={styles.sidebarHeader}>
-                <h2>{tab === "chats" ? "Chats" : "Your teams"}</h2>
-                <button
-                  className={styles.iconButton}
-                  aria-label={tab === "chats" ? "New chat" : "New team"}
-                  disabled={loading}
-                  onClick={() =>
-                    setEditor({ kind: tab === "chats" ? "direct" : "team" })
-                  }
+          <WidgetGrid pageKey={`inbox-${tab}`}>
+            <FeatureWidget appearance="standard" id="inbox-conversations" title={tab === "chats" ? "Messages" : "Teams"}>
+              <section className={`${styles.workspace} ${room ? styles.hasRoom : ""}`}>
+                <aside
+                  className={styles.sidebar}
+                  aria-label={tab === "chats" ? "Conversations" : "Teams and channels"}
                 >
-                  <Plus size={20} />
-                </button>
-              </div>
-              {loading ? (
-                <p className={styles.hint}>Loading conversations…</p>
-              ) : tab === "chats" ? (
-                <>
-                  {chats.map(roomButton)}
-                  {!chats.length && (
-                    <div className={styles.emptyList}>
-                      <MessageCircle />
-                      <p>Your conversations start here.</p>
-                      <button className={styles.mobileStart} onClick={() => setEditor({ kind: "direct" })}>
-                        Start a chat
-                      </button>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <>
-                  {overview.teams.map((t) => (
-                    <section key={t.id} className={styles.team}>
-                      <div className={styles.teamHeader}>
-                        <strong>{t.name}</strong>
-                        {!t.organization_managed && t.owner_id === userId && (
-                          <span>
-                            <button
-                              aria-label={`Add channel to ${t.name}`}
-                              onClick={() =>
-                                setEditor({ kind: "channel", team: t })
-                              }
-                            >
-                              <Plus size={16} />
-                            </button>
-                            <button
-                              aria-label={`Manage ${t.name}`}
-                              onClick={() =>
-                                setEditor({
-                                  kind: "team",
-                                  team: t,
-                                  editing: true,
-                                })
-                              }
-                            >
-                              <Settings size={16} />
-                            </button>
-                          </span>
-                        )}
-                      </div>
-                      {overview.rooms
-                        .filter((r) => r.team_id === t.id)
-                        .map(roomButton)}
-                    </section>
-                  ))}
-                  {!overview.teams.length && (
-                    <div className={styles.emptyList}>
-                      <Users />
-                      <p>A space for every team.</p>
-                      <button onClick={() => setEditor({ kind: "team" })}>
-                        Create a team
-                      </button>
-                    </div>
-                  )}
-                </>
-              )}
-            </aside>
-            {room ? (
-              <Conversation
-                key={room.id}
-                root={root}
-                room={room}
-                userId={userId}
-                onBack={() => setSelected(null)}
-                onRead={() => {
-                  void refresh().catch(() => {});
-                }}
-                onManage={() =>
-                  setEditor({
-                    kind: room.kind === "channel" ? "channel" : "group",
-                    room,
-                    team: overview.teams.find((t) => t.id === room.team_id),
-                    editing: true,
-                  })
-                }
-              />
-            ) : (
-              <div className={styles.welcome}>
-                <span className={styles.welcomeIcon}>
-                  {tab === "teams" ? (
-                    <Users size={32} />
+                  <div className={styles.sidebarHeader}>
+                    <h2>{tab === "chats" ? "Chats" : "Your teams"}</h2>
+                    <Button appearance="standard"
+                      type="submit"
+                      variant="ghost"
+                      className={styles.iconButton}
+                      aria-label={tab === "chats" ? "New chat" : "New team"}
+                      disabled={loading}
+                      onClick={() => setEditor({ kind: tab === "chats" ? "direct" : "team" })}
+                    >
+                      <Plus size={20} />
+                    </Button>
+                  </div>
+                  {loading ? (
+                    <p className={styles.hint}>Loading conversations…</p>
+                  ) : tab === "chats" ? (
+                    <>
+                      {chats.map(roomButton)}
+                      {!chats.length && (
+                        <div className={styles.emptyList}>
+                          <MessageCircle />
+                          <p>Your conversations start here.</p>
+                          <Button appearance="standard"
+                            type="submit"
+                            variant="ghost"
+                            className={styles.mobileStart}
+                            onClick={() => setEditor({ kind: "direct" })}
+                          >
+                            Start a chat
+                          </Button>
+                        </div>
+                      )}
+                    </>
                   ) : (
-                    <MessageCircle size={32} />
+                    <>
+                      {overview.teams.map((t) => (
+                        <section key={t.id} className={styles.team}>
+                          <div className={styles.teamHeader}>
+                            <strong>{t.name}</strong>
+                            {!t.organization_managed && t.owner_id === userId && (
+                              <span>
+                                <Button appearance="standard"
+                                  type="submit"
+                                  variant="ghost"
+                                  aria-label={`Add channel to ${t.name}`}
+                                  onClick={() => setEditor({ kind: "channel", team: t })}
+                                >
+                                  <Plus size={16} />
+                                </Button>
+                                <Button appearance="standard"
+                                  type="submit"
+                                  variant="ghost"
+                                  aria-label={`Manage ${t.name}`}
+                                  onClick={() =>
+                                    setEditor({
+                                      kind: "team",
+                                      team: t,
+                                      editing: true,
+                                    })
+                                  }
+                                >
+                                  <Settings size={16} />
+                                </Button>
+                              </span>
+                            )}
+                          </div>
+                          {overview.rooms.filter((r) => r.team_id === t.id).map(roomButton)}
+                        </section>
+                      ))}
+                      {!overview.teams.length && (
+                        <div className={styles.emptyList}>
+                          <Users />
+                          <p>A space for every team.</p>
+                          <Button appearance="standard"
+                            type="submit"
+                            variant="ghost"
+                            onClick={() => setEditor({ kind: "team" })}
+                          >
+                            Create a team
+                          </Button>
+                        </div>
+                      )}
+                    </>
                   )}
-                </span>
-                <h2>
-                  {tab === "teams"
-                    ? "Work together, in one place"
-                    : "A conversation away"}
-                </h2>
-                <p>
-                  {tab === "teams"
-                    ? "Choose a channel to connect with your team."
-                    : "Choose a chat or start a new conversation with someone in your company."}
-                </p>
-                <button
-                  className={styles.primary}
-                  disabled={loading}
-                  onClick={() =>
-                    setEditor({ kind: tab === "teams" ? "team" : "direct" })
-                  }
-                >
-                  <Plus size={16} />
-                  {tab === "teams" ? "Create team" : "New conversation"}
-                </button>
-              </div>
-            )}
-          </section></FeatureWidget></WidgetGrid>
+                </aside>
+                {room ? (
+                  <Conversation
+                    key={room.id}
+                    root={root}
+                    room={room}
+                    userId={userId}
+                    onBack={() => setSelected(null)}
+                    onRead={() => {
+                      void refresh().catch(() => {});
+                    }}
+                    onManage={() =>
+                      setEditor({
+                        kind: room.kind === "channel" ? "channel" : "group",
+                        room,
+                        team: overview.teams.find((t) => t.id === room.team_id),
+                        editing: true,
+                      })
+                    }
+                  />
+                ) : (
+                  <div className={styles.welcome}>
+                    <span className={styles.welcomeIcon}>
+                      {tab === "teams" ? <Users size={32} /> : <MessageCircle size={32} />}
+                    </span>
+                    <h2>
+                      {tab === "teams" ? "Work together, in one place" : "A conversation away"}
+                    </h2>
+                    <p>
+                      {tab === "teams"
+                        ? "Choose a channel to connect with your team."
+                        : "Choose a chat or start a new conversation with someone in your company."}
+                    </p>
+                    <Button appearance="standard"
+                      type="submit"
+                      variant="primary"
+                      className={styles.primary}
+                      disabled={loading}
+                      onClick={() => setEditor({ kind: tab === "teams" ? "team" : "direct" })}
+                    >
+                      <Plus size={16} />
+                      {tab === "teams" ? "Create team" : "New conversation"}
+                    </Button>
+                  </div>
+                )}
+              </section>
+            </FeatureWidget>
+          </WidgetGrid>
         </>
       )}
       {editor && (
@@ -441,8 +450,7 @@ function Conversation({
       incoming.forEach((m) => map.set(m.id, m));
       return [...map.values()].sort((a, b) => a.seq - b.seq);
     });
-    if (incoming.length)
-      last.current = Math.max(last.current, ...incoming.map((m) => m.seq));
+    if (incoming.length) last.current = Math.max(last.current, ...incoming.map((m) => m.seq));
   }, []);
   useEffect(() => {
     let stopped = false,
@@ -531,21 +539,20 @@ function Conversation({
     setSendError("");
     try {
       for (const attachment of attachments) {
-        const upload = await api<MessageFileUpload>(`${root}/rooms/${room.id}/files/${attachment.id}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": messageFileMediaType(attachment.file),
-            "X-File-Name": encodeURIComponent(attachment.file.name),
+        const upload = await api<MessageFileUpload>(
+          `${root}/rooms/${room.id}/files/${attachment.id}`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": messageFileMediaType(attachment.file),
+              "X-File-Name": encodeURIComponent(attachment.file.name),
+            },
+            body: attachment.file,
           },
-          body: attachment.file,
-        });
+        );
         await waitForMessageFile(root, upload);
       }
-      await post(
-        `${root}/rooms/${room.id}/messages`,
-        JSON.parse(signature),
-        attempt.current.key,
-      );
+      await post(`${root}/rooms/${room.id}/messages`, JSON.parse(signature), attempt.current.key);
       attempt.current = null;
       setBody("");
       setAttachments([]);
@@ -565,18 +572,17 @@ function Conversation({
     }
   }
   return (
-    <section
-      className={styles.conversation}
-      aria-label={`Conversation: ${room.name}`}
-    >
+    <section className={styles.conversation} aria-label={`Conversation: ${room.name}`}>
       <header className={styles.conversationHeader}>
-        <button
+        <Button appearance="standard"
+          type="submit"
+          variant="ghost"
           className={`${styles.iconButton} ${styles.back}`}
           aria-label="Back to conversations"
           onClick={onBack}
         >
           <ArrowLeft size={20} />
-        </button>
+        </Button>
         <div>
           <h2>{room.name}</h2>
           <small>
@@ -590,19 +596,21 @@ function Conversation({
           </small>
         </div>
         {room.kind !== "direct" && room.owner_id === userId && (
-          <button
+          <Button appearance="standard"
+            type="submit"
+            variant="ghost"
             className={styles.iconButton}
             aria-label="Manage conversation"
             onClick={onManage}
           >
             <Settings size={19} />
-          </button>
+          </Button>
         )}
       </header>
       {error && (
-        <p role="status" className={styles.error}>
+        <InlineNotice tone="info" role="status" className={styles.error}>
           {error} Reconnecting…
-        </p>
+        </InlineNotice>
       )}
       <div
         ref={scroller}
@@ -612,14 +620,18 @@ function Conversation({
         aria-live="polite"
         onScroll={() => {
           const e = scroller.current;
-          if (e)
-            stick.current = e.scrollHeight - e.scrollTop - e.clientHeight < 80;
+          if (e) stick.current = e.scrollHeight - e.scrollTop - e.clientHeight < 80;
         }}
       >
         {hasOlder && (
-          <button className={styles.loadMore} onClick={() => void older()}>
+          <Button appearance="standard"
+            type="submit"
+            variant="ghost"
+            className={styles.loadMore}
+            onClick={() => void older()}
+          >
             Load earlier messages
-          </button>
+          </Button>
         )}
         {loading ? (
           <p className={styles.hint}>Loading messages…</p>
@@ -638,10 +650,8 @@ function Conversation({
           >
             <div className={styles.messageMeta}>
               <PersonAvatar name={message.sender_name} small />
-              <strong>
-                {message.sender_id === userId ? "You" : message.sender_name}
-              </strong>
-              <TimeText value={message.created_at} />
+              <strong>{message.sender_id === userId ? "You" : message.sender_name}</strong>
+              <TimeText appearance="standard" value={message.created_at} />
             </div>
             <div className={styles.bubble}>
               {message.body && <p>{message.body}</p>}
@@ -682,31 +692,28 @@ function Conversation({
             {attachments.map((a) => (
               <li key={a.id}>
                 {a.file.name}
-                <button
+                <Button appearance="standard"
+                  variant="ghost"
                   type="button"
                   disabled={sending}
                   aria-label={`Remove ${a.file.name}`}
-                  onClick={() =>
-                    setAttachments((current) =>
-                      current.filter((f) => f.id !== a.id),
-                    )
-                  }
+                  onClick={() => setAttachments((current) => current.filter((f) => f.id !== a.id))}
                 >
                   <X size={14} />
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
         )}
         {sendError && (
-          <p className={styles.error} role="alert">
+          <InlineNotice tone="danger" className={styles.error} role="alert">
             {sendError} Your message is still here. Press Send to retry.
-          </p>
+          </InlineNotice>
         )}
         <label className={styles.srOnly} htmlFor="chat-message">
           Message
         </label>
-        <textarea
+        <TextArea appearance="standard"
           id="chat-message"
           value={body}
           disabled={sending}
@@ -716,10 +723,10 @@ function Conversation({
           rows={2}
         />
         <div className={styles.composerFooter}>
-          <label className={styles.attachButton}>
+          <Field appearance="standard" className={styles.attachButton}>
             <Paperclip size={18} />
             <span>Attach</span>
-            <input
+            <TextInput appearance="standard"
               type="file"
               multiple
               disabled={sending}
@@ -730,13 +737,9 @@ function Conversation({
                 e.target.value = "";
                 if (
                   selected.length + attachments.length > 10 ||
-                  selected.some(
-                    (f) => f.size > 10 * 1024 * 1024 || f.size === 0,
-                  )
+                  selected.some((f) => f.size > 10 * 1024 * 1024 || f.size === 0)
                 ) {
-                  setSendError(
-                    "Choose up to 10 files, each between 1 byte and 10 MB.",
-                  );
+                  setSendError("Choose up to 10 files, each between 1 byte and 10 MB.");
                   return;
                 }
                 setAttachments((current) => [
@@ -749,16 +752,17 @@ function Conversation({
                 setSendError("");
               }}
             />
-          </label>
+          </Field>
           <small>Up to 10 files · 10 MB each</small>
-          <button
+          <Button appearance="standard"
+            clientManaged variant="primary"
             className={styles.primary}
             disabled={sending || (!body.trim() && !attachments.length)}
             type="submit"
           >
             <Send size={16} />
             {sending ? "Sending…" : "Send"}
-          </button>
+          </Button>
         </div>
       </form>
     </section>
@@ -790,11 +794,9 @@ function ConversationEditor({
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false);
   const version = useRef(editor.room?.version ?? editor.team?.version ?? 1),
-    attempt = useRef<{ body: string; key: string } | null>(null),
-    closeButton = useRef<HTMLButtonElement>(null);
+    attempt = useRef<{ body: string; key: string } | null>(null);
   useEffect(() => {
     let cancelled = false;
-    closeButton.current?.focus();
     async function load() {
       try {
         const options = await api<MessagingPerson[]>(
@@ -810,15 +812,11 @@ function ConversationEditor({
             `${root}/${editor.kind === "team" ? "teams" : "rooms"}/${editor.room?.id ?? editor.team?.id}/members`,
           );
           if (cancelled) return;
-          setSelected(
-            detail.members.filter((p) => p.id !== userId).map((p) => p.id),
-          );
+          setSelected(detail.members.filter((p) => p.id !== userId).map((p) => p.id));
           version.current = detail.version;
           setPeople([
             ...options,
-            ...detail.members.filter(
-              (p) => !options.some((o) => o.id === p.id),
-            ),
+            ...detail.members.filter((p) => !options.some((o) => o.id === p.id)),
           ]);
         }
       } catch (e) {
@@ -867,8 +865,7 @@ function ConversationEditor({
           ? `teams/${editor.team?.id}/channels`
           : "rooms";
     const body = JSON.stringify({ path, input });
-    if (attempt.current?.body !== body)
-      attempt.current = { body, key: crypto.randomUUID() };
+    if (attempt.current?.body !== body) attempt.current = { body, key: crypto.randomUUID() };
     try {
       const result = await post<{ id: string; roomId?: string }>(
         `${root}/${path}`,
@@ -884,195 +881,154 @@ function ConversationEditor({
   }
   const showMembers = kind !== "channel" || privateChannel;
   return (
-    <div
-      className={styles.overlay}
-      onKeyDown={(e) => {
-        if (e.key === "Escape" && !busy) onClose();
-        if (e.key === "Tab") {
-          const items = Array.from(
-            e.currentTarget.querySelectorAll<HTMLElement>(
-              "button:not(:disabled), input:not(:disabled), select:not(:disabled)",
-            ),
-          );
-          const first = items[0],
-            last = items.at(-1);
-          if (e.shiftKey && document.activeElement === first) {
-            e.preventDefault();
-            last?.focus();
-          } else if (!e.shiftKey && document.activeElement === last) {
-            e.preventDefault();
-            first?.focus();
-          }
-        }
-      }}
-    >
-      <section
-        className={styles.dialog}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="conversation-editor-title"
-      >
-        <header>
-          <h2 id="conversation-editor-title">
-            {editor.editing ? "Manage" : kind === "direct" ? "New" : "Create"}{" "}
-            {kind === "direct" ? "chat" : kind}
-          </h2>
-          <button
-            ref={closeButton}
-            className={styles.iconButton}
-            aria-label="Close"
-            disabled={busy}
-            onClick={onClose}
-          >
-            <X size={20} />
-          </button>
-        </header>
-        <form onSubmit={save}>
-          {!editor.editing && ["direct", "group"].includes(kind) && (
-            <label>
-              Conversation type
-              <select
-                value={kind}
-                onChange={(e) => {
-                  setKind(e.target.value as "direct" | "group");
-                  setSelected([]);
-                }}
-              >
-                <option value="direct">Direct message</option>
-                <option value="group">Group chat</option>
-              </select>
-            </label>
-          )}
-          {kind !== "direct" && (
-            <label>
-              Name
-              <input
-                required
-                maxLength={120}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={
-                  kind === "channel"
-                    ? "e.g. Design"
-                    : kind === "team"
-                      ? "e.g. Product team"
-                      : "e.g. Launch planning"
-                }
+    <Dialog appearance="standard"
+      open
+      onClose={onClose}
+      title={`${editor.editing ? "Manage" : kind === "direct" ? "New" : "Create"} ${kind === "direct" ? "chat" : kind}`}
+      dismissDisabled={busy}
+
+      className={styles.dialog}
+
+     presentation="form-drawer">
+      <form onSubmit={save}>
+        {!editor.editing && ["direct", "group"].includes(kind) && (
+          <Field appearance="standard">
+            Conversation type
+            <Select appearance="standard"
+              value={kind}
+              onChange={(e) => {
+                setKind(e.target.value as "direct" | "group");
+                setSelected([]);
+              }}
+            >
+              <option value="direct">Direct message</option>
+              <option value="group">Group chat</option>
+            </Select>
+          </Field>
+        )}
+        {kind !== "direct" && (
+          <Field appearance="standard">
+            Name
+            <TextInput appearance="standard"
+              required
+              maxLength={120}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={
+                kind === "channel"
+                  ? "e.g. Design"
+                  : kind === "team"
+                    ? "e.g. Product team"
+                    : "e.g. Launch planning"
+              }
+            />
+          </Field>
+        )}
+        {kind === "channel" && !editor.editing && (
+          <Field appearance="standard">
+            Access
+            <Select appearance="standard"
+              value={privateChannel ? "private" : "standard"}
+              onChange={(e) => setPrivate(e.target.value === "private")}
+            >
+              <option value="standard">Standard — everyone in the team</option>
+              <option value="private">Private — selected team members</option>
+            </Select>
+          </Field>
+        )}
+        {showMembers ? (
+          <>
+            <Field appearance="standard">
+              {kind === "direct" ? "Send to" : "Members"}
+              <TextInput appearance="standard"
+                type="search"
+                value={query}
+                onChange={(e) => void search(e.target.value)}
+                placeholder="Search people by name or email"
               />
-            </label>
-          )}
-          {kind === "channel" && !editor.editing && (
-            <label>
-              Access
-              <select
-                value={privateChannel ? "private" : "standard"}
-                onChange={(e) => setPrivate(e.target.value === "private")}
-              >
-                <option value="standard">
-                  Standard — everyone in the team
-                </option>
-                <option value="private">Private — selected team members</option>
-              </select>
-            </label>
-          )}
-          {showMembers ? (
-            <>
-              <label>
-                {kind === "direct" ? "Send to" : "Members"}
-                <input
-                  type="search"
-                  value={query}
-                  onChange={(e) => void search(e.target.value)}
-                  placeholder="Search people by name or email"
-                />
-              </label>
-              <p className={styles.hint}>
-                {kind === "direct"
-                  ? "Choose someone in your company."
-                  : "The owner stays a member. New members can see earlier messages."}
-              </p>
-              <div className={styles.people}>
-                {loading ? (
-                  <p>Loading people…</p>
-                ) : (
-                  people
-                    .filter(
-                      (p) =>
-                        p.id !== userId &&
-                        `${p.name} ${p.email}`
-                          .toLowerCase()
-                          .includes(query.toLowerCase()),
-                    )
-                    .map((person) => (
-                      <label key={person.id}>
-                        <input
-                          type={kind === "direct" ? "radio" : "checkbox"}
-                          name="recipient"
-                          checked={selected.includes(person.id)}
-                          onChange={(e) =>
-                            setSelected((current) =>
-                              kind === "direct"
-                                ? [person.id]
-                                : e.target.checked
-                                  ? [...current, person.id]
-                                  : current.filter((id) => id !== person.id),
-                            )
-                          }
-                        />
-                        <span>
-                          <strong>{person.name}</strong>
-                          <small>{person.email}</small>
-                        </span>
-                      </label>
-                    ))
-                )}
-                {!loading &&
-                  people.filter(
+            </Field>
+            <p className={styles.hint}>
+              {kind === "direct"
+                ? "Choose someone in your company."
+                : "The owner stays a member. New members can see earlier messages."}
+            </p>
+            <div className={styles.people}>
+              {loading ? (
+                <p>Loading people…</p>
+              ) : (
+                people
+                  .filter(
                     (p) =>
                       p.id !== userId &&
-                      `${p.name} ${p.email}`
-                        .toLowerCase()
-                        .includes(query.toLowerCase()),
-                  ).length === 0 && <p>No matching people.</p>}
-              </div>
-              <small className={styles.hint}>{selected.length} selected</small>
-            </>
-          ) : (
-            <p className={styles.hint}>
-              Everyone in {editor.team?.name} can read and send messages in this
-              channel.
-            </p>
-          )}
-          {error && (
-            <p className={styles.error} role="alert">
-              {error}
-            </p>
-          )}
-          <footer>
-            <button type="button" onClick={onClose} disabled={busy}>
-              Cancel
-            </button>
-            <button
-              className={styles.primary}
-              disabled={
-                busy ||
-                loading ||
-                (kind === "direct" && selected.length !== 1) ||
-                (kind === "group" && !selected.length)
-              }
-              type="submit"
-            >
-              {busy
-                ? "Saving…"
-                : editor.editing
-                  ? "Save changes"
-                  : kind === "direct"
-                    ? "Start chat"
-                    : "Create"}
-            </button>
-          </footer>
-        </form>
-      </section>
-    </div>
+                      `${p.name} ${p.email}`.toLowerCase().includes(query.toLowerCase()),
+                  )
+                  .map((person) => (
+                    <Field appearance="standard" key={person.id}>
+                      <TextInput appearance="standard"
+                        type={kind === "direct" ? "radio" : "checkbox"}
+                        name="recipient"
+                        checked={selected.includes(person.id)}
+                        onChange={(e) =>
+                          setSelected((current) =>
+                            kind === "direct"
+                              ? [person.id]
+                              : e.target.checked
+                                ? [...current, person.id]
+                                : current.filter((id) => id !== person.id),
+                          )
+                        }
+                      />
+                      <span>
+                        <strong>{person.name}</strong>
+                        <small>{person.email}</small>
+                      </span>
+                    </Field>
+                  ))
+              )}
+              {!loading &&
+                people.filter(
+                  (p) =>
+                    p.id !== userId &&
+                    `${p.name} ${p.email}`.toLowerCase().includes(query.toLowerCase()),
+                ).length === 0 && <p>No matching people.</p>}
+            </div>
+            <small className={styles.hint}>{selected.length} selected</small>
+          </>
+        ) : (
+          <p className={styles.hint}>
+            Everyone in {editor.team?.name} can read and send messages in this channel.
+          </p>
+        )}
+        {error && (
+          <InlineNotice tone="danger" className={styles.error} role="alert">
+            {error}
+          </InlineNotice>
+        )}
+        <footer>
+          <Button appearance="standard" variant="ghost" type="button" onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <Button appearance="standard"
+            clientManaged variant="primary"
+            className={styles.primary}
+            disabled={
+              busy ||
+              loading ||
+              (kind === "direct" && selected.length !== 1) ||
+              (kind === "group" && !selected.length)
+            }
+            type="submit"
+          >
+            {busy
+              ? "Saving…"
+              : editor.editing
+                ? "Save changes"
+                : kind === "direct"
+                  ? "Start chat"
+                  : "Create"}
+          </Button>
+        </footer>
+      </form>
+    </Dialog>
   );
 }

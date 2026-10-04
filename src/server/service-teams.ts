@@ -67,81 +67,7 @@ export async function saveServiceTeam(
     input,
   );
   if (prior) return prior;
-  const current = id
-    ? await db
-        .prepare("SELECT * FROM service_teams WHERE id=? AND company_id=?")
-        .bind(id, actor.companyId)
-        .first<ServiceTeam>()
-    : null;
-  if (id && !current)
-    throw new ApiError(404, "TEAM_NOT_FOUND", "Service team not found.");
-  if (current && current.version !== input.expectedVersion)
-    throw new ApiError(
-      409,
-      "VERSION_CONFLICT",
-      "Team setup changed. Refresh before saving.",
-    );
-  if (new Set(input.members.map((m) => m.userId)).size !== input.members.length)
-    throw new ApiError(
-      422,
-      "DUPLICATE_MEMBER",
-      "Choose each team member once.",
-    );
-  if (
-    new Set(
-      input.coverage.map(
-        (c) => `${c.category}:${c.scopeKind}:${c.scopeNodeId}`,
-      ),
-    ).size !== input.coverage.length
-  )
-    throw new ApiError(422, "DUPLICATE_COVERAGE", "Choose each coverage once.");
-  if (input.active && !input.members.some((m) => m.responsibility === "lead"))
-    throw new ApiError(
-      422,
-      "TEAM_LEAD_REQUIRED",
-      "Choose a lead before activating this team.",
-    );
-  for (const m of input.members)
-    if (!(await companyMember(db, actor.companyId, m.userId)))
-      throw new ApiError(
-        422,
-        "TEAM_MEMBER_INVALID",
-        "Every handler needs current company membership. Use People to invite them first.",
-      );
-  for (const c of input.coverage) {
-    const node = await db
-      .prepare(
-        "SELECT kind,branch_id FROM organization_nodes WHERE id=? AND company_id=? AND status='active'",
-      )
-      .bind(c.scopeNodeId, actor.companyId)
-      .first<{ kind: string; branch_id: string | null }>();
-    if (
-      !node ||
-      node.kind !== (c.scopeKind === "holding" ? "company" : c.scopeKind)
-    )
-      throw new ApiError(
-        422,
-        "COVERAGE_INVALID",
-        "Choose active coverage in this company.",
-      );
-    const scope = {
-      company_id: actor.companyId,
-      branch_id: c.scopeKind === "branch" ? c.scopeNodeId : node.branch_id,
-      department_id: c.scopeKind === "department" ? c.scopeNodeId : null,
-    };
-    await validateServiceScope(db, actor, scope);
-    if (input.active) {
-      let covered = false;
-      for (const m of input.members.filter((m) => m.responsibility === "lead"))
-        if (await serviceMember(db, scope, m.userId)) covered = true;
-      if (!covered)
-        throw new ApiError(
-          422,
-          "TEAM_COVERAGE_ACCESS_REQUIRED",
-          "At least one team lead needs an assignment covering each selected location.",
-        );
-    }
-  }
+  const current=await validateServiceTeam(db,actor,id,input);
   const version = current ? current.version + 1 : 1,
     now = Date.now();
   const statements = [
@@ -293,4 +219,95 @@ export async function resolveServiceTeam(
       return { team, handlers };
   }
   return null;
+}
+
+/** The same eligibility checks run again inside the versioned save command. */
+async function validateServiceTeam(db:SqlDatabase,actor:WorkContext,id:string|null,input:z.infer<typeof serviceTeamSchema>){
+  await requireServiceOwner(db,actor);
+  const current = id
+    ? await db
+        .prepare("SELECT * FROM service_teams WHERE id=? AND company_id=?")
+        .bind(id, actor.companyId)
+        .first<ServiceTeam>()
+    : null;
+  if (id && !current)
+    throw new ApiError(404, "TEAM_NOT_FOUND", "Service team not found.");
+  if (current && current.version !== input.expectedVersion)
+    throw new ApiError(
+      409,
+      "VERSION_CONFLICT",
+      "Team setup changed. Refresh before saving.",
+    );
+  if (new Set(input.members.map((m) => m.userId)).size !== input.members.length)
+    throw new ApiError(
+      422,
+      "DUPLICATE_MEMBER",
+      "Choose each team member once.",
+    );
+  if (
+    new Set(
+      input.coverage.map(
+        (c) => `${c.category}:${c.scopeKind}:${c.scopeNodeId}`,
+      ),
+    ).size !== input.coverage.length
+  )
+    throw new ApiError(422, "DUPLICATE_COVERAGE", "Choose each coverage once.");
+  if (input.active && !input.members.some((m) => m.responsibility === "lead"))
+    throw new ApiError(
+      422,
+      "TEAM_LEAD_REQUIRED",
+      "Choose a lead before activating this team.",
+    );
+  for (const m of input.members)
+    if (!(await companyMember(db, actor.companyId, m.userId)))
+      throw new ApiError(
+        422,
+        "TEAM_MEMBER_INVALID",
+        "Every handler needs current company membership. Use People to invite them first.",
+      );
+  for (const c of input.coverage) {
+    const node = await db
+      .prepare(
+        "SELECT kind,branch_id FROM organization_nodes WHERE id=? AND company_id=? AND status='active'",
+      )
+      .bind(c.scopeNodeId, actor.companyId)
+      .first<{ kind: string; branch_id: string | null }>();
+    if (
+      !node ||
+      node.kind !== (c.scopeKind === "holding" ? "company" : c.scopeKind)
+    )
+      throw new ApiError(
+        422,
+        "COVERAGE_INVALID",
+        "Choose active coverage in this company.",
+      );
+    const scope = {
+      company_id: actor.companyId,
+      branch_id: c.scopeKind === "branch" ? c.scopeNodeId : node.branch_id,
+      department_id: c.scopeKind === "department" ? c.scopeNodeId : null,
+    };
+    await validateServiceScope(db, actor, scope);
+    if (input.active) {
+      let covered = false;
+      for (const m of input.members.filter((m) => m.responsibility === "lead"))
+        if (await serviceMember(db, scope, m.userId)) covered = true;
+      if (!covered)
+        throw new ApiError(
+          422,
+          "TEAM_COVERAGE_ACCESS_REQUIRED",
+          "At least one team lead needs an assignment covering each selected location.",
+        );
+    }
+  }
+
+  return current;
+}
+export async function previewServiceTeam(db:SqlDatabase,actor:WorkContext,id:string|null,raw:unknown){
+ const input=serviceTeamSchema.parse(raw),current=await validateServiceTeam(db,actor,id,input);
+ const overlaps=[];
+ if(input.active)for(const c of input.coverage){
+  const row=await db.prepare("SELECT t.name FROM service_team_coverage c JOIN service_teams t ON t.id=c.team_id AND t.company_id=c.company_id WHERE c.company_id=? AND c.category=? AND c.scope_kind=? AND c.scope_node_id=? AND t.active=1 AND (?::text IS NULL OR t.id<>?) ORDER BY t.name").bind(actor.companyId,c.category,c.scopeKind,c.scopeNodeId,id,id).all<{name:string}>();
+  for(const team of row.results)overlaps.push(`${team.name} already covers ${c.category} at this scope. Overlapping active teams may prevent routing.`);
+ }
+ return {previousVersion:current?.version??0,newVersion:current?current.version+1:1,previous:current?JSON.parse(current.configuration_json):null,proposed:input,warnings:overlaps,effect:"New intake uses current coverage. Existing jobs retain their team until an explicit recorded repair."};
 }

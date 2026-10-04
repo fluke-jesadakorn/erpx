@@ -1,4 +1,6 @@
+import { RecordSections } from "@/components/workplace/record-sections";
 import Link from "next/link";
+import { WorkReturn } from "@/components/workplace/work-return";
 import { LeaveDecisions, LeaveEditor } from "@/components/self-service/leave-editor";
 import styles from "@/components/leave/leave-flow.module.css";
 import { workspaceBase } from "@/lib/workspace";
@@ -74,7 +76,7 @@ export default async function LeaveTaskPage({
   const attachmentReadOnly = attachmentsV2ReadOnly();
   return (
     <div className={"content " + styles.leavePage}>
-      <div className={styles.detailFooter}><Link href={base + "/leave"}>← My leave</Link></div>
+      <WorkReturn base={base}/><div className={styles.detailFooter}><Link href={base + "/leave"}>← My leave</Link></div>
       <header className={styles.detailHeader}>
         <div>
           <p className={styles.eyebrow}>Personal leave request · {request.number}</p>
@@ -84,6 +86,22 @@ export default async function LeaveTaskPage({
         <span className={styles.detailStatus}>{statusLabel(request.state, request.cancellation_state)}</span>
       </header>
 
+      <RecordSections evidence={<>      {evidence && <LeaveEvidencePanel
+        base={base}
+        requestId={request.id}
+        requestVersion={request.version}
+        evidencePolicy={evidencePolicy}
+        initialFiles={evidence}
+        canWrite={!attachmentReadOnly && request.created_by === actor.userId && ["draft", "rejected", "pending_approval"].includes(request.state)}
+        enabled={attachmentPlatform}
+      />}
+      {!evidence && <p className={styles.detailMessage}>Private leave evidence is hidden because you are not the current reviewer, a recorded decision maker, the requester, or authorized HR.</p>}
+
+</>} history={<>      <ApprovalHistoryDisclosure approval={approval} title={request.cancellationApproval ? "Cancellation approval history" : "Approval history"} />
+      {request.cancellationApproval && (
+        <ApprovalHistoryDisclosure approval={request.approval} title="Original approval history" />
+      )}
+</>}>
       <OperationSummary operation={{status:request.state,responsible:approval.currentApprover?.approver_name??"Requester",currentStep:approval.currentApprover?`${approval.currentApprover.stage?.replaceAll("_"," ")??"Approval"} · step ${approval.currentApprover.ordinal+1}`:null,nextAction:nextAction(request),blockedReason:approval.blockedReason,dueAt:null,recordHref:null,actionKind:request.permittedActions.some(action=>["approve","reject","approve_cancellation","reject_cancellation"].includes(action))?"approval":"work"}}/>
 
       {request.cancellation_state === "pending_review" && (
@@ -120,24 +138,10 @@ export default async function LeaveTaskPage({
         />
       )}
 
-      {evidence && <LeaveEvidencePanel
-        base={base}
-        requestId={request.id}
-        requestVersion={request.version}
-        evidencePolicy={evidencePolicy}
-        initialFiles={evidence}
-        canWrite={!attachmentReadOnly && request.created_by === actor.userId && ["draft", "rejected", "pending_approval"].includes(request.state)}
-        enabled={attachmentPlatform}
-      />}
-      {!evidence && <p className={styles.detailMessage}>Private leave evidence is hidden because you are not the current reviewer, a recorded decision maker, the requester, or authorized HR.</p>}
-
       <LeaveDecisions key={"decisions:" + id + ":" + request.version} base={base} record={request} />
 
-      <ApprovalHistoryDisclosure approval={approval} title={request.cancellationApproval ? "Cancellation approval history" : "Approval history"} />
-      {request.cancellationApproval && (
-        <ApprovalHistoryDisclosure approval={request.approval} title="Original approval history" />
-      )}
 
+      </RecordSections>
     </div>
   );
 }

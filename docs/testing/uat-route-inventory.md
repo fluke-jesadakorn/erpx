@@ -1,8 +1,8 @@
 # ERPX UAT route inventory
 
-Generated from `src/app` page files on 2026-09-26. The route source fingerprint is `0d9deee1770eabee957a1243b3e099a834b3af0936bd59f01da77fc1369ce090`. This inventories implemented page files and is not a capability-catalog acceptance claim.
+Generated from `src/app` page files on 2026-10-03. The route source fingerprint is `2bb7b41398a63dbd67c9bd63674c5e5247f466985267564bf4ed523713c60d06`. This inventories implemented page files and is not a capability-catalog acceptance claim.
 
-- 166 page routes in source (current source count)
+- 205 page routes in source (current source count)
 - Desktop Chrome and Pixel 7 emulation
 - Anonymous, intended-role and explicit-denial access checks are recorded separately in Playwright results.
 - Holding routes are exercised at holding, branch, department, and branch-plus-department scopes.
@@ -30,6 +30,7 @@ Generated from `src/app` page files on 2026-09-26. The route source fingerprint 
 | `/holdings/[holdingSlug]/assets` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/benefits/[id]` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | sample record + invalid ID |
 | `/holdings/[holdingSlug]/benefits` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/brand` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/calendar` | Holding workspace | login-or-explicit-denial | employee | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/collaboration` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/commerce/orders/[id]/notes` | Holding workspace | login-or-explicit-denial | purchasing_operator or sales_operator | holding, branch, department, branch-department | sample record + invalid ID |
@@ -58,10 +59,13 @@ Generated from `src/app` page files on 2026-09-26. The route source fingerprint 
 | `/holdings/[holdingSlug]/field-service/[id]` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | sample record + invalid ID |
 | `/holdings/[holdingSlug]/field-service` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/finance/accounting` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/finance/assets/[id]` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | sample record + invalid ID |
+| `/holdings/[holdingSlug]/finance/assets` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/finance/bank` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/finance/close` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/finance/engines` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/finance/group` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/finance/hotels` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/finance/invoices/[id]` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | sample record + invalid ID |
 | `/holdings/[holdingSlug]/finance/invoices` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/finance/journals/[id]` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | sample record + invalid ID |
@@ -73,12 +77,20 @@ Generated from `src/app` page files on 2026-09-26. The route source fingerprint 
 | `/holdings/[holdingSlug]/finance/refunds` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/finance/reports` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/finance/setup` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/finance/statement-packages/[id]` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | sample record + invalid ID |
 | `/holdings/[holdingSlug]/finance/supplier-batches/[id]` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | sample record + invalid ID |
 | `/holdings/[holdingSlug]/finance/supplier-batches` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/finance/tax/corrections/[id]` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | sample record + invalid ID |
+| `/holdings/[holdingSlug]/finance/tax/entries/[id]` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | sample record + invalid ID |
+| `/holdings/[holdingSlug]/finance/tax/packages/[id]` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | sample record + invalid ID |
+| `/holdings/[holdingSlug]/finance/tax` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/finance/thai-documents/[id]` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | sample record + invalid ID |
+| `/holdings/[holdingSlug]/finance/thai-tax` | Holding workspace | login-or-explicit-denial | finance_approver | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/future-features` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/handbook/[id]` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | sample record + invalid ID |
 | `/holdings/[holdingSlug]/handbook` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/home` | Holding workspace | login-or-explicit-denial | employee | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/hospitality/setup` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/iam/[[...section]]` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/inbox` | Holding workspace | login-or-explicit-denial | employee | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/landed-costs/[id]` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | sample record + invalid ID |
@@ -87,10 +99,13 @@ Generated from `src/app` page files on 2026-09-26. The route source fingerprint 
 | `/holdings/[holdingSlug]/learning` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/leave/new` | Holding workspace | login-or-explicit-denial | employee | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/leave` | Holding workspace | login-or-explicit-denial | employee | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/legal/citations/[id]` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | sample record + invalid ID |
 | `/holdings/[holdingSlug]/legal` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/maintenance/[id]` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | sample record + invalid ID |
 | `/holdings/[holdingSlug]/maintenance` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/maintenance/plans/[id]` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | sample record + invalid ID |
 | `/holdings/[holdingSlug]/manage-erpx/billing` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/manage-erpx/billing/usage` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/manage-erpx/executive` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/manage-erpx/iam/[[...section]]` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/manage-erpx` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
@@ -98,24 +113,47 @@ Generated from `src/app` page files on 2026-09-26. The route source fingerprint 
 | `/holdings/[holdingSlug]/manufacturing` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/marketing/[id]` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | sample record + invalid ID |
 | `/holdings/[holdingSlug]/marketing` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/operations/[id]` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | sample record + invalid ID |
+| `/holdings/[holdingSlug]/operations` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/overtime/[id]` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | sample record + invalid ID |
 | `/holdings/[holdingSlug]/overtime` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/payroll/advances` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/payroll/history` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/payroll` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/payroll/runs/[id]` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | sample record + invalid ID |
+| `/holdings/[holdingSlug]/payroll/settings` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/people/[id]` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | sample record + invalid ID |
 | `/holdings/[holdingSlug]/people/access` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/people/clearance/[id]` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | sample record + invalid ID |
+| `/holdings/[holdingSlug]/people/hire-handoffs` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/people/move/batch` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/people/move` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/people/move/review` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/people/organization/drafts/[id]/review` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | sample record + invalid ID |
+| `/holdings/[holdingSlug]/people/organization/drafts` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/people/organization` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/people` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/people/payroll/[id]` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | sample record + invalid ID |
+| `/holdings/[holdingSlug]/people/payroll/advances` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/people/payroll/history` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/people/payroll` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/people/payroll/recoveries` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/people/payroll/runs/[id]` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | sample record + invalid ID |
+| `/holdings/[holdingSlug]/people/payroll/settings` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/people/payslips/[id]` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | sample record + invalid ID |
+| `/holdings/[holdingSlug]/people/payslips` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/people/roster` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/people/settings/leave-policy/new` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/people/settings` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/planning` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/pms/[[...section]]` | Holding workspace | login-or-explicit-denial | pms_frontdesk | holding | page route |
 | `/holdings/[holdingSlug]/pms/documents/[id]` | Holding workspace | login-or-explicit-denial | pms_frontdesk | holding | sample record + invalid ID |
+| `/holdings/[holdingSlug]/pms/import` | Holding workspace | login-or-explicit-denial | pms_frontdesk | holding | page route |
 | `/holdings/[holdingSlug]/pos` | Holding workspace | login-or-explicit-denial | pos_cashier | holding | page route |
 | `/holdings/[holdingSlug]/posts/[id]` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | sample record + invalid ID |
 | `/holdings/[holdingSlug]/procurement-rfqs/[id]` | Holding workspace | login-or-explicit-denial | purchasing_operator or sales_operator | holding, branch, department, branch-department | sample record + invalid ID |
 | `/holdings/[holdingSlug]/procurement-rfqs` | Holding workspace | login-or-explicit-denial | purchasing_operator or sales_operator | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/profiles/[userId]` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/projects/[id]` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | sample record + invalid ID |
 | `/holdings/[holdingSlug]/projects` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/quality/[id]` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | sample record + invalid ID |
@@ -153,6 +191,7 @@ Generated from `src/app` page files on 2026-09-26. The route source fingerprint 
 | `/holdings/[holdingSlug]/talent` | Holding workspace | login-or-explicit-denial | people_manager | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/tasks/people_payroll/[id]` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | sample record + invalid ID |
 | `/holdings/[holdingSlug]/technology` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/usage` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/work/department-approvals/[kind]/[id]` | Holding workspace | login-or-explicit-denial | employee | holding, branch, department, branch-department | sample record + invalid ID |
 | `/holdings/[holdingSlug]/work` | Holding workspace | login-or-explicit-denial | employee | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/work/routing/[kind]/[id]` | Holding workspace | login-or-explicit-denial | employee | holding, branch, department, branch-department | sample record + invalid ID |
@@ -161,7 +200,7 @@ Generated from `src/app` page files on 2026-09-26. The route source fingerprint 
 | `/legal-portal/[holdingSlug]` | Legal portal | login-or-explicit-denial | holding_owner | — | page route |
 | `/legal-portal/enroll` | Legal portal | public | holding_owner | — | page route |
 | `/login` | Public and account | public | holding_owner | — | page route |
-| `/marketing` | Public and account | login-or-explicit-denial | holding_owner | — | page route |
+| `/marketing` | Public and account | public | holding_owner | — | page route |
 | `/my-access` | Public and account | login-or-explicit-denial | holding_owner | — | page route |
 | `/onboarding` | Public and account | login-or-explicit-denial | holding_owner | — | page route |
 | `/` | Public and account | login-or-explicit-denial | holding_owner | — | page route |

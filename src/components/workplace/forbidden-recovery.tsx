@@ -1,3 +1,4 @@
+import { Card } from "@/components/ui/foundation";
 import "server-only";
 
 import { cookies, headers } from "next/headers";
@@ -61,12 +62,12 @@ async function PlatformRoleRecovery({ from }: { from: string | null }) {
 /** Page failures retain the already-authorized workspace shell and its account menu. */
 export async function ForbiddenPanel() {
   const from = await requestedPage();
-  return <section className={styles.panel} aria-labelledby="workspace-forbidden-title" data-work-forbidden>
+  return <Card as="section" appearance="standard" className={styles.panel} aria-labelledby="workspace-forbidden-title" data-work-forbidden>
     <span className="eyebrow">Access required</span>
     <h1 id="workspace-forbidden-title">Your role cannot open this view</h1>
     <p>Your selected account and role do not have access to this page. Choose another role or account to continue here, or select an available workspace.</p>
     <PlatformRoleRecovery from={from} />
-  </section>;
+  </Card>;
 }
 
 /** A layout can fail before WorkContext exists; recovery depends only on the signed-in account. */
@@ -95,9 +96,9 @@ export async function ForbiddenRecoveryShell() {
   return <div className={styles.shell} data-work-user={session.user.id} data-work-forbidden>
     <a href="#workspace-forbidden-title" className="skip-link">Skip to access message</a>
     <header className={styles.header} data-app-chrome>
-      <ProductBrand className={styles.brand} />
+      <ProductBrand appearance="standard" className={styles.brand} />
       <div className={styles.controls}>
-        <WorkspaceMenu label={roles?.access.scope.holdingName ?? "Choose workspace"} choices={choices} current={current} canManageErpx={canManageErpx} />
+        <WorkspaceMenu appearance="standard" label={roles?.access.scope.holdingName ?? "Choose workspace"} choices={choices} current={current} canManageErpx={canManageErpx} />
         <AccountSwitcher
           workspaceBase={base}
           companyId={roles?.access.scope.companyId}

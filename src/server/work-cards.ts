@@ -6,6 +6,9 @@ import {
   type WorkCapabilities,
 } from "@/lib/work-cards";
 import { mergeWorkItems, type WorkSnapshot } from "./work-items";
+import { isApprovalAction } from "@/lib/work-item";
+import { shortcutDestinationIds } from "@/lib/workplace-catalogue";
+import { workplaceNavigation, type NavigationContext } from "@/lib/workplace-navigation";
 
 export function buildWorkCards(
   base: string,
@@ -24,7 +27,7 @@ export function buildWorkCards(
         : card.type
         ? i.type === card.type
         : card.id === "approvals"
-          ? i.queue === "todo" && i.relationships?.includes("approval")
+          ? isApprovalAction(i)
           : i.relationships?.includes("team"),
     );
     const create =
@@ -57,7 +60,7 @@ export function buildWorkCards(
         href:
           ["shifts","leave","overtime"].includes(card.id)
             ? selfServiceHref(base,card.id)!
-            : `${base}/work?${query}#work-results`,
+            : card.id === "approvals" ? `${base}/work?view=approvals` : `${base}/work?${query}#work-results`,
         create,
         toDo: incomplete
           ? null
@@ -69,5 +72,14 @@ export function buildWorkCards(
         incomplete,
       },
     ];
+  });
+}
+
+export function buildDestinationCards(context: NavigationContext): WorkActionCard[] {
+  return workplaceNavigation(context).search.flatMap(item => {
+    if (!shortcutDestinationIds.includes(item.id as typeof shortcutDestinationIds[number])) return [];
+    return [{ id: item.id as WorkActionCard["id"], title: item.label, icon: item.id as WorkActionCard["icon"],
+      href: item.href, objective: item.objective, destination: true, create: null,
+      toDo: null, waiting: null, blocked: 0, incomplete: false }];
   });
 }

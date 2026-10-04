@@ -1,13 +1,12 @@
 "use client";
+import { FormDisclosure } from "@/components/ui/form-disclosure";
+import { Button, Field, TextArea, TextInput } from "@/components/ui/foundation";
+
 import { useState, useRef } from "react";
 import { records, type Snapshot, type Rate } from "@/lib/pms-model";
 import { decimalToMinor, minorToDecimal } from "@/lib/finance-money";
 import styles from "./booking.module.css";
-type Save = (
-  operation: string,
-  input: unknown,
-  version?: number,
-) => Promise<boolean>;
+type Save = (operation: string, input: unknown, version?: number) => Promise<boolean>;
 function ChildPrices({
   id,
   rate,
@@ -29,12 +28,11 @@ function ChildPrices({
     [message, setMessage] = useState("");
   const editingVersion = useRef<number | undefined>(undefined);
   return (
-    <details className={styles.surface}>
+    <FormDisclosure className={styles.surface}>
       <summary>Child prices · {rate.name}</summary>
       <p className={styles.small}>
-        Each child counts toward capacity. The configured charge is added per
-        child, per night, before the rate’s tax treatment. Ages without a band
-        are not offered.
+        Each child counts toward capacity. The configured charge is added per child, per night,
+        before the rate’s tax treatment. Ages without a band are not offered.
       </p>
       <form
         onChange={() => {
@@ -60,9 +58,7 @@ function ChildPrices({
               editingVersion.current ?? version,
             );
             if (ok) editingVersion.current = undefined;
-            setMessage(
-              ok ? "Child prices saved" : "Not saved. Check the message above",
-            );
+            setMessage(ok ? "Child prices saved" : "Not saved. Check the message above");
           } finally {
             setBusy(false);
           }
@@ -70,9 +66,9 @@ function ChildPrices({
       >
         {bands.map((b, i) => (
           <div className={styles.grid} key={i}>
-            <label>
+            <Field>
               From age
-              <input
+              <TextInput
                 type="number"
                 min={0}
                 max={17}
@@ -80,16 +76,14 @@ function ChildPrices({
                 value={b.minAge}
                 onChange={(e) =>
                   setBands(
-                    bands.map((r, j) =>
-                      j === i ? { ...r, minAge: Number(e.target.value) } : r,
-                    ),
+                    bands.map((r, j) => (j === i ? { ...r, minAge: Number(e.target.value) } : r)),
                   )
                 }
               />
-            </label>
-            <label>
+            </Field>
+            <Field>
               Through age
-              <input
+              <TextInput
                 type="number"
                 min={b.minAge}
                 max={17}
@@ -97,16 +91,14 @@ function ChildPrices({
                 value={b.maxAge}
                 onChange={(e) =>
                   setBands(
-                    bands.map((r, j) =>
-                      j === i ? { ...r, maxAge: Number(e.target.value) } : r,
-                    ),
+                    bands.map((r, j) => (j === i ? { ...r, maxAge: Number(e.target.value) } : r)),
                   )
                 }
               />
-            </label>
-            <label>
+            </Field>
+            <Field>
               Charge per night (THB)
-              <input
+              <TextInput
                 type="number"
                 min={0}
                 step="0.01"
@@ -114,43 +106,40 @@ function ChildPrices({
                 value={b.displayPrice}
                 onChange={(e) =>
                   setBands(
-                    bands.map((r, j) =>
-                      j === i ? { ...r, displayPrice: e.target.value } : r,
-                    ),
+                    bands.map((r, j) => (j === i ? { ...r, displayPrice: e.target.value } : r)),
                   )
                 }
               />
-            </label>
-            <button
+            </Field>
+            <Button
+              variant="secondary"
               className={styles.secondary}
               type="button"
               onClick={() => setBands(bands.filter((_, j) => i !== j))}
             >
               Remove band
-            </button>
+            </Button>
           </div>
         ))}
         <div className={styles.actions}>
-          <button
+          <Button
+            variant="secondary"
             className={styles.secondary}
             type="button"
             onClick={() =>
-              setBands([
-                ...bands,
-                { minAge: 0, maxAge: 17, price: 0, displayPrice: "0.00" },
-              ])
+              setBands([...bands, { minAge: 0, maxAge: 17, price: 0, displayPrice: "0.00" }])
             }
             disabled={bands.length >= 18}
           >
             Add age band
-          </button>
-          <button className={styles.primary} disabled={busy}>
+          </Button>
+          <Button clientManaged type="submit" variant="primary" className={styles.primary} disabled={busy}>
             Save child prices
-          </button>
+          </Button>
         </div>
         <p role="status">{message}</p>
       </form>
-    </details>
+    </FormDisclosure>
   );
 }
 export function BookingSettings({
@@ -175,8 +164,8 @@ export function BookingSettings({
           <a href={`/book/${slug}`} target="_blank" rel="noreferrer">
             shared booking website
           </a>
-          . Only selected rates and the room descriptions below are public. New
-          hotels are unpublished.
+          . Only selected rates and the room descriptions below are public. New hotels are
+          unpublished.
         </p>
         <form
           onChange={() => {
@@ -215,50 +204,33 @@ export function BookingSettings({
               );
               if (ok) editingVersion.current = undefined;
               setMessage(
-                ok
-                  ? "Booking website settings saved"
-                  : "Not saved. Check the message above",
+                ok ? "Booking website settings saved" : "Not saved. Check the message above",
               );
             } finally {
               setBusy(false);
             }
           }}
         >
-          <label className={styles.field}>
+          <Field className={styles.field}>
             Hotel introduction
-            <textarea
-              name="description"
-              defaultValue={b?.description}
-              required
-              maxLength={3000}
-            />
-          </label>
+            <TextArea name="description" defaultValue={b?.description} required maxLength={3000} />
+          </Field>
           <div className={styles.grid}>
-            <label>
+            <Field>
               Public address
-              <input
-                name="address"
-                defaultValue={b?.address}
-                required
-                maxLength={500}
-              />
-            </label>
-            <label>
+              <TextInput name="address" defaultValue={b?.address} required maxLength={500} />
+            </Field>
+            <Field>
               Guest contact email
-              <input
-                type="email"
-                name="email"
-                defaultValue={b?.contactEmail}
-                required
-              />
-            </label>
-            <label>
+              <TextInput type="email" name="email" defaultValue={b?.contactEmail} required />
+            </Field>
+            <Field>
               Guest contact phone
-              <input name="phone" defaultValue={b?.contactPhone} required />
-            </label>
-            <label>
+              <TextInput name="phone" defaultValue={b?.contactPhone} required />
+            </Field>
+            <Field>
               Free cancellation: days before arrival
-              <input
+              <TextInput
                 type="number"
                 name="days"
                 min={0}
@@ -266,66 +238,55 @@ export function BookingSettings({
                 defaultValue={b?.cancellationDays ?? 1}
                 required
               />
-            </label>
-            <label>
+            </Field>
+            <Field>
               Deadline in hotel timezone
-              <input
+              <TextInput
                 type="time"
                 name="time"
                 defaultValue={b?.cancellationTime ?? "18:00"}
                 required
               />
-            </label>
+            </Field>
           </div>
           <h3>Public rates</h3>
           {records(snapshot, "rate")
             .filter((r) => r.data.market === "public")
             .map((r) => (
-              <label key={r.id} className={styles.check}>
-                <input
+              <Field orientation="inline" key={r.id} className={styles.check}>
+                <TextInput
                   type="checkbox"
                   name="rateIds"
                   value={r.id}
                   defaultChecked={b?.rateIds.includes(r.id)}
                 />
                 {r.data.name} ·{" "}
-                {
-                  records(snapshot, "room_type").find(
-                    (t) => t.id === r.data.typeId,
-                  )?.data.name
-                }
-              </label>
+                {records(snapshot, "room_type").find((t) => t.id === r.data.typeId)?.data.name}
+              </Field>
             ))}
           <h3>Room descriptions</h3>
           {records(snapshot, "room_type").map((r) => (
-            <label className={styles.field} key={r.id}>
+            <Field className={styles.field} key={r.id}>
               {r.data.name}
-              <textarea
+              <TextArea
                 name={`room-${r.id}`}
-                defaultValue={
-                  b?.roomContent.find((c) => c.typeId === r.id)?.description
-                }
+                defaultValue={b?.roomContent.find((c) => c.typeId === r.id)?.description}
                 maxLength={2000}
                 placeholder="Describe the room for guests. Required when its rates are selected."
               />
-            </label>
+            </Field>
           ))}
-          <label className={styles.check}>
-            <input
-              type="checkbox"
-              name="published"
-              defaultChecked={b?.published ?? false}
-            />
+          <Field orientation="inline" className={styles.check}>
+            <TextInput type="checkbox" name="published" defaultChecked={b?.published ?? false} />
             Publish this hotel for online booking
-          </label>
+          </Field>
           <p className={styles.small}>
-            Publishing requires an open hotel, selected rates, room descriptions
-            and configured email delivery. Guests pay at the hotel. Late
-            cancellations go to staff.
+            Publishing requires an open hotel, selected rates, room descriptions and configured
+            email delivery. Guests pay at the hotel. Late cancellations go to staff.
           </p>
-          <button className={styles.primary} disabled={busy}>
+          <Button clientManaged type="submit" variant="primary" className={styles.primary} disabled={busy}>
             Save booking website settings
-          </button>
+          </Button>
           <p role="status">{message}</p>
         </form>
       </section>

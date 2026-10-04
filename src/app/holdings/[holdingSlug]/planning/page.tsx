@@ -7,6 +7,7 @@ import { ProductionConsole } from "@/components/modules/production-console";
 import { RecordDocumentDrawer } from "@/components/attachments/record-document-drawer";
 import { AttachmentFeatureSurface } from "@/components/attachments/attachment-feature-context";
 import { hasPermission } from "@/lib/permissions";
+import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Page({
   params,
@@ -20,7 +21,7 @@ export default async function Page({
       pageError(e, holdingSlug),
     );
   return (
-    <div className="content-stack">
+    <PageContent as="div" className="ui-page-content">
       <Link href={`${base}/manufacturing`}>Manufacturing</Link>
       <h1>Planning</h1>
       <p>
@@ -30,8 +31,8 @@ export default async function Page({
       <ProductionConsole base={base} module="planning" data={data} />
       {data.plans.map((scenario) => (
         <AttachmentFeatureSurface key={`files-${String(scenario.id)}`}>
-          <section className="card">
-            <div className="section-head">
+          <Card as="section" appearance="standard" className="ui-panel">
+            <div className="ui-section-header">
               <div>
                 <h2>{String(scenario.specification_name)}</h2>
                 <p className="muted">
@@ -68,9 +69,9 @@ export default async function Page({
                 triggerLabel="Sources"
               />
             </div>
-          </section>
+          </Card>
         </AttachmentFeatureSurface>
       ))}
-    </div>
+    </PageContent>
   );
 }

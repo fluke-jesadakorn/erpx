@@ -14,8 +14,20 @@ import { decimalToMinor } from "@/lib/finance-money";
 import { quantityMilli, lineAmounts, scaledAmount } from "@/lib/commerce-math";
 import { prepareAttachmentBinding } from "./attachments/service";
 import { attachmentsV2Readable } from "./attachments/feature";
+import { snapshotMoney, snapshotMoneyReversal } from "./company-money";
+import {prepareBusinessEvidence} from "./business-evidence";
+import { prepareReturnCredit, returnCompletionValues } from "./commerce-return-accounting";
+import { confirmedFunctionalFx, prepareJournal } from "./finance";
+import { minorToDecimal } from "@/lib/finance-money";
+import { convertUnits } from "@/lib/company-money";
+import { prepareReturnGoodsFx } from "./commerce-goods-accounting";
+import { assertControlledThaiTaxPaymentOwner } from "./finance-withholding";
 
 export type Row = Record<string, string | number | null>;
+async function commerceMoney(write:SqlDatabase,actor:WorkContext,input:{sourceType:string;sourceId:string;amountKind:string;transactionDate:string;currency:string;amountUnits:number}){
+  if(!Number.isSafeInteger(input.amountUnits))throw new ApiError(422,"MONEY_OVERFLOW","The commerce amount exceeds supported ledger precision.");
+  return (await snapshotMoney(write,actor,{...input,amountUnits:String(input.amountUnits),currencyScale:2})).statement;
+}
 const amount = z
   .string()
   .regex(
@@ -106,8 +118,8 @@ export const returnRequestSchema=z.object({
   reason:z.string().trim().min(3).max(500),
   lines:z.array(z.object({lineId:z.string().min(1),quantity,allocations:z.array(z.object({lotId:z.string().min(1),quantity})).max(200).default([]),condition:z.enum(['unopened','damaged','unknown']).default('unknown'),conditionNote:z.string().trim().max(500).default(''),qualityDueDate:z.union([z.iso.date(),z.literal('')]).default('')})).min(1).max(20),
 });
-export const returnDecisionSchema=z.object({expectedVersion:z.number().int().positive(),reason:z.string().trim().min(3).max(500)});
-export const returnCompleteSchema=z.object({expectedVersion:z.number().int().positive()});
+export const returnDecisionSchema=z.object({expectedVersion:z.number().int().positive(),reason:z.string().trim().min(3).max(500),attachmentSetIds:z.array(z.string().min(1)).max(10).optional()});
+export const returnCompleteSchema=z.object({expectedVersion:z.number().int().positive(),fxGainAccountId:z.string().min(1).optional(),fxLossAccountId:z.string().min(1).optional()});
 export const productSchema = z.object({
   sku: z.string().trim().min(2).max(40),
   name: z.string().trim().min(2).max(160),
@@ -165,7 +177,7 @@ function scope(actor: WorkContext, alias = "o") {
 }
 async function settings(db: SqlDatabase, actor: WorkContext) {
   const row = await db
-    .prepare("SELECT * FROM commerce_settings WHERE company_id=?")
+    .prepare("SELECT s.*,c.base_currency FROM commerce_settings s JOIN finance_charts c ON c.id=s.chart_id AND c.company_id=s.company_id AND c.status='active' WHERE s.company_id=?")
     .bind(actor.companyId)
     .first<Row>();
   if (!row)
@@ -293,44 +305,51 @@ export async function workOrderRows(actor: WorkContext) {
   const { write } = await holdingResources(actor.holdingId), s = scope(actor);
   return (await write.prepare(`SELECT o.* FROM commerce_orders o JOIN finance_parties p ON p.id=o.party_id JOIN commerce_warehouses w ON w.id=o.warehouse_id WHERE ${s.sql} ORDER BY o.updated_at DESC`).bind(...s.args).all<Row>()).results;
 }
-export async function getOrder(actor: WorkContext, id: string) {
+export async function getOrder(actor: WorkContext, id: string, ownerWrite?:SqlDatabase) {
   actor = allowed(actor, "read");
-  const { write } = await holdingResources(actor.holdingId);
+  const write=ownerWrite??(await holdingResources(actor.holdingId)).write;
   const order = await orderRow(write, actor, id);
+  // A composed owner command shares one PostgreSQL client. Defer each read
+  // until the prior one completes while normal pooled page reads stay parallel.
+  let readQueue:Promise<unknown>=Promise.resolve();
+  const read=<T>(query:()=>Promise<T>):Promise<T>=>{
+    if(!ownerWrite)return query();
+    const result=readQueue.then(query);readQueue=result;return result;
+  };
   const [lines, fulfillments, fulfillmentLines, returns, history, children, reservations,lots,lotAllocations,returnLotAllocations,returnQualityHolds,fulfillmentEvidence,pendingDeliveryEvidence,customerNotifications,customerNotificationSettings] = await Promise.all([
-    write
+    read(()=>write
       .prepare(
         "SELECT l.*,p.sku,p.unit,p.tracking_mode,COALESCE((SELECT SUM(r.quantity_milli) FROM inventory_active_reservations r WHERE r.order_line_id=l.id),0) reserved_milli FROM commerce_order_lines l JOIN commerce_products p ON p.id=l.product_id WHERE l.order_id=? ORDER BY l.ordinal",
       )
       .bind(id)
-      .all<Row>(),
-    write
+      .all<Row>()),
+    read(()=>write
       .prepare(
-        "SELECT f.*,i.invoice_number,i.total_minor,i.outstanding_minor,i.status invoice_status,j.status stock_journal_status FROM commerce_fulfillments f LEFT JOIN finance_invoices i ON i.id=f.invoice_id LEFT JOIN finance_journals j ON j.id=f.journal_id WHERE f.order_id=? ORDER BY f.created_at DESC",
+        "SELECT f.*,i.invoice_number,i.total_minor,i.outstanding_minor,i.status invoice_status,j.status stock_journal_status,c.base_currency stock_currency FROM commerce_fulfillments f LEFT JOIN finance_invoices i ON i.id=f.invoice_id LEFT JOIN finance_journals j ON j.id=f.journal_id LEFT JOIN finance_charts c ON c.id=j.chart_id WHERE f.order_id=? ORDER BY f.created_at DESC",
       )
       .bind(id)
-      .all<Row>(),
-    write.prepare("SELECT fl.*,ol.product_id,ol.description,p.sku,COALESCE((SELECT SUM(rl.quantity_milli) FROM commerce_return_lines rl JOIN commerce_returns r ON r.id=rl.return_id WHERE rl.fulfillment_line_id=fl.id AND r.status!='rejected'),0) returned_milli FROM commerce_fulfillment_lines fl JOIN commerce_order_lines ol ON ol.id=fl.order_line_id JOIN commerce_products p ON p.id=ol.product_id JOIN commerce_fulfillments f ON f.id=fl.fulfillment_id WHERE f.order_id=? ORDER BY f.created_at,ol.ordinal").bind(id).all<Row>(),
-    write.prepare("SELECT r.*,sj.status stock_journal_status,cj.status credit_journal_status FROM commerce_returns r LEFT JOIN finance_journals sj ON sj.id=r.stock_journal_id LEFT JOIN finance_journals cj ON cj.id=r.credit_journal_id WHERE r.order_id=? ORDER BY r.created_at DESC").bind(id).all<Row>(),
-    write
+      .all<Row>()),
+    read(()=>write.prepare("SELECT fl.*,ol.product_id,ol.description,p.sku,COALESCE((SELECT SUM(rl.quantity_milli) FROM commerce_return_lines rl JOIN commerce_returns r ON r.id=rl.return_id WHERE rl.fulfillment_line_id=fl.id AND r.status!='rejected'),0) returned_milli FROM commerce_fulfillment_lines fl JOIN commerce_order_lines ol ON ol.id=fl.order_line_id JOIN commerce_products p ON p.id=ol.product_id JOIN commerce_fulfillments f ON f.id=fl.fulfillment_id WHERE f.order_id=? ORDER BY f.created_at,ol.ordinal").bind(id).all<Row>()),
+    read(()=>write.prepare("SELECT r.*,sj.status stock_journal_status,cj.status credit_journal_status,gf.status goods_fx_journal_status,i.currency invoice_currency,c.base_currency stock_currency FROM commerce_returns r JOIN finance_invoices i ON i.id=r.invoice_id LEFT JOIN finance_journals sj ON sj.id=r.stock_journal_id LEFT JOIN finance_journals cj ON cj.id=r.credit_journal_id LEFT JOIN finance_journals gf ON gf.id=r.goods_fx_journal_id LEFT JOIN finance_charts c ON c.id=sj.chart_id WHERE r.order_id=? ORDER BY r.created_at DESC").bind(id).all<Row>()),
+    read(()=>write
       .prepare(
         "SELECT a.action,a.actor_id,COALESCE((SELECT legal_name FROM hr_people p WHERE p.user_id=a.actor_id),a.actor_id) actor_name,a.created_at,a.record_version FROM audit_events a WHERE a.record_id=? ORDER BY a.created_at DESC LIMIT 50",
       )
       .bind(id)
-      .all<Row>(),
-    write
+      .all<Row>()),
+    read(()=>write
       .prepare("SELECT id,number FROM commerce_orders WHERE source_id=?")
       .bind(id)
-      .all<Row>(),
-    write.prepare('SELECT r.*,l.description FROM inventory_order_reservations r JOIN commerce_order_lines l ON l.id=r.order_line_id WHERE l.order_id=? ORDER BY r.created_at DESC,r.id').bind(id).all<Row>(),
-    write.prepare("SELECT l.*,b.warehouse_id,b.quantity_milli,b.value_minor,b.version balance_version,CASE WHEN EXISTS(SELECT 1 FROM inventory_quality_holds h WHERE h.lot_id=l.id AND h.warehouse_id=b.warehouse_id AND h.status NOT IN ('released','cancelled','disposed')) THEN 1 ELSE 0 END quality_held FROM inventory_lots l JOIN inventory_lot_balances b ON b.lot_id=l.id JOIN commerce_order_lines ol ON ol.product_id=l.product_id WHERE ol.order_id=? AND b.warehouse_id=? AND b.quantity_milli>0 ORDER BY l.expiry_date NULLS LAST,l.created_at,l.id").bind(id,order.warehouse_id).all<Row>(),
-    write.prepare("SELECT a.*,l.lot_code,l.serial_number,l.expiry_date,COALESCE((SELECT SUM(ra.quantity_milli) FROM commerce_return_lot_allocations ra JOIN commerce_return_lines rl ON rl.id=ra.return_line_id JOIN commerce_returns r ON r.id=rl.return_id WHERE ra.fulfillment_allocation_id=a.id AND r.status!='rejected'),0) returned_milli FROM inventory_fulfillment_lot_allocations a JOIN inventory_lots l ON l.id=a.lot_id JOIN commerce_fulfillment_lines fl ON fl.id=a.fulfillment_line_id JOIN commerce_fulfillments f ON f.id=fl.fulfillment_id WHERE f.order_id=? ORDER BY f.created_at,a.id").bind(id).all<Row>(),
-    write.prepare("SELECT a.*,rl.return_id,l.lot_code,l.serial_number FROM commerce_return_lot_allocations a JOIN commerce_return_lines rl ON rl.id=a.return_line_id JOIN inventory_lots l ON l.id=a.lot_id JOIN commerce_returns r ON r.id=rl.return_id WHERE r.order_id=? ORDER BY r.created_at,a.id").bind(id).all<Row>(),
-    write.prepare("SELECT h.*,rl.return_id,rl.id return_line_id,rl.condition_code,rl.condition_note,rl.quality_due_date,l.lot_code,l.serial_number FROM inventory_quality_holds h LEFT JOIN commerce_return_lot_allocations a ON h.source_type='customer_return' AND h.source_id=a.id JOIN commerce_return_lines rl ON rl.id=COALESCE(a.return_line_id,h.source_id) OR (h.source_type='customer_return' AND h.source_id LIKE rl.id||':remainder:%') JOIN commerce_returns r ON r.id=rl.return_id LEFT JOIN inventory_lots l ON l.id=h.lot_id WHERE h.source_type='customer_return' AND r.order_id=? ORDER BY h.created_at,h.id").bind(id).all<Row>(),
-    write.prepare("SELECT e.fulfillment_id,a.id attachment_id,a.original_name,a.media_type,a.bytes,a.checksum_sha256 FROM commerce_fulfillment_evidence e JOIN attachments a ON a.id=e.attachment_id AND a.revoked_at IS NULL JOIN commerce_fulfillments f ON f.id=e.fulfillment_id WHERE f.order_id=? ORDER BY e.linked_at,e.attachment_id").bind(id).all<Row>(),
-    write.prepare("SELECT a.id attachment_id,a.original_name,a.media_type,a.bytes,a.checksum_sha256,a.created_at FROM attachments a WHERE a.owner_type='commerce_order_delivery' AND a.owner_id=? AND a.purpose='proof_of_delivery' AND a.revoked_at IS NULL AND NOT EXISTS(SELECT 1 FROM attachment_links canonical WHERE canonical.attachment_id=a.id) AND NOT EXISTS(SELECT 1 FROM commerce_fulfillment_evidence e WHERE e.attachment_id=a.id) ORDER BY a.created_at DESC,a.id").bind(id).all<Row>(),
-    write.prepare('SELECT * FROM commerce_customer_notifications WHERE order_id=? ORDER BY created_at DESC,id').bind(id).all<Row>(),
-    write.prepare('SELECT * FROM commerce_customer_notification_settings WHERE company_id=?').bind(actor.companyId).first<Row>(),
+      .all<Row>()),
+    read(()=>write.prepare('SELECT r.*,l.description FROM inventory_order_reservations r JOIN commerce_order_lines l ON l.id=r.order_line_id WHERE l.order_id=? ORDER BY r.created_at DESC,r.id').bind(id).all<Row>()),
+    read(()=>write.prepare("SELECT l.*,b.warehouse_id,b.quantity_milli,b.value_minor,b.version balance_version,CASE WHEN EXISTS(SELECT 1 FROM inventory_quality_holds h WHERE h.lot_id=l.id AND h.warehouse_id=b.warehouse_id AND h.status NOT IN ('released','cancelled','disposed')) THEN 1 ELSE 0 END quality_held FROM inventory_lots l JOIN inventory_lot_balances b ON b.lot_id=l.id JOIN commerce_order_lines ol ON ol.product_id=l.product_id WHERE ol.order_id=? AND b.warehouse_id=? AND b.quantity_milli>0 ORDER BY l.expiry_date NULLS LAST,l.created_at,l.id").bind(id,order.warehouse_id).all<Row>()),
+    read(()=>write.prepare("SELECT a.*,l.lot_code,l.serial_number,l.expiry_date,COALESCE((SELECT SUM(ra.quantity_milli) FROM commerce_return_lot_allocations ra JOIN commerce_return_lines rl ON rl.id=ra.return_line_id JOIN commerce_returns r ON r.id=rl.return_id WHERE ra.fulfillment_allocation_id=a.id AND r.status!='rejected'),0) returned_milli FROM inventory_fulfillment_lot_allocations a JOIN inventory_lots l ON l.id=a.lot_id JOIN commerce_fulfillment_lines fl ON fl.id=a.fulfillment_line_id JOIN commerce_fulfillments f ON f.id=fl.fulfillment_id WHERE f.order_id=? ORDER BY f.created_at,a.id").bind(id).all<Row>()),
+    read(()=>write.prepare("SELECT a.*,rl.return_id,l.lot_code,l.serial_number FROM commerce_return_lot_allocations a JOIN commerce_return_lines rl ON rl.id=a.return_line_id JOIN inventory_lots l ON l.id=a.lot_id JOIN commerce_returns r ON r.id=rl.return_id WHERE r.order_id=? ORDER BY r.created_at,a.id").bind(id).all<Row>()),
+    read(()=>write.prepare("SELECT h.*,rl.return_id,rl.id return_line_id,rl.condition_code,rl.condition_note,rl.quality_due_date,l.lot_code,l.serial_number FROM inventory_quality_holds h LEFT JOIN commerce_return_lot_allocations a ON h.source_type='customer_return' AND h.source_id=a.id JOIN commerce_return_lines rl ON rl.id=COALESCE(a.return_line_id,h.source_id) OR (h.source_type='customer_return' AND h.source_id LIKE rl.id||':remainder:%') JOIN commerce_returns r ON r.id=rl.return_id LEFT JOIN inventory_lots l ON l.id=h.lot_id WHERE h.source_type='customer_return' AND r.order_id=? ORDER BY h.created_at,h.id").bind(id).all<Row>()),
+    read(()=>write.prepare("SELECT e.fulfillment_id,a.id attachment_id,a.original_name,a.media_type,a.bytes,a.checksum_sha256 FROM commerce_fulfillment_evidence e JOIN attachments a ON a.id=e.attachment_id AND a.revoked_at IS NULL JOIN commerce_fulfillments f ON f.id=e.fulfillment_id WHERE f.order_id=? ORDER BY e.linked_at,e.attachment_id").bind(id).all<Row>()),
+    read(()=>write.prepare("SELECT a.id attachment_id,a.original_name,a.media_type,a.bytes,a.checksum_sha256,a.created_at FROM attachments a WHERE a.owner_type='commerce_order_delivery' AND a.owner_id=? AND a.purpose='proof_of_delivery' AND a.revoked_at IS NULL AND NOT EXISTS(SELECT 1 FROM attachment_links canonical WHERE canonical.attachment_id=a.id) AND NOT EXISTS(SELECT 1 FROM commerce_fulfillment_evidence e WHERE e.attachment_id=a.id) ORDER BY a.created_at DESC,a.id").bind(id).all<Row>()),
+    read(()=>write.prepare('SELECT * FROM commerce_customer_notifications WHERE order_id=? ORDER BY created_at DESC,id').bind(id).all<Row>()),
+    read(()=>write.prepare('SELECT * FROM commerce_customer_notification_settings WHERE company_id=?').bind(actor.companyId).first<Row>()),
   ]);
   return {
     order,
@@ -361,9 +380,9 @@ export const stockReservationSchema=z.object({
   reason:z.string().trim().min(3).max(500),
 });
 /** Reservations are owned by the approved sales line; they never post stock or GL. */
-export async function changeOrderReservation(actor:WorkContext,id:string,raw:unknown,key:string) {
+export async function changeOrderReservation(actor:WorkContext,id:string,raw:unknown,key:string,ownerWrite?:SqlDatabase) {
   actor=allowed(actor,'stock');const input=stockReservationSchema.parse(raw);
-  const {write}=await holdingResources(actor.holdingId);
+  const write=ownerWrite??(await holdingResources(actor.holdingId)).write;
   const prior=await replayCommand(write,actor,key,'commerce.stock.reserve',id,input);if(prior)return prior;
   const order=await orderRow(write,actor,id);
   if(order.kind!=='sales')throw new ApiError(422,'SALES_ORDER_REQUIRED','Reserve stock against an approved sales order.');
@@ -387,9 +406,9 @@ export async function changeOrderReservation(actor:WorkContext,id:string,raw:unk
   return executeCommand(write,actor,key,'commerce.stock.reserve',input,id,input.expectedVersion+1,{id,version:input.expectedVersion+1},steps,{companyId:actor.companyId,branchId:String(order.branch_id),departmentId:order.department_id?String(order.department_id):null});
 }
 
-export async function requestCommerceReturn(actor:WorkContext,fulfillmentId:string,input:z.infer<typeof returnRequestSchema>,key:string){
+export async function requestCommerceReturn(actor:WorkContext,fulfillmentId:string,input:z.infer<typeof returnRequestSchema>,key:string,ownerWrite?:SqlDatabase){
   input=returnRequestSchema.parse(input);
-  const commandInput={fulfillmentId,...input};const {write}=await holdingResources(actor.holdingId),previous=await replayCommand(write,actor,key,"commerce.return.request",`return-${key}`,commandInput);if(previous)return previous;
+  const commandInput={fulfillmentId,...input};const write=ownerWrite??(await holdingResources(actor.holdingId)).write,previous=await replayCommand(write,actor,key,"commerce.return.request",`return-${key}`,commandInput);if(previous)return previous;
   const fulfillment=await write.prepare("SELECT f.*,i.status invoice_status,i.outstanding_minor,o.id order_id,o.kind,o.company_id,o.branch_id,o.warehouse_id,o.party_id FROM commerce_fulfillments f JOIN commerce_orders o ON o.id=f.order_id JOIN finance_invoices i ON i.id=f.invoice_id WHERE f.id=?").bind(fulfillmentId).first<Row>();
   if(!fulfillment)throw new ApiError(404,"INVOICED_FULFILLMENT_NOT_FOUND","An invoiced receipt or delivery was not found.");
   await orderRow(write,actor,String(fulfillment.order_id));actor=allowed(actor,fulfillment.kind==="purchase"?"purchase":"sales");
@@ -407,7 +426,7 @@ export async function requestCommerceReturn(actor:WorkContext,fulfillmentId:stri
     // Financial credit follows the reviewed supplier bill; stock retains receipt cost.
     const matchedLine=fulfillment.kind==='purchase'?await write.prepare("SELECT l.subtotal_minor,l.tax_minor FROM procurement_bill_match_lines l JOIN procurement_bill_matches m ON m.id=l.match_id WHERE m.invoice_id=? AND m.status='posted' AND l.fulfillment_line_id=?").bind(fulfillment.invoice_id,line.id).first<Row>():null;
     const financialSubtotal=Number(matchedLine?.subtotal_minor??line.subtotal_minor),financialTax=Number(matchedLine?.tax_minor??line.tax_minor);
-    const prior=await write.prepare("SELECT COALESCE(SUM(rl.quantity_milli),0) quantity,COALESCE(SUM(rl.value_minor),0) value,COALESCE(SUM(rl.subtotal_minor),0) subtotal,COALESCE(SUM(rl.tax_minor),0) tax FROM commerce_return_lines rl JOIN commerce_returns r ON r.id=rl.return_id WHERE rl.fulfillment_line_id=? AND r.status!='rejected'").bind(line.id).first<{quantity:number;value:number;subtotal:number;tax:number}>();
+    const prior=await write.prepare("SELECT COALESCE(SUM(rl.quantity_milli),0) quantity,COALESCE(SUM(rl.value_minor),0) value,COALESCE(SUM(rl.subtotal_minor),0) subtotal,COALESCE(SUM(rl.tax_minor),0) tax,COALESCE(SUM(rl.expected_subtotal_minor),0) expected_subtotal FROM commerce_return_lines rl JOIN commerce_returns r ON r.id=rl.return_id WHERE rl.fulfillment_line_id=? AND r.status!='rejected'").bind(line.id).first<{quantity:number;value:number;subtotal:number;tax:number;expected_subtotal:number}>();
     const qty=quantityMilli(entry.quantity),remaining=Number(line.quantity_milli)-Number(prior?.quantity??0);if(qty>remaining)throw new ApiError(422,"OVER_RETURN","Return quantity exceeds the unreturned fulfillment quantity.");
     const prepared:Array<{id:string;fulfillmentAllocationId:string;lotId:string;quantity:number;value:number;snapshotQuantity:number;snapshotValue:number;snapshotVersion:number}>=[];
     let returnValue:number;
@@ -430,7 +449,8 @@ export async function requestCommerceReturn(actor:WorkContext,fulfillmentId:stri
       if(selectedQty!==qty)throw new ApiError(422,"RETURN_LOT_TOTAL_MISMATCH","Returned lot or serial quantities must equal the fulfillment line return quantity.");returnValue=prepared.reduce((sum,lot)=>sum+lot.value,0);
     }
     const exact=qty===remaining,returnSubtotal=exact?financialSubtotal-Number(prior?.subtotal??0):scaledAmount(financialSubtotal,qty,Number(line.quantity_milli)),returnTax=exact?financialTax-Number(prior?.tax??0):scaledAmount(financialTax,qty,Number(line.quantity_milli));
-    subtotal+=returnSubtotal;tax+=returnTax;lines.push({...line,quantity:qty,returnValue,returnSubtotal,returnTax,index,condition:entry.condition,conditionNote:entry.conditionNote,qualityDueDate:entry.qualityDueDate});returnLots.set(`${id}-${index}`,prepared);
+    const expectedSubtotal=exact?Number(line.subtotal_minor)-Number(prior?.expected_subtotal??0):scaledAmount(Number(line.subtotal_minor),qty,Number(line.quantity_milli));
+    subtotal+=returnSubtotal;tax+=returnTax;lines.push({...line,quantity:qty,returnValue,returnSubtotal,returnTax,expectedSubtotal,index,condition:entry.condition,conditionNote:entry.conditionNote,qualityDueDate:entry.qualityDueDate});returnLots.set(`${id}-${index}`,prepared);
   }
   const total=subtotal+tax;
   const now=Date.now(),kind=fulfillment.kind==="purchase"?"supplier_return":"customer_return",number=`${kind==="supplier_return"?"SR":"CR"}-${(await sha256(key)).slice(0,24).toUpperCase()}`;
@@ -442,9 +462,10 @@ export async function requestCommerceReturn(actor:WorkContext,fulfillmentId:stri
   ];
   for(const line of lines){const returnLineId=`${id}-${line.index}`;steps.push(
     assertion(write,key,`return-line-${line.index}`,"(SELECT quantity_milli-COALESCE((SELECT SUM(rl.quantity_milli) FROM commerce_return_lines rl JOIN commerce_returns r ON r.id=rl.return_id WHERE rl.fulfillment_line_id=? AND r.status!='rejected'),0)>=? FROM commerce_fulfillment_lines WHERE id=? AND fulfillment_id=?)",[line.id,line.quantity,line.id,fulfillmentId]),
-    write.prepare("INSERT INTO commerce_return_lines(id,return_id,fulfillment_line_id,product_id,quantity_milli,value_minor,subtotal_minor,tax_minor,ordinal,condition_code,condition_note,quality_due_date) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(returnLineId,id,line.id,line.product_id,line.quantity,line.returnValue,line.returnSubtotal,line.returnTax,line.index,line.condition,line.conditionNote||null,line.qualityDueDate||null),
+    write.prepare("INSERT INTO commerce_return_lines(id,return_id,fulfillment_line_id,product_id,quantity_milli,value_minor,subtotal_minor,tax_minor,ordinal,condition_code,condition_note,quality_due_date,expected_subtotal_minor) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(returnLineId,id,line.id,line.product_id,line.quantity,line.returnValue,line.returnSubtotal,line.returnTax,line.index,line.condition,line.conditionNote||null,line.qualityDueDate||null,line.expectedSubtotal),
   );for(const lot of returnLots.get(returnLineId)??[])steps.push(write.prepare("INSERT INTO commerce_return_lot_allocations(id,return_line_id,fulfillment_allocation_id,lot_id,quantity_milli,value_minor,snapshot_quantity_milli,snapshot_value_minor,snapshot_version) VALUES(?,?,?,?,?,?,?,?,?)").bind(lot.id,returnLineId,lot.fulfillmentAllocationId,lot.lotId,lot.quantity,lot.value,lot.snapshotQuantity,lot.snapshotValue,lot.snapshotVersion));}
   if(attachmentBinding)steps.push(...attachmentBinding.steps);
+  steps.push(write.prepare('UPDATE commerce_fulfillments SET version=version+1 WHERE id=? AND version=?').bind(fulfillmentId,input.expectedVersion));
   return executeCommand(write,actor,key,"commerce.return.request",commandInput,id,1,{id,orderId:String(fulfillment.order_id),status:"requested",version:1},steps);
 }
 
@@ -453,29 +474,35 @@ export async function decideCommerceReturn(actor:WorkContext,returnId:string,act
   const row=await write.prepare("SELECT r.*,o.kind order_kind,o.warehouse_id,i.debit_account_id,i.credit_account_id,i.tax_account_id,i.currency invoice_currency FROM commerce_returns r JOIN commerce_orders o ON o.id=r.order_id JOIN finance_invoices i ON i.id=r.invoice_id WHERE r.id=? AND r.company_id=?").bind(returnId,actor.companyId).first<Row>();
   if(!row)throw new ApiError(404,"RETURN_NOT_FOUND","Return request not found.");await orderRow(write,actor,String(row.order_id));
   if(!commercePermissions(actor).approve||samePerson(actor,row.requested_by))throw new ApiError(403,"INDEPENDENT_APPROVER_REQUIRED","A different commerce manager must review the return.");
+  const reviewEvidence=await prepareBusinessEvidence(write,actor,{attachmentSetIds:input.attachmentSetIds??[],targetTypes:["commerce_return"],targetId:returnId,expectedTargetVersion:input.expectedVersion,commandId:key,bindingType:"commerce_return_decision",bindingId:`${returnId}:${input.expectedVersion+1}`,contexts:["condition_photo","return_document"].map(purposeKey=>({purposeKey,componentKind:"action" as const,componentRef:"return-review"}))});
   if(action==="reject")return executeCommand(write,actor,key,"commerce.return.reject",input,returnId,input.expectedVersion+1,{id:returnId,orderId:String(row.order_id),status:"rejected",version:input.expectedVersion+1},[
+    ...(reviewEvidence?.guards??[]),...(reviewEvidence?.steps??[]),
     assertion(write,key,"return","EXISTS(SELECT 1 FROM commerce_returns WHERE id=? AND company_id=? AND status='requested' AND version=?)",[returnId,actor.companyId,input.expectedVersion]),
     write.prepare("UPDATE commerce_returns SET status='rejected',approved_by=?,reason=reason||E'\nRejected: '||?,version=version+1,updated_at=? WHERE id=?").bind(actor.userId,input.reason,Date.now(),returnId),
   ]);
-  const original=await write.prepare("SELECT j.id,j.chart_id,j.currency,j.status FROM commerce_fulfillments f JOIN finance_journals j ON j.id=f.journal_id WHERE f.id=? AND j.company_id=?").bind(row.fulfillment_id,actor.companyId).first<Row>();
+  const original=await write.prepare("SELECT j.id,j.chart_id,j.currency,j.status,c.base_currency FROM commerce_fulfillments f JOIN finance_journals j ON j.id=f.journal_id JOIN finance_charts c ON c.id=j.chart_id WHERE f.id=? AND j.company_id=?").bind(row.fulfillment_id,actor.companyId).first<Row>();
   const originalLines=original?(await write.prepare("SELECT account_id,debit_minor,credit_minor FROM finance_journal_lines WHERE journal_id=? ORDER BY ordinal").bind(original.id).all<Row>()).results:[];
   const debitAccount=originalLines.find(line=>Number(line.debit_minor)>0)?.account_id,creditAccount=originalLines.find(line=>Number(line.credit_minor)>0)?.account_id;
   if(!original||original.status!=="posted"||originalLines.length!==2||!debitAccount||!creditAccount)throw new ApiError(409,"ORIGINAL_POSTING_REVIEW_REQUIRED","Review the original posted goods journal before reversing its stock value.");
-  const config:Row={chart_id:original.chart_id,currency:original.currency,inventory_account_id:row.kind==="customer_return"?creditAccount:debitAccount,cogs_account_id:debitAccount,clearing_account_id:creditAccount};
-  const periodId=await period(write,actor,String(row.return_date)),lines=(await write.prepare("SELECT * FROM commerce_return_lines WHERE return_id=? ORDER BY ordinal").bind(returnId).all<Row>()).results,incoming=row.kind==="customer_return",stockJournal=`return-${key}-stock`,creditJournal=`return-${key}-credit`,now=Date.now(),value=lines.reduce((sum,line)=>sum+Number(line.value_minor),0);
-  if(config.currency!==row.invoice_currency)throw new ApiError(409,"RETURN_CURRENCY_REVIEW_REQUIRED","Original invoice and posting configuration currencies differ. Review the original posting profile before returning goods.");
+  const config:Row={chart_id:original.chart_id,currency:original.base_currency,inventory_account_id:row.kind==="customer_return"?creditAccount:debitAccount,cogs_account_id:debitAccount,clearing_account_id:creditAccount};
+  const periodId=await period(write,actor,String(row.return_date)),lines=(await write.prepare("SELECT * FROM commerce_return_lines WHERE return_id=? ORDER BY ordinal").bind(returnId).all<Row>()).results,incoming=row.kind==="customer_return",stockJournal=`return-${key}-stock`,now=Date.now(),value=lines.reduce((sum,line)=>sum+Number(line.value_minor),0);
   const stockPostings:Posting[]=incoming?[{account:String(config.inventory_account_id),debit:value,credit:0},{account:String(config.cogs_account_id),debit:0,credit:value}]:[{account:String(config.clearing_account_id),debit:value,credit:0},{account:String(config.inventory_account_id),debit:0,credit:value}];
   let creditPostings:Posting[]=incoming?[{account:String(row.credit_account_id),debit:Number(row.subtotal_minor),credit:0},...(Number(row.tax_minor)?[{account:String(row.tax_account_id),debit:Number(row.tax_minor),credit:0}]:[]),{account:String(row.debit_account_id),debit:0,credit:Number(row.total_minor)}]:[{account:String(row.credit_account_id),debit:Number(row.total_minor),credit:0},{account:String(row.debit_account_id),debit:0,credit:Number(row.subtotal_minor)},...(Number(row.tax_minor)?[{account:String(row.tax_account_id),debit:0,credit:Number(row.tax_minor)}]:[])];
   if(!incoming){
     const matched=await write.prepare("SELECT * FROM procurement_bill_matches WHERE invoice_id=? AND company_id=? AND status='posted'").bind(row.invoice_id,actor.companyId).first<Row>();
     if(matched){
-      const variance=Number(row.subtotal_minor)-value;
+      if(lines.some(line=>line.expected_subtotal_minor===null))throw new ApiError(409,'RETURN_GOODS_VALUATION_REVIEW_REQUIRED','Reconcile the original document-price basis before returning historical foreign goods.');
+      const expected=lines.reduce((sum,line)=>sum+Number(line.expected_subtotal_minor),0),variance=Number(row.subtotal_minor)-expected;
       if(variance&&!matched.variance_account_id)throw new ApiError(409,'RETURN_VARIANCE_REVIEW_REQUIRED','Review the original supplier price variance before returning goods.');
-      creditPostings=[{account:String(matched.payable_account_id),debit:Number(row.total_minor),credit:0},...(value?[{account:String(matched.clearing_account_id),debit:0,credit:value}]:[]),...(variance?[{account:String(matched.variance_account_id),debit:variance<0?-variance:0,credit:variance>0?variance:0}]:[]),...(Number(row.tax_minor)?[{account:String(matched.tax_account_id),debit:0,credit:Number(row.tax_minor)}]:[])];
+      creditPostings=[{account:String(matched.payable_account_id),debit:Number(row.total_minor),credit:0},...(expected?[{account:String(matched.clearing_account_id),debit:0,credit:expected}]:[]),...(variance?[{account:String(matched.variance_account_id),debit:variance<0?-variance:0,credit:variance>0?variance:0}]:[]),...(Number(row.tax_minor)?[{account:String(matched.tax_account_id),debit:0,credit:Number(row.tax_minor)}]:[])];
     }
   }
-  const steps:SqlStatement[]=[assertion(write,key,"supplier-reservation","NOT EXISTS(SELECT 1 FROM finance_supplier_instructions WHERE invoice_id=? AND status IN ('reserved','exported','unknown'))",[row.invoice_id]),assertion(write,key,"return","EXISTS(SELECT 1 FROM commerce_returns WHERE id=? AND company_id=? AND status='requested' AND version=?)",[returnId,actor.companyId,input.expectedVersion]),...journalSteps(write,actor,key,stockJournal,config,periodId,String(row.return_date),String(row.kind)+"_stock",returnId,stockPostings,"draft"),...journalSteps(write,actor,key,creditJournal,config,periodId,String(row.return_date),row.kind==="customer_return"?"credit_note":"debit_note",returnId,creditPostings,"draft")];
+  const credit=await prepareReturnCredit(write,actor,{key,invoiceId:String(row.invoice_id),returnId,periodId,entryDate:String(row.return_date),postings:creditPostings}),creditJournal=credit.journalId;
+  const goodsFx=incoming?null:await prepareReturnGoodsFx(write,actor,{invoiceId:String(row.invoice_id),returnId,key,periodId,entryDate:String(row.return_date),stockBase:value,clearingAccountId:String(config.clearing_account_id),creditPostings:credit.basePostings});
+  const creditMoney=await snapshotMoneyReversal(write,actor,{sourceType:'commerce_return',sourceId:returnId,amountKind:'credit_total',transactionDate:String(row.return_date),amountUnits:String(row.total_minor),original:{sourceType:'finance_invoice',sourceId:String(row.invoice_id),amountKind:'total'}});
+  const steps:SqlStatement[]=[...(reviewEvidence?.guards??[]),...(reviewEvidence?.steps??[]),write.prepare('SELECT id FROM commerce_returns WHERE id=? FOR UPDATE').bind(returnId),write.prepare('SELECT id FROM finance_invoices WHERE id=? FOR UPDATE').bind(row.invoice_id),creditMoney.statement,assertion(write,key,"supplier-reservation","NOT EXISTS(SELECT 1 FROM finance_supplier_instructions WHERE invoice_id=? AND status IN ('reserved','exported','unknown'))",[row.invoice_id]),assertion(write,key,"return","EXISTS(SELECT 1 FROM commerce_returns WHERE id=? AND company_id=? AND status='requested' AND version=?)",[returnId,actor.companyId,input.expectedVersion]),...journalSteps(write,actor,key,stockJournal,config,periodId,String(row.return_date),String(row.kind)+"_stock",returnId,stockPostings,"draft"),...credit.steps];
   for(const [index,line] of lines.entries()){
+    if(Number(line.value_minor)>0)steps.push((await snapshotMoneyReversal(write,actor,{sourceType:'commerce_return_line',sourceId:String(line.id),amountKind:'stock_value',transactionDate:String(row.return_date),amountUnits:String(line.value_minor),original:{sourceType:'commerce_fulfillment_line',sourceId:String(line.fulfillment_line_id),amountKind:'stock_value'}})).statement);
     const stock=await write.prepare("SELECT * FROM commerce_stock WHERE warehouse_id=? AND product_id=?").bind(row.warehouse_id,line.product_id).first<Row>();
     if(!stock)throw new ApiError(409,"STOCK_NOT_FOUND","Stock record is unavailable for this return.");if(!incoming&&(Number(stock.quantity_milli)<Number(line.quantity_milli)||Number(stock.value_minor)<Number(line.value_minor)))throw new ApiError(409,"INSUFFICIENT_RETURN_STOCK","Supplier return quantity or value exceeds current stock.");
     steps.push(assertion(write,key,`return-date-${index}`,"NOT EXISTS(SELECT 1 FROM inventory_ledger WHERE warehouse_id=? AND product_id=? AND movement_date>?)",[row.warehouse_id,line.product_id,row.return_date]),assertion(write,key,`return-stock-${index}`,"EXISTS(SELECT 1 FROM commerce_stock WHERE warehouse_id=? AND product_id=? AND version=?)",[row.warehouse_id,line.product_id,stock.version]),write.prepare("UPDATE commerce_stock SET quantity_milli=quantity_milli+?,value_minor=value_minor+?,version=version+1 WHERE warehouse_id=? AND product_id=?").bind(incoming?line.quantity_milli:-Number(line.quantity_milli),incoming?line.value_minor:-Number(line.value_minor),row.warehouse_id,line.product_id),write.prepare("INSERT INTO commerce_return_stock_moves(id,return_id,warehouse_id,product_id,quantity_milli,value_minor,movement_date,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(`${returnId}-${index}`,returnId,row.warehouse_id,line.product_id,incoming?line.quantity_milli:-Number(line.quantity_milli),incoming?line.value_minor:-Number(line.value_minor),row.return_date,now));
@@ -491,24 +518,40 @@ export async function decideCommerceReturn(actor:WorkContext,returnId:string,act
     }
     if(incoming&&!lotAllocations.length)steps.push(...await (await import('./quality')).receiptQualityHoldSteps(write,actor,{id:`quality-return-${key}-${index}`,key:`${key}-quality-${index}`,branchId:String(row.branch_id),warehouseId:String(row.warehouse_id),productId:String(line.product_id),quantityMilli:Number(line.quantity_milli),reason:`Customer return · ${String(line.condition_code)} · ${String(line.condition_note)}`,dueDate:String(line.quality_due_date),sourceType:'customer_return',sourceId:String(line.id)}));
   }
-  steps.push(write.prepare("UPDATE commerce_returns SET status='approved',approved_by=?,stock_journal_id=?,credit_journal_id=?,version=version+1,updated_at=? WHERE id=?").bind(actor.userId,stockJournal,creditJournal,now,returnId));
-  return executeCommand(write,actor,key,"commerce.return.approve",input,returnId,input.expectedVersion+1,{id:returnId,orderId:String(row.order_id),status:"approved",version:input.expectedVersion+1,stockJournalId:stockJournal,creditJournalId:creditJournal},steps);
+  if(goodsFx)steps.push(...goodsFx.steps);
+  steps.push(write.prepare("UPDATE commerce_returns SET status='approved',approved_by=?,stock_journal_id=?,credit_journal_id=?,base_credit_minor=?,goods_fx_journal_id=?,version=version+1,updated_at=? WHERE id=?").bind(actor.userId,stockJournal,creditJournal,credit.baseCreditMinor,goodsFx?.result.id??null,now,returnId));
+  return executeCommand(write,actor,key,"commerce.return.approve",input,returnId,input.expectedVersion+1,{id:returnId,orderId:String(row.order_id),status:"approved",version:input.expectedVersion+1,stockJournalId:stockJournal,creditJournalId:creditJournal,...(goodsFx?{goodsFxJournalId:goodsFx.result.id}:{})},steps);
 }
 
 export async function completeCommerceReturn(actor:WorkContext,returnId:string,input:z.infer<typeof returnCompleteSchema>,key:string){
   actor=allowed(actor,"finance");const {write}=await holdingResources(actor.holdingId),previous=await replayCommand(write,actor,key,"commerce.return.complete",returnId,input);if(previous)return previous;
   const row=await write.prepare("SELECT r.*,i.outstanding_minor,i.base_outstanding_minor,i.fx_rate_micros,i.version invoice_version,i.currency,i.party_id,i.debit_account_id,i.credit_account_id,j.chart_id,o.department_id FROM commerce_returns r JOIN finance_invoices i ON i.id=r.invoice_id JOIN finance_journals j ON j.id=i.journal_id JOIN commerce_orders o ON o.id=r.order_id WHERE r.id=? AND r.company_id=?").bind(returnId,actor.companyId).first<Row>();if(!row)throw new ApiError(404,"RETURN_NOT_FOUND","Return request not found.");await orderRow(write,actor,String(row.order_id));
   if(!hasPermission(actor,"finance.approve")||samePerson(actor,row.requested_by))throw new ApiError(403,"INDEPENDENT_FINANCE_REVIEW_REQUIRED","A different finance approver must complete the credit or debit note.");
-  if(Number(row.fx_rate_micros)!==1000000)throw new ApiError(409,"RETURN_FX_REVIEW_REQUIRED","The foreign-currency return requires reviewed carrying-value and refund mappings.");
-  const credited=Math.min(Number(row.total_minor),Number(row.outstanding_minor)),refund=Number(row.total_minor)-credited,now=Date.now(),refundId=refund?`refund-${returnId}`:null;
+  const incoming=row.kind==='customer_return',control=String(incoming?row.debit_account_id:row.credit_account_id),
+    carried=await write.prepare(`SELECT SUM(CASE WHEN ? THEN base_credit_minor-base_debit_minor ELSE base_debit_minor-base_credit_minor END) value FROM finance_journal_lines WHERE journal_id=? AND account_id=?`).bind(incoming,row.credit_journal_id,control).first<number>('value');
+  if(carried===null||carried<0||row.base_credit_minor!==null&&Number(row.base_credit_minor)!==carried)throw new ApiError(409,'RETURN_CARRYING_RECONCILIATION_REQUIRED','Reconcile the posted original credit-note control value before completion.');
+  const values=returnCompletionValues({totalMinor:Number(row.total_minor),baseCreditMinor:carried,outstandingMinor:Number(row.outstanding_minor),baseOutstandingMinor:Number(row.base_outstanding_minor)}),credited=values.creditedMinor,refund=values.refundMinor,now=Date.now(),refundId=refund?`refund-${returnId}`:null;
+  let fx:Awaited<ReturnType<typeof prepareJournal>>|null=null;
+  if(values.realizedFxMinor){
+    const chart=await write.prepare('SELECT base_currency FROM finance_charts WHERE id=? AND company_id=?').bind(row.chart_id,actor.companyId).first<{base_currency:string}>();
+    if(!chart)throw new ApiError(422,'ACCOUNT_INVALID','The original invoice chart is unavailable.');
+    const gain=(incoming?-values.realizedFxMinor:values.realizedFxMinor)>0,account=gain?input.fxGainAccountId:input.fxLossAccountId;
+    if(!account)throw new ApiError(422,gain?'FX_GAIN_ACCOUNT_REQUIRED':'FX_LOSS_ACCOUNT_REQUIRED','Select the approved realized FX account to reconcile the current invoice carrying value.');
+    if(!await write.prepare('SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND currency=? AND category=? AND status=\'active\'').bind(account,actor.companyId,row.chart_id,chart.base_currency,gain?'other_income':'other_expense').first())throw new ApiError(422,'FX_ACCOUNT_INVALID','Use a same-chart functional-currency realized gain or loss account.');
+    const amount=minorToDecimal(Math.abs(values.realizedFxMinor)),controlDebit=incoming?values.realizedFxMinor<0:values.realizedFxMinor>0;
+    fx=await prepareJournal(write,actor,{chartId:String(row.chart_id),periodId:await period(write,actor,String(row.return_date)),entryDate:String(row.return_date),currency:chart.base_currency,memo:`Realized carrying adjustment ${returnId}`,sourceType:'commerce_return_fx',sourceId:returnId,isOpening:false,lines:[{accountId:control,debit:controlDebit?amount:'0',credit:controlDebit?'0':amount},{accountId:account,debit:controlDebit?'0':amount,credit:controlDebit?amount:'0'}]},`${key}:fx`,'posted');
+  }
   const steps:SqlStatement[]=[
+    write.prepare('SELECT id FROM finance_invoices WHERE id=? FOR UPDATE').bind(row.invoice_id),
+    ...(fx?.steps??[]),
     assertion(write,key,"supplier-reservation","NOT EXISTS(SELECT 1 FROM finance_supplier_instructions WHERE invoice_id=? AND status IN ('reserved','exported','unknown'))",[row.invoice_id]),
     assertion(write,key,"return","EXISTS(SELECT 1 FROM commerce_returns r JOIN finance_journals sj ON sj.id=r.stock_journal_id JOIN finance_journals cj ON cj.id=r.credit_journal_id JOIN finance_invoices i ON i.id=r.invoice_id WHERE r.id=? AND r.company_id=? AND r.status='approved' AND r.version=? AND sj.status='posted' AND cj.status='posted' AND i.status IN ('posted','partially_paid','paid') AND i.version=?)",[returnId,actor.companyId,input.expectedVersion,row.invoice_version]),
     assertion(write,key,"return-periods","NOT EXISTS(SELECT 1 FROM finance_journals j JOIN finance_periods p ON p.id=j.period_id WHERE j.id IN (?,?) AND (p.company_id!=? OR p.state!='open'))",[row.stock_journal_id,row.credit_journal_id,actor.companyId]),
-    write.prepare("UPDATE finance_invoices SET outstanding_minor=outstanding_minor-?,base_outstanding_minor=GREATEST(0,base_outstanding_minor-?),status=CASE WHEN outstanding_minor=? THEN 'paid' ELSE 'partially_paid' END,version=version+1,updated_at=? WHERE id=?").bind(credited,credited,credited,now,row.invoice_id),
-    write.prepare("UPDATE commerce_returns SET status='posted',credited_minor=?,refund_minor=?,version=version+1,updated_at=? WHERE id=?").bind(credited,refund,now,returnId),
+    assertion(write,key,"goods-fx-posted","NOT EXISTS(SELECT 1 FROM commerce_returns r WHERE r.id=? AND r.goods_fx_journal_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM finance_journals j JOIN finance_periods p ON p.id=j.period_id WHERE j.id=r.goods_fx_journal_id AND j.company_id=r.company_id AND j.status='posted' AND p.state='open'))",[returnId]),
+    write.prepare("UPDATE finance_invoices SET outstanding_minor=outstanding_minor-?,base_outstanding_minor=base_outstanding_minor-?,status=CASE WHEN outstanding_minor=? THEN 'paid' ELSE 'partially_paid' END,version=version+1,updated_at=? WHERE id=?").bind(credited,values.baseCreditedMinor,credited,now,row.invoice_id),
+    write.prepare("UPDATE commerce_returns SET status='posted',credited_minor=?,refund_minor=?,base_credit_minor=?,base_credited_minor=?,base_refund_minor=?,fx_journal_id=?,version=version+1,updated_at=? WHERE id=?").bind(credited,refund,carried,values.baseCreditedMinor,values.baseRefundMinor,fx?.result.id??null,now,returnId),
   ];
-  if(refundId)steps.push(write.prepare("INSERT INTO finance_refund_obligations(id,company_id,branch_id,department_id,return_id,invoice_id,party_id,direction,currency,chart_id,balance_account_id,amount_minor,outstanding_minor,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(refundId,actor.companyId,row.branch_id,row.department_id,returnId,row.invoice_id,row.party_id,row.kind==="customer_return"?"outgoing":"incoming",row.currency,row.chart_id,row.kind==="customer_return"?row.debit_account_id:row.credit_account_id,refund,refund,actor.userId,now,now));
+  if(refundId)steps.push(write.prepare("INSERT INTO finance_refund_obligations(id,company_id,branch_id,department_id,return_id,invoice_id,party_id,direction,currency,chart_id,balance_account_id,amount_minor,outstanding_minor,base_amount_minor,base_outstanding_minor,source_credit_journal_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(refundId,actor.companyId,row.branch_id,row.department_id,returnId,row.invoice_id,row.party_id,row.kind==="customer_return"?"outgoing":"incoming",row.currency,row.chart_id,row.kind==="customer_return"?row.debit_account_id:row.credit_account_id,refund,refund,values.baseRefundMinor,values.baseRefundMinor,row.credit_journal_id,actor.userId,now,now));
   if(refundId)steps.push(refundNotifications(write,key,refundId,'approval','Posted return requires independent refund approval',actor.userId));
   return executeCommand(write,actor,key,"commerce.return.complete",input,returnId,input.expectedVersion+1,{id:returnId,orderId:String(row.order_id),status:"posted",version:input.expectedVersion+1,creditedMinor:credited,refundMinor:refund,refundId},steps);
 }
@@ -517,9 +560,10 @@ export async function saveOrder(
   id: string | null,
   input: z.infer<typeof orderSchema>,
   key: string,
+  ownerWrite?:SqlDatabase,
 ) {
   actor = allowed(actor, input.kind === "purchase" ? "purchase" : "sales");
-  const { write } = await holdingResources(actor.holdingId);
+  const write=ownerWrite??(await holdingResources(actor.holdingId)).write;
   const orderId = id ?? `order-${key}`;
   const linked = id ? await write.prepare("SELECT r.id FROM employee_requests r WHERE r.company_id=? AND (r.purchase_order_id=? OR EXISTS(SELECT 1 FROM procurement_request_orders l WHERE l.request_id=r.id AND l.order_id=?))").bind(actor.companyId,id,id).first<{id:string}>() : null;
   const requestId = linked?.id ?? input.requestId;
@@ -606,7 +650,10 @@ export async function saveOrder(
       "ORDER_AMOUNT_INVALID",
       "Order total must be positive and within supported limits.",
     );
+  const money=[await commerceMoney(write,actor,{sourceType:'commerce_order_revision',sourceId:`${record}:${version}`,amountKind:'total',transactionDate:input.orderDate,currency:String(config.currency),amountUnits:subtotal+tax})];
+  for(const line of lineRows)for(const [amountKind,amountUnits] of [['unit_price',line.price],['subtotal',line.subtotal],['tax',line.tax]] as const)money.push(await commerceMoney(write,actor,{sourceType:'commerce_order_line_revision',sourceId:`${line.id}:${version}`,amountKind,transactionDate:input.orderDate,currency:String(config.currency),amountUnits}));
   const steps = [
+    ...money,
     assertion(
       write,
       key,
@@ -740,8 +787,9 @@ export async function transitionOrder(
   id: string,
   input: z.infer<typeof transitionSchema>,
   key: string,
+  ownerWrite?:SqlDatabase,
 ) {
-  const { write } = await holdingResources(actor.holdingId);
+  const write=ownerWrite??(await holdingResources(actor.holdingId)).write;
   const previous = await replayCommand(
     write,
     actor,
@@ -863,6 +911,7 @@ export async function transitionOrder(
   let salesId: string | null = null;
   if (input.action === "convert") {
     salesId = `order-${key}`;
+    steps.push(await commerceMoney(write,actor,{sourceType:'commerce_order_revision',sourceId:`${salesId}:1`,amountKind:'total',transactionDate:String(row.order_date),currency:String(row.currency),amountUnits:Number(row.subtotal_minor)+Number(row.tax_minor)}));
     steps.push(
       write
         .prepare(
@@ -1011,6 +1060,12 @@ export async function fulfillOrder(
   const fulfillment = `delivery-${key}`;
   const journal = `journal-${key}`;
   const incoming = order.kind === "purchase";
+  const stockCurrency=String(config.base_currency),valuationFx=await confirmedFunctionalFx(write,actor,incoming?String(order.currency):stockCurrency,stockCurrency,input.date);
+  const convertedStock=(units:number)=>{
+    const value=convertUnits(String(units),2,2,'1',minorToDecimal(valuationFx.micros,6));
+    if(value>BigInt(Number.MAX_SAFE_INTEGER))throw new ApiError(422,'MONEY_OVERFLOW','The functional inventory amount exceeds supported ledger precision.');
+    return Number(value);
+  };
   if(!incoming&&((!input.evidenceIds.length&&!input.attachmentSetIds.length)||input.evidenceNote.length<3))throw new ApiError(422,'DELIVERY_EVIDENCE_REQUIRED','Attach proof of delivery and record who or what confirmed receipt.');
   if(new Set(input.evidenceIds).size!==input.evidenceIds.length)throw new ApiError(422,'DELIVERY_EVIDENCE_DUPLICATE','Use each delivery evidence file once.');
   if(!incoming)for(const attachmentId of input.evidenceIds){
@@ -1023,9 +1078,7 @@ export async function fulfillOrder(
       "DUPLICATE_LINE",
       "Each order line may appear once.",
     );
-  const attachmentBinding=input.attachmentSetIds.length?await prepareAttachmentBinding(write,actor,{attachmentSetIds:input.attachmentSetIds,bindingContract:incoming
-    ? {targetType:"purchase_order",bindingType:"purchase_receipt",contexts:["delivery_note","packing_list","damage_photo"].map(purposeKey=>({purposeKey,componentKind:"action" as const,componentRef:"goods-receipt"}))}
-    : {targetType:"commerce_order_delivery",bindingType:"commerce_fulfillment",contexts:[{purposeKey:"proof_of_delivery",componentKind:"action",componentRef:"delivery"}]},targetId:id,expectedTargetVersion:input.expectedVersion,commandId:key,bindingId:fulfillment}):null;
+  const attachmentBinding=await prepareBusinessEvidence(write,actor,{attachmentSetIds:input.attachmentSetIds,targetTypes:incoming?["purchase_order","purchase_receipt","commerce_order"]:["commerce_order_delivery"],bindingType:incoming?"purchase_receipt":"commerce_fulfillment",contexts:incoming?[...(["delivery_note","packing_list","damage_photo"].map(purposeKey=>({purposeKey,componentKind:"action" as const,componentRef:"goods-receipt"}))),{purposeKey:"purchase_receipt",componentKind:"action",componentRef:"goods-receipt"}]:[{purposeKey:"proof_of_delivery",componentKind:"action",componentRef:"delivery"}],targetId:id,expectedTargetVersion:input.expectedVersion,commandId:key,bindingId:fulfillment});
   const steps:SqlStatement[] = [
     ...(attachmentBinding?.guards??[]),
     versionGuard(write, key, "commerce_orders", id, input.expectedVersion, [
@@ -1047,7 +1100,7 @@ export async function fulfillOrder(
       ),
   ];
   if(!incoming)for(const [index,attachmentId] of input.evidenceIds.entries())steps.push(assertion(write,key,`delivery-evidence-${index}`,"EXISTS(SELECT 1 FROM attachments a WHERE a.id=? AND a.owner_type='commerce_order_delivery' AND a.owner_id=? AND a.purpose='proof_of_delivery' AND a.revoked_at IS NULL AND NOT EXISTS(SELECT 1 FROM attachment_links canonical WHERE canonical.attachment_id=a.id) AND NOT EXISTS(SELECT 1 FROM commerce_fulfillment_evidence e WHERE e.attachment_id=a.id))",[attachmentId,id]));
-  let value = 0;
+  let value = 0,documentSubtotal=0;
   for (const [i, entry] of input.lines.entries()) {
     const line = await write
       .prepare("SELECT l.*,p.tracking_mode,p.unit FROM commerce_order_lines l JOIN commerce_products p ON p.id=l.product_id WHERE l.id=? AND l.order_id=?")
@@ -1091,12 +1144,14 @@ export async function fulfillOrder(
             tax: Number(line.tax_minor) - Number(previous?.tax ?? 0),
           }
         : lineAmounts(qty, Number(line.price_minor), Number(line.tax_bps));
+    const stockSubtotal=incoming?convertedStock(documentSubtotal+amounts.subtotal)-convertedStock(documentSubtotal):0;
+    documentSubtotal+=amounts.subtotal;
     const tracking=String(line.tracking_mode??'none'),allocations=entry.allocations??[];
     if(tracking==='none'&&allocations.length)throw new ApiError(422,'LOT_ALLOCATION_UNEXPECTED','This product does not use lot or serial tracking.');
     if(tracking!=='none'&&allocations.reduce((sum,a)=>sum+quantityMilli(a.quantity),0)!==qty)throw new ApiError(422,'LOT_ALLOCATION_REQUIRED','Allocate the full movement quantity to lots or serial numbers.');
     if(tracking==='serial'&&allocations.some(a=>quantityMilli(a.quantity)!==1000))throw new ApiError(422,'SERIAL_QUANTITY_INVALID','Each serial allocation must be exactly one unit.');
     const lotPrepared:Array<{lotId:string;quantityMilli:number;valueMinor:number;disposition:'available'|'quarantine';reason:string;dueDate:string;existing:Row|null;lotCode:string|null;serialNumber:string|null;manufacturedDate:string|null;expiryDate:string|null}>=[];
-    let cost=tracking==='none'?(incoming?amounts.subtotal:qty===Number(stock?.quantity_milli)?Number(stock?.value_minor):scaledAmount(Number(stock?.value_minor??0),qty,Number(stock?.quantity_milli??1))):0;
+    let cost=tracking==='none'?(incoming?stockSubtotal:qty===Number(stock?.quantity_milli)?Number(stock?.value_minor):scaledAmount(Number(stock?.value_minor??0),qty,Number(stock?.quantity_milli??1))):0;
     if(tracking!=='none'){
       const identities=new Set<string>();let allocatedValue=0;
       for(const [allocationIndex,allocation] of allocations.entries()){
@@ -1108,7 +1163,7 @@ export async function fulfillOrder(
         if(!incoming&&(!existing||Number(existing.quantity_milli)<allocationQty||Number(existing.quality_held)))throw new ApiError(409,'LOT_UNAVAILABLE','The selected lot or serial is unavailable, quarantined, or has insufficient quantity.');
         if(incoming&&tracking==='serial'&&existing)throw new ApiError(409,'SERIAL_ALREADY_RECEIVED','This serial number already exists for the product.');
         if(incoming&&allocation.disposition==='quarantine'&&(!allocation.quarantineReason||!allocation.quarantineDueDate))throw new ApiError(422,'QUARANTINE_EVIDENCE_REQUIRED','Quarantined receipt allocations require a reason and review due date.');
-        const lotId=String(existing?.id??`lot-${(await sha256(`${actor.companyId}:${line.product_id}:${tracking}:${identity}`)).slice(0,48)}`),allocationValue=incoming?(allocationIndex===allocations.length-1?amounts.subtotal-allocatedValue:scaledAmount(amounts.subtotal,allocationQty,qty)):(allocationQty===Number(existing!.quantity_milli)?Number(existing!.value_minor):scaledAmount(Number(existing!.value_minor),allocationQty,Number(existing!.quantity_milli)));
+        const lotId=String(existing?.id??`lot-${(await sha256(`${actor.companyId}:${line.product_id}:${tracking}:${identity}`)).slice(0,48)}`),allocationValue=incoming?(allocationIndex===allocations.length-1?stockSubtotal-allocatedValue:scaledAmount(stockSubtotal,allocationQty,qty)):(allocationQty===Number(existing!.quantity_milli)?Number(existing!.value_minor):scaledAmount(Number(existing!.value_minor),allocationQty,Number(existing!.quantity_milli)));
         allocatedValue+=allocationValue;cost+=incoming?0:allocationValue;
         lotPrepared.push({lotId,quantityMilli:allocationQty,valueMinor:allocationValue,disposition:allocation.disposition,reason:allocation.quarantineReason,dueDate:allocation.quarantineDueDate,existing,lotCode:tracking==='lot'?String(allocation.lotCode):null,serialNumber:tracking==='serial'?String(allocation.serialNumber):null,manufacturedDate:allocation.manufacturedDate||String(existing?.manufactured_date??'')||null,expiryDate:allocation.expiryDate||String(existing?.expiry_date??'')||null});
       }
@@ -1166,10 +1221,11 @@ export async function fulfillOrder(
           line.product_id,
         ),
     );
+    for(const [amountKind,amountUnits] of [['stock_value',cost],['subtotal',amounts.subtotal],['tax',amounts.tax],['total',amounts.subtotal+amounts.tax]] as const)steps.push(await commerceMoney(write,actor,{sourceType:'commerce_fulfillment_line',sourceId:`${fulfillment}-${i}`,amountKind,transactionDate:input.date,currency:amountKind==='stock_value'?stockCurrency:String(order.currency),amountUnits}));
     steps.push(
       write
         .prepare(
-          "INSERT INTO commerce_fulfillment_lines(id,fulfillment_id,order_line_id,quantity_milli,value_minor,subtotal_minor,tax_minor) VALUES(?,?,?,?,?,?,?)",
+          "INSERT INTO commerce_fulfillment_lines(id,fulfillment_id,order_line_id,quantity_milli,value_minor,subtotal_minor,tax_minor,stock_currency) VALUES(?,?,?,?,?,?,?,?)",
         )
         .bind(
           `${fulfillment}-${i}`,
@@ -1179,6 +1235,7 @@ export async function fulfillOrder(
           cost,
           amounts.subtotal,
           amounts.tax,
+          stockCurrency,
         ),
     );
     for(const [allocationIndex,allocation] of lotPrepared.entries()){
@@ -1216,36 +1273,16 @@ export async function fulfillOrder(
         ),
     );
   }
-  steps.push(
-    ...journalSteps(
-      write,
-      actor,
-      key,
-      journal,
-      config,
-      periodId,
-      input.date,
-      incoming ? "goods_receipt" : "delivery",
-      fulfillment,
-      [
-        {
-          account: String(
-            incoming ? config.inventory_account_id : config.cogs_account_id,
-          ),
-          debit: value,
-          credit: 0,
-        },
-        {
-          account: String(
-            incoming ? config.clearing_account_id : config.inventory_account_id,
-          ),
-          debit: 0,
-          credit: value,
-        },
-      ],
-      "draft",
-    ),
-  );
+  const goods=await prepareJournal(write,actor,{chartId:String(config.chart_id),periodId,entryDate:input.date,
+    currency:incoming?String(order.currency):stockCurrency,fxRate:minorToDecimal(valuationFx.micros,6),
+    sourceType:incoming?'goods_receipt':'delivery',sourceId:fulfillment,memo:`${incoming?'Goods receipt':'Delivery'} ${fulfillment}`,isOpening:false,
+    lines:[{accountId:String(incoming?config.inventory_account_id:config.cogs_account_id),debit:minorToDecimal(incoming?documentSubtotal:value),credit:'0'},
+      {accountId:String(incoming?config.clearing_account_id:config.inventory_account_id),debit:'0',credit:minorToDecimal(incoming?documentSubtotal:value)}]},key,'draft');
+  if(goods.preparedLines.reduce((sum,line)=>sum+line.baseDebit,0)!==value)throw new ApiError(409,'GOODS_VALUATION_RECONCILIATION_REQUIRED','The frozen functional stock value must match the exact goods journal.');
+  steps.push(...goods.steps,write.prepare(`INSERT INTO commerce_goods_valuations(fulfillment_id,company_id,chart_id,journal_id,document_currency,journal_currency,stock_currency,
+    valuation_date,fx_rate_micros,source_rate_id,target_rate_id,used_latest_fallback,document_subtotal_minor,stock_value_minor,captured_by,captured_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(fulfillment,actor.companyId,config.chart_id,journal,String(order.currency),incoming?String(order.currency):stockCurrency,stockCurrency,input.date,
+      valuationFx.micros,valuationFx.sourceRateId,valuationFx.targetRateId,valuationFx.usedLatestFallback,documentSubtotal,value,actor.userId,Date.now()));
   if(!incoming)for(const attachmentId of input.evidenceIds)steps.push(write.prepare('INSERT INTO commerce_fulfillment_evidence(fulfillment_id,attachment_id,linked_by,linked_at) VALUES(?,?,?,?)').bind(fulfillment,attachmentId,actor.userId,Date.now()));
   if(attachmentBinding)steps.push(...attachmentBinding.steps);
   steps.push(
@@ -1322,7 +1359,9 @@ export async function invoiceFulfillment(
   const matching=payable?await (await import("./supplier-bill-matching")).supplierBillInvoiceHandoff(write,actor,f,input,invoice,key):null;
   if(matching)totals={subtotal:Number(matching.bill.subtotal_minor),tax:Number(matching.bill.tax_minor)};
   const total = totals.subtotal + totals.tax;
+  const invoiceCurrency=String(matching?.bill.currency??order.currency);
   const steps = [
+    await commerceMoney(write,actor,{sourceType:'commerce_invoice_source',sourceId:invoice,amountKind:'total',transactionDate:input.date,currency:invoiceCurrency,amountUnits:total}),
     assertion(
       write,
       key,
@@ -1342,7 +1381,7 @@ export async function invoiceFulfillment(
         `${payable ? "BILL" : "INV"}-${(await sha256(key)).slice(0, 24).toUpperCase()}`,
         input.date,
         input.dueDate,
-        matching?.bill.currency??config.currency,
+        invoiceCurrency,
         totals.subtotal,
         totals.tax,
         total,
@@ -1458,6 +1497,8 @@ export async function settleInvoice(
       "EXPENSE_PAYMENT_REQUIRED",
       "Record payment from the expense claim and attach its bank slip.",
     );
+  if (invoice.kind === "payable" && invoice.source_type !== "expense_claim")
+    await assertControlledThaiTaxPaymentOwner(write, actor, input.date);
   const supplierReservation = await write
     .prepare(
       "SELECT id FROM finance_supplier_instructions WHERE invoice_id=? AND status IN ('reserved','exported','unknown') LIMIT 1",
@@ -1573,6 +1614,9 @@ export async function prepareInvoiceSettlement(
     },
   ];
   const steps = [
+    await commerceMoney(write,actor,{sourceType:'finance_payment',sourceId:payment,amountKind:'settled',transactionDate:input.date,currency:String(invoice.currency),amountUnits:amountMinor}),
+    await commerceMoney(write,actor,{sourceType:'finance_journal',sourceId:journal,amountKind:'debit_total',transactionDate:input.date,currency:String(invoice.currency),amountUnits:amountMinor}),
+    assertion(write,key,"settlement-functional-currency","EXISTS(SELECT 1 FROM finance_charts WHERE id=? AND company_id=? AND base_currency=?) AND EXISTS(SELECT 1 FROM finance_invoices WHERE id=? AND fx_rate_micros=1000000)",[config.chart_id,actor.companyId,invoice.currency,invoiceId]),
     assertion(write,key,"supplier-reservation","NOT EXISTS(SELECT 1 FROM finance_supplier_instructions WHERE invoice_id=? AND status IN ('reserved','exported','unknown'))",[invoiceId]),
     versionGuard(
       write,
@@ -1603,7 +1647,7 @@ export async function prepareInvoiceSettlement(
     ),
     write
       .prepare(
-        "INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,bank_account,status,journal_id,created_by,approved_by,created_at,updated_at,payment_slip_id) VALUES(?,?,?,?,?,?,?,?,0,?,'settled',?,?,?,?,?,?)",
+        "INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,base_amount_minor,outstanding_minor,bank_account,status,journal_id,created_by,approved_by,created_at,updated_at,payment_slip_id) VALUES(?,?,?,?,?,?,?,?,?,0,?,'settled',?,?,?,?,?,?)",
       )
       .bind(
         payment,
@@ -1613,6 +1657,7 @@ export async function prepareInvoiceSettlement(
         input.reference,
         input.date,
         config.currency,
+        amountMinor,
         amountMinor,
         config.cash_account_id,
         journal,
@@ -1624,7 +1669,7 @@ export async function prepareInvoiceSettlement(
       ),
     write
       .prepare(
-        "INSERT INTO finance_allocations(id,company_id,payment_id,invoice_id,amount_minor,created_by,created_at) VALUES(?,?,?,?,?,?,?)",
+        "INSERT INTO finance_allocations(id,company_id,payment_id,invoice_id,amount_minor,base_invoice_minor,base_payment_minor,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
       )
       .bind(
         `allocation-${key}`,
@@ -1632,14 +1677,16 @@ export async function prepareInvoiceSettlement(
         payment,
         invoiceId,
         amountMinor,
+        amountMinor,
+        amountMinor,
         actor.userId,
         Date.now(),
       ),
     write
       .prepare(
-        "UPDATE finance_invoices SET outstanding_minor=outstanding_minor-?,status=CASE WHEN outstanding_minor=? THEN 'paid' ELSE 'partially_paid' END,version=version+1,updated_at=? WHERE id=?",
+        "UPDATE finance_invoices SET outstanding_minor=outstanding_minor-?,base_outstanding_minor=GREATEST(0,base_outstanding_minor-?),status=CASE WHEN outstanding_minor=? THEN 'paid' ELSE 'partially_paid' END,version=version+1,updated_at=? WHERE id=?",
       )
-      .bind(amountMinor, amountMinor, Date.now(), invoiceId),
+      .bind(amountMinor, amountMinor, amountMinor, Date.now(), invoiceId),
   ];
   if (expense)
     steps.push(
@@ -1712,6 +1759,7 @@ export async function saveMaster(
     actor = allowed(actor, "stock");
     const v = productSchema.parse(input);
     version = id ? (v.expectedVersion ?? 0) + 1 : 1;
+    steps.push(await commerceMoney(write,actor,{sourceType:'commerce_product_revision',sourceId:`${record}:${version}`,amountKind:'unit_price',transactionDate:new Date().toISOString().slice(0,10),currency:String(config.currency),amountUnits:decimalToMinor(v.price)}));
     if (id)
       steps.push(
         assertion(
@@ -1758,6 +1806,7 @@ export async function saveMaster(
     const v = partyMasterSchema.parse(input);
     actor = allowed(actor, v.kind === "supplier" ? "purchase" : "sales");
     version = id ? (v.expectedVersion ?? 0) + 1 : 1;
+    steps.push(await commerceMoney(write,actor,{sourceType:'commerce_party_revision',sourceId:`${record}:${version}`,amountKind:'credit_limit',transactionDate:new Date().toISOString().slice(0,10),currency:String(config.currency),amountUnits:decimalToMinor(v.creditLimit)}));
     if (id)
       steps.push(
         assertion(
@@ -1899,7 +1948,7 @@ export async function commercePage(actor:WorkContext,query:{view:string;kind?:st
         WHERE w.company_id=? AND (?::text IS NULL OR w.branch_id=?)`,args:branchArgs,descending:true,cursor:query.movementCursor,scope:[actor.companyId,actor.branchId,'movements'],
     }):null,
   ]);
-  const data:{orders:Row[];products:Row[];parties:Row[];warehouses:Row[];stock:Row[];moves:Row[];nodes:Row[];currency:string}={orders:[],products:[],parties:[],warehouses:[],stock:[],moves:movementPage?.items??[],nodes:[],currency:String(config.currency)};
+  const data:{orders:Row[];products:Row[];parties:Row[];warehouses:Row[];stock:Row[];moves:Row[];nodes:Row[];currency:string}={orders:[],products:[],parties:[],warehouses:[],stock:[],moves:movementPage?.items??[],nodes:[],currency:String(query.view==='stock'?config.base_currency:config.currency)};
   data[list as 'orders'|'products'|'parties'|'warehouses'|'stock']=page.items;
   const inTransit=query.view==='stock'?(await write.prepare("SELECT currency,count(*) line_count,SUM(value_minor) value_minor FROM inventory_in_transit WHERE company_id=? AND quantity_milli>0 AND (?::text IS NULL OR source_branch_id=? OR target_branch_id=?) GROUP BY currency ORDER BY currency").bind(actor.companyId,actor.branchId,actor.branchId,actor.branchId).all<Row>()).results:[];
   return {...data,page,movementPage,options,inTransit};

@@ -12,10 +12,10 @@ const parsedAdminUrl=new URL(adminUrl);
 if(parsedAdminUrl.hostname!=='127.0.0.1'||parsedAdminUrl.port!=='5432'||parsedAdminUrl.username!=='erpx_test_admin'||parsedAdminUrl.pathname!=='/postgres')throw new Error('LOCAL_TEST_DATABASE_REQUIRED');
 const prefix=`erpx_test_${randomUUID().replaceAll('-','').slice(0,10)}`;
 const directory=join(process.cwd(),'.runtime/tests',prefix);
-const names=['CONTROL_DB','CONTROL_READ_DB','H001_DB','H001_READ_DB','H002_DB','H002_READ_DB'] as const;
+const names=['CONTROL_DB','CONTROL_READ_DB','H001_DB','H001_READ_DB','H002_DB','H002_READ_DB','H003_DB','H003_READ_DB'] as const;
 const databases=Object.fromEntries(names.map(name=>{const url=new URL(adminUrl);url.pathname=`${prefix}_${name.toLowerCase()}`;return [name,new PostgresDatabase({connectionString:url.href,max:4})];})) as Record<typeof names[number],PostgresDatabase>;
 export type TestMigration={ name:string; track:string };
-export const env={...databases,H001_FILES:new LocalFileStore(join(directory,'h001')),H002_FILES:new LocalFileStore(join(directory,'h002')),
+export const env={...databases,H001_FILES:new LocalFileStore(join(directory,'h001')),H002_FILES:new LocalFileStore(join(directory,'h002')),H003_FILES:new LocalFileStore(join(directory,'h003')),
   ERPX_ENVIRONMENT:'local',BETTER_AUTH_URL:'http://localhost:3100',BETTER_AUTH_SECRET:'test-secret-private-local-fixtures-only-2026',
   STAFF_TEST_MIGRATIONS:[{name:'0001_baseline',track:'holding-write'}] as TestMigration[],
   CONTROL_TEST_MIGRATIONS:[{name:'0001_baseline',track:'control'}] as TestMigration[],

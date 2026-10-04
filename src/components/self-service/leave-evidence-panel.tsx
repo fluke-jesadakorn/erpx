@@ -3,6 +3,7 @@
 import { AttachmentPanel } from "@/components/attachments/attachment-panel";
 import type { LeaveEvidencePolicy, LeaveEvidencePurpose } from "@/server/leave-evidence";
 import styles from "@/components/leave/leave-flow.module.css";
+import { Stack } from "@/components/ui/foundation";
 
 export type LeaveEvidenceFile = {
   id: string;
@@ -82,8 +83,8 @@ export function LeaveEvidencePanel({
       {evidencePolicy.note ? ` ${evidencePolicy.note}` : ""}
     </p>}
 
-    {enabled ? <div className="content-stack">
-      {purposes.map((purpose) => <AttachmentPanel
+    {enabled ? <Stack as="div" className="ui-stack">
+      {purposes.map((purpose) => <AttachmentPanel appearance="standard"
         key={`${requestId}:${requestVersion}:${purpose.key}`}
         base={base}
         targetType="leave_request"
@@ -98,7 +99,7 @@ export function LeaveEvidencePanel({
         readOnly={!canWrite}
         showHistory
       />)}
-    </div> : <div className={styles.attachmentFiles}>
+    </Stack> : <div className={styles.attachmentFiles}>
       {initialFiles.length ? initialFiles.map((file) => <article key={file.id}>
         <div>
           <strong>{file.original_name}</strong>

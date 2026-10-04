@@ -209,6 +209,9 @@ export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:S
   };
   await pms("accounting.save",{chartId:f.chart,accounts:pmsAccounts,taxBps:fixture.property.taxAndService.vatBpsExampleOnly,serviceBps:fixture.property.taxAndService.serviceBpsExampleOnly,taxInclusive:fixture.property.taxAndService.taxInclusiveExampleOnly,advanceTax:true});
   await pms("accounting.approve",{},finance);
+  // Shared physical inventory uses the independently reviewed hotel account.
+  // The generic expense fixture's cash account is not an inventory valuation map.
+  await db.prepare('UPDATE commerce_settings SET inventory_account_id=? WHERE company_id=?').bind(pmsAccounts.inventory,f.company).run();
   const types:Record<string,string>={};
   for(const roomType of fixture.property.roomTypes)types[roomType.name]=String((await pms("room_type.save",{name:roomType.name,capacity:roomType.capacity,amenities:"Fictional demo room"})).id);
   const rooms:Record<string,string>={};

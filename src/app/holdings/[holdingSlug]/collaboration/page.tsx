@@ -4,6 +4,7 @@ import { workspaceBase } from "@/lib/workspace";
 import { pageError } from "@/server/page-error";
 import { collaborationWorkspace } from "@/server/collaboration-work";
 import { CollaborationWorkConsole } from "@/components/modules/collaboration-work-console";
+import { PageContent } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Page({
   params,
@@ -17,7 +18,7 @@ export default async function Page({
       pageError(e, holdingSlug),
     );
   return (
-    <div className="content-stack">
+    <PageContent as="div" className="ui-page-content">
       <Link href={`${base}/work`}>Work</Link>
       <h1>Cross-record collaboration</h1>
       <p>
@@ -25,6 +26,6 @@ export default async function Page({
         conversation files connected to their source records.
       </p>
       <CollaborationWorkConsole base={base} data={data} />
-    </div>
+    </PageContent>
   );
 }

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
+import sharp from "sharp";
 import type { FileStore, SqlDatabase } from "../runtime/types";
 import { sha256 } from "../crypto";
 import { attachmentPolicy,attachmentRetentionSnapshot } from "./policy";
@@ -9,7 +10,7 @@ import type { AttachmentComponentKind } from "./types";
 
 type LegacySource={id:string;upload_id:string;owner_type:string;owner_id:string;purpose:string;object_key:string;original_name:string;media_type:string;bytes:number;checksum_sha256:string;created_by:string;created_at:number};
 type Scope={companyId:string;branchId:string|null;departmentId:string|null;version:number};
-type SpecializedSource={kind:"messaging"|"legal_document"|"legal_external";id:string;companyId:string;branchId:string|null;departmentId:string|null;targetType:"messaging_room"|"legal_item";targetId:string;targetVersion:number;componentKind:AttachmentComponentKind;componentRef:string;purposeKey:string;originalName:string;mediaType:string;bytes:number;checksum:string;objectKey:string;createdBy:string;createdAt:number;revision:number;bound:boolean;legalHold:boolean};
+type SpecializedSource={kind:"messaging"|"legal_document"|"legal_external"|"pos_product_image";id:string;companyId:string;branchId:string|null;departmentId:string|null;targetType:"messaging_room"|"legal_item"|"product";targetId:string;targetVersion:number;componentKind:AttachmentComponentKind;componentRef:string;purposeKey:string;originalName:string;mediaType:string;bytes:number;checksum:string;objectKey:string;createdBy:string;createdAt:number;revision:number;bound:boolean;legalHold:boolean;thumbnail?:{objectKey:string;bytes:number;checksum:string}};
 export type AttachmentUnavailableSource={id:string;companyId:string|null;ownerType:string;ownerId:string;purpose:string;mediaType:string;bytes:number;sourceState:string;scanAttempt:number|null;scanState:string|null;scanResult:string|null;scanError:string|null};
 
 async function legacyScope(db:SqlDatabase,source:LegacySource):Promise<Scope|null>{
@@ -37,7 +38,7 @@ async function legacyScope(db:SqlDatabase,source:LegacySource):Promise<Scope|nul
   return row?{companyId:row.company_id,branchId:row.branch_id,departmentId:row.department_id,version:Number(row.version)}:null;
 }
 
-export async function backfillSpecializedAttachments(db:SqlDatabase,{apply=false}:{apply?:boolean}={}){
+export async function backfillSpecializedAttachments(db:SqlDatabase,{apply=false,files}:{apply?:boolean;files?:FileStore}={}){
   const messaging=(await db.prepare(`SELECT f.id,r.company_id,NULL::text branch_id,NULL::text department_id,r.id target_id,r.version target_version,
     COALESCE(f.message_id,f.id) component_ref,f.original_name,f.media_type,f.bytes,f.checksum,f.object_key,f.created_by,f.created_at,
     CASE WHEN f.message_id IS NULL THEN false ELSE true END bound
@@ -52,6 +53,30 @@ export async function backfillSpecializedAttachments(db:SqlDatabase,{apply=false
     FROM legal_external_uploads u JOIN legal_shares s ON s.id=u.share_id JOIN legal_items i ON i.id=s.item_id
     WHERE u.attachment_source_id IS NULL ORDER BY u.created_at,u.id`).all<Record<string,unknown>>()).results.map(row=>({kind:"legal_external" as const,id:String(row.id),companyId:String(row.company_id),branchId:row.branch_id?String(row.branch_id):null,departmentId:row.department_id?String(row.department_id):null,targetType:"legal_item" as const,targetId:String(row.target_id),targetVersion:Number(row.target_version),componentKind:"action" as const,componentRef:String(row.component_ref),purposeKey:"legal_portal_submission",originalName:String(row.original_name),mediaType:String(row.media_type),bytes:Number(row.bytes),checksum:String(row.checksum),objectKey:String(row.object_key),createdBy:String(row.created_by),createdAt:Number(row.created_at),revision:1,bound:true,legalHold:Boolean(row.legal_hold)}));
   const sources:SpecializedSource[]=[...messaging,...documents,...external],report={examined:sources.length,ready:0,backfilled:0,unknown:[] as Array<{kind:string;id:string;reason:string}>};
+  const images=(await db.prepare(`SELECT image.*,product.version product_version FROM pos_product_images image
+    JOIN commerce_products product ON product.id=image.product_id AND product.company_id=image.company_id
+    WHERE image.attachment_source_id IS NULL ORDER BY image.created_at,image.id`).all<Record<string,unknown>>()).results;
+  report.examined+=images.length;
+  for(const image of images){
+    const id=String(image.id),unknown=(reason:string)=>report.unknown.push({kind:"pos_product_image",id,reason});
+    if(!files){unknown("FILE_STORE_REQUIRED");continue;}
+    const original=await files.get(String(image.object_key)),thumbnail=await files.get(String(image.thumbnail_key));
+    if(!original||!thumbnail){unknown("POS_IMAGE_OBJECT_MISSING");continue;}
+    const originalBytes=new Uint8Array(await original.arrayBuffer()),thumbnailBytes=new Uint8Array(await thumbnail.arrayBuffer());
+    const checksum=await sha256(originalBytes.buffer),thumbnailChecksum=await sha256(thumbnailBytes.buffer);
+    if(checksum!==image.sha256){unknown("POS_IMAGE_CHECKSUM_MISMATCH");continue;}
+    try{
+      // Recognize only the exact legacy transformation, never an arbitrary file
+      // which happens to share the thumbnail namespace or a Company prefix.
+      const expected=await sharp(originalBytes,{limitInputPixels:25_000_000,animated:false}).rotate().resize(480,480,{fit:"cover"}).webp({quality:82}).toBuffer();
+      if(createHash("sha256").update(expected).digest("hex")!==thumbnailChecksum){unknown("POS_THUMBNAIL_PROVENANCE_MISMATCH");continue;}
+    }catch{unknown("POS_IMAGE_FORMAT_INVALID");continue;}
+    sources.push({kind:"pos_product_image",id,companyId:String(image.company_id),branchId:null,departmentId:null,targetType:"product",
+      targetId:String(image.product_id),targetVersion:Number(image.product_version),componentKind:"record",componentRef:id,purposeKey:"product_image",
+      originalName:`${id}.${image.mime_type==="image/png"?"png":image.mime_type==="image/webp"?"webp":"jpg"}`,mediaType:String(image.mime_type),bytes:originalBytes.byteLength,
+      checksum,objectKey:String(image.object_key),createdBy:String(image.created_by),createdAt:Number(image.created_at),revision:1,bound:true,legalHold:false,
+      thumbnail:{objectKey:String(image.thumbnail_key),bytes:thumbnailBytes.byteLength,checksum:thumbnailChecksum}});
+  }
   for(const source of sources){
     let policy;try{policy=attachmentPolicy(source.targetType,source.purposeKey,source.componentKind);}catch{report.unknown.push({kind:source.kind,id:source.id,reason:"POLICY_UNKNOWN"});continue;}
     if(!policy.mediaTypes.includes(source.mediaType)||source.bytes<1||source.bytes>policy.maxBytes){report.unknown.push({kind:source.kind,id:source.id,reason:"FORMAT_OUTSIDE_POLICY"});continue;}
@@ -74,7 +99,16 @@ export async function backfillSpecializedAttachments(db:SqlDatabase,{apply=false
         ?db.prepare("UPDATE messaging_files SET attachment_set_id=?,attachment_link_id=?,attachment_source_id=? WHERE id=? AND attachment_source_id IS NULL").bind(setId,linkId,attachmentId,source.id)
         :source.kind==="legal_document"
           ?db.prepare("UPDATE legal_documents SET attachment_link_id=?,attachment_source_id=? WHERE id=? AND attachment_source_id IS NULL").bind(linkId,attachmentId,source.id)
-          :db.prepare("UPDATE legal_external_uploads SET attachment_link_id=?,attachment_source_id=? WHERE id=? AND attachment_source_id IS NULL").bind(linkId,attachmentId,source.id),
+          :source.kind==="legal_external"
+            ?db.prepare("UPDATE legal_external_uploads SET attachment_link_id=?,attachment_source_id=? WHERE id=? AND attachment_source_id IS NULL").bind(linkId,attachmentId,source.id)
+            :db.prepare("UPDATE pos_product_images SET attachment_set_id=?,attachment_link_id=?,attachment_source_id=?,thumbnail_checksum_sha256=? WHERE id=? AND attachment_source_id IS NULL")
+              .bind(setId,linkId,attachmentId,source.thumbnail!.checksum,source.id),
+      ...(source.thumbnail?[
+        db.prepare("INSERT INTO attachment_derivatives(id,attachment_id,company_id,page_number,object_key,checksum_sha256,original_checksum,bytes,created_by,created_at) VALUES(?,?,?,1,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING")
+          .bind(`attachment-thumbnail-${digest}`,attachmentId,source.companyId,source.thumbnail.objectKey,source.thumbnail.checksum,source.checksum,source.thumbnail.bytes,source.createdBy,source.createdAt),
+        db.prepare("INSERT INTO attachment_storage_ledger(id,company_id,attachment_id,variant,object_key,bytes,state,created_at) VALUES(?,?,?,'derivative',?,?,'stored',?) ON CONFLICT(object_key) DO NOTHING")
+          .bind(`attachment-storage-thumbnail-${digest}`,source.companyId,attachmentId,source.thumbnail.objectKey,source.thumbnail.bytes,source.createdAt),
+      ]:[]),
       ...(source.bound?[
         db.prepare("UPDATE attachment_links SET state='bound',bound_at=?,binding_type=?,binding_id=? WHERE id=? AND state='draft'").bind(boundAt,`legacy_${source.kind}`,source.id,linkId),
         db.prepare("UPDATE attachment_sets SET state='bound',bound_at=?,bound_command_id=?,updated_at=? WHERE id=? AND state='draft'").bind(boundAt,`legacy-specialized-${source.id}`,now,setId),
@@ -113,10 +147,10 @@ export async function backfillLegacyAttachments(db:SqlDatabase,{apply=false}:{ap
 }
 
 export async function reconcileAttachmentStorage(db:SqlDatabase,files:FileStore,{verifyChecksums=false}:{verifyChecksums?:boolean}={}){
-  const rows=(await db.prepare("SELECT id,object_key,preview_object_key,bytes,checksum_sha256,source_state,company_id,legacy_sanitized_only,owner_type,owner_id,purpose,media_type FROM attachments ORDER BY id").all<{id:string;object_key:string;preview_object_key:string|null;bytes:number;checksum_sha256:string;source_state:string;company_id:string|null;legacy_sanitized_only:boolean;owner_type:string;owner_id:string;purpose:string;media_type:string}>()).results;
+  const rows=(await db.prepare("SELECT id,object_key,preview_object_key,preview_bytes,preview_checksum_sha256,bytes,checksum_sha256,source_state,company_id,legacy_sanitized_only,owner_type,owner_id,purpose,media_type FROM attachments ORDER BY id").all<{id:string;object_key:string;preview_object_key:string|null;preview_bytes:number|null;preview_checksum_sha256:string|null;bytes:number;checksum_sha256:string;source_state:string;company_id:string|null;legacy_sanitized_only:boolean;owner_type:string;owner_id:string;purpose:string;media_type:string}>()).results;
   const scanRows=(await db.prepare("SELECT DISTINCT ON (attachment_id) attachment_id,attempt,state,result_code,error_code FROM attachment_scan_attempts ORDER BY attachment_id,attempt DESC").all<{attachment_id:string;attempt:number;state:string;result_code:string|null;error_code:string|null}>()).results;
   const latestScan=new Map(scanRows.map(row=>[row.attachment_id,row]));
-  const report={sources:rows.length,attachmentDerivatives:0,generatedArtifacts:0,archivedGeneratedArtifacts:0,unknownOwnership:0,legacySanitizedOnly:0,unavailable:0,sealedMalware:0,destroyed:0,
+  const report={sources:rows.length,attachmentDerivatives:0,generatedArtifacts:0,archivedGeneratedArtifacts:0,preservedPendingOwner:0,preservedUnownedBytes:0,unknownOwnership:0,legacySanitizedOnly:0,unavailable:0,sealedMalware:0,destroyed:0,
     crossCompanyLinks:[] as string[],crossCompanyIntents:[] as string[],crossCompanyStorage:[] as string[],crossCompanyDerivatives:[] as string[],crossCompanyPublications:[] as string[],
     unknownOwnershipSources:[] as string[],unavailableSources:[] as AttachmentUnavailableSource[],missingObjects:[] as string[],sizeMismatches:[] as string[],checksumMismatches:[] as string[],missingLedger:[] as string[],orphanObjects:[] as string[],ledgerStoredBytes:0,physicalStoredBytes:0,quotaDeltaBytes:0,duplicateLedgerObjects:0};
   report.crossCompanyLinks=(await db.prepare(`SELECT link.id FROM attachment_links link JOIN attachment_sets set_row ON set_row.id=link.set_id
@@ -143,6 +177,34 @@ export async function reconcileAttachmentStorage(db:SqlDatabase,files:FileStore,
     LEFT JOIN attachment_sets set_row ON set_row.id=link.set_id
     WHERE set_row.id IS NULL OR publication.company_id IS DISTINCT FROM set_row.company_id ORDER BY publication.id`).all<{id:string}>()).results.map(row=>row.id);
   const known=new Set<string>();
+  const storedLedgerMatches=async(companyId:string|null,attachmentId:string|null,variant:string,objectKey:string,bytes:number)=>Boolean(await db.prepare(
+    "SELECT 1 FROM attachment_storage_ledger WHERE company_id=? AND attachment_id=? AND variant=? AND object_key=? AND bytes=? AND state='stored'"
+  ).bind(companyId,attachmentId,variant,objectKey,bytes).first());
+  if(await db.prepare("SELECT to_regclass('attachment_orphan_preservations') present").first("present")) {
+    const preserved=(await db.prepare(`SELECT p.* FROM attachment_orphan_preservations p
+      WHERE EXISTS(SELECT 1 FROM attachment_orphan_preservation_events e WHERE e.preservation_id=p.id AND e.event_kind='preserved')
+        AND NOT EXISTS(SELECT 1 FROM attachment_orphan_preservation_events e WHERE e.preservation_id=p.id AND e.event_kind='restored')`).all<{
+        id:string;object_key:string;object_sha256:string;manifest_sha256:string;bytes:number;preserved_directory:string;preservation_mode:string;
+      }>()).results;
+    const {preservationMetadataDigest,verifiedPreservedDirectory}=await import('./orphan-preservation');
+    for(const row of preserved) {
+      report.preservedPendingOwner++;report.preservedUnownedBytes+=Number(row.bytes);
+      if(row.preservation_mode==='file-store-sealed') {
+        known.add(row.object_key);const head=await files.head(row.object_key);
+        if(!head)report.missingObjects.push(`${row.id}:preserved_unowned`);
+        else {
+          if(head.size!==Number(row.bytes))report.sizeMismatches.push(`${row.id}:preserved_unowned`);
+          if(head.etag!==row.object_sha256||preservationMetadataDigest(head)!==row.manifest_sha256)report.checksumMismatches.push(`${row.id}:preserved_unowned_manifest`);
+          if(verifyChecksums){const body=await files.get(row.object_key);if(!body||await sha256(await body.arrayBuffer())!==row.object_sha256)report.checksumMismatches.push(`${row.id}:preserved_unowned_bytes`);}
+        }
+      }else {
+        try {const proof=await verifiedPreservedDirectory(row.preserved_directory,row.object_key);
+          if(proof.bytes!==Number(row.bytes)||proof.objectSha256!==row.object_sha256||proof.manifestSha256!==row.manifest_sha256)report.checksumMismatches.push(`${row.id}:preserved_directory`);
+        }catch{report.missingObjects.push(`${row.id}:preserved_directory`);}
+        if(await files.head(row.object_key))report.checksumMismatches.push(`${row.id}:preserved_key_reappeared`);
+      }
+    }
+  }
   for(const row of rows){
     if(row.legacy_sanitized_only){report.legacySanitizedOnly++;known.add(row.object_key);const legacy=await files.head(row.object_key);if(!legacy)report.missingObjects.push(`${row.id}:legacy_sanitized_only`);else if(legacy.size!==Number(row.bytes))report.sizeMismatches.push(`${row.id}:legacy_sanitized_only`);if(verifyChecksums&&legacy){const object=await files.get(row.object_key);if(!object||await sha256(await object.arrayBuffer())!==row.checksum_sha256)report.checksumMismatches.push(`${row.id}:legacy_sanitized_only`);}continue;}
     if(!row.company_id){report.unknownOwnership++;report.unknownOwnershipSources.push(row.id);}
@@ -159,13 +221,32 @@ export async function reconcileAttachmentStorage(db:SqlDatabase,files:FileStore,
     report.physicalStoredBytes+=head.size;
     if(head.size!==Number(row.bytes))report.sizeMismatches.push(row.id);
     if(verifyChecksums){const object=await files.get(row.object_key);if(!object||await sha256(await object.arrayBuffer())!==row.checksum_sha256)report.checksumMismatches.push(row.id);}
-    if(!await db.prepare("SELECT 1 FROM attachment_storage_ledger WHERE attachment_id=? AND variant='original' AND object_key=? AND state='stored'").bind(row.id,row.object_key).first())report.missingLedger.push(row.id);
-    if(row.preview_object_key){const preview=await files.head(row.preview_object_key);if(preview)report.physicalStoredBytes+=preview.size;else report.missingObjects.push(`${row.id}:preview`);if(!await db.prepare("SELECT 1 FROM attachment_storage_ledger WHERE attachment_id=? AND variant='preview' AND object_key=? AND state='stored'").bind(row.id,row.preview_object_key).first())report.missingLedger.push(`${row.id}:preview`);}
+    if(!await storedLedgerMatches(row.company_id,row.id,"original",row.object_key,Number(row.bytes)))report.missingLedger.push(row.id);
+    if(row.preview_object_key){
+      const marker=`${row.id}:preview`,preview=await files.head(row.preview_object_key);
+      if(preview){
+        report.physicalStoredBytes+=preview.size;
+        if(preview.size!==Number(row.preview_bytes))report.sizeMismatches.push(marker);
+        if(verifyChecksums){const object=await files.get(row.preview_object_key);if(!object||await sha256(await object.arrayBuffer())!==row.preview_checksum_sha256)report.checksumMismatches.push(marker);}
+      }else report.missingObjects.push(marker);
+      if(!await storedLedgerMatches(row.company_id,row.id,"preview",row.preview_object_key,Number(row.preview_bytes)))report.missingLedger.push(marker);
+    }
   }
-  const publications=(await db.prepare("SELECT id,derivative_object_key FROM attachment_publications").all<{id:string;derivative_object_key:string}>()).results;for(const publication of publications){known.add(publication.derivative_object_key);const head=await files.head(publication.derivative_object_key);if(head)report.physicalStoredBytes+=head.size;else report.missingObjects.push(`${publication.id}:publication`);if(!await db.prepare("SELECT 1 FROM attachment_storage_ledger WHERE variant='publication' AND object_key=? AND state='stored'").bind(publication.derivative_object_key).first())report.missingLedger.push(`${publication.id}:publication`);}
-  const derivatives=(await db.prepare(`SELECT derivative.id,derivative.attachment_id,derivative.object_key,derivative.bytes,derivative.checksum_sha256
+  const publications=(await db.prepare(`SELECT publication.id,publication.company_id,publication.derivative_object_key,publication.derivative_bytes,publication.derivative_checksum_sha256,link.attachment_id
+    FROM attachment_publications publication LEFT JOIN attachment_links link ON link.id=publication.source_link_id`).all<{id:string;company_id:string;derivative_object_key:string;derivative_bytes:number;derivative_checksum_sha256:string;attachment_id:string|null}>()).results;
+  for(const publication of publications){
+    const marker=`${publication.id}:publication`;
+    known.add(publication.derivative_object_key);const head=await files.head(publication.derivative_object_key);
+    if(head){
+      report.physicalStoredBytes+=head.size;
+      if(head.size!==Number(publication.derivative_bytes))report.sizeMismatches.push(marker);
+      if(verifyChecksums){const object=await files.get(publication.derivative_object_key);if(!object||await sha256(await object.arrayBuffer())!==publication.derivative_checksum_sha256)report.checksumMismatches.push(marker);}
+    }else report.missingObjects.push(marker);
+    if(!await storedLedgerMatches(publication.company_id,publication.attachment_id,"publication",publication.derivative_object_key,Number(publication.derivative_bytes)))report.missingLedger.push(marker);
+  }
+  const derivatives=(await db.prepare(`SELECT derivative.id,derivative.attachment_id,derivative.company_id,derivative.object_key,derivative.bytes,derivative.checksum_sha256
     FROM attachment_derivatives derivative JOIN attachments source ON source.id=derivative.attachment_id
-    WHERE source.source_state<>'destroyed' ORDER BY derivative.id`).all<{id:string;attachment_id:string;object_key:string;bytes:number;checksum_sha256:string}>()).results;
+    WHERE source.source_state<>'destroyed' ORDER BY derivative.id`).all<{id:string;attachment_id:string;company_id:string;object_key:string;bytes:number;checksum_sha256:string}>()).results;
   report.attachmentDerivatives=derivatives.length;
   for(const derivative of derivatives){
     known.add(derivative.object_key);
@@ -174,7 +255,7 @@ export async function reconcileAttachmentStorage(db:SqlDatabase,files:FileStore,
     report.physicalStoredBytes+=head.size;
     if(head.size!==Number(derivative.bytes))report.sizeMismatches.push(`${derivative.id}:attachment_derivative`);
     if(verifyChecksums){const object=await files.get(derivative.object_key);if(!object||await sha256(await object.arrayBuffer())!==derivative.checksum_sha256)report.checksumMismatches.push(`${derivative.id}:attachment_derivative`);}
-    if(!await db.prepare("SELECT 1 FROM attachment_storage_ledger WHERE attachment_id=? AND variant='derivative' AND object_key=? AND state='stored'").bind(derivative.attachment_id,derivative.object_key).first())report.missingLedger.push(`${derivative.id}:attachment_derivative`);
+    if(!await storedLedgerMatches(derivative.company_id,derivative.attachment_id,"derivative",derivative.object_key,Number(derivative.bytes)))report.missingLedger.push(`${derivative.id}:attachment_derivative`);
   }
   const paymentExports=(await db.prepare("SELECT id,file_key,file_checksum FROM hr_payment_batches WHERE file_key IS NOT NULL ORDER BY id").all<{id:string;file_key:string;file_checksum:string|null}>()).results;
   const payrollReviewExports=(await db.prepare("SELECT id,file_key,checksum_sha256 FROM hr_payroll_review_exports ORDER BY id").all<{id:string;file_key:string;checksum_sha256:string}>()).results;

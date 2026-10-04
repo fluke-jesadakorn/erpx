@@ -1,7 +1,11 @@
+
+import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { ProjectEditor } from "@/components/modules/staff-work-controls";
 import { ProjectMilestoneConsole } from "@/components/modules/project-milestones";
 import { ProjectActualsConsole } from "@/components/modules/project-actuals";
+import { ProjectStructureConsole } from "@/components/modules/project-structure-console";
+import {projectGraph,projectHandoffs} from '@/server/project-structure';
 import { pageError } from "@/server/page-error";
 import { staffPage } from "@/server/staff-page";
 import { getProject,listTasks } from "@/server/staff-tasks";
@@ -11,6 +15,7 @@ import { listProjectCostAllocations, listProjectCostSources, listProjectWorkLogs
 import { hasPermission } from "@/lib/permissions";
 import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
 import Link from "next/link";
+import { Card } from "@/components/ui/foundation";
 export default async function Project({
   params,
 }: {
@@ -31,6 +36,7 @@ export default async function Project({
         .all<{ user_id: string }>()
     ).results;
   const isProjectOwner = samePerson(actor, project.owner_user_id);
+  const active=project.lifecycle_status==='active',graph=await projectGraph(actor,id),handoffs=await projectHandoffs(actor,id);
   const canReadCosts = hasPermission(actor, "finance.read"),
     canWriteCosts = hasPermission(actor, "finance.write"),
     canApproveCosts = hasPermission(actor, "finance.approve"),
@@ -41,24 +47,24 @@ export default async function Project({
         ])
       : [[], []];
   return (
-    <FeaturePage className="content-stack" data-source="live">
+    <FeaturePage className="ui-page-content" data-source="live">
       <Link href={`${base}/projects`}>← Projects</Link>
       <h1>{project.title}</h1><FeatureTabs/><WidgetGrid pageKey="projects-detail">
       <p>{project.description}</p>
-      {isProjectOwner && (
-        <ProjectEditor
+      {isProjectOwner && active && (
+        <ProjectEditor appearance="standard"
           base={base}
           options={options}
           project={project}
           members={members.map((m) => m.user_id)}
         />
       )}
-      {hasPermission(actor,"records.read") && <RecordDocumentPanel
+      {hasPermission(actor,"records.read") && <RecordDocumentPanel appearance="standard"
         base={base}
         targetType="project"
         targetId={id}
         expectedTargetVersion={Number(project.version)}
-        editable={isProjectOwner && hasPermission(actor,"records.write")}
+        editable={isProjectOwner && active && hasPermission(actor,"records.write")}
         title="Project documents"
         purposes={[
           {key:"project_document",label:"Project document",description:"Attach the approved brief, WBS, specification, or project record."},
@@ -66,37 +72,39 @@ export default async function Project({
           {key:"handoff",label:"Handoff",description:"Attach the final handoff, acceptance, or transition record."},
         ]}
       />}
-      <FeatureWidget id="projects-detail-milestones" title="Project milestones"><ProjectMilestoneConsole
+      <FeatureWidget appearance="standard" id="projects-detail-milestones" title="Project milestones"><ProjectMilestoneConsole
         base={base}
         projectId={id}
         projectOwnerId={project.owner_user_id}
         members={members.map((m) => m.user_id)}
         people={options.people}
         milestones={milestones}
-        canManage={isProjectOwner}
+        canManage={isProjectOwner&&active}
       /></FeatureWidget>
-      <FeatureWidget id="projects-detail-actuals" title="Project actuals"><ProjectActualsConsole
+      <FeatureWidget appearance="standard" id="projects-detail-structure" title="Work structure and handoff"><ProjectStructureConsole base={base} graph={graph} handoffs={handoffs} actorId={actor.userId} people={options.people} members={members.map(member=>member.user_id)} workLogs={workLogs} costAllocations={costs} canWriteCosts={canWriteCosts&&active}/></FeatureWidget>
+      <FeatureWidget appearance="standard" id="projects-detail-actuals" title="Project actuals"><ProjectActualsConsole
         base={base}
         projectId={id}
-        isProjectOwner={isProjectOwner}
+        isProjectOwner={isProjectOwner&&active}
         workLogs={workLogs}
         costs={costs}
         costSources={costSources}
         canReadCosts={canReadCosts}
-        canWriteCosts={canWriteCosts}
-        canApproveCosts={canApproveCosts}
+        canWriteCosts={canWriteCosts&&active}
+        canApproveCosts={canApproveCosts&&active}
+        editable={active}
       /></FeatureWidget>
-      <FeatureWidget id="projects-detail-project-tasks" title="Project tasks"><section className="card">
+      <FeatureWidget appearance="standard" id="projects-detail-project-tasks" title="Project tasks"><Card as="section" appearance="standard" className="ui-panel">
         
-        <Link className="button" href={`${base}/staff-tasks/new?projectId=${encodeURIComponent(id)}`}>
+        {active&&<UiActionLink appearance="standard" variant="primary" href={`${base}/staff-tasks/new?projectId=${encodeURIComponent(id)}`}>
           Create a task
-        </Link>
+        </UiActionLink>}
         {tasks.map((t) => (
-          <Link className="row" key={t.id} href={`${base}/staff-tasks/${t.id}`}>
+          <Link className="ui-record-item" key={t.id} href={`${base}/staff-tasks/${t.id}`}>
             {t.title} · {t.state.replaceAll("_", " ")} · {t.assignee_name}
           </Link>
         ))}
-      </section></FeatureWidget>
+      </Card></FeatureWidget>
     </WidgetGrid></FeaturePage>
   );
 }

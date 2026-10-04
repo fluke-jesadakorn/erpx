@@ -4,9 +4,9 @@
   height: clamp(440px, calc(100dvh - 290px), 720px);
   min-height: 440px;
   overflow: hidden;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 12px;
-  background: var(--card);
+  background: var(--ui-card);
 }
 .objectList,
 .properties {
@@ -17,7 +17,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--line);
+  border-right: 1px solid var(--ui-line);
 }
 .listToolbar {
   display: flex;
@@ -26,8 +26,8 @@
   gap: 8px;
   min-height: 58px;
   padding: 8px 12px 8px 16px;
-  border-bottom: 1px solid var(--line);
-  background: var(--card-2);
+  border-bottom: 1px solid var(--ui-line);
+  background: var(--ui-card-2);
 }
 .listToolbar > div {
   display: grid;
@@ -40,10 +40,10 @@
   max-width: 240px;
   min-height: 34px;
   padding: 6px 9px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 7px;
-  background: var(--card);
-  color: var(--ink);
+  background: var(--ui-card);
+  color: var(--ui-ink);
   font: inherit;
   font-size: 12px;
 }
@@ -53,7 +53,7 @@
 .properties dt,
 .empty,
 .tree p {
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 11px;
 }
 .locationButton {
@@ -63,17 +63,19 @@
   min-width: 0;
   max-width: 42%;
   padding: 7px 9px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 7px;
-  background: var(--card);
-  color: var(--ink);
+  background: var(--ui-card);
+  color: var(--ui-ink);
   font-size: 12px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: pointer;
 }
-.locationButton svg { flex: none; }
+.locationButton svg {
+  flex: none;
+}
 .tree {
   position: absolute;
   z-index: 5;
@@ -83,12 +85,15 @@
   max-height: calc(100% - 70px);
   overflow: auto;
   padding: 8px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 10px;
-  background: var(--card);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, .16);
+  background: var(--ui-card);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
 }
-.tree p { margin: 4px 8px 10px; line-height: 1.5; }
+.tree p {
+  margin: 4px 8px 10px;
+  line-height: 1.5;
+}
 .tree button {
   display: flex;
   align-items: center;
@@ -99,17 +104,30 @@
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--ink);
+  color: var(--ui-ink);
   text-align: left;
   font-size: 12px;
   cursor: pointer;
 }
 .tree button:hover,
-.tree button[aria-current="true"] { background: var(--brand-soft); color: var(--brand); }
-.rows { flex: 1; min-height: 0; overflow: auto; }
-.row { border-bottom: 1px solid var(--line); }
-.row:hover { background: var(--card-2); }
-.row[data-selected="true"] { background: var(--brand-soft); }
+.tree button[aria-current="true"] {
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand);
+}
+.rows {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.row {
+  border-bottom: 1px solid var(--ui-line);
+}
+.row:hover {
+  background: var(--ui-card-2);
+}
+.row[data-selected="true"] {
+  background: var(--ui-brand-soft);
+}
 .row > button {
   display: flex;
   align-items: center;
@@ -118,55 +136,154 @@
   padding: 10px 15px;
   border: 0;
   background: transparent;
-  color: var(--ink);
+  color: var(--ui-ink);
   text-align: left;
   cursor: pointer;
 }
-.row > button > svg { flex: none; color: var(--brand); }
-.row > button > span { display: grid; gap: 3px; min-width: 0; }
+.row > button > svg {
+  flex: none;
+  color: var(--ui-brand);
+}
+.row > button > span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
 .row strong,
-.row small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.row strong { font-size: 13px; font-weight: 650; }
+.row small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row strong {
+  font-size: 13px;
+  font-weight: 650;
+}
 .properties {
   overflow: auto;
   padding: 20px clamp(18px, 3vw, 32px);
   overflow-wrap: anywhere;
   font-size: 13px;
 }
-.properties h3 { margin: 0 0 8px; font-size: 20px; line-height: 1.25; }
-.properties h4 { margin: 22px 0 8px; font-size: 13px; }
-.properties dl { display: grid; gap: 4px; padding: 14px 0; border-bottom: 1px solid var(--line); }
-.properties dt { margin-top: 8px; }
-.properties dd { margin: 0; line-height: 1.45; }
+.properties h3 {
+  margin: 0 0 8px;
+  font-size: 20px;
+  line-height: 1.25;
+}
+.properties h4 {
+  margin: 22px 0 8px;
+  font-size: 13px;
+}
+.properties dl {
+  display: grid;
+  gap: 4px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--ui-line);
+}
+.properties dt {
+  margin-top: 8px;
+}
+.properties dd {
+  margin: 0;
+  line-height: 1.45;
+}
 .properties ul,
-.properties ol { padding-left: 20px; }
-.properties li { margin-bottom: 8px; }
+.properties ol {
+  padding-left: 20px;
+}
+.properties li {
+  margin-bottom: 8px;
+}
 .properties li button {
   border: 0;
   background: none;
   padding: 2px 0;
-  color: var(--brand);
+  color: var(--ui-brand);
   text-align: left;
   cursor: pointer;
 }
-.properties li small { display: block; margin: 2px 0 5px; }
-.tag { display: inline-block; padding: 4px 8px; border-radius: 6px; background: var(--card-2); font-size: 11px; text-transform: capitalize; }
-.propertyActions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); }
-.linkActions { display: flex; flex-wrap: wrap; gap: 7px; }
-.linkActions button { padding: 5px 8px !important; border: 1px solid var(--line) !important; border-radius: 5px; }
-.empty { padding: 22px; line-height: 1.6; }
-.properties > .empty { display: grid; justify-items: center; align-content: center; height: 100%; text-align: center; }
-.properties > .empty h3 { margin: 8px 0 0; }
-.properties > .empty p { margin: 4px 0; }
-.backButton { display: none; }
+.properties li small {
+  display: block;
+  margin: 2px 0 5px;
+}
+.tag {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--ui-card-2);
+  font-size: 11px;
+  text-transform: capitalize;
+}
+.propertyActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ui-line);
+}
+.linkActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.linkActions button {
+  padding: 5px 8px !important;
+  border: 1px solid var(--ui-line) !important;
+  border-radius: 5px;
+}
+.empty {
+  padding: 22px;
+  line-height: 1.6;
+}
+.properties > .empty {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  height: 100%;
+  text-align: center;
+}
+.properties > .empty h3 {
+  margin: 8px 0 0;
+}
+.properties > .empty p {
+  margin: 4px 0;
+}
+.backButton {
+  display: none;
+}
 
 @media (max-width: 720px) {
-  .console { display: block; height: min(70dvh, 680px); min-height: 420px; }
+  .console {
+    display: block;
+    height: min(70dvh, 680px);
+    min-height: 420px;
+  }
   .objectList,
-  .properties { height: 100%; }
-  .objectList { border-right: 0; }
-  .properties { display: none; }
-  .console[data-detail-open="true"] .objectList { display: none; }
-  .console[data-detail-open="true"] .properties { display: block; }
-  .backButton { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 16px; padding: 0; border: 0; background: transparent; color: var(--brand); cursor: pointer; }
+  .properties {
+    height: 100%;
+  }
+  .objectList {
+    border-right: 0;
+  }
+  .properties {
+    display: none;
+  }
+  .console[data-detail-open="true"] .objectList {
+    display: none;
+  }
+  .console[data-detail-open="true"] .properties {
+    display: block;
+  }
+  .backButton {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 16px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ui-brand);
+    cursor: pointer;
+  }
 }

@@ -17,6 +17,8 @@ import { readQuickAccessPreferences, saveQuickAccessPreferences } from "@/server
 import { pmsHomeRead, pmsHomeWrite } from "@/server/pms/home-api";
 import { posCustomers } from '@/server/pos-daily';
 import { posProductImage } from '@/server/pos-images';
+import {frontTaxDocumentCommand,frontTaxDocumentView} from '@/server/hospitality-tax-documents';
+import {taxDocumentRequest} from '@/server/hospitality-tax-document-request';
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +73,11 @@ export async function GET(request: Request, { params }: Context) {
     if (rawApp !== "pos" && rawApp !== "pms")
       throw new ApiError(404, "NOT_FOUND", "Not found.");
     const app = rawApp as FrontAppKind;
+    if(path.length===1&&path[0]==='tax-documents'){
+      const actor=await frontActor(request,holdingSlug,companySlug,app);
+      const invoiceId=z.string().uuid().parse(new URL(request.url).searchParams.get('invoiceId'));
+      return Response.json({data:await frontTaxDocumentView(actor,invoiceId,app)},{headers:{'Cache-Control':'private, no-store'}});
+    }
     if (app === "pms" && path[0] === "home") {
       const actor = await frontActor(request, holdingSlug, companySlug, app);
       return Response.json({data:await pmsHomeRead(actor,path.slice(1),new URL(request.url).searchParams)}, {headers:{"Cache-Control":"private, no-store"}});
@@ -99,6 +106,7 @@ export async function GET(request: Request, { params }: Context) {
     if (path.length)
       throw new ApiError(403, "FRONT_ROUTE_FORBIDDEN", "This work belongs in ERPX administration.");
     const actor = await frontActor(request, holdingSlug, companySlug, app);
+
     const search = new URL(request.url).searchParams;
     if (app === "pos") {
       const tab = search.get("tab") ?? "sale";
@@ -144,6 +152,11 @@ export async function POST(request: Request, { params }: Context) {
       return Response.json({ data: { assignmentId: assignment.id, revision: selected.revision } }, { headers: { "Cache-Control": "private, no-store" } });
     }
     const actor = await frontActor(request, holdingSlug, companySlug, app);
+
+    if(path.length===1&&path[0]==='tax-documents'){
+      const {command,key}=await taxDocumentRequest(request);
+      return Response.json({data:await frontTaxDocumentCommand(actor,command,key,app)},{headers:{'Cache-Control':'private, no-store'}});
+    }
 
     if (path.length === 1 && path[0] === "quick-access") {
       const input = z.object({

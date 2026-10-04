@@ -3,7 +3,7 @@ import { createReadStream } from 'node:fs';
 import { mkdir, readFile, writeFile, rename, link, unlink, rm, stat, open, readdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { Readable } from 'node:stream';
-import type { FileMetadata, FileStore, StoredFile } from './types';
+import type { FileMetadata, FileStore, SqlDatabase, StoredFile } from './types';
 import type {PostgresDatabase} from './postgres';
 
 type Manifest = Omit<FileMetadata, 'uploaded'> & { uploaded: string; version: string };
@@ -11,6 +11,7 @@ const missing = (error: unknown) => (error as NodeJS.ErrnoException).code === 'E
 export class LocalFileStore implements FileStore {
   readonly root: string;
   constructor(root: string, private readonly preservationDb?: PostgresDatabase) { this.root = resolve(root); }
+  get supportsTransactionDeletion() { return Boolean(this.preservationDb); }
   private location(key: string) {
     if (!key || key.includes('\0') || key.split(/[\\/]/).some(p => p === '..' || p === '.')) throw new Error('INVALID_OBJECT_KEY');
     // Object keys never become filesystem paths. Even absolute keys cannot escape.
@@ -77,28 +78,39 @@ export class LocalFileStore implements FileStore {
     }
     const stream = () => length === 0 ? new ReadableStream<Uint8Array>({ start(c) { c.close(); } })
       : Readable.toWeb(createReadStream(path, { start: offset, end: offset + length - 1 })) as unknown as ReadableStream<Uint8Array>;
-    return { ...this.metadata(data), ...(options.range ? { range: { offset, length } } : {}), body: stream(),
+    let body: ReadableStream<Uint8Array> | undefined;
+    return { ...this.metadata(data), ...(options.range ? { range: { offset, length } } : {}), get body() { return body ??= stream(); },
       arrayBuffer: () => new Response(stream()).arrayBuffer(), text: () => new Response(stream()).text() };
   }
-  async delete(key: string | string[]) {
+  async delete(key: string | string[], authorization?: Parameters<FileStore['delete']>[1]) {
     if ((Array.isArray(key) ? key : [key]).some(item => item.startsWith('legal/'))) throw new Error('LEGAL_DOCUMENT_PRESERVATION_REQUIRED');
     const keys=Array.isArray(key)?key:[key];
-    await this.protect(keys,async()=>{for (const item of keys) await rm(this.location(item), { recursive: true, force: true });});
+    await this.protect(keys,async()=>{for (const item of keys) await rm(this.location(item), { recursive: true, force: true });},authorization?.database);
   }
-  private async protect<T>(keys:string[],operation:()=>Promise<T>):Promise<T>{
+  private async protect<T>(keys:string[],operation:()=>Promise<T>,database?:SqlDatabase):Promise<T>{
+    if(database){
+      if(!this.preservationDb)throw new Error('TRANSACTION_NOT_ACTIVE_OR_OWNED');
+      this.preservationDb.assertActiveTransaction(database);
+    }
     if(!this.preservationDb)return operation();
-    return this.preservationDb.transaction(async tx=>{
+    const guarded=async(tx:SqlDatabase)=>{
       await tx.prepare("SELECT pg_advisory_xact_lock(hashtextextended('legal-files',0))").run();
-      for(const key of keys)if(await tx.prepare("SELECT 1 FROM legal_file_preservations p JOIN legal_hold_targets t ON t.item_id=p.item_id JOIN legal_holds h ON h.id=t.hold_id WHERE h.state!='released' AND (p.object_key=? OR (p.source_type='attachment' AND EXISTS(SELECT 1 FROM attachment_derivatives d WHERE d.attachment_id=p.source_id AND d.object_key=?)))").bind(key,key).first())throw new Error('LEGAL_HOLD_BLOCKS_FILE_MUTATION');
+      if(await tx.prepare("SELECT to_regclass('attachment_orphan_preservations') present").first("present"))for(const key of keys)
+        if(await tx.prepare("SELECT 1 FROM attachment_orphan_preservations p WHERE p.object_key=? AND NOT EXISTS(SELECT 1 FROM attachment_orphan_preservation_events e WHERE e.preservation_id=p.id AND e.event_kind='restored')").bind(key).first())throw new Error('FILE_PRESERVED_PENDING_OWNER');
+      for(const key of keys)if(await tx.prepare(`SELECT 1 WHERE EXISTS(SELECT 1 FROM legal_file_preservations p JOIN legal_hold_targets target ON target.item_id=p.item_id JOIN legal_holds hold ON hold.id=target.hold_id WHERE hold.state<>'released' AND (p.object_key=? OR (p.source_type='attachment' AND EXISTS(SELECT 1 FROM attachment_storage_ledger storage WHERE storage.attachment_id=p.source_id AND storage.object_key=?))))
+        OR EXISTS(SELECT 1 FROM attachments source JOIN attachment_links link ON link.attachment_id=source.id JOIN attachment_sets owner ON owner.id=link.set_id JOIN legal_hold_targets target ON target.item_id=owner.target_id JOIN legal_holds hold ON hold.id=target.hold_id WHERE owner.target_type='legal_item' AND hold.state<>'released' AND (source.object_key=? OR source.preview_object_key=? OR EXISTS(SELECT 1 FROM attachment_storage_ledger storage WHERE storage.attachment_id=source.id AND storage.object_key=?)))`).bind(key,key,key,key,key).first())throw new Error('LEGAL_HOLD_BLOCKS_FILE_MUTATION');
       return operation();
-    });
+    };
+    return database?guarded(database):this.preservationDb.transaction(guarded);
   }
   async destroyPreserved(keys:string[],authorization:Parameters<NonNullable<FileStore['destroyPreserved']>>[1]){
     const tx=authorization.database;
-    const row=await tx.prepare("SELECT x.manifest FROM legal_destructions x WHERE x.id=? AND x.state='executing' AND NOT EXISTS(SELECT 1 FROM legal_hold_targets t JOIN legal_holds h ON h.id=t.hold_id WHERE t.item_id=x.item_id AND h.state!='released')").bind(authorization.destructionId).first<{manifest:string}>();
+    const row=await tx.prepare("SELECT x.manifest,x.item_id,item.company_id FROM legal_destructions x JOIN legal_items item ON item.id=x.item_id WHERE x.id=? AND x.state='executing' AND x.approved_by IS NOT NULL AND NOT EXISTS(SELECT 1 FROM legal_hold_targets target JOIN legal_holds hold ON hold.id=target.hold_id WHERE target.item_id=x.item_id AND hold.state<>'released')").bind(authorization.destructionId).first<{manifest:string;item_id:string;company_id:string}>();
     if(!row)throw new Error('LEGAL_DESTRUCTION_NOT_AUTHORIZED');
-    const manifest=typeof row.manifest==='string'?JSON.parse(row.manifest):row.manifest;
-    for(const key of keys){if(!key.startsWith('legal/')||!manifest.keys.includes(key))throw new Error('LEGAL_DESTRUCTION_SCOPE');await rm(this.location(key),{recursive:true,force:true});}
+    const manifest=(typeof row.manifest==='string'?JSON.parse(row.manifest):row.manifest) as import('../legal/destruction-sources').LegalDestructionManifest;
+    if(keys.some(key=>!manifest.keys.includes(key)))throw new Error('LEGAL_DESTRUCTION_SCOPE');
+    await (await import('../legal/destruction-sources')).validateLegalDestructionSources(tx,row.item_id,row.company_id,manifest);
+    for(const key of keys)await rm(this.location(key),{recursive:true,force:true});
   }
   async list(options: { prefix?: string; cursor?: string; limit?: number } = {}) {
     const objects: FileMetadata[] = [];

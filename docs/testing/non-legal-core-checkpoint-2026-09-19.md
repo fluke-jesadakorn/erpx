@@ -1,5 +1,7 @@
 # Non-Legal core delivery checkpoint — 2026-09-19
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 > Historical report and scoped evidence. Current priorities, payroll scope and launch criteria are governed by [the production plan](../production-plan.md); remaining work below is retained as history, not a competing delivery plan.
 
 This checkpoint records the first implementation slice of the seven-stage non-Legal delivery plan. It is not a claim that all stages are complete. Legal remains owned by its separate task and was not changed by this work.
@@ -37,4 +39,3 @@ These failures prevent claiming full-regression acceptance for the whole workspa
 ## Next delivery boundary
 
 Continue Stage 1 with reconciliation completion, price/discount policy, paid-invoice refunds, procurement requisition/RFQ and variance review, reservations/in-transit/partial receiving, lot/serial/landed cost, schedules, FX precision, consolidation, and close/reopen acceptance. Then finish the remaining Stage 2 lifecycle, Work/Inbox/Calendar, mentions, moderation, and action-card gaps before starting Stage 3.
-

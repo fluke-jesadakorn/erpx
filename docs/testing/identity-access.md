@@ -1,5 +1,7 @@
 # IAM implementation acceptance
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 Verified on **2026-09-15** in the existing ERPX development workspace. The additive IAM migrations were applied to the development databases without reseeding employees, changing credentials or connecting a live directory. See the [implementation and operations contract](../contracts/next/identity-access.md) and [ADR-025](../adr/ADR-025-multiple-identity-providers-and-scoped-replacement.md).
 
 ## Automated checks

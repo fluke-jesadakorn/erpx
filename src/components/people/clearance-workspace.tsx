@@ -1,4 +1,8 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
+
 import { TimeText } from "@/components/time/time-preference-context";
 
 import Link from "next/link";
@@ -13,6 +17,7 @@ import {
   type AttachmentPanelChange,
 } from "@/components/attachments/attachment-panel";
 import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
+import { Card, FormLayout } from "@/components/ui/foundation";
 
 type Data = Awaited<ReturnType<typeof clearanceCase>>;
 
@@ -28,15 +33,12 @@ export function ClearanceWorkspace({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [attachmentSets, setAttachmentSets] = useState<
-    Record<string, AttachmentPanelChange>
-  >({});
+  const [attachmentSets, setAttachmentSets] = useState<Record<string, AttachmentPanelChange>>({});
   const attempt = useRef<{ body: string; key: string } | null>(null);
 
   async function send(input: unknown) {
     const body = JSON.stringify(input);
-    if (attempt.current?.body !== body)
-      attempt.current = { body, key: crypto.randomUUID() };
+    if (attempt.current?.body !== body) attempt.current = { body, key: crypto.randomUUID() };
     setBusy(true);
     setError("");
     try {
@@ -49,8 +51,7 @@ export function ClearanceWorkspace({
         body,
       });
       const result = await response.json();
-      if (!response.ok)
-        throw Error(result.error?.message ?? "Unable to save clearance.");
+      if (!response.ok) throw Error(result.error?.message ?? "Unable to save clearance.");
       attempt.current = null;
       router.refresh();
       window.dispatchEvent(new Event("erpx:work-changed"));
@@ -61,10 +62,7 @@ export function ClearanceWorkspace({
     }
   }
 
-  async function prepareFinalPay(
-    task: Data["tasks"][number],
-    form: FormData,
-  ) {
+  async function prepareFinalPay(task: Data["tasks"][number], form: FormData) {
     const body = JSON.stringify({
       taskId: task.id,
       expectedTaskVersion: task.version,
@@ -73,6 +71,7 @@ export function ClearanceWorkspace({
       periodEnd: String(form.get("periodEnd")),
       payDate: String(form.get("payDate")),
       currency: String(form.get("currency")),
+      ...(form.get("countryPackId")?{countryPackId:String(form.get("countryPackId"))}:{}),
       reason: String(form.get("reason")),
     });
     setBusy(true);
@@ -90,8 +89,7 @@ export function ClearanceWorkspace({
         },
       );
       const result = await response.json();
-      if (!response.ok)
-        throw Error(result.error?.message ?? "Unable to prepare final pay.");
+      if (!response.ok) throw Error(result.error?.message ?? "Unable to prepare final pay.");
       router.refresh();
       window.dispatchEvent(new Event("erpx:work-changed"));
     } catch (cause) {
@@ -104,7 +102,7 @@ export function ClearanceWorkspace({
   const pending = data.tasks.filter((task) => task.status === "pending").length;
   return (
     <>
-      <section className="card">
+      <Card as="section" appearance="standard" className="ui-panel">
         <p>
           Retirement:{" "}
           {data.case.retirementEffective
@@ -112,27 +110,24 @@ export function ClearanceWorkspace({
             : data.case.status === "cancelled"
               ? "Cancelled"
               : "Scheduled"}{" "}
-          · ERPX access: {data.case.accessEnded ? "Ended" : "Not ended"} ·
-          Directory: {data.case.directory}
+          · ERPX access: {data.case.accessEnded ? "Ended" : "Not ended"} · Directory:{" "}
+          {data.case.directory}
         </p>
         <p>Last working day / Engagement end: {data.case.lastWorkingDate}</p>
-        <h2>
-          {pending ? `${pending} clearance tasks remaining` : "Clearance complete"}
-        </h2>
+        <h2>{pending ? `${pending} clearance tasks remaining` : "Clearance complete"}</h2>
         <p>
-          Access cutoff:{" "}
-          <TimeText value={data.case.effectiveAt} />{" "}
-          {data.case.timezone}. Pending tasks do not extend access.
+          Access cutoff: <TimeText appearance="standard" value={data.case.effectiveAt} /> {data.case.timezone}. Pending
+          tasks do not extend access.
         </p>
-      </section>
-      {error && <p role="alert">{error}</p>}
+      </Card>
+      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
       {data.tasks.map((task) => {
         const taskFiles = attachmentSets[task.id];
         return (
-          <section className="card" key={`${task.id}:${task.version}`}>
-            <header className="section-head">
+          <Card as="section" appearance="standard" className="ui-panel" key={`${task.id}:${task.version}`}>
+            <header className="ui-section-header">
               <h2>{task.title}</h2>
-              <StatusBadge status={task.status} />
+              <StatusBadge appearance="standard" status={task.status} />
             </header>
             <p>
               Owner:{" "}
@@ -152,8 +147,8 @@ export function ClearanceWorkspace({
               task.canComplete &&
               !task.finalPay &&
               task.finalPayOptions && (
-                <form
-                  className="business-form"
+                <FormLayout
+                  className="ui-form-grid"
                   onSubmit={(event) => {
                     event.preventDefault();
                     void prepareFinalPay(task, new FormData(event.currentTarget));
@@ -161,68 +156,76 @@ export function ClearanceWorkspace({
                 >
                   <h3>Prepare final pay</h3>
                   <p className="muted">
-                    Creates a person-scoped final-pay preview through the last
-                    working day. It must be calculated and reviewed before this
-                    clearance is completed.
+                    Creates final pay through the last working day using the selected calculation rules. It must
+                    be calculated and reviewed before this clearance is completed.
                   </p>
-                  <input
+                  <Field appearance="standard">
+                    Calculation rules
+                    <Select appearance="standard" name="countryPackId" defaultValue="">
+                      <option value="">Gross-pay preview</option>
+                      {data.countryPacks.map(pack=><option key={pack.id} value={pack.id}>Thai statutory · {pack.version} · {pack.effective_from} to {pack.effective_to??"open"}</option>)}
+                    </Select>
+                  </Field>
+                  <TextInput appearance="standard"
                     type="hidden"
                     name="payGroupId"
                     value={String(task.finalPayOptions.pay_group_id ?? "")}
                   />
-                  <input
+                  <TextInput appearance="standard"
                     type="hidden"
                     name="currency"
                     value={String(task.finalPayOptions.currency ?? "")}
                   />
-                  <label>
+                  <Field appearance="standard">
                     Period start
-                    <input
+                    <TextInput appearance="standard"
                       type="date"
                       name="periodStart"
                       required
                       defaultValue={data.case.lastWorkingDate}
                     />
-                  </label>
-                  <label>
+                  </Field>
+                  <Field appearance="standard">
                     Period end
-                    <input
+                    <TextInput appearance="standard"
                       type="date"
                       name="periodEnd"
                       required
                       defaultValue={data.case.lastWorkingDate}
                     />
-                  </label>
-                  <label>
+                  </Field>
+                  <Field appearance="standard">
                     Pay date
-                    <input
+                    <TextInput appearance="standard"
                       type="date"
                       name="payDate"
                       required
                       defaultValue={data.case.lastWorkingDate}
                     />
-                  </label>
-                  <label>
+                  </Field>
+                  <Field appearance="standard">
                     Preparation reason
-                    <textarea name="reason" required minLength={3} maxLength={2000}>
+                    <TextArea appearance="standard" name="reason" required minLength={3} maxLength={2000}>
                       Final pay for the approved retirement clearance
-                    </textarea>
-                  </label>
-                  <button className="button secondary" disabled={busy}>
+                    </TextArea>
+                  </Field>
+                  <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={busy}>
                     Create final-pay preview
-                  </button>
-                </form>
+                  </Button>
+                </FormLayout>
               )}
             {task.finalPay && (
               <>
                 <p className="muted">
                   Final-pay preview prepared:{" "}
-                  <Link href={`${base}/people/payroll/runs/${encodeURIComponent(task.finalPay.run_id)}`}>
+                  <Link
+                    href={`${base}/people/payroll/runs/${encodeURIComponent(task.finalPay.run_id)}`}
+                  >
                     {String(task.finalPay.run_id)}
                   </Link>{" "}
                   · {String(task.finalPay.run_status)}
                 </p>
-                <RecordDocumentPanel
+                <RecordDocumentPanel appearance="standard"
                   base={base}
                   targetType="payroll_final_pay"
                   targetId={String(task.finalPay.preparation_id)}
@@ -245,8 +248,8 @@ export function ClearanceWorkspace({
             {task.canPlan && (
               <details>
                 <summary>Assign owner or due date</summary>
-                <form
-                  className="business-form"
+                <FormLayout
+                  className="ui-form-grid"
                   onSubmit={(event) => {
                     event.preventDefault();
                     const form = new FormData(event.currentTarget);
@@ -260,9 +263,9 @@ export function ClearanceWorkspace({
                     });
                   }}
                 >
-                  <label>
+                  <Field appearance="standard">
                     Owner
-                    <select name="owner" defaultValue={task.assignee_id ?? ""}>
+                    <Select appearance="standard" name="owner" defaultValue={task.assignee_id ?? ""}>
                       <option value="">Unassigned</option>
                       {owners
                         .filter((owner) => owner.kinds.includes(task.clearance_type!))
@@ -271,26 +274,21 @@ export function ClearanceWorkspace({
                             {owner.name}
                           </option>
                         ))}
-                    </select>
-                  </label>
-                  <label>
+                    </Select>
+                  </Field>
+                  <Field appearance="standard">
                     Due date
-                    <input
-                      type="date"
-                      name="due"
-                      required
-                      defaultValue={task.due_date ?? ""}
-                    />
-                  </label>
-                  <button className="button secondary" disabled={busy}>
+                    <TextInput appearance="standard" type="date" name="due" required defaultValue={task.due_date ?? ""} />
+                  </Field>
+                  <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={busy}>
                     Save assignment
-                  </button>
-                </form>
+                  </Button>
+                </FormLayout>
               </details>
             )}
             {task.canComplete && (
-              <form
-                className="business-form"
+              <FormLayout
+                className="ui-form-grid"
                 onSubmit={(event) => {
                   event.preventDefault();
                   const form = new FormData(event.currentTarget);
@@ -301,30 +299,26 @@ export function ClearanceWorkspace({
                     expectedVersion: task.version,
                     status: form.get("status"),
                     reason: form.get("reason"),
-                    references: sourceId
-                      ? [{ kind: form.get("kind"), id: sourceId }]
-                      : [],
+                    references: sourceId ? [{ kind: form.get("kind"), id: sourceId }] : [],
                     attachmentSetIds:
-                      taskFiles?.setId &&
-                      taskFiles.readyCount > 0 &&
-                      taskFiles.bindable
+                      taskFiles?.setId && taskFiles.readyCount > 0 && taskFiles.bindable
                         ? [taskFiles.setId]
                         : [],
                   });
                 }}
               >
-                <label>
+                <Field appearance="standard">
                   Result
-                  <select name="status">
+                  <Select appearance="standard" name="status">
                     <option value="completed">Completed</option>
                     <option value="not_required">Not required</option>
-                  </select>
-                </label>
-                <label>
+                  </Select>
+                </Field>
+                <Field appearance="standard">
                   Review note / reason
-                  <textarea name="reason" required minLength={3} maxLength={2000} />
-                </label>
-                <AttachmentPanel
+                  <TextArea appearance="standard" name="reason" required minLength={3} maxLength={2000} />
+                </Field>
+                <AttachmentPanel appearance="standard"
                   base={base}
                   targetType="people_clearance_task"
                   targetId={task.id}
@@ -342,32 +336,32 @@ export function ClearanceWorkspace({
                     }))
                   }
                 />
-                <label>
+                <Field appearance="standard">
                   Source document type
-                  <select name="kind">
+                  <Select appearance="standard" name="kind">
                     {(task.clearance_type === "payroll"
                       ? ["payroll"]
                       : ["expense", "invoice", "journal", "payroll"]
                     ).map((kind) => (
                       <option key={kind}>{kind}</option>
                     ))}
-                  </select>
-                </label>
-                <label>
+                  </Select>
+                </Field>
+                <Field appearance="standard">
                   Source document ID
-                  <input name="document" placeholder="ID from the document URL" />
-                </label>
+                  <TextInput appearance="standard" name="document" placeholder="ID from the document URL" />
+                </Field>
                 <p className="muted">
-                  Finance and Payroll require source evidence when completed.
-                  This confirmation does not approve, post or pay the document.
+                  Finance and Payroll require source evidence when completed. This confirmation does
+                  not approve, post or pay the document.
                 </p>
-                <button className="button" disabled={busy}>
+                <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
                   Confirm clearance result
-                </button>
-              </form>
+                </Button>
+              </FormLayout>
             )}
             {!task.canComplete && task.evidenceReadable && (
-              <AttachmentPanel
+              <AttachmentPanel appearance="standard"
                 base={base}
                 targetType="people_clearance_task"
                 targetId={task.id}
@@ -383,21 +377,16 @@ export function ClearanceWorkspace({
             {task.completion_reason && <p>Review: {task.completion_reason}</p>}
             {task.evidence.map((item, index) => (
               <p key={index}>
-                {item.href ? (
-                  <Link href={`${base}${item.href}`}>{item.label}</Link>
-                ) : (
-                  item.label
-                )}{" "}
-                · {item.status}
+                {item.href ? <Link href={`${base}${item.href}`}>{item.label}</Link> : item.label} ·{" "}
+                {item.status}
               </p>
             ))}
             {task.completed_at && (
               <small className="muted">
-                Recorded by {task.completed_by} ·{" "}
-                <TimeText value={task.completed_at} />
+                Recorded by {task.completed_by} · <TimeText appearance="standard" value={task.completed_at} />
               </small>
             )}
-          </section>
+          </Card>
         );
       })}
     </>

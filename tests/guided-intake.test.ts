@@ -3,6 +3,8 @@ import { env, applyMigrations } from "./runtime-env";
 import { expenseDb as db, expenseFixture, key } from "./helpers/expense-fixture";
 import { guidedIntakeHandoffKey, guidedIntakeInputSchema, saveGuidedIntakeHandoff } from "../src/lib/ai/guided-intake";
 import { guidedIntakeOptions, prepareGuidedIntake } from "../src/server/guided-intake";
+import {createAgent,createAgentVersion,createAgentAssignment,changeAgentRecord,changePrivateSession} from "../src/server/agent-governance";
+import type { AiEndpoint } from "../src/server/ai-transport";
 
 vi.mock("../src/server/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 const aiEnv = {AI_BASE_URL:"https://opencode.ai/zen/go/v1",AI_MODEL:"muse-spark-1.3-contributor",AI_API_KEY:"synthetic-key"};
@@ -72,4 +74,49 @@ it("keeps direct forms available if the company disables AI",async()=>{
   const disabled=await guidedIntakeOptions(db,f.claimant,aiEnv);
   expect(disabled.unavailable).toContain("disabled");
   expect(disabled.actions.some(action=>action.id==="purchase")).toBe(true);
+});
+
+async function assignedProposalAgent(){
+  const reviewer=await f.member("proposal-policy-reviewer","holding_owner",10);
+  f.owner.modules=["agent"];reviewer.modules=["agent"];
+  const agent=await createAgent(f.owner,{name:"Reviewed proposal assistant",purpose:"Propose fields for human review only"},key());
+  await changeAgentRecord(reviewer,"agent",agent.id,{action:"approve",expectedVersion:1,reason:"Independent catalogue review"},key());
+  const version=await createAgentVersion(f.owner,{agentId:agent.id,prompt:"Preserve explicit task text. Never submit a business command.",allowedSources:["/home"]},key());
+  await changeAgentRecord(reviewer,"version",version.id,{action:"approve",expectedVersion:1,reason:"Independent approved source and prompt review"},key());
+  const assignment=await createAgentAssignment(f.owner,{agentVersionId:version.id,userId:f.claimant.userId,scopePath:"/"},key());
+  return {reviewer,version,assignment};
+}
+it("enforces the independently approved Agent prompt and source policy for reviewed field proposals",async()=>{
+  const {version}=await assignedProposalAgent(),generate=vi.fn(async(_endpoint:AiEndpoint,messages:{role:string;content:string}[])=>{
+    expect(messages.find(message=>message.content.includes(`Approved agent version ${version.id}`))?.content).toContain("Never submit a business command.");
+    return {result:{intent:"task",summary:"Review the proposed task",draft:{title:"Fictional task only"},sourceIds:[]},inputTokens:8,outputTokens:4};
+  });
+  const input=guidedIntakeInputSchema.parse({message:"Create a Fictional task only",contextPath:"/home"}),id=key();
+  expect(await prepareGuidedIntake(db,f.claimant,aiEnv,input,id,generate)).toMatchObject({intent:"task",draft:{title:"Fictional task only"}});
+  expect(await prepareGuidedIntake(db,f.claimant,aiEnv,input,id,generate)).toMatchObject({intent:"task"});expect(generate).toHaveBeenCalledTimes(1);
+  await expect(prepareGuidedIntake(db,f.claimant,aiEnv,{...input,contextPath:"/work"},key(),generate)).rejects.toMatchObject({code:"AI_SOURCE_FORBIDDEN"});expect(generate).toHaveBeenCalledTimes(1);
+  expect(await db.prepare("SELECT count(*) n FROM staff_tasks WHERE company_id=?").bind(f.company).first("n")).toBe(0);
+  const row=await db.prepare("SELECT t.private_session_id,e.governance_snapshot_json,e.session_id FROM ai_workspace_turns t JOIN ai_invocation_evidence e ON e.turn_id=t.id WHERE t.id=?").bind(id).first<{private_session_id:string;governance_snapshot_json:string;session_id:string}>();
+  expect(JSON.parse(row!.governance_snapshot_json)).toMatchObject({agentVersionId:version.id,allowedSources:["/home"]});expect(row!.session_id).toBe(row!.private_session_id);
+  await changePrivateSession(f.owner,row!.private_session_id,{action:"hold",expectedVersion:1,reason:"Preserve the reviewed private proposal evidence"},key());
+  await changePrivateSession(f.claimant,row!.private_session_id,{action:"expire",expectedVersion:2,reason:"User starts a separate private session"},key());
+  await expect(prepareGuidedIntake(db,f.claimant,aiEnv,input,id,generate)).rejects.toMatchObject({code:"AI_REQUEST_EXISTS"});expect(generate).toHaveBeenCalledTimes(1);
+  const nextId=key();
+  expect(await prepareGuidedIntake(db,f.claimant,aiEnv,input,nextId,generate)).toMatchObject({intent:"task"});
+  expect(generate).toHaveBeenCalledTimes(2);
+  expect(generate.mock.calls[0][0].sessionId).not.toBe(generate.mock.calls[1][0].sessionId);
+  const next=await db.prepare("SELECT private_session_id FROM ai_workspace_turns WHERE id=?").bind(nextId).first<{private_session_id:string}>();
+  expect(next!.private_session_id).not.toBe(row!.private_session_id);
+  expect(await db.prepare("SELECT status,legal_hold,version FROM ai_private_session_controls WHERE session_id=?").bind(row!.private_session_id).first()).toEqual({status:"expired",legal_hold:true,version:3});
+  expect(await db.prepare("SELECT count(*) FROM ai_invocation_evidence WHERE session_id=?").bind(row!.private_session_id).first("count")).toBe(1);
+  expect(await db.prepare("SELECT count(*) FROM ai_invocation_evidence WHERE session_id=?").bind(next!.private_session_id).first("count")).toBe(1);
+});
+it("rejects a field proposal when approved Agent governance changes while its provider is working",async()=>{
+  const {assignment}=await assignedProposalAgent(),id=key(),generate=vi.fn(async()=>{
+    await changeAgentRecord(f.owner,"assignment",assignment.id,{action:"revoke",expectedVersion:1,reason:"Withdraw this exact source policy during inference"},key());
+    return {result:{intent:"task",summary:"Withdrawn proposal",draft:{title:"Must remain unavailable"},sourceIds:[]},inputTokens:8,outputTokens:4};
+  });
+  await expect(prepareGuidedIntake(db,f.claimant,aiEnv,guidedIntakeInputSchema.parse({message:"Create a task",contextPath:"/home"}),id,generate)).rejects.toMatchObject({code:"AI_AGENT_CHANGED"});
+  expect(await db.prepare("SELECT state,answer_json FROM ai_workspace_turns WHERE id=?").bind(id).first()).toEqual({state:"failed",answer_json:null});
+  expect(await db.prepare("SELECT count(*) n FROM staff_tasks WHERE company_id=?").bind(f.company).first("n")).toBe(0);
 });

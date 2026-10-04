@@ -3,6 +3,8 @@
 > **Partially superseded by ADR-023 (2026-09-06).** Physical Holding isolation remains authoritative; the clause making `HoldingId` canonical in public routing is superseded by immutable public slugs and server-side binding resolution.
 
 
+> **Implementation boundary:** managed local Node/PostgreSQL is the current deployed mode ([ADR-024](ADR-024-local-postgresql-runtime.md), [ADR-032](ADR-032-shared-local-postgresql-cluster.md)). CustomerDataPlane/agent clauses retain the architectural target in [ADR-011](ADR-011-customer-data-plane-agent.md); they do not claim current acceptance of that mode.
+
 **Status:** Accepted for implementation  
 **Decision:** Business data is physically separated per Holding into one opaque authoritative write database, one replaceable read database, and one object-storage namespace. A Holding chooses `ErpxManaged` or the opt-in `CustomerDataPlane` mode. In either mode the Holding remains the physical isolation boundary and its business units are logical contexts inside the same database pair. The control plane stores only opaque database/storage/key references and redacted health metadata. Holding credentials never enter a browser, client, customer-facing response, log, support diagnostic, or the ERPX broker. Opaque `HoldingId` remains canonical for storage, queues, audit, bindings, and infrastructure; ADR-023 defines public routing.
 

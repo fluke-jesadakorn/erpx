@@ -1,5 +1,7 @@
 # Support — temporary sessions และ scoped capabilities
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 Support session ผูกกับ ticket และพนักงานผู้รับผิดชอบโดยตรง พนักงานขอสิทธิ์ให้ตนเองเท่านั้น กำหนดอายุได้ไม่เกิน 8 ชั่วโมง และ Support manager ที่ยังมี assignment/engagement/สิทธิ์ใน scope เดียวกันต้องเป็นคนละคนกับผู้ขอและผู้รับสิทธิ์จึงอนุมัติได้
 
 ## Flow ที่ทำงานแล้ว

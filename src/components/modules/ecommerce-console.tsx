@@ -1,25 +1,24 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { FormDisclosure } from "@/components/ui/form-disclosure";
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
+
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
 import type { ecommerceWorkspace } from "@/server/ecommerce";
+import { Stack, FormLayout, Card } from "@/components/ui/foundation";
 
 type Workspace = Awaited<ReturnType<typeof ecommerceWorkspace>>;
-export function EcommerceConsole({
-  base,
-  data,
-}: {
-  base: string;
-  data: Workspace;
-}) {
+export function EcommerceConsole({ base, data }: { base: string; data: Workspace }) {
   const router = useRouter();
   const last = useRef<{ body: string; key: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   async function send(input: unknown) {
     const body = JSON.stringify(input);
-    if (last.current?.body !== body)
-      last.current = { body, key: crypto.randomUUID() };
+    if (last.current?.body !== body) last.current = { body, key: crypto.randomUUID() };
     setBusy(true);
     setError("");
     try {
@@ -34,17 +33,10 @@ export function EcommerceConsole({
       const result = await response.json();
       if (!response.ok) {
         if (response.status < 500) last.current = null;
-        throw new Error(
-          result.error?.message ?? "Unable to update E-commerce.",
-        );
+        throw new Error(result.error?.message ?? "Unable to update E-commerce.");
       }
       last.current = null;
-      if (
-        input &&
-        typeof input === "object" &&
-        "entity" in input &&
-        input.entity === "checkout"
-      )
+      if (input && typeof input === "object" && "entity" in input && input.entity === "checkout")
         router.push(`${base}/ecommerce/${result.data.id}`);
       router.refresh();
     } catch (cause) {
@@ -58,10 +50,10 @@ export function EcommerceConsole({
   const channels = data.channels.filter((x) => x.status === "active");
   const listings = data.listings.filter((x) => x.status === "published");
   return (
-    <div className="content-stack">
-      {error && <p role="alert">{error}</p>}
-      <form
-        className="card business-form"
+    <Stack as="div" className="ui-stack">
+      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+      <FormLayout
+        className="ui-panel ui-form-grid"
         onSubmit={(event) => {
           event.preventDefault();
           const v = values(event);
@@ -74,31 +66,31 @@ export function EcommerceConsole({
         }}
       >
         <h2>Create channel draft</h2>
-        <label>
+        <Field appearance="standard">
           Name
-          <input name="name" required />
-        </label>
-        <label>
+          <TextInput appearance="standard" name="name" required />
+        </Field>
+        <Field appearance="standard">
           Type
-          <select name="channelType">
+          <Select appearance="standard" name="channelType">
             <option value="web">Web</option>
             <option value="marketplace">Marketplace</option>
             <option value="social">Social</option>
-          </select>
-        </label>
-        <label>
+          </Select>
+        </Field>
+        <Field appearance="standard">
           Storefront reference
-          <input name="storefront" required />
-        </label>
-        <button className="button" disabled={busy}>
+          <TextInput appearance="standard" name="storefront" required />
+        </Field>
+        <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
           Create channel
-        </button>
-      </form>
+        </Button>
+      </FormLayout>
       {data.channels
         .filter((x) => x.status === "draft")
         .map((x) => (
-          <form
-            className="card business-form"
+          <FormLayout
+            className="ui-panel ui-form-grid"
             key={String(x.id)}
             onSubmit={(event) => {
               event.preventDefault();
@@ -112,17 +104,17 @@ export function EcommerceConsole({
             }}
           >
             <h2>Review channel · {String(x.name)}</h2>
-            <label>
+            <Field appearance="standard">
               Review reason
-              <textarea name="reason" required minLength={3} />
-            </label>
-            <button className="button" disabled={busy}>
+              <TextArea appearance="standard" name="reason" required minLength={3} />
+            </Field>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Activate
-            </button>
-          </form>
+            </Button>
+          </FormLayout>
         ))}
-      <form
-        className="card business-form"
+      <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Create product listing</summary><FormLayout
+        className="ui-panel ui-form-grid"
         onSubmit={(event) => {
           event.preventDefault();
           const v = values(event);
@@ -137,47 +129,47 @@ export function EcommerceConsole({
         }}
       >
         <h2>Create product listing</h2>
-        <label>
+        <Field appearance="standard">
           Channel
-          <select name="channelId">
+          <Select appearance="standard" name="channelId">
             {channels.map((x) => (
               <option key={String(x.id)} value={String(x.id)}>
                 {String(x.name)}
               </option>
             ))}
-          </select>
-        </label>
-        <label>
+          </Select>
+        </Field>
+        <Field appearance="standard">
           Product
-          <select name="productId">
+          <Select appearance="standard" name="productId">
             {data.products.map((x) => (
               <option key={String(x.id)} value={String(x.id)}>
                 {String(x.name)}
               </option>
             ))}
-          </select>
-        </label>
-        <label>
+          </Select>
+        </Field>
+        <Field appearance="standard">
           Title
-          <input name="title" required />
-        </label>
-        <label>
+          <TextInput appearance="standard" name="title" required />
+        </Field>
+        <Field appearance="standard">
           Currency
-          <input name="currency" defaultValue="THB" required />
-        </label>
-        <label>
+          <TextInput appearance="standard" name="currency" defaultValue="THB" required />
+        </Field>
+        <Field appearance="standard">
           Price
-          <input name="price" inputMode="decimal" required />
-        </label>
-        <button className="button" disabled={busy}>
+          <TextInput appearance="standard" name="price" inputMode="decimal" required />
+        </Field>
+        <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
           Create listing
-        </button>
-      </form>
+        </Button>
+      </FormLayout></FormDisclosure>
       {data.listings
         .filter((x) => x.status === "draft")
         .map((x) => (
-          <form
-            className="card business-form"
+          <FormLayout
+            className="ui-panel ui-form-grid"
             key={String(x.id)}
             onSubmit={(event) => {
               event.preventDefault();
@@ -191,17 +183,17 @@ export function EcommerceConsole({
             }}
           >
             <h2>Review listing · {String(x.title)}</h2>
-            <label>
+            <Field appearance="standard">
               Review reason
-              <textarea name="reason" required minLength={3} />
-            </label>
-            <button className="button" disabled={busy}>
+              <TextArea appearance="standard" name="reason" required minLength={3} />
+            </Field>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Publish
-            </button>
-          </form>
+            </Button>
+          </FormLayout>
         ))}
-      <form
-        className="card business-form"
+      <FormLayout
+        className="ui-panel ui-form-grid"
         onSubmit={(event) => {
           event.preventDefault();
           const v = values(event);
@@ -215,51 +207,51 @@ export function EcommerceConsole({
         }}
       >
         <h2>Open customer cart</h2>
-        <label>
+        <Field appearance="standard">
           Channel
-          <select name="channelId">
+          <Select appearance="standard" name="channelId">
             {channels.map((x) => (
               <option key={String(x.id)} value={String(x.id)}>
                 {String(x.name)}
               </option>
             ))}
-          </select>
-        </label>
-        <label>
+          </Select>
+        </Field>
+        <Field appearance="standard">
           Customer
-          <select name="partyId">
+          <Select appearance="standard" name="partyId">
             {data.parties.map((x) => (
               <option key={String(x.id)} value={String(x.id)}>
                 {String(x.name)}
               </option>
             ))}
-          </select>
-        </label>
-        <label>
+          </Select>
+        </Field>
+        <Field appearance="standard">
           Warehouse
-          <select name="warehouseId">
+          <Select appearance="standard" name="warehouseId">
             {data.warehouses.map((x) => (
               <option key={String(x.id)} value={String(x.id)}>
                 {String(x.name)}
               </option>
             ))}
-          </select>
-        </label>
-        <label>
+          </Select>
+        </Field>
+        <Field appearance="standard">
           Currency
-          <input name="currency" defaultValue="THB" required />
-        </label>
-        <button className="button" disabled={busy}>
+          <TextInput appearance="standard" name="currency" defaultValue="THB" required />
+        </Field>
+        <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
           Open cart
-        </button>
-      </form>
+        </Button>
+      </FormLayout>
       {data.carts
         .filter((x) => x.status === "open")
         .map((cart) => (
-          <section className="card" key={String(cart.id)}>
+          <Card as="section" appearance="standard" className="ui-panel" key={String(cart.id)}>
             <h2>Cart · {String(cart.id)}</h2>
-            <form
-              className="business-form"
+            <FormLayout
+              className="ui-form-grid"
               onSubmit={(event) => {
                 event.preventDefault();
                 const v = values(event);
@@ -274,26 +266,26 @@ export function EcommerceConsole({
                 });
               }}
             >
-              <label>
+              <Field appearance="standard">
                 Listing
-                <select name="listingId">
+                <Select appearance="standard" name="listingId">
                   {listings.map((x) => (
                     <option key={String(x.id)} value={String(x.id)}>
                       {String(x.title)}
                     </option>
                   ))}
-                </select>
-              </label>
-              <label>
+                </Select>
+              </Field>
+              <Field appearance="standard">
                 Quantity
-                <input name="quantity" defaultValue="1" required />
-              </label>
-              <button className="button" disabled={busy}>
+                <TextInput appearance="standard" name="quantity" defaultValue="1" required />
+              </Field>
+              <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
                 Add line
-              </button>
-            </form>
-            <form
-              className="business-form"
+              </Button>
+            </FormLayout>
+            <FormLayout
+              className="ui-form-grid"
               onSubmit={(event) => {
                 event.preventDefault();
                 const v = values(event);
@@ -306,20 +298,20 @@ export function EcommerceConsole({
                 });
               }}
             >
-              <label>
+              <Field appearance="standard">
                 Order date
-                <input name="orderDate" type="date" required />
-              </label>
-              <label>
+                <TextInput appearance="standard" name="orderDate" type="date" required />
+              </Field>
+              <Field appearance="standard">
                 Due date
-                <input name="dueDate" type="date" required />
-              </label>
-              <button className="button" disabled={busy}>
+                <TextInput appearance="standard" name="dueDate" type="date" required />
+              </Field>
+              <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
                 Checkout to Sales
-              </button>
-            </form>
-          </section>
+              </Button>
+            </FormLayout>
+          </Card>
         ))}
-    </div>
+    </Stack>
   );
 }

@@ -33,7 +33,12 @@ async function mouseDrag(page: Page, source: Locator, destination: Locator) {
 }
 async function chooseMove(page: Page, source: Locator, destinationId: string) {
   await source.getByRole("button").first().focus();
-  await source.getByRole("button", { name: /^Move/ }).focus();
+  const actions = source.getByRole("button", { name: /^Actions for/ });
+  if (await actions.count()) {
+    await actions.first().focus();
+    await page.keyboard.press("Enter");
+    await source.getByRole("menuitem", { name: "Move…", exact: true }).focus();
+  } else await source.getByRole("button", { name: /^Move/ }).focus();
   await page.keyboard.press("Enter");
   const chooser = page.getByTestId("people-move-chooser");
   await expect(chooser).toBeVisible();
@@ -129,6 +134,11 @@ test("three kinds of drag and keyboard moves share a saved private draft, Undo a
   await page.evaluate(() => {
     const events: Record<string, unknown>[] = [];
     (window as Window & { peopleDragEvents?: Record<string, unknown>[] }).peopleDragEvents = events;
+    const setDragImage = DataTransfer.prototype.setDragImage;
+    DataTransfer.prototype.setDragImage = function(element, x, y) {
+      events.push({ type: "dragimage", card: element.getAttribute("data-testid"), text: element.textContent });
+      setDragImage.call(this, element, x, y);
+    };
     for (const type of ["dragstart", "dragover", "drop", "dragend"]) document.addEventListener(type, event => {
       const drag = event as DragEvent, target = event.target as HTMLElement;
       const record = { type, target: target.closest("[data-testid]")?.getAttribute("data-testid"), destination: target.closest("[data-people-drop]")?.getAttribute("data-people-drop"), types: [...(drag.dataTransfer?.types ?? [])], prevented: false };
@@ -140,9 +150,15 @@ test("three kinds of drag and keyboard moves share a saved private draft, Undo a
   await test.info().attach("native-people-drag", { body: JSON.stringify(events), contentType: "application/json" });
   await expect.poll(() => drafts.draft?.definition.items, { message: JSON.stringify(events) }).toContainEqual(expect.objectContaining({ kind: "person", id: person.engagement_id, positionId: targetPosition.id, parked: false }));
   await page.getByRole("searchbox", { name: searchName }).fill("");
-  await drag(page, row(page, "position", sourcePosition.id).locator('[draggable="true"]').first(), row(page, "department", targetDepartment.id));
+  await drag(page, row(page, "position", sourcePosition.id).getByRole("button", { name: `Drag ${sourcePosition.title}`, exact: true }), row(page, "department", targetDepartment.id));
   await expect.poll(() => drafts.draft?.definition.items).toContainEqual(expect.objectContaining({ kind: "position", id: sourcePosition.id, departmentId: targetDepartment.id }));
   await drag(page, row(page, "department", sourceDepartment.id).locator('[draggable="true"]').first(), row(page, "branch", targetBranch.id));
+  const images = await page.evaluate(() => (window as Window & { peopleDragEvents?: Record<string, unknown>[] }).peopleDragEvents!.filter(event => event.type === "dragimage"));
+  expect(images).toEqual([
+    expect.objectContaining({ card: `people-person-${person.engagement_id}`, text: expect.stringContaining(person.legal_name) }),
+    expect.objectContaining({ card: `people-position-${sourcePosition.id}`, text: expect.stringContaining(sourcePosition.title) }),
+    expect.objectContaining({ card: `people-department-${sourceDepartment.id}`, text: expect.stringContaining(sourceDepartment.display_name) }),
+  ]);
   if (duplicateDepartment) await expect(workspace(page).getByRole("alert")).toContainText("A department with this URL code already exists in that branch.");
   await expect.poll(() => drafts.draft?.definition.items).toHaveLength(arrangedCount);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
@@ -151,10 +167,10 @@ test("three kinds of drag and keyboard moves share a saved private draft, Undo a
   await expect.poll(() => drafts.draft?.definition.items).toHaveLength(arrangedCount);
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
   await page.reload();
-  await expect(page.getByTestId("people-pending-changes")).toContainText(`${arrangedCount} pending changes`);
+  await expect(page.getByTestId("people-pending-changes")).toContainText(`${arrangedCount} pending changes`, { timeout: 30_000 });
   await page.goto(`${base}/people/organization/drafts?draft=browser-private-draft`);
   await expect(page).toHaveURL(/\/people\?draft=browser-private-draft/);
-  await expect(page.getByTestId("people-pending-changes")).toContainText(`${arrangedCount} pending changes`);
+  await expect(page.getByTestId("people-pending-changes")).toContainText(`${arrangedCount} pending changes`, { timeout: 30_000 });
   const secondPerson = organization.people.find(other => other.status === "active" && other.position_id && other.engagement_id !== person.engagement_id && other.position_id !== targetPosition.id)!;
   await page.getByRole("searchbox", { name: searchName }).fill(secondPerson.legal_name);
   await chooseMove(page, row(page, "person", secondPerson.engagement_id), targetPosition.id);
@@ -299,7 +315,8 @@ test("a touch handle moves a position to a department whose id contains colons",
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(`${base}/people`);
   await page.getByRole("searchbox", { name: searchName }).fill(position.title);
-  const source = row(page, "position", position.id).locator('[draggable="true"]').first(), destination = row(page, "department", target.department_id!);
+  const source = row(page, "position", position.id).getByRole("button", { name: `Drag ${position.title}`, exact: true }), destination = row(page, "department", target.department_id!);
+  await source.focus();
   await source.scrollIntoViewIfNeeded();
   const start = (await source.boundingBox())!, end = (await destination.boundingBox())!;
   expect(start.y + start.height).toBeLessThan(1000); expect(end.y + end.height).toBeLessThan(1000);

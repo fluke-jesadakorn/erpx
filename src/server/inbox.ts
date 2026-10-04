@@ -5,6 +5,7 @@ import type { SqlDatabase, TransactionalSqlDatabase } from "./runtime/types";
 import { ApiError } from "./http";
 import { executeCommand, replayCommand } from "./commands";
 import { hasPermission } from "@/lib/permissions";
+import { sourceRecordLabel, type SourceRecordReference } from "@/lib/source-record";
 import { hasStaffNotificationResolver, staffNotificationSourceTypes, visibleNotifications, type StaffNotification } from "./staff-notifications";
 
 export type InboxCategory = "work" | "calendar" | "mention" | "notice" | "system";
@@ -17,6 +18,7 @@ export type InboxItem = {
   id: string; eventId: string; category: InboxCategory; message: string;
   href: string | null; createdAt: number; readAt: number | null;
   archivedAt: number | null; sourceType: string; sourceId: string;
+  source?: SourceRecordReference;
 };
 type Candidate = {
   id: string; event_id: string; company_id: string; user_id: string;
@@ -45,13 +47,14 @@ export async function publishInboxEvent(db: SqlDatabase, input: InboxEventInput)
 
 async function resolveCandidate(db:SqlDatabase,actor:WorkContext,row:Candidate):Promise<InboxItem|null> {
   let href:string|null=null;
+  let source:SourceRecordReference|undefined;
   if(row.source_type==="notice") {
     const notice=await db.prepare("SELECT id FROM inbox_notices WHERE id=? AND company_id=?")
       .bind(row.source_id,actor.companyId).first();
     if(!notice)return null;
   } else if(row.source_type==="calendar_appointment" || row.source_type==="calendar_removed") {
-    const appointment=await db.prepare("SELECT id FROM calendar_appointments WHERE id=? AND company_id=?")
-      .bind(row.source_id,actor.companyId).first();
+    const appointment=await db.prepare("SELECT id,version FROM calendar_appointments WHERE id=? AND company_id=?")
+      .bind(row.source_id,actor.companyId).first<{id:string;version:number}>();
     if(!appointment)return null;
     if(row.source_type==="calendar_appointment") {
       const invited=await db.prepare(`SELECT 1 FROM calendar_attendees WHERE appointment_id=? AND company_id=? AND user_id=?
@@ -59,6 +62,7 @@ async function resolveCandidate(db:SqlDatabase,actor:WorkContext,row:Candidate):
         .bind(row.source_id,actor.companyId,actor.userId,row.source_id,actor.companyId,actor.userId).first();
       if(!invited)return null;
       href=`/calendar?event=appointment:${encodeURIComponent(row.source_id)}`;
+      source={kind:row.source_type,id:appointment.id,version:appointment.version,href,label:sourceRecordLabel(row.source_type)};
     }
   } else {
     if(!hasStaffNotificationResolver(row.source_type))return null;
@@ -67,10 +71,11 @@ async function resolveCandidate(db:SqlDatabase,actor:WorkContext,row:Candidate):
     const visible=await visibleNotifications(db,actor,[legacy]);
     if(!visible.length)return null;
     href=visible[0].href;
+    source=visible[0].source;
   }
   return {id:row.id,eventId:row.event_id,category:row.category,message:row.preview,href,
     createdAt:row.delivered_at,readAt:row.read_at,archivedAt:row.archived_at,
-    sourceType:row.source_type,sourceId:row.source_id};
+    sourceType:row.source_type,sourceId:row.source_id,source};
 }
 
 const candidateSql=`SELECT d.*,e.source_type,e.source_id,e.source_version,e.category,e.preview

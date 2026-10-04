@@ -10,6 +10,7 @@ import { administrationAccess } from "@/server/administration";
 import { listTemplates } from "@/server/routines";
 import { staffPage } from "@/server/staff-page";
 import Link from "next/link";
+import { Card } from "@/components/ui/foundation";
 export default async function Routines({
   params,
   searchParams,
@@ -25,14 +26,14 @@ export default async function Routines({
   const visible=templates.filter(t=>(!query.q||t.title.toLowerCase().includes(query.q.toLowerCase()))&&(!query.status||query.status==="all"||(query.status==="published"?t.published:!t.published)));
   const access = await administrationAccess(actor);
   return (
-    <FeaturePage className="content-stack" data-source="live">
-      <PageHeader
+    <FeaturePage className="ui-page-content" data-source="live">
+      <PageHeader appearance="standard"
         eyebrow={actor.beta ? undefined : "Projects & workflows"}
         title="Routine templates"
         description="Reusable company work. Every run has its own task and approval history."
       /><WidgetGrid pageKey="projects-routines">
       {actor.beta ? (
-        <StaffTaskLinks base={base} />
+        <StaffTaskLinks appearance="standard" base={base} />
       ) : (
         <ServiceNavigation
           context={{
@@ -48,7 +49,7 @@ export default async function Routines({
         />
       )}
       {staff && (
-        <TaskEditor
+        <TaskEditor appearance="standard"
           createAs="routine"
           base={base}
           options={options}
@@ -56,13 +57,13 @@ export default async function Routines({
           userId={actor.userId}
         />
       )}
-      <ListFilters action={`${base}/routine-templates`} query={query.q} placeholder="Search routines" status={query.status} statuses={[["all","All statuses"],["published","Published"],["draft","Draft"]]}/>
-      <FeatureWidget id="projects-routines-company-templates" title="Company templates"><section className="card">
+      <ListFilters appearance="standard" action={`${base}/routine-templates`} query={query.q} placeholder="Search routines" status={query.status} statuses={[["all","All statuses"],["published","Published"],["draft","Draft"]]}/>
+      <FeatureWidget appearance="standard" id="projects-routines-company-templates" title="Company templates"><Card as="section" appearance="standard" className="ui-panel">
         
         {!visible.length && <EmptyState title="No matching routines" description="Create a reusable template or adjust your filters."/>}
         {visible.map((t) => (
           <Link
-            className="row"
+            className="ui-record-item"
             key={t.id}
             href={`${base}/routine-templates/${t.id}`}
           >
@@ -72,7 +73,7 @@ export default async function Routines({
             </span>
           </Link>
         ))}
-      </section></FeatureWidget>
+      </Card></FeatureWidget>
     </WidgetGrid></FeaturePage>
   );
 }

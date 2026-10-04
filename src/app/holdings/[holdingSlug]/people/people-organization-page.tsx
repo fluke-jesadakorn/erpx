@@ -8,6 +8,7 @@ import { publicScope, type WorkContext } from "@/server/authorization";
 import { pageError } from "@/server/page-error";
 import { peopleWorkspaceData } from "@/server/people-workspace";
 import styles from "./people-organization-page.module.css";
+import Link from "next/link";
 
 export async function PeopleOrganizationPage({ actor, search }: {
   actor: WorkContext;
@@ -18,8 +19,9 @@ export async function PeopleOrganizationPage({ actor, search }: {
     await peopleWorkspaceData(actor, search).catch(error => pageError(error, actor.holdingSlug));
   const canReadPay = hasPermission(actor, "people.compensation.read") || hasPermission(actor, "people.compensation.payroll");
   return <FeaturePage className={`content-stack ${styles.page}`} data-source="live">
-    <PageHeader eyebrow="Your team" title="People" description="Choose a unit to manage its positions, people, and team schedule." />
+    <PageHeader appearance="standard" eyebrow="Your team" title="People" description="Choose a unit to manage its positions, people, and team schedule." />
     <PeopleNavigation base={base} actor={actor} scopeKind={actor.scope.kind} active="directory" />
+    {canManage&&!actor.branchId&&!actor.departmentId&&<Link href={`${base}/people/hire-handoffs`}>Accepted Talent offers → HR onboarding</Link>}
     <PeopleOrganizationWorkspace
       base={base}
       holdingName={actor.holdingName}

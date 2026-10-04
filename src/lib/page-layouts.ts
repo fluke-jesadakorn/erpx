@@ -62,40 +62,38 @@ export type LayoutSnapshot = {
   organizationVersion: number;
   canPublish: boolean;
 };
+export const configurablePageKeys = [
+  "people-directory",
+  "people-directory-detail",
+  "people-organization",
+  "people-roster",
+  "people-settings",
+  "people-payroll",
+  "people-payroll-detail",
+  "people-clearance-detail",
+  "overtime",
+  "overtime-detail",
+  "executive",
+] as const;
+export function isConfigurablePage(page: string): boolean {
+  return (configurablePageKeys as readonly string[]).includes(page);
+}
 export const widgetDefinitions = catalog as FeatureWidgetDefinition[];
 export function pageNavigationId(page: string) {
-  const aliases: Record<string, string> = {"work":"home","work-create":"home",
+  const aliases: Record<string, string> = {
     executive: "executive-canvas",
+    "people-organization": "people-directory",
+    "people-settings": "people-directory",
+    "people-directory-detail": "people-directory",
+    "people-clearance-detail": "people-directory",
+    "people-payroll-detail": "people-payroll",
     overtime: "people-roster",
     "overtime-detail": "people-roster",
-    "people-directory-detail": "people-directory",
-    "commerce-orders-detail": "operations-sales",
-    "expenses-detail": "finance-expenses",
-    "finance-invoices": "finance-receivables",
-    "projects-detail": "projects-list",
-    "routine-templates-detail": "projects-routines",
-    "stock-counts-detail": "operations-counts",
-    "stock-transfers-detail": "operations-transfers",
-    "people-payroll-detail": "people-payroll",
-    "people-clearance-detail": "people-directory",
-    "staff-tasks-detail": "home",
-    "requests-detail": "home",
-    "finance-invoices-detail": "finance-receivables",
-    "finance-journals-detail": "finance-ledger",
-    "finance-payments-detail": "finance-payables",
-    "handbook-detail": "handbook",
-    "pms-documents-detail": "pms-folios",
   };
-  return (
-    aliases[page] ??
-    (page.startsWith("calendar-")
-      ? "calendar"
-      : page.startsWith("inbox-")
-        ? "inbox"
-        : page)
-  );
+  return aliases[page] ?? page;
 }
 export function allowedWidgets(page: string, context: NavigationContext) {
+  if (!isConfigurablePage(page)) return [];
   const actor = {
     role: context.role ?? "employee",
     permissions: context.permissions,
@@ -105,11 +103,7 @@ export function allowedWidgets(page: string, context: NavigationContext) {
     context.workspaceBase !== "/account" &&
     context.scopeKind !== "platform" &&
     !workplaceNavigation(context).search.some(
-      (item) => page === "operations-parties"
-        ? ["crm-customers", "procurement-suppliers"].includes(item.id)
-        : page === "commerce-orders-detail"
-          ? ["operations-sales", "operations-purchasing"].includes(item.id)
-          : item.id === pageNavigationId(page),
+      (item) => item.id === pageNavigationId(page),
     )
   )
     return [];

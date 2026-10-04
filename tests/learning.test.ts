@@ -12,6 +12,7 @@ import {
   createLearningCourse,
   learningAssignmentDetail,
   learningWork,
+  learningWorkspace,
 } from "../src/server/learning";
 import {
   attachmentBindingState,
@@ -31,6 +32,13 @@ beforeEach(async () => {
   f = await expenseFixture();
   for (const a of [f.owner, f.tie, f.claimant, f.head])
     a.modules = ["learning"];
+});
+
+it("keeps My learning limited to the actor's assignments even for a workspace manager",async()=>{
+  const id=await assignment();
+  expect((await learningWorkspace(f.owner)).assignments.map(row=>row.id)).toContain(id);
+  expect((await learningWorkspace(f.owner,true)).assignments).toEqual([]);
+  expect((await learningWorkspace(f.claimant,true)).assignments.map(row=>row.id)).toContain(id);
 });
 async function course(requiredFor: string | null = "equipment_operator") {
   const x = await createLearningCourse(
@@ -147,6 +155,11 @@ it("publishes a reviewed course and completes attendance/results into an eligibi
     "start",
     "complete",
   ]);
+  await changeLearningCourse(f.tie,String(d.assignment.course_id),{action:"retire",expectedVersion:2,reason:"Course revision retired after all original evidence was retained"},key());
+  expect(await changeLearningAssignment(f.claimant,id,{action:"complete",expectedVersion:2,attendance:"attended",scoreBps:9200,evidence:"Provider result SIM-9200 and observed practical check.",reason:"Course and assessment completed",attachmentSetIds:[certificate.setId]},completeKey)).toMatchObject({status:"completed",version:3});
+  expect((await learningAssignmentDetail(f.claimant,id)).history).toHaveLength(3);
+  expect((await learningAssignmentDetail(f.claimant,id)).certificate).toMatchObject({source_assignment_version:3,completion_kind:"completed",eligibility_code:"equipment_operator"});
+  await expect(createLearningAssignment(f.owner,{courseId:d.assignment.course_id,courseVersion:2,learnerId:f.claimant.userId,dueDate:"2026-11-01",reason:"Cannot assign a retired course"},key())).rejects.toMatchObject({code:"CONFLICT"});
 });
 it("requires the learner for results and permits a reviewer waiver with immutable evidence", async () => {
   const id = await assignment();

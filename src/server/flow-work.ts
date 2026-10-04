@@ -7,6 +7,11 @@ import { policyRead } from "./iam-read-snapshot";
 import { resolveFlow } from "./flow-routing";
 import { ApiError } from "./http";
 
+export function flowWorkActionKind(flow: import("@/lib/flow").FlowView): "work" | "approval" {
+  const key = flow.current?.key;
+  return flow.kind === "order" && key === "submitted" || flow.kind === "payroll" && ["in_review","payment_draft"].includes(key ?? "") ? "approval" : "work";
+}
+
 export function workFlowKind(type:WorkItem["type"]):FlowKind {
   return ["service_request","equipment_request","purchase_request"].includes(type) ? "request" : type as FlowKind;
 }
@@ -15,7 +20,7 @@ export async function enrichFlowWork(actor:WorkContext,items:WorkItem[]) {
   const {write} = await holdingResources(actor.holdingId);
   return Promise.all(items.map(async item => {
     // These domains own their review and handoff states.
-    if (["customer_identity","customer_duplicate","customer_access","support_incident","support_policy","support_sla_alert", "support_ticket", "support_session", "maintenance_work", "field_service", "collaboration_action", "learning_assignment", "benefit_enrollment", "talent_application", "marketing_candidate", "manufacturing_order", "crm_lead", "crm_activity", "customer_followup", "legal", "people_lifecycle", "organization_change", "company_business_acceptance", "pos", "pms", "overtime", "refund", "supplier_batch", "quality_hold", "quality_alert", "inventory_transit", "supplier_promise", "procurement_rfq", "supplier_bill"].includes(item.type)) return item;
+    if (["customer_identity","customer_duplicate","customer_access","support_incident","support_policy","support_sla_alert", "support_ticket", "support_session", "maintenance_work", "maintenance_plan", "project_handoff", "field_service", "collaboration_action", "operational_exception", "learning_assignment", "benefit_enrollment", "talent_application", "marketing_candidate", "manufacturing_order", "crm_lead", "crm_activity", "customer_followup", "legal", "people_lifecycle", "organization_change", "company_business_acceptance", "pos", "pms", "overtime", "refund", "supplier_batch", "quality_hold", "quality_alert", "inventory_transit", "supplier_promise", "procurement_rfq", "supplier_bill"].includes(item.type)) return item;
     const flow = item.flow ?? await resolveFlow(write,actor,workFlowKind(item.type),item.id);
     const primary = flow.current?.primary;
     return {...item,flow, canAct: flow.current ? flow.canAct : item.canAct ?? item.queue === "todo", category: flow.blocker && !flow.current?.primary ? "setup" as const : "operational" as const, setupReason: flow.blocker, nextAction:flow.current?.action ?? item.nextAction, responsibleQueue:primary ? `${flow.current!.teamName} / ${primary.name}` : flow.current?.teamName ?? item.responsibleQueue,blocker:flow.blocker ?? item.blocker,
@@ -53,7 +58,7 @@ export async function otherFlowWork(actor:WorkContext, reference = false):Promis
       const participant = flow.steps.some(s => s.primary?.userId === actor.userId) || flow.history.some(e => e.actorName === actor.userId);
       if (!own && !participant && !(flow.canManage && flow.blocker)) continue;
       const href = kind === "order" ? `/commerce/orders/${row.id}` : kind === "invoice" ? `/finance/invoices/${row.id}` : kind === "journal" ? `/finance/journals/${row.id}` : `/people/payroll/runs/${encodeURIComponent(String(row.id))}`;
-      items.push({id:String(row.id),type:kind,title:String(row[title]),detail:flow.current?.action ?? "No pending action",href,status:flow.state,updatedAt:Number(row[updated]),queue:flow.canAct ? "todo" : flow.current ? "waiting" : "completed",flow,canAct:flow.canAct,category:flow.blocker && !flow.current?.primary ? "setup" : "operational",setupReason:flow.blocker,relationships:[...(own ? ["requested" as const] : []),...(flow.canAct ? ["assigned" as const] : [])]});
+      items.push({id:String(row.id),type:kind,actionKind:flowWorkActionKind(flow),title:String(row[title]),detail:flow.current?.action ?? "No pending action",href,status:flow.state,updatedAt:Number(row[updated]),queue:flow.canAct ? "todo" : flow.current ? "waiting" : "completed",flow,canAct:flow.canAct,category:flow.blocker && !flow.current?.primary ? "setup" : "operational",setupReason:flow.blocker,relationships:[...(own ? ["requested" as const] : []),...(flow.canAct ? ["assigned" as const] : [])]});
     }
   }
   return items;

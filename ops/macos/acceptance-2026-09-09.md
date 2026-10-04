@@ -1,5 +1,7 @@
 # Local deployment acceptance — 2026-09-09
 
+> Historical installation/incident evidence. The host/service observations below apply to 2026-09-09. Current topology and procedures are in [runtime operations](README.md); this record does not authorize restoring old Tunnel routes.
+
 Release: `2026-09-08T17-17-08-381Z` (Node 24.20.0, Bun 1.2.17, PostgreSQL 18.6).
 
 ## Completed

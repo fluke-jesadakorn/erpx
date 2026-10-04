@@ -174,7 +174,7 @@ export async function publishDepartmentFlow(db:SqlDatabase,actor:WorkContext,raw
 }
 
 function parsedSteps(value:Policy["steps_json"]):FlowSelector[]{return typeof value==="string"?JSON.parse(value) as FlowSelector[]:value;}
-export async function departmentRoute(db:SqlDatabase,companyId:string,userId:string,excluded:string[]=[]):Promise<ApprovalRoute>{
+export async function departmentRoute(db:SqlDatabase,companyId:string,userId:string,excluded:string[]=[],proposed?:z.infer<typeof departmentFlowInput>["steps"]):Promise<ApprovalRoute>{
   const requester=await activeStaff(db,companyId,userId);
   const scope={company_id:companyId,branch_id:requester.branch_id,department_id:requester.department_id};
   if(!requester.department_id)return {scope,steps:[],blockedReason:"Assign the requester to a department."};
@@ -183,7 +183,7 @@ export async function departmentRoute(db:SqlDatabase,companyId:string,userId:str
   const recordedHead=await seat(db,companyId,"head",requester.department_id);
   const legacyHead=!recordedHead?await db.prepare("SELECT person_id FROM department_heads WHERE company_id=? AND department_id=?").bind(companyId,requester.department_id).first<{person_id:string}>():null;
   const head=recordedHead??(legacyHead?{person_id:legacyHead.person_id}:null);
-  const selectors=policy?parsedSteps(policy.steps_json):head?.person_id?[{kind:"person" as const,personId:head.person_id}]:[];
+  const selectors=proposed??(policy?parsedSteps(policy.steps_json):head?.person_id?[{kind:"person" as const,personId:head.person_id}]:[]);
   if(!selectors.length)return {scope,steps:[],blockedReason:"Appoint a department head or publish an acting flow."};
   const people=await staffPeople(db,companyId);
   const forbidden=new Set([userId,...excluded]);
@@ -247,4 +247,23 @@ export async function peopleRequestRoute(db:SqlDatabase,companyId:string,userId:
   if(!reviewer)return {...department,steps:[],blockedReason:"Appoint an independent HR reviewer for this request."};
   const hrStep:RouteStep={userId:reviewer,authority:"hr_admin",stage:"hr_approval",snapshot:{appointmentKind:"hr",appointedPersonId:hrPerson?.user_id===reviewer?hrPerson.person_id:null}};
   return {...department,steps:[...department.steps,hrStep]};
+}
+
+export async function previewDepartmentFlow(db:SqlDatabase,actor:WorkContext,raw:unknown){
+ const input=departmentFlowInput.parse(raw);
+ if(!await canPublishFlow(db,actor,input.departmentId))throw new ApiError(403,"DEPARTMENT_HEAD_REQUIRED","The appointed head, or CEO while vacant, publishes this flow.");
+ const latest=await db.prepare("SELECT COALESCE(MAX(version),0) version FROM department_flow_versions WHERE company_id=? AND department_id=?").bind(actor.companyId,input.departmentId).first<{version:number}>();
+ if(Number(latest?.version)!==input.expectedVersion)throw new ApiError(409,"VERSION_CONFLICT","The flow changed. Reload before reviewing.");
+ const people=await staffPeople(db,actor.companyId),steps=[],blockers:string[]=[];
+ for(const [i,selector] of input.steps.entries()){
+ const matches=people.filter(p=>selector.kind==="person"?p.person_id===selector.personId:p.position_id===selector.positionId);
+ if(matches.length!==1){blockers.push(`Step ${i+1} requires one active holder with an account.`);continue;}
+ const person=matches[0];
+ steps.push({name:person.legal_name,selector});}
+ const simulations=[];
+ for(const requester of people.filter(p=>p.department_id===input.departmentId)){
+  const route=await departmentRoute(db,actor.companyId,requester.user_id,[],input.steps);
+  simulations.push({requester:requester.legal_name,reviewers:route.steps.map(step=>people.find(p=>p.user_id===step.userId)?.legal_name??"Recorded reviewer"),blocker:route.blockedReason});
+ }
+ return {steps,blockers,simulations,previousVersion:input.expectedVersion,newVersion:input.expectedVersion+1,previousSteps:(await db.prepare("SELECT steps_json FROM department_flow_versions WHERE company_id=? AND department_id=? ORDER BY version DESC LIMIT 1").bind(actor.companyId,input.departmentId).first<{steps_json:unknown}>())?.steps_json??[],effect:"New requests only. Self-review escalation is resolved again for each requester on submission."};
 }

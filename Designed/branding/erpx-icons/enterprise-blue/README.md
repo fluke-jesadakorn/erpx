@@ -6,7 +6,7 @@
 
 ## แนวคิดจากโปรเจกต์
 
-จุดตั้งต้นคือการทำงานร่วมกันหลายทีม การสนทนาที่ต่อยอดเป็นงาน และข้อมูล/หลักฐานที่ยังติดตามได้ตลอดการส่งต่อ อ้างอิง `docs/archive/planning-2026-09/2026-09-08-shared-workspace.md`, `docs/archive/planning-2026-09/2026-09-08-workplace-simplification.md` และ `docs/plan/04-social-paradigm.md`
+จุดตั้งต้นคือการทำงานร่วมกันหลายทีม การสนทนาที่ต่อยอดเป็นงาน และข้อมูล/หลักฐานที่ยังติดตามได้ตลอดการส่งต่อ อ้างอิง `docs/contracts/next/workplace-ux.md`, `docs/production-plan.md` และ `docs/contracts/next/workplace-ux.md`
 
 | แบบ | ความหมายของรูปทรง | บุคลิก |
 | --- | --- | --- |

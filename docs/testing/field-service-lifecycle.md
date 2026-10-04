@@ -1,5 +1,7 @@
 # Field Service — lifecycle จำลอง
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 ## Flow ที่ทำงานแล้ว
 
 - Service agreement ผูก customer, branch/department, covered asset, ช่วงวันที่, currency และ visit rate เป็น versioned source; ผู้สร้างอนุมัติเองไม่ได้และ reviewer ต้องยังมีสิทธิ์จริงใน scope

@@ -8,32 +8,19 @@ import {
 export type NavigationLauncherResult = {
   item: NavigationItem;
   context: string;
-  categoryId: NavigationCategory["id"];
+  categoryId: NavigationCategory["id"] | "daily";
 };
-
-function appItem(app: NavigationApp): NavigationItem {
-  return {
-    id: app.id,
-    label: app.label,
-    href: app.href ?? app.items[0].href,
-    group: "Apps",
-    icon: app.icon,
-    ...(app.items[0]?.openInNewTab ? { openInNewTab: true } : {}),
-    keywords: app.keywords,
-  };
-}
 
 function searchableText(
   item: NavigationItem,
   app: NavigationApp | undefined,
-  category: NavigationCategory,
+  category: Pick<NavigationCategory,"label">,
 ) {
   return [
     item.label,
     item.group,
     ...(item.keywords ?? []),
     app?.label ?? "",
-    ...(app?.keywords ?? []),
     category.label,
   ]
     .join(" ")
@@ -45,39 +32,34 @@ function categoryFor(
   item: NavigationItem,
   app?: NavigationApp,
 ) {
+  if (item.categoryId) return model.categories.find(category => category.id === item.categoryId);
   const id = app?.id ?? item.id;
   return model.categories.find((category) =>
-    category.id === id || category.apps.some((entry) => entry.id === id),
+    category.id === item.categoryId || category.apps.some((entry) => entry.id === item.id || entry.id === id || app?.items.some(child => child.id === entry.id)),
   );
 }
 
 /**
  * The launcher shows apps by default. A query expands discovery to the full,
- * permission-filtered destination catalog while retaining the owning app.
+ * permission-filtered destination catalog and its discovery categories.
  */
-export function navigationLauncher(
+export function navigationSearch(
   model: WorkplaceNavigationModel,
   search: string,
-): { categories: NavigationCategory[]; results: NavigationLauncherResult[] } {
+  includePrimary = true,
+): NavigationLauncherResult[] {
   const query = search.trim().toLocaleLowerCase();
-  if (!query) return { categories: model.categories.map((category) =>
-    category.id === "pms"
-      ? { ...category, apps: model.apps.filter((app) => app.id === "pms").map(appItem) }
-      : category,
-  ), results: [] };
-
   const primaryIds = new Set(model.primary.map((item) => item.id));
-  const candidates = [
-    ...model.apps.map(appItem),
-    ...model.search.filter((item) => !primaryIds.has(item.id)),
-  ];
+  const candidates = model.search.filter(item => includePrimary || !primaryIds.has(item.id));
   const seen = new Set<string>();
   const results = candidates.flatMap((item): NavigationLauncherResult[] => {
     const app = model.apps.find(
       (entry) =>
         entry.id === item.id || entry.items.some((child) => child.id === item.id),
     );
-    const category = categoryFor(model, item, app);
+    const category = item.categoryId === "daily" || !model.categories.length
+      ? { id: "daily" as const, label: item.group }
+      : categoryFor(model, item, app);
     if (
       !category ||
       seen.has(item.href) ||
@@ -88,12 +70,21 @@ export function navigationLauncher(
     return [
       {
         item,
-        context: app && app.id !== item.id ? app.label : category.label,
+        context: category.label,
         categoryId: category.id,
       },
     ];
   });
-  return { categories: [], results };
+  return results;
+}
+
+export function navigationLauncher(
+  model: WorkplaceNavigationModel,
+  search: string,
+): { categories: NavigationCategory[]; results: NavigationLauncherResult[] } {
+  return search.trim()
+    ? { categories: [], results: navigationSearch(model, search, false) }
+    : { categories: model.categories, results: [] };
 }
 
 export function navigationAccordionStorageKey(workspaceBase: string) {

@@ -1,3 +1,4 @@
+import {createEngineeringBrowserContext} from './helpers/engineering-browser-evidence';
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -34,8 +35,8 @@ test("isolated demo routes a record-linked action card to its owner", async ({ b
   const directory = resolve(`.runtime/browser/${run}`);
   const credentials = JSON.parse(await readFile(resolve(directory, "credentials.json"), "utf8")) as Credentials;
   const guide = JSON.parse(await readFile(resolve(directory, "demo-guide.json"), "utf8")) as DemoGuide;
-  const ownerContext = await browser.newContext(testInfo.project.use);
-  const employeeContext = await browser.newContext(testInfo.project.use);
+  const ownerContext = await createEngineeringBrowserContext(browser,testInfo);
+  const employeeContext = await createEngineeringBrowserContext(browser,testInfo);
   try {
     const ownerPage = await ownerContext.newPage();
     const employeePage = await employeeContext.newPage();
@@ -45,29 +46,40 @@ test("isolated demo routes a record-linked action card to its owner", async ({ b
     expect(salesScenario?.sourceRecord?.id, "demo sales quote source").toBeTruthy();
     await signInRole(ownerContext, ownerPage, credentials, "holding_owner");
     const title = "Confirm customer installation window";
-    const actionForm = ownerPage.locator("form").filter({ hasText: "Create action card" });
+    const actionForm = ownerPage.locator("#workspace-content form").filter({ hasText: "Create action card" });
     await actionForm.locator('select[name="sourceType"]').selectOption("commerce_order");
     await actionForm.locator('input[name="sourceId"]').fill(salesScenario!.sourceRecord!.id);
     await actionForm.locator('input[name="title"]').fill(title);
     await actionForm.locator('select[name="ownerId"]').selectOption(employee!.userId);
-    await actionForm.locator('input[name="dueAt"]').fill("2026-10-01T12:00");
+    await actionForm.getByLabel("Due", { exact: true }).fill("2026-10-01T12:00");
+    await expect(actionForm.locator('input[type="hidden"][name="dueAt"]')).toHaveValue("2026-10-01T05:00:00.000Z");
     await actionForm.locator('textarea[name="reason"]').fill("Sales and Support need one accountable next action");
     const createResponse = ownerPage.waitForResponse(response => response.request().method() === "POST" && response.url().endsWith("/api/v1/holdings/simulation/collaboration"));
     await actionForm.getByRole("button", { name: "Create action card", exact: true }).click();
-    expect((await createResponse).status()).toBe(200);
+    const created=await createResponse;
+    expect(created.status()).toBe(200);
+    const createdCard=(await created.json()).data as {id:string;version:number;status:string};
+    expect(createdCard).toMatchObject({version:1,status:"open"});
     await expect(ownerPage.getByRole("heading", { name: title, exact: true })).toBeVisible();
 
-    await signInRole(employeeContext, employeePage, credentials, "employee");
+    await signInRole(employeeContext, employeePage, credentials, "custom_demo_sales_collaboration_owner");
     await expect(employeePage.getByRole("heading", { name: title, exact: true })).toBeVisible();
-    const cardForm = employeePage.locator("form").filter({ hasText: title }).last();
+    const cardForm = employeePage.locator("#workspace-content form").filter({ hasText: title });
     await expect(cardForm.getByText(/open/).first()).toBeVisible();
     await cardForm.locator('select[name="action"]').selectOption("complete");
     await cardForm.locator('textarea[name="evidence"]').fill("Customer confirmed Tuesday at 10:00 by recorded phone contact.");
     await cardForm.locator('textarea[name="reason"]').fill("Action completed with source evidence");
     const completeResponse = employeePage.waitForResponse(response => response.request().method() === "POST" && response.url().endsWith("/api/v1/holdings/simulation/collaboration"));
     await cardForm.getByRole("button", { name: "Record action", exact: true }).click();
-    expect((await completeResponse).status()).toBe(200);
-    await expect(employeePage.getByText(/completed/).first()).toBeVisible();
+    const completed=await completeResponse;
+    expect(completed.status()).toBe(200);
+    expect((await completed.json()).data).toMatchObject({id:createdCard.id,version:2,status:"completed"});
+    await expect(employeePage.locator("#workspace-content").getByText(/completed/).first()).toBeVisible();
+    await employeePage.reload();
+    await expect(employeePage.getByRole("heading",{name:title,exact:true})).toBeVisible();
+    const retained=await employeeContext.request.get("/api/v1/holdings/simulation/collaboration");
+    expect(retained.status()).toBe(200);
+    expect((await retained.json()).data.cards.find((card:{id:string})=>card.id===createdCard.id)).toMatchObject({version:2,status:"completed",source_type:"commerce_order",source_id:salesScenario!.sourceRecord!.id,owner_id:employee!.userId});
   } finally {
     await ownerContext.close();
     await employeeContext.close();

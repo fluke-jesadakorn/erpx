@@ -30,6 +30,7 @@ export function supportEvidenceEvent(db:SqlDatabase,id:string,key:string,actor:s
 }
 export async function supportEvidence(a:WorkContext,id:string) {
  const row=await getSupportTicket(a,id),{write}=await holdingResources(a.holdingId);
+ if(!hasPermission(a,'support.read'))return {items:[] as Row[],canChange:false,canShare:false};
  const items=(await write.prepare(`SELECT a.id,a.original_name,a.media_type,a.bytes,a.checksum_sha256,a.created_at,a.created_by,a.revoked_at,a.legal_hold
    FROM attachments a WHERE a.owner_type='support_ticket' AND a.owner_id=? AND (a.company_id IS NULL OR EXISTS(
      SELECT 1 FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id
@@ -50,7 +51,7 @@ export async function bindSupportEvidence(a:WorkContext,id:string,raw:unknown,ke
   reason:z.string().trim().min(3).max(2000),
  }).parse(raw),{write}=await holdingResources(a.holdingId),op='support.evidence.bind',prior=await replayCommand(write,a,key,op,id,input);if(prior)return prior;requireSupportEvidenceWrite();
  const row=await getSupportTicket(a,id),prepared=await prepareAttachmentBinding(write,a,{
-  attachmentSetIds:input.attachmentSetIds,bindingContract:{targetType:'support_ticket',bindingType:'support_action',contexts:['internal_evidence','customer_shareable'].map(purposeKey=>({purposeKey,componentKind:'action' as const,componentRef:`support-evidence:${purposeKey}`}))},targetId:id,
+  attachmentSetIds:input.attachmentSetIds,bindingContract:{targetType:'support_ticket',bindingType:'support_action',contexts:['support_evidence','internal_evidence','customer_shareable'].map(purposeKey=>({purposeKey,componentKind:'action' as const,componentRef:`support-evidence:${purposeKey}`}))},targetId:id,
   expectedTargetVersion:input.expectedVersion,commandId:key,
   bindingId:`support-evidence:${key}`,
  }),now=Date.now(),result={id,version:input.expectedVersion+1,manifest:prepared.manifest};

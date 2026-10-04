@@ -24,7 +24,7 @@ export const directorySchema = z.object({
   departmentId: z.string().nullable().default(null),
   jobTitle: z.string().trim().min(2).max(160),
   workerType: z.enum(["employee", "contractor"]),
-  employmentType: z.enum(["salaried", "hourly", "shift", "contractor"]),
+  employmentType: z.enum(["salaried", "daily", "hourly", "shift", "contractor"]),
   startDate: z.iso.date(),
   currency: z.enum(["USD", "EUR", "GBP", "THB", "SGD", "CAD"]),
   managerPersonId: z.string().nullable().default(null),

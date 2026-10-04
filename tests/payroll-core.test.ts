@@ -211,7 +211,7 @@ it("prepares a person-scoped final-pay preview from the retirement clearance tas
   const linked=await db.prepare("SELECT r.mode,r.scope_engagement_id,r.period_end,fp.status FROM hr_payroll_runs r JOIN hr_payroll_final_pay_preparations fp ON fp.run_id=r.id WHERE fp.task_id=?").bind(taskId).first<{mode:string;scope_engagement_id:string;period_end:string;status:string}>();
   expect(linked).toMatchObject({mode:"final_pay",scope_engagement_id:engagement!.id,period_end:"2026-09-15",status:"prepared"});
   const calculated=await calculatePayrollRun(f.owner,String(prepared.runId),key());
-  expect(calculated.totals).toMatchObject({headcount:1,gross:300000,net:300000});
+  expect(calculated.totals).toMatchObject({headcount:1,gross:150000,net:150000});
   await expect(prepareFinalPay(f.owner,finalPayPreparationSchema.parse({taskId,expectedTaskVersion:1,payGroupId:group,periodStart:"2026-09-01",periodEnd:"2026-09-15",payDate:"2026-09-15",currency:"THB",reason:"Duplicate final pay"}),key())).rejects.toThrow();
 });
 

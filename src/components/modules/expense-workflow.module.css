@@ -3,61 +3,333 @@
   gap: 24px;
   min-width: 0;
   padding: clamp(20px, 3vw, 32px);
-  border-top: 3px solid var(--brand);
+  border-top: 3px solid var(--ui-brand);
   container-type: inline-size;
 }
-.nextHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
-.nextHead > div:first-child { min-width: 0; }
-.nextHead :global(.eyebrow) { margin: 0 0 10px; color: var(--brand); font-size: 10px; letter-spacing: .12em; }
-.nextHead h2 { margin: 0 0 8px; color: var(--ink-strong); font-size: clamp(20px, 2vw, 26px); line-height: 1.3; letter-spacing: -.025em; }
-.nextSub { margin: 0; max-width: 520px; color: var(--muted); font-size: 13px; line-height: 1.7; }
-.nextTotal { display: grid; gap: 5px; flex: 0 0 auto; min-width: 190px; padding: 16px 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--card-2); text-align: right; }
-.nextTotal > span { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.nextTotal strong { font-size: 24px; line-height: 1.3; letter-spacing: -.025em; color: var(--ink-strong); font-variant-numeric: tabular-nums; }
-.nextTotal small { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
-.stepper { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); list-style: none; padding: 20px 0; margin: 0; border-block: 1px solid var(--line); }
-.stepper li { position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px; padding-inline: 8px; text-align: center; color: var(--muted); font-size: 11px; line-height: 1.5; }
-.stepper li:not(:last-child)::after { content: ""; position: absolute; top: 16px; left: calc(50% + 22px); width: calc(100% - 44px); height: 1px; background: var(--line-strong); }
-.stepMarker { display: grid; place-items: center; width: 34px; height: 34px; flex-shrink: 0; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--muted); background: var(--card); font-size: 12px; font-weight: 600; }
-.stepper li[data-state="now"] { color: var(--brand); font-weight: 600; }
-.stepper li[data-state="now"] .stepMarker { border-color: var(--brand); background: var(--brand); color: var(--card); box-shadow: 0 0 0 4px var(--brand-glow); }
-.stepper li[data-state="done"] .stepMarker { color: var(--brand); background: var(--brand-soft); border-color: var(--brand); }
-.checklist { display: grid; gap: 16px; padding: 20px; background: color-mix(in srgb, var(--amber-soft) 45%, var(--card)); border: 1px solid color-mix(in srgb, var(--amber) 30%, var(--line)); border-radius: 12px; }
-.checklistHeading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
-.checklistHeading strong { display: flex; align-items: center; gap: 8px; color: var(--ink-strong); font-size: 14px; }
-.checklistHeading strong svg { color: var(--amber); flex-shrink: 0; }
-.checklistHeading > span { color: var(--amber); background: var(--amber-soft); padding: 4px 9px; border-radius: 6px; font-size: 11px; font-weight: 600; }
-.checklist ul { display: grid; gap: 0; list-style: none; padding: 0; margin: 0; }
-.checklist li { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; font-size: 13px; line-height: 1.6; }
-.checklist li + li { border-top: 1px solid color-mix(in srgb, var(--amber) 15%, transparent); }
-.checkNumber { display: grid; place-items: center; flex: 0 0 24px; height: 24px; border: 1px solid color-mix(in srgb, var(--amber) 30%, var(--line)); border-radius: 7px; color: var(--amber); font-size: 11px; font-weight: 600; }
-.checklistActions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
-.checklistActions :global(.button) { white-space: normal; text-align: center; }
-.checklistActions > span { color: var(--muted); font-size: 12px; line-height: 1.6; }
-.nextAlert { display: flex; align-items: center; gap: 8px; }
-.nextAlert svg { flex-shrink: 0; }
-.reason { display: grid; gap: 10px; min-width: 0; font-size: 13px; }
-.reason > span { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; color: var(--ink-strong); }
-.reason small, .hint { font-size: 12px; color: var(--muted); font-weight: 400; }
-.reason textarea { display: block; box-sizing: border-box; width: 100%; min-height: 96px; padding: 12px 14px; border: 1px solid var(--control-border); border-radius: 9px; color: var(--ink); background: var(--card); font: inherit; line-height: 1.6; resize: vertical; }
-.reason textarea:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
-.actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 12px; }
-.actions > span { margin-right: auto; max-width: 320px; font-size: 12px; line-height: 1.6; color: var(--muted); }
-.actions :global(.button) { min-height: 44px; white-space: normal; text-align: center; }
-.cancelSection { border-top: 1px solid var(--line); padding-top: 18px; }
-.cancelSection summary { width: fit-content; color: var(--muted); font-size: 12px; cursor: pointer; }
-.cancelSection summary:hover { color: var(--ink-strong); }
-.cancelSection summary:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; border-radius: 2px; }
-.cancelBody { display: grid; gap: 14px; padding-top: 18px; }
-.cancelButton { justify-self: start; color: var(--red) !important; }
+.nextHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+.nextHead > div:first-child {
+  min-width: 0;
+}
+.nextHead :global(.eyebrow) {
+  margin: 0 0 10px;
+  color: var(--ui-brand);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+.nextHead h2 {
+  margin: 0 0 8px;
+  color: var(--ui-ink-strong);
+  font-size: clamp(20px, 2vw, 26px);
+  line-height: 1.3;
+  letter-spacing: -0.025em;
+}
+.nextSub {
+  margin: 0;
+  max-width: 520px;
+  color: var(--ui-muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.nextTotal {
+  display: grid;
+  gap: 5px;
+  flex: 0 0 auto;
+  min-width: 190px;
+  padding: 16px 20px;
+  border: 1px solid var(--ui-line);
+  border-radius: 12px;
+  background: var(--ui-card-2);
+  text-align: right;
+}
+.nextTotal > span {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ui-muted);
+}
+.nextTotal strong {
+  font-size: 24px;
+  line-height: 1.3;
+  letter-spacing: -0.025em;
+  color: var(--ui-ink-strong);
+  font-variant-numeric: tabular-nums;
+}
+.nextTotal small {
+  font-size: 12px;
+  color: var(--ui-muted);
+  overflow-wrap: anywhere;
+}
+.stepper {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  list-style: none;
+  padding: 20px 0;
+  margin: 0;
+  border-block: 1px solid var(--ui-line);
+}
+.stepper li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding-inline: 8px;
+  text-align: center;
+  color: var(--ui-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.stepper li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 16px;
+  left: calc(50% + 22px);
+  width: calc(100% - 44px);
+  height: 1px;
+  background: var(--ui-line-strong);
+}
+.stepMarker {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: 50%;
+  color: var(--ui-muted);
+  background: var(--ui-card);
+  font-size: 12px;
+  font-weight: 600;
+}
+.stepper li[data-state="now"] {
+  color: var(--ui-brand);
+  font-weight: 600;
+}
+.stepper li[data-state="now"] .stepMarker {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand);
+  color: var(--ui-card);
+  box-shadow: 0 0 0 4px var(--ui-brand-glow);
+}
+.stepper li[data-state="done"] .stepMarker {
+  color: var(--ui-brand);
+  background: var(--ui-brand-soft);
+  border-color: var(--ui-brand);
+}
+.checklist {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  background: color-mix(in srgb, var(--ui-amber-soft) 45%, var(--ui-card));
+  border: 1px solid color-mix(in srgb, var(--ui-amber) 30%, var(--ui-line));
+  border-radius: 12px;
+}
+.checklistHeading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.checklistHeading strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ui-ink-strong);
+  font-size: 14px;
+}
+.checklistHeading strong svg {
+  color: var(--ui-amber);
+  flex-shrink: 0;
+}
+.checklistHeading > span {
+  color: var(--ui-amber);
+  background: var(--ui-amber-soft);
+  padding: 4px 9px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.checklist ul {
+  display: grid;
+  gap: 0;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.checklist li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.checklist li + li {
+  border-top: 1px solid color-mix(in srgb, var(--ui-amber) 15%, transparent);
+}
+.checkNumber {
+  display: grid;
+  place-items: center;
+  flex: 0 0 24px;
+  height: 24px;
+  border: 1px solid color-mix(in srgb, var(--ui-amber) 30%, var(--ui-line));
+  border-radius: 7px;
+  color: var(--ui-amber);
+  font-size: 11px;
+  font-weight: 600;
+}
+.checklistActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+}
+.checklistActions :global(.button) {
+  white-space: normal;
+  text-align: center;
+}
+.checklistActions > span {
+  color: var(--ui-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.nextAlert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.nextAlert svg {
+  flex-shrink: 0;
+}
+.reason {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  font-size: 13px;
+}
+.reason > span {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--ui-ink-strong);
+}
+.reason small,
+.hint {
+  font-size: 12px;
+  color: var(--ui-muted);
+  font-weight: 400;
+}
+.reason textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 96px;
+  padding: 12px 14px;
+  border: 1px solid var(--ui-control-border);
+  border-radius: 9px;
+  color: var(--ui-ink);
+  background: var(--ui-card);
+  font: inherit;
+  line-height: 1.6;
+  resize: vertical;
+}
+.reason textarea:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: 2px;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+}
+.actions > span {
+  margin-right: auto;
+  max-width: 320px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ui-muted);
+}
+.actions :global(.button) {
+  min-height: 44px;
+  white-space: normal;
+  text-align: center;
+}
+.cancelSection {
+  border-top: 1px solid var(--ui-line);
+  padding-top: 18px;
+}
+.cancelSection summary {
+  width: fit-content;
+  color: var(--ui-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.cancelSection summary:hover {
+  color: var(--ui-ink-strong);
+}
+.cancelSection summary:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+.cancelBody {
+  display: grid;
+  gap: 14px;
+  padding-top: 18px;
+}
+.cancelButton {
+  justify-self: start;
+  color: var(--ui-red) !important;
+}
 @container (max-width: 620px) {
-  .nextHead { flex-direction: column; gap: 18px; }
-  .nextTotal { width: 100%; min-width: 0; text-align: left; }
-  .stepper { grid-template-columns: 1fr; gap: 0; padding: 8px 0; }
-  .stepper li { flex-direction: row; text-align: left; gap: 12px; padding: 10px 0; font-size: 12px; }
-  .stepper li:not(:last-child)::after { top: 46px; left: 16px; width: 1px; height: 13px; }
-  .checklist { padding: 16px; }
-  .actions { flex-direction: column; align-items: stretch; }
-  .actions > span { max-width: none; }
-  .checklistActions { align-items: stretch; flex-direction: column; }
+  .nextHead {
+    flex-direction: column;
+    gap: 18px;
+  }
+  .nextTotal {
+    width: 100%;
+    min-width: 0;
+    text-align: left;
+  }
+  .stepper {
+    grid-template-columns: 1fr;
+    gap: 0;
+    padding: 8px 0;
+  }
+  .stepper li {
+    flex-direction: row;
+    text-align: left;
+    gap: 12px;
+    padding: 10px 0;
+    font-size: 12px;
+  }
+  .stepper li:not(:last-child)::after {
+    top: 46px;
+    left: 16px;
+    width: 1px;
+    height: 13px;
+  }
+  .checklist {
+    padding: 16px;
+  }
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .actions > span {
+    max-width: none;
+  }
+  .checklistActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }

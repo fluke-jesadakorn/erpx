@@ -1,5 +1,7 @@
 # Public origin incident — 2026-09-09
 
+> Historical installation/incident evidence. The host/service observations below apply to 2026-09-09. Current topology and procedures are in [runtime operations](README.md); this record does not authorize restoring old Tunnel routes.
+
 At approximately 15:26 UTC the public inbox returned Cloudflare 502.
 The remotely managed `erpx-local` Tunnel configuration (version 2) routed
 `erpx.jesadakorn.com` to `http://127.0.0.1:3100`. No development server was

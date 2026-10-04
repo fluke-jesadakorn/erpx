@@ -4,12 +4,15 @@ import { ApiError, errorResponse } from "@/server/http";
 import {
   changeManufacturingOrder,
   createPlanningScenario,
+  cancelPlanningScenario,
   createSpecification,
   productionDetail,
   productionWorkspace,
   reviewPlanningRecommendation,
   reviewSpecification,
 } from "@/server/production";
+import { createManufacturingAccountingProfile, reviewManufacturingAccountingProfile } from "@/server/production-accounting";
+import { saveProductionResource, saveProductionResourceCalendar } from "@/server/production-resources";
 type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
 export async function GET(r: Request, c: C) {
@@ -54,13 +57,19 @@ export async function POST(r: Request, c: C) {
     const a = await requireWorkContext((await c.params).holdingSlug),
       i = await r.json();
     let data;
-    if (i.entity === "specification")
+    if (i.entity === "accounting")
+      data = typeof i.id === "string" ? await reviewManufacturingAccountingProfile(a, i.id, i, key) : await createManufacturingAccountingProfile(a, i, key);
+    else if (i.entity === "resource")
+      data = await saveProductionResource(a, typeof i.id === "string" ? i.id : null, i, key);
+    else if (i.entity === "resource-calendar")
+      data = await saveProductionResourceCalendar(a, i.id, i, key);
+    else if (i.entity === "specification")
       data =
         typeof i.id === "string"
           ? await reviewSpecification(a, i.id, i, key)
           : await createSpecification(a, i, key);
     else if (i.entity === "scenario")
-      data = await createPlanningScenario(a, i, key);
+      data = typeof i.id === "string" ? await cancelPlanningScenario(a, i.id, i, key) : await createPlanningScenario(a, i, key);
     else if (i.entity === "recommendation")
       data = await reviewPlanningRecommendation(a, i.id, i, key);
     else data = await changeManufacturingOrder(a, i.id, i, key);

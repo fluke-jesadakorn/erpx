@@ -4,6 +4,7 @@ import { scheduleWorkRefresh } from "@/lib/work-refresh";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
+import type { WorkViewAvailability } from "@/lib/work-item";
 import type { WorkActionCard, WorkCardPreferences } from "@/lib/work-cards";
 
 type Counts = { home: number | null; work: number | null };
@@ -14,29 +15,42 @@ type QuickAccessProjection = {
 };
 type NavigationContext = {
   counts: Counts;
+  workViewAvailability: WorkViewAvailability | null;
   quickAccess: QuickAccessProjection | null;
   quickAccessError: string;
+  shortcutStorageKey?: string;
   refresh: () => Promise<void>;
   saveQuickAccess: (preferences: WorkCardPreferences) => void;
   readHome: () => void;
-  publishWork: (count: number | null) => void;
+  publishWork: (count: number | null, availability?: WorkViewAvailability) => void;
 };
 const empty: Counts = { home: null, work: null };
-const NavigationCounts = createContext<NavigationContext>({ counts: empty, quickAccess: null, quickAccessError: "", refresh: async () => {}, saveQuickAccess: () => {}, readHome: () => {}, publishWork: () => {} });
+const NavigationCounts = createContext<NavigationContext>({ counts: empty, workViewAvailability: null, quickAccess: null, quickAccessError: "", refresh: async () => {}, saveQuickAccess: () => {}, readHome: () => {}, publishWork: () => {} });
 export const useNavigationCounts = () => useContext(NavigationCounts);
 
-export function NavigationCountsProvider({ base, children }: { base: string; children: React.ReactNode }) {
+export function NavigationCountsProvider({ base, initialShortcutCards, shortcutStorageKey, children }: {
+  base: string;
+  initialShortcutCards: WorkActionCard[];
+  shortcutStorageKey: string;
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const home = pathname === `${base}/home` || pathname === `${base}/feed`;
+  const [workViewAvailability, setWorkViewAvailability] = useState<WorkViewAvailability | null>(null);
   const [counts, setCounts] = useState<Counts>(empty);
-  const [quickAccess, setQuickAccess] = useState<QuickAccessProjection | null>(null);
+  const [quickAccess, setQuickAccess] = useState<QuickAccessProjection | null>({
+    cards: initialShortcutCards,
+    preferences: { pinnedIds: null, version: 0 },
+    preferencesUnavailable: false,
+  });
   const [quickAccessError, setQuickAccessError] = useState("");
   const generation = useRef(0);
   const pendingRead = useRef<Promise<void> | null>(null);
   const request = useRef<AbortController | null>(null);
   const summaryRevision = useRef(0);
   const invalidate = useCallback(() => { ++generation.current; }, []);
-  const publishWork = useCallback((work: number | null) => {
+  const publishWork = useCallback((work: number | null, availability?: WorkViewAvailability) => {
+    if (availability) setWorkViewAvailability(availability);
     ++summaryRevision.current;
     setCounts(value => ({ ...value, work }));
   }, []);
@@ -52,9 +66,10 @@ export function NavigationCountsProvider({ base, children }: { base: string; chi
     try {
       const response = await workFetch(endpoint, { cache: "no-store", signal: controller.signal });
       if (!response.ok) throw new Error("Counts unavailable");
-      const { data } = await response.json() as { data: { home: number; work: number | null; quickAccess: QuickAccessProjection } };
+      const { data } = await response.json() as { data: { home: number; work: number | null; workViewAvailability?: WorkViewAvailability; quickAccess: QuickAccessProjection } };
       if (!controller.signal.aborted && current === generation.current) {
         setCounts(previous => ({ home: data.home, work: workRevision === summaryRevision.current ? data.work : previous.work }));
+        if (workRevision === summaryRevision.current && data.workViewAvailability) setWorkViewAvailability(data.workViewAvailability);
         setQuickAccess((previous) => previous && previous.preferences.version > data.quickAccess.preferences.version
           ? { ...data.quickAccess, preferences: previous.preferences, preferencesUnavailable: false }
           : data.quickAccess);
@@ -63,6 +78,7 @@ export function NavigationCountsProvider({ base, children }: { base: string; chi
     } catch {
       if (!controller.signal.aborted && current === generation.current) {
         setCounts(empty);
+        setWorkViewAvailability(null);
         setQuickAccessError("Shortcuts could not refresh.");
       }
     } finally {
@@ -122,5 +138,5 @@ export function NavigationCountsProvider({ base, children }: { base: string; chi
 
     };
   }, [home, base, refresh, readHome, invalidate, publishWork]);
-  return <NavigationCounts.Provider value={{ counts, quickAccess, quickAccessError, refresh, saveQuickAccess, readHome, publishWork }}>{children}</NavigationCounts.Provider>;
+  return <NavigationCounts.Provider value={{ counts, workViewAvailability, quickAccess, quickAccessError, shortcutStorageKey, refresh, saveQuickAccess, readHome, publishWork }}>{children}</NavigationCounts.Provider>;
 }

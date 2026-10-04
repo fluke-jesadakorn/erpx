@@ -4,6 +4,7 @@ import { workspaceBase } from "@/lib/workspace";
 import { pageError } from "@/server/page-error";
 import { fieldServiceWorkspace } from "@/server/field-service";
 import { FieldServiceConsole } from "@/components/modules/field-service-console";
+import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Page({
   params,
@@ -17,7 +18,7 @@ export default async function Page({
       pageError(e, holdingSlug),
     );
   return (
-    <div className="content-stack">
+    <PageContent as="div" className="ui-page-content">
       <Link href={`${base}/work`}>Work</Link>
       <h1>Field service</h1>
       <p>
@@ -25,11 +26,11 @@ export default async function Page({
         and independent billing release.
       </p>
       <FieldServiceConsole base={base} data={data} />
-      <section className="card">
+      <Card as="section" appearance="standard" className="ui-panel">
         <h2>Service orders</h2>
         {data.orders.map((x) => (
           <Link
-            className="row"
+            className="ui-record-item"
             key={String(x.id)}
             href={`${base}/field-service/${x.id}`}
           >
@@ -38,7 +39,7 @@ export default async function Page({
           </Link>
         ))}
         {!data.orders.length && <p>No service orders in this scope.</p>}
-      </section>
-    </div>
+      </Card>
+    </PageContent>
   );
 }

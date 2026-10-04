@@ -98,3 +98,17 @@ it('keeps unusual old paths on the configured console host',()=>{
  expect(marketingConsoleUrl('//elsewhere.example/path','?ref=old').href)
   .toBe('https://console-erpx.jesadakorn.com//elsewhere.example/path?ref=old');
 });
+it('serves the shared Thai font assets and read-only signed-in time preference on Front without exposing account commands',()=>{
+ vi.stubEnv('NODE_ENV','production');
+ vi.stubEnv('ERPX_PUBLIC_ORIGIN','https://console-dev-erpx.jesadakorn.com');
+ vi.stubEnv('ERPX_FRONT_POS_ORIGIN','https://pos-dev-erpx.jesadakorn.com');
+ vi.stubEnv('ERPX_FRONT_PMS_ORIGIN','https://pms-dev-erpx.jesadakorn.com');
+ const request=(host:string,path:string,method='GET')=>proxy(new NextRequest('https://127.0.0.1:3104'+path,{method,headers:{host,'x-forwarded-proto':'https'}}));
+ for(const host of ['pos-dev-erpx.jesadakorn.com','pms-dev-erpx.jesadakorn.com']){
+  for(const font of ['NotoSansThai.ttf','NotoSansThai.woff2','NotoSansThaiOther.woff2'])expect(request(host,'/fonts/'+font).status).toBe(200);
+  expect(request(host,'/api/v1/account/time-preference').status).toBe(200);
+  expect(request(host,'/api/v1/account/time-preference','PATCH').status).toBe(404);
+  expect(request(host,'/api/v1/account/security').status).toBe(404);
+  expect(request(host,'/fonts/private.woff2').status).toBe(404);
+ }
+});

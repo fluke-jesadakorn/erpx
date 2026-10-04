@@ -1,3 +1,4 @@
+import {createEngineeringBrowserContext} from './helpers/engineering-browser-evidence';
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -51,7 +52,7 @@ test("isolated demo delegates task work, revokes access and independently review
   };
   const owner = member("holding_owner"), assignee = member("employee"), delegate = member("people_manager"), reviewer = member("finance_approver");
   expect(new Set([owner.userId, assignee.userId, delegate.userId, reviewer.userId]).size).toBe(4);
-  const contexts = await Promise.all(Array.from({ length: 4 }, () => browser.newContext(testInfo.project.use)));
+  const contexts = await Promise.all(Array.from({ length: 4 }, () => createEngineeringBrowserContext(browser,testInfo)));
   const [ownerContext, assigneeContext, delegateContext, reviewerContext] = contexts;
   contexts.forEach(context => context.setDefaultTimeout(15_000));
   const main = (page: Page) => page.locator("#workspace-content");

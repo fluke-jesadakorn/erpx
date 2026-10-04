@@ -16,6 +16,7 @@ import { applyLegacyStripeEvent } from "./beta-billing";
 import type { SqlDatabase } from "./runtime/types";
 import { registeredDatabases } from "@/lib/holding-registry";
 import { syncBillingTestFinance } from "./billing-test-finance";
+import { ApiError } from "./http";
 export type BillingJobEnv = BetaEnvironment & {
   CONTROL_DB: SqlDatabase;
   BETTER_AUTH_URL: string;
@@ -347,8 +348,9 @@ export async function drainBilling(
         try {
           await processJob(c, job, stripe, now, promptpay, env);
         } catch (error) {
-          const code =
-            error instanceof Error ? error.message : "STRIPE_UNAVAILABLE";
+          const code = error instanceof ApiError
+            ? error.code
+            : error instanceof Error ? error.message : "STRIPE_UNAVAILABLE";
           await c.query(
             "UPDATE billing_jobs SET attempts=attempts+1,state=$2,next_at=$3,last_error=$4 WHERE id=$1",
             [
@@ -358,6 +360,9 @@ export async function drainBilling(
                 "IDEMPOTENCY_WINDOW_EXPIRED",
                 "STRIPE_TOTAL_MISMATCH",
                 "PAID_INVOICE_IMMUTABLE",
+                "SANDBOX_REQUIRED",
+                "STRIPE_AUTHENTICATION_REQUIRED",
+                "STRIPE_PERMISSION_REQUIRED",
               ].includes(code)
                 ? "attention"
                 : "pending",

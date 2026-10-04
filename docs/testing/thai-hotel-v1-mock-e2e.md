@@ -1,5 +1,7 @@
 # Thai Hotel v1 mock E2E acceptance matrix
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 ปรับปรุง 2026-09-29 · scope เดียวกับ [`production-plan.md`](../production-plan.md)
 
 เอกสารนี้เป็น acceptance matrix สำหรับชุดทดสอบจำลอง ไม่ใช่แผนส่งมอบฉบับที่สอง หลักฐานที่นี่พิสูจน์ได้เฉพาะ ERPX build และข้อมูลสังเคราะห์ใน browser simulation; ไม่เปลี่ยนสถานะ gate โรงแรมจริง, payroll ตามกฎหมาย, provider หรือ production release

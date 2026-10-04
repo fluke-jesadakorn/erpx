@@ -243,6 +243,9 @@ export type Entry = {
   actorId: string;
   at: number;
   funding?: Array<{ entryId: string; amount: number }>;
+  refundPocket?: "advance" | "deposit";
+  /** Server-owned position in one provider payment's immutable minor units. */
+  providerPaymentOffset?: number;
 };
 export type Task = {
   roomId: string;

@@ -1,7 +1,7 @@
 import type { SqlDatabase, FileStore } from "../../src/server/runtime/types";
 import type { WorkContext } from "../../src/server/authorization";
 const key = () => crypto.randomUUID();
-export async function seedExpenseCompany(db: SqlDatabase, files: FileStore) {
+export async function seedExpenseCompany(db: SqlDatabase, files: FileStore, withMoneyQuote = true) {
   await db.prepare("INSERT INTO beta_bootstrap(singleton,holding_id,owner_user_id,created_at) VALUES(1,'h001','fixture',1) ON CONFLICT(singleton) DO NOTHING").run();
   const company = `expense-${key()}`,
     branch = `${company}-branch`,
@@ -40,6 +40,9 @@ export async function seedExpenseCompany(db: SqlDatabase, files: FileStore) {
           rank,
         ),
     ),
+    // Synthetic manual quote for dated money snapshots in isolated workflows.
+    // It is intentionally stable, not a market rate or live provider result.
+    ...(withMoneyQuote?[db.prepare("INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at,note) VALUES(?,?,'THB','2026-01-01','36','fixture:finance',1,'Synthetic isolated-test manual THB/USD quote')").bind(`${company}-thb-rate`,company)]:[]),
     db
       .prepare(
         "INSERT INTO finance_charts(id,company_id,name,base_currency,created_by,created_at,updated_at) VALUES(?,?,'Chart','THB','fixture',1,1)",

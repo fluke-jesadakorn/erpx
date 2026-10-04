@@ -39,7 +39,9 @@ export const invoiceHistoryCte = `WITH history_cutoff AS (
   LEFT JOIN LATERAL (
     SELECT SUM(r.total_minor) transaction_minor,
       SUM((SELECT COALESCE(SUM(CASE WHEN i.kind='receivable' THEN l.base_credit_minor-l.base_debit_minor ELSE l.base_debit_minor-l.base_credit_minor END),0)
-        FROM finance_journal_lines l WHERE l.journal_id=cj.id AND l.account_id=a.id)) base_minor
+        FROM finance_journal_lines l WHERE (l.journal_id=cj.id OR l.journal_id IN (
+          SELECT fj.id FROM finance_journals fj WHERE fj.id=r.fx_journal_id AND fj.company_id=i.company_id
+            AND fj.status IN ('posted','reversed') AND fj.entry_date<=h.as_of)) AND l.account_id=a.id)) base_minor
     FROM commerce_returns r
     JOIN finance_journals cj ON cj.id=r.credit_journal_id AND cj.company_id=i.company_id
     WHERE r.invoice_id=i.id AND cj.status IN ('posted','reversed') AND cj.entry_date<=h.as_of
@@ -54,10 +56,11 @@ export const invoiceHistoryCte = `WITH history_cutoff AS (
   LEFT JOIN LATERAL (
     SELECT SUM(p.amount_minor) transaction_minor,
       SUM((SELECT COALESCE(SUM(CASE WHEN i.kind='receivable' THEN l.base_debit_minor-l.base_credit_minor ELSE l.base_credit_minor-l.base_debit_minor END),0)
-        FROM finance_journal_lines l WHERE l.journal_id=pj.id AND l.account_id=a.id)) base_minor
+        FROM finance_journal_lines l WHERE (l.journal_id=pj.id OR l.journal_id=rfj.id) AND l.account_id=a.id)) base_minor
     FROM finance_refund_obligations o JOIN finance_refund_instructions ri ON ri.obligation_id=o.id
     JOIN finance_payments p ON p.id=ri.payment_id AND p.company_id=i.company_id
     JOIN finance_journals pj ON pj.id=p.journal_id AND pj.company_id=i.company_id
+    LEFT JOIN finance_journals rfj ON rfj.id=ri.fx_journal_id AND rfj.company_id=i.company_id AND rfj.status IN ('posted','reversed') AND rfj.entry_date<=h.as_of
     WHERE o.invoice_id=i.id AND pj.status IN ('posted','reversed') AND pj.entry_date<=h.as_of
   ) refunds ON true
   LEFT JOIN LATERAL (

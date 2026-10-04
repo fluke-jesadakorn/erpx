@@ -1,10 +1,10 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { Button, Field, Select } from "@/components/ui/foundation";
+
 import { useState } from "react";
-import {
-  thailandPackVersion,
-  thailandReviewPack,
-  thailandTemplates,
-} from "@/lib/legal/thailand";
+import { thailandPackVersion, thailandReviewPack, thailandTemplates } from "@/lib/legal/thailand";
 import s from "./legal.module.css";
 export function LegalThailand({
   people,
@@ -30,9 +30,9 @@ export function LegalThailand({
         นำเข้าเป็นร่างเท่านั้น ผู้ตรวจต้องระบุวันมีผล เงื่อนไขใช้
         และหลักฐานตรวจรับก่อนเปิดใช้กฎหรือแม่แบบ
       </p>
-      <label className={s.field}>
+      <Field appearance="standard" className={s.field}>
         ผู้รับผิดชอบ
-        <select
+        <Select appearance="standard"
           value={owner}
           onChange={(e) => {
             setOwner(e.target.value);
@@ -45,18 +45,22 @@ export function LegalThailand({
               {p.name}
             </option>
           ))}
-        </select>
-      </label>
-      <div className={s.packGrid}>{thailandReviewPack.map((r) => (
-        <article className={s.packCard} key={r.title}>
-          <strong>{r.title.replace(/^ไทย · /, "")}</strong>
-          <a href={r.source} target="_blank" rel="noreferrer">
-            แหล่งทางการ
-          </a>
-        </article>
-      ))}</div>
-      {error && <p role="alert">{error}</p>}
-      <button
+        </Select>
+      </Field>
+      <div className={s.packGrid}>
+        {thailandReviewPack.map((r) => (
+          <article className={s.packCard} key={r.title}>
+            <strong>{r.title.replace(/^ไทย · /, "")}</strong>
+            <a href={r.source} target="_blank" rel="noreferrer">
+              แหล่งทางการ
+            </a>
+          </article>
+        ))}
+      </div>
+      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+      <Button appearance="standard"
+        type="submit"
+        variant="ghost"
         className={s.button}
         disabled={busy || !owner}
         onClick={async () => {
@@ -103,15 +107,18 @@ export function LegalThailand({
         }}
       >
         ตรวจสอบก่อนนำเข้า
-      </button>
+      </Button>
       {preview && (
         <>
           <p>
-            ร่าง {preview.rows.length} รายการ · ข้อผิดพลาด{" "}
-            {preview.errors.length}
+            ร่าง {preview.rows.length} รายการ · ข้อผิดพลาด {preview.errors.length}
           </p>
-          <p className={s.small}>รายการจะถูกสร้างเป็นฉบับร่างเพื่อให้ผู้รับผิดชอบตรวจรับก่อนเปิดใช้</p>
-          <button
+          <p className={s.small}>
+            รายการจะถูกสร้างเป็นฉบับร่างเพื่อให้ผู้รับผิดชอบตรวจรับก่อนเปิดใช้
+          </p>
+          <Button appearance="standard"
+            type="submit"
+            variant="ghost"
             className={s.button}
             disabled={busy || !!preview.errors.length}
             onClick={async () => {
@@ -132,7 +139,7 @@ export function LegalThailand({
             }}
           >
             ยืนยันนำเข้าร่างที่ตรวจแล้ว
-          </button>
+          </Button>
         </>
       )}
     </div>

@@ -15,6 +15,9 @@ An active staff account has exactly one active, currently dated employee or cont
 | POST      | `/staff/departments/{id}/head`                     | `{personId,expectedVersion,reason}`; initially version 0                                                                                                                   |
 | GET       | `/people?levelId=&departmentId=`                   | Existing scoped directory with level fields and filters                                                                                                                    |
 | GET, POST | `/projects[/{id}]`                                 | `{title,description,memberUserIds,expectedVersion}`; creator owns project; detail includes members and visible tasks                                                       |
+| GET, POST | `/projects/{id}/milestones[/{milestoneId}]` | Dated work package with `parentMilestoneId`, `ordinalPosition`, current member owner and same-project prerequisites |
+| POST | `/projects/{id}/milestones/{milestoneId}/transition` | `start`, `complete`, `reopen`, `cancel`, current milestone `expectedVersion` and review reason |
+| GET, POST | `/projects/{id}/structure` | Current WBS/task/dependency graph, approved actuals and retained handoffs; versioned `assign-task`, `unassign-task`, `link-actual`, `prepare-handoff`, `accept-handoff`, `reject-handoff`, `cancel-handoff`, `reopen` commands |
 | GET, POST | `/staff-tasks[/{id}]`                              | `{title,description,assigneeUserId,dueAt,projectId,startApprovers,completionApprovers,expectedVersion}`                                                                    |
 | POST      | `/staff-tasks/{id}/revise`                         | Full task configuration plus `{reason,expectedVersion}`; returns to draft and retains earlier approval history                                                             |
 | POST      | `/staff-tasks/{id}/transition`                     | `{action,expectedVersion,note}`; `submit`, `start`, `save-progress`, `complete`, `approve`, `reject`, `cancel`                                                             |
@@ -69,4 +72,16 @@ Structured operational logs expose `approval_route_blocked`, `routine_blocked`, 
 
 For local fixtures, `bun scripts/seed-staff-work.ts` adds explicit demo heads without changing existing heads, granting HR access or assigning legacy levels. The normal `seed:local` command includes this step. Browser verification uses local schedules and leaves them paused. Deployments and production schedule activation follow the release steps above.
 
-Leave entitlements, benefits, meetings, team-balance calculations and advanced project dependencies remain outside this interface.
+## Project work structure and acceptance
+
+Existing milestone IDs identify work packages; WBS numbers are derived from parent and sibling order. Parent links, prerequisite edges and task assignments must remain within one project and Company. The combined hierarchy and dependency graph cannot contain a completion deadlock. An active child package or assigned task prevents its parent package from completing or cancelling. Reopening a child requires its parent and completed successors to be reopened first. The project owner manages structure and membership; current members retain the existing participant read boundary.
+
+Approved work logs and independently approved cost allocations from posted Finance expense debits can be assigned once to a work package. Captured source identity, version, minutes or integer minor units and currency are immutable. Current graph totals exclude a source that no longer has its captured approved version or a posted journal. Time reads expose the owner's project time or the contributor's own time; Finance cost reads require current Finance permission and placement scope. Package assignment requires the current project, package, task and binding versions.
+
+The project owner prepares a handoff only after required tasks and packages are terminal, no time or cost reviews are pending, and every completed task and approved actual source has a package. The named receiving member must be a different active account with current project membership. Preparation captures the complete source graph and a SHA-256 digest, and changes the project from `active` to `handoff_pending` in the same transaction. My work and Inbox link the recipient to the normal Project page.
+
+The named recipient accepts or rejects with current project/handoff versions and a reason. The preparing owner may cancel a pending handoff. Acceptance makes the project `completed`; rejection or cancellation restores `active`. While pending or completed, the brief, membership, packages, tasks and actuals cannot be changed. The independent accepting recipient may approve reopening. Every issued source snapshot and earlier decision remains immutable after reopening and later handoffs. Reads of retained snapshots still apply the viewer's current time and Finance boundaries.
+
+Engineering proofs: `tests/project-structure.test.ts` exercises real task execution, reviewed time, posted Finance cost, WBS/dependency deadlock rollback, source-version and membership revocation, lost-response replay, competing commands, rejection, acceptance and reopening. Migration `0946_project_structure_and_handoffs.sql` is additive and preserves existing project/milestone history.
+
+Leave entitlements, benefits, meetings and team-balance calculations use their own owner interfaces.

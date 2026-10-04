@@ -1,3 +1,4 @@
+import {createEngineeringBrowserContext} from './helpers/engineering-browser-evidence';
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -34,14 +35,14 @@ test("isolated demo records independent inspection and third-person quality rele
   const state = JSON.parse(await readFile(resolve(directory, "state.json"), "utf8")) as DemoState;
   const holdId = state.fixture?.qualityDueSoonHoldId;
   expect(holdId).toBeTruthy();
-  const inspectorContext = await browser.newContext(testInfo.project.use);
-  const managerContext = await browser.newContext(testInfo.project.use);
+  const inspectorContext = await createEngineeringBrowserContext(browser,testInfo);
+  const managerContext = await createEngineeringBrowserContext(browser,testInfo);
   try {
     const inspectorPage = await inspectorContext.newPage();
     await openRole(inspectorContext, inspectorPage, credentials, "quality_inspector", `/holdings/simulation/quality/${holdId}`);
     await expect(inspectorPage.getByRole("heading", { name: "Record inspection", exact: true })).toBeVisible();
     await inspectorPage.getByRole("combobox", { name: "Result", exact: true }).selectOption("pass");
-    await inspectorPage.getByLabel("Inspection evidence", { exact: true }).fill("Independent inspector verified the held demo stock and found it within release criteria.");
+    await inspectorPage.locator('#workspace-content').getByLabel("Inspection evidence", { exact: true }).fill("Independent inspector verified the held demo stock and found it within release criteria.");
     const inspectionResponse = inspectorPage.waitForResponse((response) => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith(`/quality/${holdId}/inspect`));
     await inspectorPage.getByRole("button", { name: "Record inspection", exact: true }).click();
     expect((await inspectionResponse).ok()).toBe(true);
@@ -52,7 +53,7 @@ test("isolated demo records independent inspection and third-person quality rele
     const managerPage = await managerContext.newPage();
     await openRole(managerContext, managerPage, credentials, "quality_manager", `/holdings/simulation/quality/${holdId}`);
     await expect(managerPage.getByRole("heading", { name: "Approve release", exact: true })).toBeVisible();
-    await managerPage.getByLabel("Release reason", { exact: true }).fill("Independent Quality manager reviewed the passing inspection and releases the stock.");
+    await managerPage.locator('#workspace-content').getByLabel("Release reason", { exact: true }).fill("Independent Quality manager reviewed the passing inspection and releases the stock.");
     const releaseResponse = managerPage.waitForResponse((response) => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith(`/quality/${holdId}/release`));
     await managerPage.getByRole("button", { name: "Release this hold", exact: true }).click();
     expect((await releaseResponse).ok()).toBe(true);

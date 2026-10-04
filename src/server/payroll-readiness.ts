@@ -9,6 +9,8 @@ import { requirePermission } from "./iam-permissions";
 import { sha256 } from "./crypto";
 import { assertion, executeCommand, replayCommand } from "./commands";
 import { payrollPeriodForDate, type PayrollFrequency } from "@/lib/payroll-schedule";
+import { thaiEvidenceForEmployee, thaiEvidenceGuards, type ThaiPayrollEvidence } from "./payroll-statutory";
+import { payrollAdjustmentInputs, payrollAdjustmentSourceFresh, payrollAdjustmentGuards } from "./payroll-adjustments";
 
 export const payrollScheduleSchema = z.object({
   enabled: z.boolean(),
@@ -23,7 +25,7 @@ export const payrollSubmitReviewSchema = z.object({
 }).strict();
 
 type Schedule = { id:string; company_id:string; currency:string; country_code:string; frequency:string; timezone:string; schedule_enabled:boolean; pay_delay_days:number; schedule_anchor_date:string|null; schedule_version:number };
-type Run = { id:string; company_id:string; pay_group_id:string; country_pack_id:string|null; scope_engagement_id:string|null; period_start:string; period_end:string; pay_date:string; currency:string; mode:string; status:string; version:number; revision:number; input_digest:string|null; submitted_by:string|null; submitted_digest:string|null };
+type Run = { id:string; company_id:string; pay_group_id:string; country_pack_id:string|null; scope_engagement_id:string|null; period_start:string; period_end:string; pay_date:string; currency:string; mode:string; status:string; version:number; revision:number; input_digest:string|null; submitted_by:string|null; submitted_digest:string|null;adjustment_of_run_id:string|null };
 export type PayrollBlocker = {code:string; message:string; href?:string};
 
 function localDate(now:Date, timezone:string) {
@@ -77,6 +79,7 @@ async function sourceBlockers(write:SqlDatabase,run:Run):Promise<PayrollBlocker[
   if(!rows.length)return [{code:"PAYROLL_EMPTY",message:"Add employees to this pay group before review."}];
   const snapshots=rows.map(row=>JSON.parse(row.input_snapshot_json) as Record<string,unknown>);
   if(await sha256(JSON.stringify(snapshots))!==run.input_digest)return [{code:"PREVIEW_DIGEST_CHANGED",message:"Payroll review evidence changed. Recalculate the preview."}];
+  if(run.adjustment_of_run_id){try{await payrollAdjustmentSourceFresh(write,run);return [];}catch(error){if(error instanceof ApiError)return [{code:error.code,message:error.message}];throw error;}}
   const current=(await write.prepare("SELECT e.id FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=? AND e.pay_group_id=? AND e.currency=? AND e.worker_type='employee' AND e.status IN ('active','ended') AND p.status='active' AND p.merged_into_id IS NULL AND e.start_date<=? AND (e.end_date IS NULL OR e.end_date>=?) AND (?::text IS NULL OR e.id=?) ORDER BY e.id").bind(run.company_id,run.pay_group_id,run.currency,run.period_end,run.period_start,run.scope_engagement_id,run.scope_engagement_id).all<{id:string}>()).results;
   if(!equal(current.map(row=>row.id),rows.map(row=>row.engagement_id)))return [{code:"PAYROLL_EMPLOYEES_CHANGED",message:"Employees in this pay group changed. Recalculate the preview."}];
   const group=await write.prepare("SELECT overtime_multiplier_bps,proration_method FROM hr_pay_groups WHERE id=? AND company_id=? AND status='active'").bind(run.pay_group_id,run.company_id).first<{overtime_multiplier_bps:number;proration_method:string}>();
@@ -84,6 +87,13 @@ async function sourceBlockers(write:SqlDatabase,run:Run):Promise<PayrollBlocker[
   const blockers:PayrollBlocker[]=[];
   for(let index=0;index<rows.length;index++){
     const snapshot=snapshots[index],engagementId=rows[index].engagement_id;
+    if(snapshot.thaiStatutory){
+      try {if(!equal(snapshot.thaiStatutory,await thaiEvidenceForEmployee(write,run,engagementId)))blockers.push({code:"PAYROLL_STATUTORY_SOURCE_CHANGED",message:"Statutory rules, allowances or prior payroll changed. Recalculate this payroll."});}
+      catch(error){if(error instanceof ApiError)blockers.push({code:error.code,message:error.message});else throw error;}
+      if(blockers.length)break;
+    }else if(run.mode==="production"){
+      blockers.push({code:"PAYROLL_STATUTORY_ADAPTER_REQUIRED",message:"Calculate this run with its active Thai statutory adapter."});break;
+    }
     const engagement=await write.prepare("SELECT e.id,e.version,e.person_id,e.worker_type,e.employment_type,e.start_date,e.end_date,e.job_title,e.branch_id,e.department_id FROM hr_engagements e WHERE e.id=? AND e.company_id=?").bind(engagementId,run.company_id).first();
     const payee=await write.prepare("SELECT id,version,legal_name,preferred_name FROM hr_people WHERE id=? AND company_id=? AND status='active' AND merged_into_id IS NULL").bind((engagement as {person_id?:string}|null)?.person_id??"",run.company_id).first();
     const compensation=await write.prepare("SELECT * FROM hr_compensation_revisions WHERE engagement_id=? AND status IN ('active','approved') AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from DESC LIMIT 1").bind(engagementId,run.period_end,run.period_start).first();
@@ -106,15 +116,16 @@ async function sourceBlockers(write:SqlDatabase,run:Run):Promise<PayrollBlocker[
 }
 
 export async function assertPayrollSourceFresh(write:SqlDatabase,runId:string):Promise<void> {
-  const run=await write.prepare("SELECT id,company_id,pay_group_id,country_pack_id,scope_engagement_id,period_start,period_end,pay_date,currency,mode,status,version,revision,input_digest,submitted_by,submitted_digest FROM hr_payroll_runs WHERE id=?").bind(runId).first<Run>();
+  const run=await write.prepare("SELECT id,company_id,pay_group_id,country_pack_id,scope_engagement_id,period_start,period_end,pay_date,currency,mode,status,version,revision,input_digest,submitted_by,submitted_digest,adjustment_of_run_id FROM hr_payroll_runs WHERE id=?").bind(runId).first<Run>();
   if(!run)throw new ApiError(404,"PAYROLL_RUN_NOT_FOUND","Payroll run not found.");
   if((await sourceBlockers(write,run)).length)throw new ApiError(409,"PAYROLL_SOURCE_CHANGED","Payroll inputs changed. Recalculate and submit this preview again.");
 }
 
 /** Source version checks are evaluated inside the same transaction as review. */
 export async function payrollSourceGuards(write:SqlDatabase,key:string,runId:string):Promise<SqlStatement[]> {
-  const run=await write.prepare("SELECT company_id,pay_group_id,period_start,period_end,currency,scope_engagement_id FROM hr_payroll_runs WHERE id=?").bind(runId).first<{company_id:string;pay_group_id:string;period_start:string;period_end:string;currency:string;scope_engagement_id:string|null}>();
+  const run=await write.prepare("SELECT id,company_id,pay_group_id,country_pack_id,pay_date,mode,period_start,period_end,currency,scope_engagement_id,adjustment_of_run_id FROM hr_payroll_runs WHERE id=?").bind(runId).first<{id:string;company_id:string;pay_group_id:string;country_pack_id:string|null;pay_date:string;mode:string;period_start:string;period_end:string;currency:string;scope_engagement_id:string|null;adjustment_of_run_id:string|null}>();
   if(!run)throw new ApiError(404,"PAYROLL_RUN_NOT_FOUND","Payroll run not found.");
+  if(run.adjustment_of_run_id)return payrollAdjustmentGuards(write,key,run,await payrollAdjustmentInputs(write,run));
   const rows=(await write.prepare("SELECT engagement_id,input_snapshot_json FROM hr_payroll_items WHERE run_id=? ORDER BY engagement_id").bind(runId).all<{engagement_id:string;input_snapshot_json:string}>()).results;
   const guards:SqlStatement[]=[assertion(write,key,"source-employee-count",`(SELECT COUNT(*) FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=? AND e.pay_group_id=? AND e.currency=? AND e.worker_type='employee' AND e.status IN ('active','ended') AND p.status='active' AND p.merged_into_id IS NULL AND e.start_date<=? AND (e.end_date IS NULL OR e.end_date>=?) AND (?::text IS NULL OR e.id=?))=?`,[run.company_id,run.pay_group_id,run.currency,run.period_end,run.period_start,run.scope_engagement_id,run.scope_engagement_id,rows.length])];
   for(let index=0;index<rows.length;index++){
@@ -126,7 +137,9 @@ export async function payrollSourceGuards(write:SqlDatabase,key:string,runId:str
       costAssignments:Array<{id:string;effective_from:string;effective_to:string|null;branch_id:string|null;department_id:string|null;evidence_status:string;version:number}>;
       benefitInputs:Array<{id:string;employee_deduction_minor:number;employer_cost_minor:number}>;
       advanceRepayments:Array<{id:string;version:number}>;
+      thaiStatutory?:ThaiPayrollEvidence;
     };
+    if(snapshot.thaiStatutory)guards.push(...thaiEvidenceGuards(write,key,snapshot.thaiStatutory,run,row.engagement_id));
     guards.push(assertion(write,key,`source-policy-${index}`,"EXISTS(SELECT 1 FROM hr_pay_groups WHERE id=? AND company_id=? AND status='active' AND overtime_multiplier_bps=? AND proration_method=?)",[run.pay_group_id,run.company_id,snapshot.policy.overtimeMultiplierBps,snapshot.policy.prorationMethod]));
     guards.push(assertion(write,key,`source-engagement-${index}`,"EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND company_id=? AND pay_group_id=? AND currency=? AND worker_type='employee' AND version=? AND status IN ('active','ended'))",[row.engagement_id,run.company_id,run.pay_group_id,run.currency,snapshot.engagement.version]));
     if(!snapshot.payee?.id)throw new ApiError(409,"PAYROLL_PAYEE_REVIEW_REQUIRED","Recalculate and review employee payment identities.");
@@ -151,12 +164,18 @@ export async function payrollReadiness(actor:WorkContext,runId:string) {
   actor=requirePermission(actor,"payroll.read");
   if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment.");
   const {write}=await holdingResources(actor.holdingId);
-  const run=await write.prepare("SELECT id,company_id,pay_group_id,country_pack_id,scope_engagement_id,period_start,period_end,pay_date,currency,mode,status,version,revision,input_digest,submitted_by,submitted_digest FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId,actor.companyId).first<Run>();
+  const run=await write.prepare("SELECT id,company_id,pay_group_id,country_pack_id,scope_engagement_id,period_start,period_end,pay_date,currency,mode,status,version,revision,input_digest,submitted_by,submitted_digest,adjustment_of_run_id FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId,actor.companyId).first<Run>();
   if(!run)throw new ApiError(404,"PAYROLL_RUN_NOT_FOUND","Payroll run not found.");
+  if(run.adjustment_of_run_id){
+    const blockers=await sourceBlockers(write,run),sourceFresh=blockers.length===0;
+    let readyToCalculate=true;try{await payrollAdjustmentInputs(write,run);}catch(error){readyToCalculate=false;if(error instanceof ApiError)blockers.push({code:error.code,message:error.message});else throw error;}
+    if(new Date().toISOString().slice(0,10)<=run.period_end){readyToCalculate=false;blockers.push({code:"PERIOD_OPEN",message:"The original work period must be closed before correcting payroll."});}
+    return {runId,status:run.status,version:run.version,inputDigest:run.input_digest,readyToCalculate,readyToSubmit:readyToCalculate&&sourceFresh&&run.status==='preview',readyToApprove:readyToCalculate&&sourceFresh&&run.status==='in_review'&&!!run.submitted_by&&run.submitted_digest===run.input_digest,sourceFresh,blockers};
+  }
   const today=localDate(new Date(),(await write.prepare("SELECT timezone FROM hr_pay_groups WHERE id=? AND company_id=?").bind(run.pay_group_id,actor.companyId).first<{timezone:string}>())?.timezone??"UTC");
   const blockers:PayrollBlocker[]=[];
   if(today<=run.period_end)blockers.push({code:"PERIOD_OPEN",message:"Payroll preview is available after the work period closes."});
-  if(run.pay_date<=run.period_end)blockers.push({code:"PAY_DATE_INVALID",message:"Pay date must follow the work period."});
+  if(run.pay_date<run.period_end||(run.pay_date===run.period_end&&run.mode!=="final_pay"))blockers.push({code:"PAY_DATE_INVALID",message:run.mode==="final_pay"?"Final pay must be on or after the last work day.":"Pay date must follow the work period."});
   const employees=await write.prepare("SELECT COUNT(*) AS count FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=? AND e.pay_group_id=? AND e.currency=? AND e.worker_type='employee' AND e.status IN ('active','ended') AND p.status='active' AND p.merged_into_id IS NULL AND e.start_date<=? AND (e.end_date IS NULL OR e.end_date>=?) AND (?::text IS NULL OR e.id=?)").bind(actor.companyId,run.pay_group_id,run.currency,run.period_end,run.period_start,run.scope_engagement_id,run.scope_engagement_id).first<{count:number}>();
   if(Number(employees?.count??0)===0)blockers.push({code:"PAYROLL_EMPTY",message:"Assign employees to this pay group before calculating."});
   if(run.mode!=="final_pay"){
@@ -236,11 +255,11 @@ export async function drainPayrollSchedules(write:SqlDatabase,now=new Date()):Pr
   let created=0;
   for(const group of groups){
     const today=localDate(now,group.timezone),period=payrollPeriodForDate({...group,frequency:group.frequency as PayrollFrequency},today);
-    const existing=await write.prepare("SELECT id FROM hr_payroll_runs WHERE company_id=? AND pay_group_id=? AND period_start=? AND period_end=? AND mode!='final_pay' LIMIT 1").bind(group.company_id,group.id,period.periodStart,period.periodEnd).first();
+    const existing=await write.prepare("SELECT id FROM hr_payroll_runs WHERE company_id=? AND pay_group_id=? AND period_start=? AND period_end=? AND mode!='final_pay' AND adjustment_of_run_id IS NULL AND status!='cancelled' LIMIT 1").bind(group.company_id,group.id,period.periodStart,period.periodEnd).first();
     if(existing)continue;
     const timestamp=now.getTime();
     const id=`payrun-scheduled-${crypto.randomUUID()}`;
-    const result=await write.prepare("INSERT INTO hr_payroll_runs(id,company_id,pay_group_id,country_pack_id,period_start,period_end,pay_date,currency,mode,status,created_by,created_at,updated_at) SELECT ?,?,?,NULL,?,?,?,?,'preview','draft','system:payroll-schedule',?,? WHERE NOT EXISTS(SELECT 1 FROM hr_payroll_runs WHERE company_id=? AND pay_group_id=? AND period_start=? AND period_end=? AND mode!='final_pay') ON CONFLICT DO NOTHING").bind(id,group.company_id,group.id,period.periodStart,period.periodEnd,period.payDate,group.currency,timestamp,timestamp,group.company_id,group.id,period.periodStart,period.periodEnd).run();
+    const result=await write.prepare("INSERT INTO hr_payroll_runs(id,company_id,pay_group_id,country_pack_id,period_start,period_end,pay_date,currency,mode,status,created_by,created_at,updated_at) SELECT ?,?,?,NULL,?,?,?,?,'preview','draft','system:payroll-schedule',?,? WHERE NOT EXISTS(SELECT 1 FROM hr_payroll_runs WHERE company_id=? AND pay_group_id=? AND period_start=? AND period_end=? AND mode!='final_pay' AND adjustment_of_run_id IS NULL AND status!='cancelled') ON CONFLICT DO NOTHING").bind(id,group.company_id,group.id,period.periodStart,period.periodEnd,period.payDate,group.currency,timestamp,timestamp,group.company_id,group.id,period.periodStart,period.periodEnd).run();
     if(result.meta.changes>0)created++;
   }
   return created;

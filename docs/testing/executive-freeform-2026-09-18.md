@@ -1,5 +1,7 @@
 # Executive freeform widgets — 2026-09-18
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 The user's clarification keeps the entire project on Next.js. AI-generated HTML/CSS applies only inside saved Executive report widgets. No Rust/Dioxus migration was performed.
 
 ## Delivered

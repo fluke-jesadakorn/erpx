@@ -68,7 +68,7 @@ it("requires explicit company AI opt-in in production while retaining the manual
   try {
     const view=await assistantView(db,f.owner,aiEnv,"/home","page");
     expect(view.unavailable).toContain("not enabled for this company");
-    expect(view.guide.title).toBe("Home");
+    expect(view.guide.title).toBe("Today");
     await expect(askAssistant(db,f.owner,aiEnv,assistantAskSchema.parse({path:"/home",question:"What next?"}),key(),generate)).rejects.toMatchObject({code:"AI_PILOT_OPT_IN_REQUIRED"});
     expect(generate).not.toHaveBeenCalled();
   } finally {vi.unstubAllEnvs();}

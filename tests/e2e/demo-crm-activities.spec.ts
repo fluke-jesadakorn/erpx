@@ -1,3 +1,4 @@
+import {createEngineeringBrowserContext} from './helpers/engineering-browser-evidence';
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -31,30 +32,30 @@ test("isolated demo records CRM lead activities through Sales ownership and Work
   const state = JSON.parse(await readFile(resolve(directory, "state.json"), "utf8")) as DemoState;
   const leadId = state.fixture?.crmLeadId;
   expect(leadId).toBeTruthy();
-  const operatorContext = await browser.newContext(testInfo.project.use);
-  const managerContext = await browser.newContext(testInfo.project.use);
+  const operatorContext = await createEngineeringBrowserContext(browser,testInfo);
+  const managerContext = await createEngineeringBrowserContext(browser,testInfo);
   const operatorPage = await operatorContext.newPage();
   const managerPage = await managerContext.newPage();
   const path = `/holdings/simulation/crm/${leadId}`;
   try {
     await signInRole(operatorContext, operatorPage, credentials, "sales_operator", path);
     await expect(operatorPage.getByRole("heading", { name: "Lead activities", exact: true })).toBeVisible();
-    await operatorPage.getByLabel("Subject", { exact: true }).fill("Confirm installation window");
-    await operatorPage.getByLabel("Next action details", { exact: true }).fill("Email the customer with the approved installation window.");
+    await operatorPage.locator('#workspace-content').getByLabel("Subject", { exact: true }).fill("Confirm installation window");
+    await operatorPage.locator('#workspace-content').getByLabel("Next action details", { exact: true }).fill("Email the customer with the approved installation window.");
     await operatorPage.getByRole("combobox", { name: "Responsible salesperson", exact: true }).selectOption({ label: "Support agent" });
-    await operatorPage.getByLabel("Due date", { exact: true }).fill("2026-09-26");
+    await operatorPage.locator('#workspace-content').getByLabel("Due date", { exact: true }).fill("2026-09-26");
     await Promise.all([
       operatorPage.waitForResponse((response) => response.url().includes("/api/v1/holdings/simulation/crm/activities") && response.request().method() === "POST"),
       operatorPage.getByRole("button", { name: "Schedule activity", exact: true }).click(),
     ]);
-    const activity = operatorPage.locator("article.card").filter({ hasText: "Confirm installation window" });
+    const activity = operatorPage.locator("#workspace-content article.card").filter({ hasText: "Confirm installation window" });
     await expect(activity).toBeVisible();
     await expect(activity.getByText(/open · Owner/)).toBeVisible();
     await signInRole(managerContext, managerPage, credentials, "sales_manager", path);
-    const managerActivity = managerPage.locator("article.card").filter({ hasText: "Confirm installation window" });
+    const managerActivity = managerPage.locator("#workspace-content article.card").filter({ hasText: "Confirm installation window" });
     await expect(managerActivity).toBeVisible();
     await expect(managerActivity.getByText(/open · Owner/)).toBeVisible();
-    await operatorPage.getByText("Record activity decision", { exact: true }).click();
+    await operatorPage.locator("#workspace-content").getByText("Record activity decision", { exact: true }).click();
     await activity.getByRole("combobox", { name: "Action", exact: true }).selectOption("complete");
     await activity.getByRole("textbox", { name: "Outcome and reason", exact: true }).fill("Customer confirmed the installation window.");
     await Promise.all([

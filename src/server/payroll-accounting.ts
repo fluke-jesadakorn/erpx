@@ -59,11 +59,11 @@ function costUnits(snapshot:CostSnapshot):CostUnit[]{
 }
 
 function allocatedAmounts(item:PayrollPostingItem,snapshot:CostSnapshot,components:Component[]){
-  const units=costUnits(snapshot),explanation=(JSON.parse(item.result_json) as {explanation?:{hourlyRateMinor?:number;overtimeHours?:number;regularHours?:number;overtimeMultiplierBps?:number}}).explanation;
+  const units=costUnits(snapshot),explanation=(JSON.parse(item.result_json) as {explanation?:{hourlyRateMinor?:number;overtimeHours?:number;overtimeMinor?:number;regularHours?:number;overtimeMultiplierBps?:number}}).explanation;
   const earn=components.filter(component=>component.kind==="earning"),baseGross=Number(item.gross_minor)-earn.reduce((sum,component)=>sum+component.amountMinor,0);
   const multiplier=Number(explanation?.overtimeMultiplierBps??snapshot.policy?.overtimeMultiplierBps??15000);
-  const overtime=Math.round(Number(explanation?.hourlyRateMinor??0)*Number(explanation?.overtimeHours??0)*multiplier/10000);
-  const regular=engagementIsSalary(snapshot)?baseGross-overtime:Math.round(Number(explanation?.hourlyRateMinor??0)*Number(explanation?.regularHours??0));
+  const overtime=explanation?.overtimeMinor??Math.round(Number(explanation?.hourlyRateMinor??0)*Number(explanation?.overtimeHours??0)*multiplier/10000);
+  const regular=baseGross-overtime;
   const overtimeRemainder=baseGross-regular;
   if(regular<0||overtimeRemainder<0)throw new ApiError(409,"PAYROLL_COST_ALLOCATION_INVALID","Wage and overtime amounts do not reconcile.");
   const timeWeights=units.map(unit=>unit.regular*BigInt(10000)+unit.overtime*BigInt(multiplier));

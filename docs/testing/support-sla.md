@@ -1,5 +1,7 @@
 # Support — เวลาทำการ เป้าหมายการแก้ไข และการส่งต่อเมื่อผิดนัด
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 ขอบเขตนี้เป็น resolution target ของ ticket ที่ผูก quotation/sales order เดิม ไม่ใช่การยืนยันว่าลูกค้ารับบริการแล้ว การรับรองลูกค้าคงใช้ flow ใน [Support tickets](support-tickets.md) ส่วน Portal/Email จริงยังไม่ผ่าน acceptance
 
 ## ผู้ทำงานและขั้นตอน

@@ -19,7 +19,7 @@ test("workspace header keeps context, navigation and role actions usable across 
   expect(hr).toBeTruthy();
   const selection=await context.request.post(activeEndpoint,{headers,data:{assignmentId:hr.id,revision:active.revision}});
   expect(selection.ok(),await selection.text()).toBe(true);
-  const path="/holdings/simulation/people/organization";
+  const path="/holdings/simulation/people";
   const chrome=page.locator("header[data-app-chrome]");
   const ready=async()=>{
     await expect(chrome.getByRole("button",{name:"Switch workspace",exact:true})).toBeEnabled();
@@ -62,8 +62,11 @@ test("workspace header keeps context, navigation and role actions usable across 
   await page.keyboard.press("Escape");await expect(breadcrumb).toBeFocused();
   await chrome.getByRole("button",{name:"Search workspace",exact:true}).click();
   const search=page.getByRole("dialog",{name:"Go to…",exact:true});
-  await expect(search).toBeVisible();await search.getByRole("textbox",{name:"Search workspace destinations"}).fill("Organization");
-  await search.getByRole("link",{name:"People People",exact:true}).click();await expect(search).not.toBeVisible();
+  await expect(search).toBeVisible();await search.getByRole("textbox",{name:"Search workspace destinations"}).fill("Today");
+  const destination=search.locator('a[href="/holdings/simulation/home"]');
+  await expect(destination).toHaveAccessibleName(/Today/);
+  await destination.click();await expect(search).not.toBeVisible();
+  await expect(page).toHaveURL(/\/holdings\/simulation\/home$/);
   await ready();
   const switcher=chrome.getByRole("button",{name:"Switch workspace",exact:true});
   await switcher.click();
@@ -84,11 +87,19 @@ test("workspace header keeps context, navigation and role actions usable across 
   await searchRoleOptions(page,"hr admin");
   await account.getByRole("option",{name:/hr admin/i}).click();
   await ready();await expect(chrome.locator(".active-work-role")).toContainText("hr admin");
-  await page.goto(`${path}#organization-change-queue`);await ready();
-  const queue=page.locator("#workspace-content #organization-change-queue");
+  // Company changes require this account's independently published administrator role.
+  await chrome.getByRole("button",{name:/Account menu for/}).click();
+  await searchRoleOptions(page,"holding owner");
+  await account.getByRole("option",{name:/holding owner/i}).click();
+  await ready();await expect(chrome.locator(".active-work-role")).toContainText("holding owner");
+  await page.goto("/holdings/simulation/people/organization?changeState=all#organization-change-queue");await ready();
+  const detail=page.getByTestId("people-detail");
+  await expect(detail).toBeVisible();
+  const queue=detail.locator("#organization-change-queue");
   await expect(queue).toBeVisible();
   const queueTop=await queue.evaluate(element=>element.getBoundingClientRect().top);
-  const headerBottom=await chrome.evaluate(element=>element.getBoundingClientRect().bottom);
-  expect(queueTop,"linked queue stays below the sticky header").toBeGreaterThanOrEqual(headerBottom);
+  const detailHeaderBottom=await detail.getByRole("button",{name:"Close details",exact:true}).locator("..").evaluate(element=>element.getBoundingClientRect().bottom);
+  expect(queueTop,"linked queue stays below the current Company detail header").toBeGreaterThanOrEqual(detailHeaderBottom);
+  expect(queueTop,"linked queue is visible in the current viewport").toBeLessThan(900);
   await testInfo.attach("workspace-header-result",{contentType:"application/json",body:JSON.stringify({run,observations,interactions:{breadcrumbEscape:true,search:true,branchAndCompanySwitch:true,roleSwitchAndReload:true,linkedQueueVisible:true}},null,2)});
 });

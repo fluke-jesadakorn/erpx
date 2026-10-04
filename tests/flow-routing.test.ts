@@ -4,7 +4,7 @@ import { expenseFixture, expenseDb as db, key } from "./helpers/expense-fixture"
 import { assignFlowPrimary, resolveFlow } from "../src/server/flow-routing";
 import { saveExpenseAccounting } from "../src/server/expense-workflow";
 import { postExpense, getExpense } from "../src/server/expenses";
-import { createInvoice, invoiceSchema, postInvoice } from "../src/server/finance";
+import { createAccount, createAccountSchema, createInvoice, invoiceSchema, postInvoice } from "../src/server/finance";
 import { settleInvoice } from "../src/server/commerce";
 vi.mock("../src/server/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
@@ -121,6 +121,9 @@ it("routes standalone invoice posting and partial settlement through different n
 async function stockFixture() {
   f.manager.role="finance_approver"; f.manager.branchId=null; f.manager.departmentId=null;
   f.manager.assignmentId=await f.grant(f.manager,"finance_approver");
+  const inventory=await createAccount(f.owner,createAccountSchema.parse({chartId:f.chart,code:key(),name:"Flow inventory",category:"asset",currency:"THB"}),key());
+  const clearing=await createAccount(f.owner,createAccountSchema.parse({chartId:f.chart,code:key(),name:"Flow goods clearing",category:"liability",currency:"THB"}),key());
+  await db.prepare("UPDATE commerce_settings SET inventory_account_id=?,clearing_account_id=? WHERE company_id=?").bind(String(inventory.id),String(clearing.id),f.company).run();
   await db.prepare("INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,status,created_at,updated_at) VALUES(?,?,?,'5400','Stock variance','expense','THB','active',1,1)").bind(`variance-${key()}`,f.company,f.chart).run();
   const {saveMaster}=await import("../src/server/commerce");
   const warehouse=await saveMaster(f.owner,"warehouses",null,{branchId:f.branch,code:key(),name:"Test warehouse"},key());

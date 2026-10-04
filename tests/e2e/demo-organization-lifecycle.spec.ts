@@ -1,3 +1,4 @@
+import {createEngineeringBrowserContext} from './helpers/engineering-browser-evidence';
 import { expect, test, type BrowserContext, type Page, type Locator } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -62,15 +63,27 @@ test("isolated organization setup supports reviewed correction, safe suspension 
   test.skip(!run,"Set ERPX_DEMO_RUN to an exact prepared browser-simulation run.");
   test.setTimeout(180_000);
   const credentials=JSON.parse(await readFile(resolve(`.runtime/browser/${run}/credentials.json`),"utf8")) as Credentials;
-  const contexts=await Promise.all(Array.from({length:3},()=>browser.newContext(testInfo.project.use)));
+  const contexts=await Promise.all(Array.from({length:3},()=>createEngineeringBrowserContext(browser,testInfo)));
   contexts.forEach(context=>context.setDefaultTimeout(15_000));
   const [ownerContext,reviewerContext,staffContext]=contexts;
   const path="/holdings/simulation/people/organization";
+  const unitsPath=`${path}?view=legacy`;
   const main=(page:Page)=>page.locator("#workspace-content");
   const queue=(page:Page)=>main(page).getByRole("region",{name:"Organization change requests",exact:true});
   const card=(page:Page,label:string)=>queue(page).getByRole("article",{name:label,exact:true});
   const unit=(page:Page,name:string)=>main(page).locator("section.card").filter({has:page.getByRole("heading",{name,exact:true})});
   const recordIds:string[]=[];
+  async function openUnitSettings(page:Page){
+    const summary=main(page).locator("summary").filter({hasText:/^Branches, departments, and official documents$/});
+    await expect(summary).toBeVisible();
+    if(await summary.locator("..").getAttribute("open")===null)await summary.click();
+    await expect(main(page).locator("summary > strong").filter({hasText:/^Propose a new branch or department$/})).toBeVisible();
+  }
+  async function reloadUnits(page:Page){
+    if(new URL(page.url()).searchParams.get("view")!=="legacy")await page.goto(unitsPath);
+    await page.reload({waitUntil:"domcontentloaded"});
+    await openUnitSettings(page);
+  }
   async function command(page:Page,button:Locator,suffix:string,status=200){
     const pending=page.waitForResponse(response=>response.request().method()==="POST"&&new URL(response.url()).pathname.endsWith(`/people/organization/changes/${suffix}`));
     await button.click();const response=await pending;
@@ -86,20 +99,21 @@ test("isolated organization setup supports reviewed correction, safe suspension 
   }
   try{
     const ownerPage=await ownerContext.newPage(),reviewerPage=await reviewerContext.newPage();
-    const owner=await signInRole(ownerContext,ownerPage,credentials,"holding_owner",path);
+    const owner=await signInRole(ownerContext,ownerPage,credentials,"holding_owner",unitsPath);
     const reviewer=await signInRole(reviewerContext,reviewerPage,credentials,"hr_admin",path);
     expect(reviewer.userId).not.toBe(owner.userId);
+    await openUnitSettings(ownerPage);
     const suffix=Date.now(),originalName=`Regional service ${suffix}`,branchName=`Reviewed service ${suffix}`,departmentName=`Repair team ${suffix}`;
-    const proposal=main(ownerPage).locator("details").filter({has:ownerPage.getByText("Propose a new branch or department",{exact:true})});
-    await proposal.getByText("Propose a new branch or department",{exact:true}).click();
+    const proposal=main(ownerPage).locator("summary > strong").filter({hasText:/^Propose a new branch or department$/}).locator("..").locator("..");
+    await proposal.locator(":scope > summary").click();
     await proposal.getByLabel("Stable URL code",{exact:true}).fill(`reviewed-${suffix}`);
     await proposal.getByLabel("Display name",{exact:true}).fill(originalName);
     await proposal.getByLabel("Business reason",{exact:true}).fill("Create regional service capacity after review.");
     const draft=(await command(ownerPage,proposal.getByRole("button",{name:"Save draft",exact:true}),"draft"))!;
     recordIds.push(draft.id);expect(draft.state).toBe("draft");
-    await ownerPage.reload();
+    await reloadUnits(ownerPage);
     let request=card(ownerPage,`create branch: ${originalName}`);
-    await request.getByText("Correct and resubmit",{exact:true}).click();
+    await request.locator("summary").filter({hasText:/^Correct and resubmit$/}).click();
     await command(ownerPage,request.getByRole("button",{name:"Submit for review",exact:true}),`${draft.id}/submit`);
     await expect(request.getByText(/Awaiting an independent Company HR/)).toBeVisible();
     await expect(request.getByRole("button",{name:"Approve and apply",exact:true})).toHaveCount(0);
@@ -114,25 +128,25 @@ test("isolated organization setup supports reviewed correction, safe suspension 
     await expect(returnedLink).toBeVisible();await returnedLink.click();
     await expect(ownerPage).toHaveURL(new RegExp(`changeId=${draft.id}`));
     request=card(ownerPage,`create branch: ${originalName}`);
-    await request.getByText("Correct and resubmit",{exact:true}).click();
+    await request.locator("summary").filter({hasText:/^Correct and resubmit$/}).click();
     await request.getByLabel("Display name",{exact:true}).fill(branchName);
     await request.getByLabel("Business reason",{exact:true}).fill("Reviewed service region and its operating name.");
     await command(ownerPage,request.getByRole("button",{name:"Submit for review",exact:true}),`${draft.id}/submit`);
     const applied=(await review(reviewerPage,`create branch: ${branchName}`,draft.id,"approve","Operating scope and business reason verified independently."))!;
     expect(applied.version).toBe(5);expect(applied.nodeId).toBeTruthy();
-    await ownerPage.reload();await expect(unit(ownerPage,branchName)).toContainText("branch · active · revision 1");
+    await reloadUnits(ownerPage);await expect(unit(ownerPage,branchName)).toContainText("branch · active · revision 1");
     await queue(ownerPage).getByRole("combobox",{name:"Change status",exact:true}).selectOption("applied");
     await queue(ownerPage).getByRole("button",{name:"Filter changes",exact:true}).click();
     const history=card(ownerPage,`create branch: ${branchName}`);
-    await history.getByText("Decision history",{exact:true}).click();
+    await history.locator("summary").filter({hasText:/^Decision history$/}).click();
     await expect(history.locator("ol li")).toHaveCount(5);
     await expect(history.locator("ol")).toContainText("Clarify the operating branch name before opening.");
     await expect(history.locator("ol")).toContainText("Operating scope and business reason verified independently.");
-    await ownerPage.goto(path); // New proposals are shown in the default open queue.
+    await ownerPage.goto(unitsPath);await openUnitSettings(ownerPage); // New proposals are shown in the default open queue.
 
     const proposeUnit=async(name:string,kind:"branch"|"department",action:"rename"|"suspend"|"reactivate",newName=name)=>{
-      await ownerPage.reload();const target=unit(ownerPage,name);
-      await target.getByText("Propose a change",{exact:true}).click();
+      await reloadUnits(ownerPage);const target=unit(ownerPage,name);
+      await target.locator("summary").filter({hasText:/^Propose a change$/}).click();
       await target.getByRole("combobox",{name:"Change",exact:true}).selectOption(action);
       await target.getByLabel("Display name",{exact:true}).fill(newName);
       await target.getByLabel("Business reason",{exact:true}).fill(`${action} ${kind} after checking business dependencies.`);
@@ -142,8 +156,8 @@ test("isolated organization setup supports reviewed correction, safe suspension 
     const renamedName=`${branchName} hub`;
     const rename=await proposeUnit(branchName,"branch","rename",renamedName);
     await review(reviewerPage,`rename branch: ${renamedName}`,rename.id,"approve","The public operating name matches the reviewed location.");
-    await ownerPage.reload();await expect(unit(ownerPage,renamedName)).toContainText("revision 2");
-    await proposal.getByText("Propose a new branch or department",{exact:true}).click();
+    await reloadUnits(ownerPage);await expect(unit(ownerPage,renamedName)).toContainText("revision 2");
+    await proposal.locator(":scope > summary").click();
     await proposal.getByRole("combobox",{name:"Unit type",exact:true}).selectOption("department");
     await proposal.getByLabel("Stable URL code",{exact:true}).fill(`repair-${suffix}`);
     await proposal.getByLabel("Display name",{exact:true}).fill(departmentName);
@@ -157,16 +171,16 @@ test("isolated organization setup supports reviewed correction, safe suspension 
     await review(reviewerPage,`suspend branch: ${renamedName}`,blocked.id,"approve","Attempt to suspend while the child department is active.",409);
     await expect(queue(reviewerPage).getByRole("alert")).toContainText("Move or close active dependencies before suspend");
     await expect(card(reviewerPage,`suspend branch: ${renamedName}`)).toContainText("submitted");
-    await ownerPage.reload();await expect(unit(ownerPage,renamedName)).toContainText("branch · active");
+    await reloadUnits(ownerPage);await expect(unit(ownerPage,renamedName)).toContainText("branch · active");
     await command(ownerPage,card(ownerPage,`suspend branch: ${renamedName}`).getByRole("button",{name:"Cancel request",exact:true}),`${blocked.id}/cancel`);
     await ownerPage.goto(`${path}?changeState=cancelled`);
     await expect(card(ownerPage,`suspend branch: ${renamedName}`)).toContainText("cancelled");
-    await ownerPage.goto(path);
+    await ownerPage.goto(unitsPath);await openUnitSettings(ownerPage);
 
     for(const [name,kind,action] of [[departmentName,"department","suspend"],[renamedName,"branch","suspend"],[renamedName,"branch","reactivate"],[departmentName,"department","reactivate"]] as const){
       const change=await proposeUnit(name,kind,action);
       await review(reviewerPage,`${action} ${kind}: ${name}`,change.id,"approve","Reviewed current dependencies and intended operating status.");
-      await ownerPage.reload();await expect(unit(ownerPage,name)).toContainText(`${kind} · ${action==="suspend"?"suspended":"active"}`);
+      await reloadUnits(ownerPage);await expect(unit(ownerPage,name)).toContainText(`${kind} · ${action==="suspend"?"suspended":"active"}`);
     }
 
     const organizationState=async()=>{
@@ -175,8 +189,8 @@ test("isolated organization setup supports reviewed correction, safe suspension 
       return (await response.json()).data;
     };
     const destinationName=`Service destination ${suffix}`;
-    await ownerPage.reload();
-    await proposal.getByText("Propose a new branch or department",{exact:true}).click();
+    await reloadUnits(ownerPage);
+    await proposal.locator(":scope > summary").click();
     await proposal.getByRole("combobox",{name:"Unit type",exact:true}).selectOption("branch");
     await proposal.getByLabel("Stable URL code",{exact:true}).fill(`service-destination-${suffix}`);
     await proposal.getByLabel("Display name",{exact:true}).fill(destinationName);
@@ -187,8 +201,8 @@ test("isolated organization setup supports reviewed correction, safe suspension 
     expect(destinationApplied.nodeId).toBeTruthy();
 
     const movableDepartmentName=`Movable service team ${suffix}`;
-    await ownerPage.reload();
-    await proposal.getByText("Propose a new branch or department",{exact:true}).click();
+    await reloadUnits(ownerPage);
+    await proposal.locator(":scope > summary").click();
     await proposal.getByRole("combobox",{name:"Unit type",exact:true}).selectOption("department");
     await proposal.getByLabel("Stable URL code",{exact:true}).fill(`movable-team-${suffix}`);
     await proposal.getByLabel("Display name",{exact:true}).fill(movableDepartmentName);
@@ -221,9 +235,9 @@ test("isolated organization setup supports reviewed correction, safe suspension 
     expect(positionResponse.ok(),await positionResponse.text()).toBe(true);
     const movablePosition=(await positionResponse.json()).data;
 
-    await ownerPage.reload();
+    await reloadUnits(ownerPage);
     const movableUnit=unit(ownerPage,movableDepartmentName);
-    await movableUnit.getByText("Propose a change",{exact:true}).click();
+    await movableUnit.locator("summary").filter({hasText:/^Propose a change$/}).click();
     await movableUnit.getByRole("combobox",{name:"Change",exact:true}).selectOption("relocate");
     await movableUnit.locator('select[name="branchId"]').selectOption(destinationApplied.nodeId!);
     await movableUnit.getByLabel("Display name",{exact:true}).fill(movableDepartmentName);
@@ -238,8 +252,8 @@ test("isolated organization setup supports reviewed correction, safe suspension 
     expect(relocatedState.positions.find((position:{id:string})=>position.id===movablePosition.id)).toMatchObject({branch_id:destinationApplied.nodeId,department_id:relocationApplied.nodeId});
 
     const archiveDepartmentName=`Retained service team ${suffix}`;
-    await ownerPage.reload();
-    await proposal.getByText("Propose a new branch or department",{exact:true}).click();
+    await reloadUnits(ownerPage);
+    await proposal.locator(":scope > summary").click();
     await proposal.getByRole("combobox",{name:"Unit type",exact:true}).selectOption("department");
     await proposal.getByLabel("Stable URL code",{exact:true}).fill(`retained-team-${suffix}`);
     await proposal.getByLabel("Display name",{exact:true}).fill(archiveDepartmentName);
@@ -248,9 +262,9 @@ test("isolated organization setup supports reviewed correction, safe suspension 
     const archiveSeed=(await command(ownerPage,proposal.getByRole("button",{name:"Submit for review",exact:true}),"submit"))!;
     recordIds.push(archiveSeed.id);
     const archiveSeedApplied=(await review(reviewerPage,`create department: ${archiveDepartmentName}`,archiveSeed.id,"approve","Verified the empty team has no assigned work."))!;
-    await ownerPage.reload();
+    await reloadUnits(ownerPage);
     const archiveUnit=unit(ownerPage,archiveDepartmentName);
-    await archiveUnit.getByText("Propose a change",{exact:true}).click();
+    await archiveUnit.locator("summary").filter({hasText:/^Propose a change$/}).click();
     await archiveUnit.getByRole("combobox",{name:"Change",exact:true}).selectOption("archive");
     await archiveUnit.getByLabel("Business reason",{exact:true}).fill("Retire the unused team while retaining its history.");
     const archiveChange=(await command(ownerPage,archiveUnit.getByRole("button",{name:"Submit for review",exact:true}),"submit"))!;
@@ -258,9 +272,9 @@ test("isolated organization setup supports reviewed correction, safe suspension 
     await review(reviewerPage,`archive department: ${archiveDepartmentName}`,archiveChange.id,"approve","Confirmed the team has no active dependencies and retained its identity history.");
     const archivedState=await organizationState();
     expect(archivedState.nodes.find((node:{id:string})=>node.id===archiveSeedApplied.nodeId)).toMatchObject({status:"archived"});
-    await ownerPage.reload();
+    await reloadUnits(ownerPage);
     const archivedUnit=unit(ownerPage,archiveDepartmentName);
-    await archivedUnit.getByText("Propose a change",{exact:true}).click();
+    await archivedUnit.locator("summary").filter({hasText:/^Propose a change$/}).click();
     await archivedUnit.getByRole("combobox",{name:"Change",exact:true}).selectOption("reactivate");
     await archivedUnit.getByLabel("Business reason",{exact:true}).fill("Reopen the retained team after reviewing current staffing needs.");
     const reactivateChange=(await command(ownerPage,archivedUnit.getByRole("button",{name:"Submit for review",exact:true}),"submit"))!;

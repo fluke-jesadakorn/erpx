@@ -90,6 +90,8 @@ A successful password reset deletes every active session for the account and rec
 
 ## Verification and deployment
 
+> Recorded observations apply to their stated date/environment. Current coverage and remaining acceptance are in the [verification inventory](../../status/capability-delivery-matrix.md); old gaps do not override current owner behavior.
+
 Run typecheck, lint, the integration suite, IAM/auth/workflow Playwright suites, and `bun run deploy:build`. The release build is isolated from the running development output. Apply additive migrations with the established local provisioning command; never reseed user data as part of IAM migration. Reviewers must reselect work roles after a revision invalidates a context.
 
 The application and PostgreSQL adapter tests rehearse local-only operation, inactive connectors, immutable collisions, independent review/MFA, parent expiry/revocation, complete versus partial synchronization, explicit migration, preserved history and group changes. Provider tests use controlled LDAP/Graph responses and signed OIDC tokens; these are not live tenant certification.

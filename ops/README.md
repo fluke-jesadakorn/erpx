@@ -1,10 +1,10 @@
-# ops — Runbooks & Observability (Next.js era)
+# ERPX operations
 
-> **Dioxus era archived 2026-09-02** (`docs/archive/ops-dioxus-2026-09-02/` — 68K, runbooks `:3004/:50051`, alerts `erpx_projection_*`). Living Next.js runbooks are here.
+The current runtime is pinned Node.js 24.20.0 / Bun 1.2.17 / PostgreSQL 18.6, with private file-store adapters and PostgreSQL jobs behind Cloudflare Tunnel. [Runtime and private production](macos/README.md) owns service, backup, restore and release commands.
 
-- **Incident:** `ops/runbooks/nextjs-incident.md` — Vercel/Next.js 16, `npm build` failures, DB pool via Prisma/Drizzle
-- **Recovery:** `ops/runbooks/nextjs-recovery.md` — Postgres PITR via Neon/Supabase, object R2/S3 recovery
-- **Alerts:** `ops/observability/nextjs-alerts.yml` — `nextjs_http_requests_total`, `build_failures`, `db_pool` (not `erpx_projection_*`)
-- **Evidence:** `ops/web-production-evidence.example.json` — REQ-* schema (stack-agnostic, `not_executed` placeholders)
+- [Incident handling](runbooks/nextjs-incident.md), [recovery](runbooks/nextjs-recovery.md), [canonical attachment rollout](macos/attachment-rollout.md)
+- [Shared PostgreSQL topology](macos/postgres-consolidation.md), [Front applications](macos/front-apps.md)
+- [UCS runner](ucs/README.md), [temporary Samba boundary](samba/README.md), [Windows compatibility and acceptance](windows/README.md)
+- [Staging-only operations](macos/staging.md); use only on an explicit staging request
 
-Archived Dioxus: `docs/archive/ops-dioxus-2026-09-02/` (runbooks `Deprecated`, alerts `erpx_*`) + `backup/rust-2026-09-02:ops`
+Development console: `https://console-dev-erpx.jesadakorn.com` → 3100. Private production: loopback 3101. Shared PostgreSQL: 5432. Preserve reserved ports 3000, 3001 and 8080 and retired PostgreSQL clusters 5433/5435. Dated installation/incident records are evidence of their original topology; they do not override current routing.

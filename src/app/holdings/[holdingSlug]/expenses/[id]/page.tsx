@@ -1,8 +1,11 @@
+import { RecordSections } from "@/components/workplace/record-sections";
+
+import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { FinanceRecordWorkspace, FinanceLegacyHeading } from "@/components/finance/finance-record-workspace";
 import { BusinessDocumentBranding } from "@/components/brand/business-document";
 import { MoneyAmount } from "@/components/money/currency-provider";
 import { TimeText } from "@/components/time/time-preference-context";
-import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
+import { FeaturePage, FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { ApprovalAdminLink } from "@/components/modules/approval-admin-link";
 import { ApprovalHistory } from "@/components/modules/approval-history";
 import {
@@ -29,6 +32,7 @@ import { pageError } from "@/server/page-error";
 import { holdingResources } from "@/server/runtime";
 import { staffSettings } from "@/server/staff-settings";
 import Link from "next/link";
+import { Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Expense({
   params,
@@ -62,7 +66,7 @@ export default async function Expense({
     staffOptions = await staffSettings(write, actor);
   if (expense.workflow_version === 2)
     return (
-      <FeaturePage className="content-stack" data-source="live" data-print-document={printing || undefined}><FinanceRecordWorkspace base={base} active="receivables" title={String(expense.merchant || "New expense claim")} description={`${expense.legal_name} · ${expense.request_kind === "payment" ? "Payment request" : "Expense claim"}`} actions={<StatusBadge status={String(expense.status)}/>}><WorkReturn base={base}/><BusinessDocumentBranding actor={actor} kind="expense" recordId={id} requestedMode={query.brand} title={expense.request_kind === "payment" ? "Payment request" : "Expense claim"} reference={String(expense.receipt_reference ?? id)} printing={printing}/><ExpenseWorkflowPage
+      <FeaturePage className="ui-page-content" data-source="live" data-print-document={printing || undefined}><FinanceRecordWorkspace base={base} active="receivables" title={String(expense.merchant || "New expense claim")} description={`${expense.legal_name} · ${expense.request_kind === "payment" ? "Payment request" : "Expense claim"}`} actions={<StatusBadge appearance="standard" status={String(expense.status)}/>}><WorkReturn base={base}/><BusinessDocumentBranding actor={actor} kind="expense" recordId={id} requestedMode={query.brand} title={expense.request_kind === "payment" ? "Payment request" : "Expense claim"} reference={String(expense.receipt_reference ?? id)} printing={printing}/><ExpenseWorkflowPage
         base={base}
         actor={actor}
         data={data}
@@ -81,12 +85,12 @@ export default async function Expense({
     ].includes(actor.userId);
   const flow = await documentFlow(actor,"expense",id);
   return (
-    <FeaturePage className="content-stack" data-source="live" data-print-document={printing || undefined}><FinanceRecordWorkspace base={base} active="receivables" title={String(expense.merchant)} description={`${expense.legal_name} · ${expense.expense_date} · ${expense.category_name}`} actions={<StatusBadge status={String(expense.status)}/>}><WorkReturn base={base}/>
+    <FeaturePage className="ui-page-content" data-source="live" data-print-document={printing || undefined}><FinanceRecordWorkspace base={base} active="receivables" title={String(expense.merchant)} description={`${expense.legal_name} · ${expense.expense_date} · ${expense.category_name}`} actions={<StatusBadge appearance="standard" status={String(expense.status)}/>}><WorkReturn base={base}/>
       <BusinessDocumentBranding actor={actor} kind="expense" recordId={id} requestedMode={query.brand} title="Expense claim" reference={String(expense.receipt_reference ?? id)} printing={printing}/>
       <FinanceLegacyHeading><Link className="back-link" href={`${base}/expenses`}>
         ← Employee expenses
       </Link>
-      <div className="section-head">
+      <div className="ui-section-header">
         <div>
           <p className="eyebrow">
             Expense claim · {String(expense.receipt_reference ?? id)}
@@ -97,8 +101,55 @@ export default async function Expense({
             {String(expense.category_name)}
           </p>
         </div>
-        <StatusBadge status={String(expense.status)} />
-      </div></FinanceLegacyHeading><FeatureTabs/><WidgetGrid pageKey="expenses-detail">
+        <StatusBadge appearance="standard" status={String(expense.status)} />
+      </div></FinanceLegacyHeading><RecordSections evidence={<ExpenseReceipts
+        base={base}
+        expense={expense}
+        attachments={attachments}
+        editable={editable}
+      />} history={<>      <FeatureWidget appearance="standard" id="expenses-detail-review-decisions" title="Review decisions"><Card as="section" appearance="standard" className="ui-panel">
+
+        {decisions.length === 0 ? (
+          <p className="muted">No review decisions yet.</p>
+        ) : (
+          decisions.map((d) => (
+            <div className="ui-record-item" key={String(d.id)}>
+              <div className="row-main">
+                <strong>
+                  {String(d.action)} · {String(d.actor_name)}
+                </strong>
+                <p>{String(d.reason)}</p>
+                <span className="muted">
+                  Reviewed version {String(d.reviewed_version)}
+                </span>
+              </div>
+            </div>
+          ))
+        )}
+      </Card></FeatureWidget>
+      <FeatureWidget appearance="standard" id="expenses-detail-activity" title="Activity"><Card as="section" appearance="standard" className="ui-panel">
+
+        {history.map((a) => (
+          <div className="ui-record-item" key={String(a.id)}>
+            <div className="row-main">
+              <strong>{String(a.action).replaceAll(".", " ")}</strong>
+              <div className="muted">
+                {String(a.actor_name)} ·{" "}
+                <TimeText appearance="standard" value={Number(a.created_at)} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </Card></FeatureWidget>
+      <ApprovalHistory
+        approval={approval}
+        blockedReason={
+          expense.approval_blocked_reason
+            ? String(expense.approval_blocked_reason)
+            : null
+        }
+      />
+</>}><WidgetGrid pageKey="expenses-detail">
       <section data-critical-notice><RecordNextAction flow={flow}/></section><ExpenseActions
         canCancel={permittedActions.includes("cancel")}
         base={base}
@@ -123,16 +174,16 @@ export default async function Expense({
                 (BigInt(String(expense.amount_minor)) + BigInt(String(expense.tax_minor))).toString()),
           ],
         ].map(([label, value]) => (
-          <article className="card" key={String(label)}>
+          <Card as="article" appearance="standard" className="ui-panel" key={String(label)}>
             <span className="eyebrow">{String(label)}</span>
             <strong>
               <MoneyAmount units={String(value)} currency={String(expense.currency)} date={String(expense.expense_date)} legacyScale={2} />
             </strong>
-          </article>
+          </Card>
         ))}
       </section>
-      <FeatureWidget id="expenses-detail-business-purpose" title="Business purpose"><section className="card">
-        
+      <FeatureWidget appearance="standard" id="expenses-detail-business-purpose" title="Business purpose"><Card as="section" appearance="standard" className="ui-panel">
+
         <p>
           {String(
             expense.business_purpose ||
@@ -148,16 +199,16 @@ export default async function Expense({
           canAccountExpenses(actor) &&
           !actor.branchId &&
           !actor.departmentId && (
-            <Link
-              className="button secondary"
+            <UiActionLink appearance="standard" variant="secondary"
+
               href={`${base}/finance/invoices/${expense.invoice_id}`}
             >
               Open payable and reimbursement
-            </Link>
+            </UiActionLink>
           )}
-      </section></FeatureWidget>
+      </Card></FeatureWidget>
       {editable && (
-        <FeatureWidget id="expenses-detail-expense-details" title="Expense details"><ExpenseEditor
+        <FeatureWidget appearance="standard" id="expenses-detail-expense-details" title="Expense details"><ExpenseEditor
           key={Number(expense.version)}
           base={base}
           enableSubmit={false}
@@ -165,12 +216,6 @@ export default async function Expense({
           expense={expense}
         /></FeatureWidget>
       )}
-      <ExpenseReceipts
-        base={base}
-        expense={expense}
-        attachments={attachments}
-        editable={editable}
-      />
 
       {staffOptions.canManage &&
         (expense.status === "submitted" ||
@@ -192,13 +237,13 @@ export default async function Expense({
             Open reversal journal
           </Link>
         )}
-      <FeatureWidget id="expenses-detail-reimbursements" title="Reimbursements"><section className="card">
-        
+      <FeatureWidget appearance="standard" id="expenses-detail-reimbursements" title="Reimbursements"><Card as="section" appearance="standard" className="ui-panel">
+
         {payments.length === 0 ? (
           <p className="muted">No reimbursements recorded.</p>
         ) : (
           payments.map((p) => (
-            <div className="row" key={String(p.id)}>
+            <div className="ui-record-item" key={String(p.id)}>
               <div className="row-main">
                 <strong>{String(p.payment_number)}</strong>
                 <span className="muted"> · {String(p.payment_date)}</span>
@@ -209,50 +254,8 @@ export default async function Expense({
             </div>
           ))
         )}
-      </section></FeatureWidget>
-      <FeatureWidget id="expenses-detail-review-decisions" title="Review decisions"><section className="card">
-        
-        {decisions.length === 0 ? (
-          <p className="muted">No review decisions yet.</p>
-        ) : (
-          decisions.map((d) => (
-            <div className="row" key={String(d.id)}>
-              <div className="row-main">
-                <strong>
-                  {String(d.action)} · {String(d.actor_name)}
-                </strong>
-                <p>{String(d.reason)}</p>
-                <span className="muted">
-                  Reviewed version {String(d.reviewed_version)}
-                </span>
-              </div>
-            </div>
-          ))
-        )}
-      </section></FeatureWidget>
-      <FeatureWidget id="expenses-detail-activity" title="Activity"><section className="card">
-        
-        {history.map((a) => (
-          <div className="row" key={String(a.id)}>
-            <div className="row-main">
-              <strong>{String(a.action).replaceAll(".", " ")}</strong>
-              <div className="muted">
-                {String(a.actor_name)} ·{" "}
-                <TimeText value={Number(a.created_at)} />
-              </div>
-            </div>
-          </div>
-        ))}
-      </section></FeatureWidget>
-      <ApprovalHistory
-        approval={approval}
-        blockedReason={
-          expense.approval_blocked_reason
-            ? String(expense.approval_blocked_reason)
-            : null
-        }
-      />
+      </Card></FeatureWidget>
       <FlowPanel flow={flow} actor={actor} kind="expense" id={id} base={base}/>
-    </WidgetGrid></FinanceRecordWorkspace></FeaturePage>
+    </WidgetGrid></RecordSections></FinanceRecordWorkspace></FeaturePage>
   );
 }

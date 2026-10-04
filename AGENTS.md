@@ -32,6 +32,10 @@ bun run lint; bun run build; bun run deploy:build
 bun run db:migrate:local; bun run db:seed:local; bun run test:integration
 ```
 
+## Form presentation
+
+Long forms opened from the current page must use a right drawer, not a centered modal or an expanded inline form. Use `Dialog presentation="form-drawer"`, `FormDrawer` for editors shared with standalone pages, or `FormDisclosure` for disclosure triggers. Keep dedicated full-page forms inline. Small confirmations, search, and pickers may remain dialogs. Drawers keep a fixed header, scroll their body, and use the full viewport width on small screens.
+
 ## Port safety
 
 Ports `3000`, `3001`, and `8080` are reserved for other projects. Never start ERPX or any ERPX helper service on those ports, and never stop the processes using them.
@@ -68,8 +72,8 @@ Env `.env/.env.local` ignored (see `.env.example`). Legacy `.runtime/target/.car
 > Map: `docs/TOC.md` (single hub).
 
 - `src/app/` Next.js App Router, `src/server/` domain/policy services, `src/workers/` queue/scheduled handlers, `public/` assets
-- `migrations/postgres/` active schema tracks; `ops/macos/` native deployment; Wrangler/OpenNext files are historical references
-- `docs/production-plan.md` is the sole active delivery plan; `TOC.md` is the entry point. `contracts/next/` owns current behavior, `CONTEXT.md` vocabulary, `adr/` decisions, and `archive/` dated plans/history. The generated capability inventory is a reference, not additional pilot scope.
+- `migrations/postgres/` active schema tracks; `ops/macos/` native deployment; remaining Wrangler/D1 fixtures serve the historical E2E adapter. Removed Workers/OpenNext tooling is recoverable through `CUTOVER.md`.
+- `docs/production-plan.md` is the sole active delivery plan; `TOC.md` is the entry point. `contracts/next/` owns current behavior, `CONTEXT.md` vocabulary, `adr/` decisions, and `archive/` immutable dated evidence. Superseded plans are recoverable through the verified Git references in `CUTOVER.md`. The generated capability inventory is a reference, not additional pilot scope.
 - `Designed/mockup/` clickable prototype · `fixtures/` `ops/` (runbooks `nextjs-incident/recovery.md`) · `.agents/skills/` 6
 
 ## Recovery

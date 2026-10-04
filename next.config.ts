@@ -6,7 +6,15 @@ const nextConfig: NextConfig = {
   turbopack: { root: process.cwd() },
   outputFileTracingRoot: process.cwd(),
   output: "standalone",
-  experimental: { authInterrupts: true },
+  // Keep the public development console's mobile navigation unobstructed.
+  // Compile/runtime errors still appear without the floating dev indicator.
+  devIndicators: false,
+  experimental: {
+    authInterrupts: true,
+    // Proxy buffers bodies before owner routes. Preserve supported 10 MiB
+    // files and executed-copy multipart metadata so owners enforce their limits.
+    proxyClientMaxBodySize: 11 * 1024 * 1024,
+  },
   skipProxyUrlNormalize: true,
   distDir: process.env.ERPX_BUILD_DIR ?? ".next",
   // Isolated dev experiments let Next update their generated type globs without

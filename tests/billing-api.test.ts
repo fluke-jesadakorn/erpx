@@ -373,3 +373,17 @@ it("upgrades a pre-0020 Billing evidence row without assuming it was already sca
     client.release();
   }
 });
+
+it("returns the native measured target quote through the Console route with current Holding scope and validated month",async()=>{
+  session.role="holding_owner";
+  const response=await customer(new Request("http://localhost:3100/api/v1/holdings/billing-api/billing/target?month=2026-10"),ctx(["target"]));
+  expect(response.status).toBe(200);expect(response.headers.get("cache-control")).toBe("private, no-store");
+  const target=(await response.json()).data;expect(target).toMatchObject({holdingId:session.holdingId,month:"2026-10",state:"unassigned",assignment:null,invoice:null,totalSatang:null});expect(target.measuredEvidence.snapshot).toBeNull();expect(target.completeness.ready).toBe(false);
+  session.platformRole="platform_auditor";
+  const audit=await platform(new Request(`http://localhost:3100/api/v1/platform/billing/target?holdingId=${session.holdingId}&month=2026-10`),ctx(["target"]));expect(audit.status).toBe(200);expect((await audit.json()).data).toEqual(target);
+  expect((await platform(new Request(`http://localhost:3100/api/v1/platform/billing/target?holdingId=${session.holdingId}&month=2026-99`),ctx(["target"]))).status).toBe(422);
+  expect((await platform(new Request("http://localhost:3100/api/v1/platform/billing/target?holdingId=h003&month=2026-10"),ctx(["target"]))).status).toBe(403);
+  expect((await platform(new Request("http://localhost:3100/api/v1/platform/billing/target?holdingId=unknown&month=2026-10"),ctx(["target"]))).status).toBe(404);
+  session.role="employee";expect((await customer(new Request("http://localhost:3100/api/v1/holdings/billing-api/billing/target?month=2026-10"),ctx(["target"]))).status).toBe(403);session.role="holding_owner";session.platformRole="platform_admin";
+  expect(await env.CONTROL_DB.prepare("SELECT count(*) n FROM billing_target_rating_runs WHERE holding_id=?").bind(session.holdingId).first("n")).toBe(0);
+});

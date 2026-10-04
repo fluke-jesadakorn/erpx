@@ -1,5 +1,7 @@
 # HR/IT separation and Technology verification
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 2026-09-18. Scope and APIs: [implementation contract](../contracts/next/hr-it-technology.md).
 
 ## Automated checks

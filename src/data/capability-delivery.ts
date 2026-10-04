@@ -1,827 +1,1127 @@
-export type DeliveryStatus =
-  | "implemented"
-  | "flow_accepted"
-  | "sandbox_verified"
-  | "live_verified"
-  | "deferred";
-
+export type DeliveryStatus = "implemented" | "flow_accepted" | "sandbox_verified" | "live_verified" | "deferred";
 export type DeliveryStage = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
-
 export type CapabilityDelivery = {
-  stage: DeliveryStage;
-  status: DeliveryStatus;
-  ui: string;
-  api: string;
-  service: string;
-  schema: string;
-  test: string;
-  gap: string;
+  stage: DeliveryStage; status: DeliveryStatus; ui: string; api: string;
+  service: string; schema: string; test: string; gap: string;
 };
+type ModuleDelivery = CapabilityDelivery & { overrides?: Record<string, Partial<CapabilityDelivery>> };
 
-type ModuleDelivery = CapabilityDelivery & {
-  overrides?: Record<string, Partial<CapabilityDelivery>>;
-};
-
-const preview = (stage: DeliveryStage, gap: string): CapabilityDelivery => ({
-  stage,
-  status: "deferred",
-  ui: "src/app/holdings/[holdingSlug]/modules/[module]/[section] (preview)",
-  api: "None",
-  service: "None",
-  schema: "None",
-  test: "tests/ui-registry.test.ts",
-  gap,
-});
-
+// Scoped to the retained 2026-10-03 engineering candidate. Provider labels remain
+// compatible with the readiness API; they are independent axes in the report.
+// Evidence: docs/testing/evidence/2026-10-03-engineering-completion.json.
 const delivery: Record<string, ModuleDelivery> = {
-  legal: {
-    stage: 4,
-    status: "implemented",
-    ui: "src/app/holdings/[holdingSlug]/legal/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/legal/[[...path]]/route.ts",
-    service: "src/server/legal/service.ts",
-    schema: "migrations/postgres/holding-write",
-    test: "tests/legal.test.ts",
-    gap: "Complete Company policy/trust/authority review, real portal/email onboarding and business sign-off; integration evidence does not establish legal or production acceptance.",
-  },
-  brand: {
-    stage: 6,
-    status: "implemented",
-    ui: "src/components/modules/brand-administration.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/branding/[[...path]]/route.ts",
-    service: "src/server/branding.ts",
-    schema: "migrations/postgres/holding-write/0025_workspace_branding.sql",
-    test: "tests/branding.test.ts",
-    gap: "Finish the catalog-facing draft, category-lock and rollback journeys.",
-  },
-  commercial: {
-    stage: 6,
-    status: "sandbox_verified",
-    ui: "src/app/platform/billing/page.tsx",
-    api: "src/app/api/v1/platform/billing/[[...path]]/route.ts",
-    service: "src/server/billing.ts",
-    schema: "migrations/postgres/control/0009_billing.sql",
-    test: "tests/billing.test.ts",
-    gap: "Sandbox offering only; live billing, tax, refunds and access restriction remain deferred.",
-  },
-  identity_access: {
-    stage: 2,
-    status: "implemented",
-    ui: "src/app/holdings/[holdingSlug]/iam/[[...section]]/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/iam/[[...path]]/route.ts",
-    service: "src/server/iam-service.ts",
-    schema:
-      "migrations/postgres/holding-write/0029_people_directory_operations.sql",
-    test: "tests/iam.test.ts",
-    gap: "Complete live email-provider and company business acceptance.",
-    overrides: {
-      assignments: {
-        status: "flow_accepted",
-        service: "src/server/account-access.ts",
-        schema: "migrations/postgres/control/0012_account_invitation_delivery.sql; migrations/postgres/control/0017_sandbox_email_deliveries.sql",
-        test: "tests/account-invitation-delivery.test.ts",
-        gap: "Reviewed employee invitations and password recovery now use durable delivery queues with lease recovery, bounded retry, cancellation and immutable evidence. Demo can use an explicit sandbox adapter that stores activation messages in the isolated Control DB with idempotent provider receipts; the browser journey covers independent approval, one-time activation, branch-scoped sign-in and immediate revocation. A live Resend run, independent public multi-session activation/recovery and business acceptance remain.",
+  "brand": {
+    "stage": 6,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/brand/page.tsx; src/components/modules/brand-identity-console.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/brand/route.ts",
+    "service": "src/server/brand-identity.ts",
+    "schema": "migrations/postgres/holding-write/0025_workspace_branding.sql; migrations/postgres/holding-write/0964_brand_identity_lifecycle.sql",
+    "test": "tests/brand-identity.test.ts; tests/e2e/demo-workplace-platform-lifecycle.spec.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Create/edit/preview a versioned identity draft; Independently publish the current reviewed version. Company brand/IP approval is separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "feature-category-locks": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Owner pins approved identity or visual category; Reject conflicting drafts and explicitly unlock for reviewed correction. Company brand/IP approval is separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
+      "feature-published-identity": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Publish through an independent reviewer; Inspect immutable versions and roll back with current version and locks. Company brand/IP approval is separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
+  },
+  "commercial": {
+    "stage": 6,
+    "status": "sandbox_verified",
+    "ui": "src/app/platform/billing/page.tsx",
+    "api": "src/app/api/v1/platform/billing/[[...path]]/route.ts",
+    "service": "src/server/billing.ts",
+    "schema": "migrations/postgres/control/0009_billing.sql",
+    "test": "tests/billing.test.ts; tests/billing-stripe-sandbox.test.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Review frozen monthly metered costs; Issue/reconcile Sandbox invoice through loss/retry and current provider state. Only Sandbox billing is supported; live collection, tax, automatic refunds and actual access restrictions are outside the verified offering. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "entitlements": {
+        "test": "tests/beta-auth-billing.test.ts; tests/social-beta.test.ts; tests/e2e/demo-workplace-platform-lifecycle.spec.ts; tests/billing-api.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Reconcile current Sandbox subscription entitlement; Authorize admission within configured resource capacity. Only Sandbox billing is supported; live collection, tax, automatic refunds and actual access restrictions are outside the verified offering. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-catalog-plans": {
+        "test": "tests/billing.test.ts; tests/e2e/demo-workplace-platform-lifecycle.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Publish dated plan revision; Preserve prior month and apply approved price next period. Only Sandbox billing is supported; live collection, tax, automatic refunds and actual access restrictions are outside the verified offering. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-subscriptions": {
+        "test": "tests/billing.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Consent/enroll in approved Sandbox plan; Schedule/withdraw/end month changes and reconcile late costs. Only Sandbox billing is supported; live collection, tax, automatic refunds and actual access restrictions are outside the verified offering. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-grace-recovery": {
+        "test": "tests/billing.test.ts; tests/beta-auth-billing.test.ts; tests/billing-stripe-errors.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Recover payment-method/authentication failure from current provider state; Retry durable webhook delivery and ignore older events. Only Sandbox billing is supported; live collection, tax, automatic refunds and actual access restrictions are outside the verified offering. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
+  },
+  "identity_access": {
+    "stage": 2,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/iam/[[...section]]/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/iam/[[...path]]/route.ts",
+    "service": "src/server/account-access.ts",
+    "schema": "migrations/postgres/control/0012_account_invitation_delivery.sql; migrations/postgres/control/0017_sandbox_email_deliveries.sql",
+    "test": "tests/iam.test.ts; tests/e2e/demo-workplace-platform-lifecycle.spec.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Propose/review scope-limited role assignment; Withdraw parent or direct authority and re-read current context. Real Resend delivery, public multi-session activation and Windows/endpoint enforcement require separate provider/Company acceptance; UCS/Samba evidence is an isolated real-service lab. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
       "access-reviews": {
-        status: "flow_accepted",
-        schema: "migrations/postgres/holding-write/0258_iam_access_review_campaigns.sql",
-        gap: "Periodic company access campaigns snapshot every active assignment, require fresh-MFA independent per-item keep/revoke decisions, invalidate revoked work contexts, reject stale evidence, retain immutable events and close only when every item is certified. Scheduled seven-day and overdue Inbox alerts recheck current reviewer authority and deduplicate each phase. Independent public multi-session execution and company business acceptance remain.",
+        "service": "src/server/iam-service.ts",
+        "schema": "migrations/postgres/holding-write/0258_iam_access_review_campaigns.sql",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Start independent access review; Keep or revoke each assignment then complete the campaign. Real Resend delivery, public multi-session activation and Windows/endpoint enforcement require separate provider/Company acceptance; UCS/Samba evidence is an isolated real-service lab. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-people-principals": {
-        status: "flow_accepted",
-        service: "src/server/account-recovery.ts",
-        schema: "migrations/postgres/control/0014_account_recovery_delivery.sql; migrations/postgres/control/0017_sandbox_email_deliveries.sql",
-        test: "tests/account-recovery.test.ts",
-        gap: "Reviewed employee invitations and password recovery now use durable delivery queues with lease recovery, bounded retry, cancellation and immutable evidence. Demo can use an explicit sandbox adapter that stores reset messages in the isolated Control DB with idempotent provider receipts; the browser journey covers independent approval, one-time activation, branch-scoped sign-in and immediate revocation. A live Resend run, independent public multi-session activation/recovery and business acceptance remain.",
+        "service": "src/server/account-recovery.ts",
+        "schema": "migrations/postgres/control/0014_account_recovery_delivery.sql; migrations/postgres/control/0017_sandbox_email_deliveries.sql",
+        "test": "tests/iam.test.ts; tests/organization-access.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Resolve provider identities to People without email merges; Read permitted person profile with current role. Real Resend delivery, public multi-session activation and Windows/endpoint enforcement require separate provider/Company acceptance; UCS/Samba evidence is an isolated real-service lab. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
-      "feature-roles-permissions": { status: "flow_accepted" },
+      "feature-roles-permissions": {
+        "service": "src/server/iam-service.ts",
+        "schema": "migrations/postgres/holding-write/0029_people_directory_operations.sql",
+        "test": "tests/iam.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Draft/publish versioned role permissions; Approve grants against the exact current revision. Real Resend delivery, public multi-session activation and Windows/endpoint enforcement require separate provider/Company acceptance; UCS/Samba evidence is an isolated real-service lab. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
       "feature-directory-connectors": {
-        status: "live_verified",
-        gap: "UCS/Samba lab writes are verified; public connector activation and Windows endpoint enforcement remain gated.",
+        "status": "live_verified",
+        "service": "src/server/iam-service.ts",
+        "schema": "migrations/postgres/holding-write/0029_people_directory_operations.sql",
+        "test": "tests/iam.test.ts; tests/iam-providers.test.ts; tests/e2e/demo-workplace-platform-lifecycle.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Sync approved directory adapter with complete snapshot; Handle incomplete/outage/expired evidence. Real Resend delivery, public multi-session activation and Windows/endpoint enforcement require separate provider/Company acceptance; UCS/Samba evidence is an isolated real-service lab. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
-    },
+      "feature-identity-conflicts": {
+        "service": "src/server/iam-service.ts",
+        "schema": "migrations/postgres/holding-write/0029_people_directory_operations.sql",
+        "test": "tests/iam.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Import same-contact distinct provider identities; Refuse incomplete authoritative sync. Real Resend delivery, public multi-session activation and Windows/endpoint enforcement require separate provider/Company acceptance; UCS/Samba evidence is an isolated real-service lab. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
   },
-  organization: {
-    stage: 2,
-    status: "flow_accepted",
-    ui: "src/app/holdings/[holdingSlug]/people/organization/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts",
-    service: "src/server/organization.ts; src/server/company-business-acceptance.ts; src/server/beta-onboarding.ts",
-    schema: "migrations/postgres/holding-write/0257_organization_node_changes.sql; migrations/postgres/holding-write/0272_company_business_acceptance.sql; migrations/postgres/holding-write/0273_company_provisioning_receipts.sql; migrations/postgres/holding-write/0274_organization_archive_relocation.sql",
-    test: "tests/organization.test.ts; tests/social-beta.test.ts; tests/e2e/demo-organization-lifecycle.spec.ts",
-    gap: "Independent branch/department draft, submit, return/correct, apply, cancel, rename, dependency-checked suspension, archive/reactivation and relocation have isolated multi-role service coverage with route history, dependency guards and downstream placement handoff. Company administrators can search and paginate open/completed requests, inspect immutable named decision history and enter exact requests from Work or transactional Inbox notices. Company setup now has a persisted readiness checklist, independently reviewed acceptance/rejection, revoke, version guards, audit events and actionable Work/Inbox handoff. Initial Company provisioning atomically installs the minimum Company graph, six staff levels, CEO placement and a retriable Holding receipt before control binding activation. Capability, provider, production and downstream business acceptance gates remain separate.",
+  "organization": {
+    "stage": 2,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/people/organization/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts",
+    "service": "src/server/organization.ts; src/server/company-business-acceptance.ts; src/server/beta-onboarding.ts",
+    "schema": "migrations/postgres/holding-write/0257_organization_node_changes.sql; migrations/postgres/holding-write/0272_company_business_acceptance.sql; migrations/postgres/holding-write/0273_company_provisioning_receipts.sql; migrations/postgres/holding-write/0274_organization_archive_relocation.sql",
+    "test": "tests/organization.test.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Inspect company, branch, department and reporting hierarchy; Review placements and reject cycles. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "sharing": {
+        "test": "tests/social-beta.test.ts; tests/organization-channels.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Choose explicit audiences and current branch/department participants; Transfer placement and re-read shared content. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-node-lifecycle": {
+        "test": "tests/organization.test.ts; tests/e2e/demo-organization-lifecycle.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Propose/review activation, suspension, archive and reopen; Retain dependent placement and immutable history. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-business-units": {
+        "test": "tests/organization.test.ts; tests/organization-access.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Inspect Company/branch configuration with scoped directory; Review branch/department lifecycle and placement. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
   },
-  platform_administration: {
-    stage: 6,
-    status: "implemented",
-    ui: "src/app/platform/[destination]/page.tsx",
-    api: "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/provision/route.ts; src/app/api/v1/platform/operations/recover/route.ts; src/app/api/v1/platform/operations/migrate/route.ts",
-    service: "src/server/platform-operations.ts",
-    schema: "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/control/0016_platform_holding_provisioning.sql; migrations/postgres/control",
-    test: "tests/platform-operations.test.ts",
-    gap: "Platform overview reads live control-plane heartbeats, per-Holding outbox backlog, leases, dead letters, migration receipts and Holding provisioning receipts. Platform administrators can activate a healthy pre-provisioned resource slot with a reason, transactional binding, retry-safe idempotency and immutable lifecycle events, recover one dead-letter job, or run the locked Holding migration track. Account Security supports audited, replay-safe emergency access activation and current-session revocation. Production/off-machine RPO/RTO and full business acceptance remain.",
-    overrides: {
-      provisioning: {
-        status: "flow_accepted",
-        ui: "src/app/platform/[destination]/page.tsx; src/components/platform/platform-holding-provisioning.tsx",
-        api: "src/app/api/v1/platform/operations/provision/route.ts",
-        service: "src/server/platform-operations.ts",
-        schema: "migrations/postgres/control/0016_platform_holding_provisioning.sql",
-        test: "tests/platform-operations.test.ts",
-        gap: "A Platform administrator activates a pre-provisioned, healthy resource slot into a durable Holding binding with reason, idempotency, immutable started/validated/activated events and explicit company-setup handoff. Physical database creation, off-machine/production RPO/RTO and external provider acceptance remain separate gates.",
+  "platform_administration": {
+    "stage": 6,
+    "status": "flow_accepted",
+    "ui": "src/app/platform/[destination]/page.tsx; src/components/platform/platform-holding-provisioning.tsx",
+    "api": "src/app/api/v1/platform/operations/provision/route.ts",
+    "service": "src/server/platform-operations.ts",
+    "schema": "migrations/postgres/control/0016_platform_holding_provisioning.sql",
+    "test": "tests/platform-operations.test.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Validate approved Holding slot and provision; Replay activation and inspect durable history. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "feature-holdings": {
+        "ui": "src/app/platform/[destination]/page.tsx",
+        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/provision/route.ts; src/app/api/v1/platform/operations/recover/route.ts; src/app/api/v1/platform/operations/migrate/route.ts",
+        "schema": "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/control/0016_platform_holding_provisioning.sql; migrations/postgres/control",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Provision available Holding resource slot; Inspect current binding and runtime operational state. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
-      "feature-migration-runs": {
-        status: "flow_accepted",
-        ui: "src/app/platform/[destination]/page.tsx; src/components/platform/platform-migration-run.tsx",
-        api: "src/app/api/v1/platform/operations/migrate/route.ts",
-        service: "src/server/platform-operations.ts; src/server/runtime/migrations.ts",
-        schema: "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/holding-write/0275_migration_receipts.sql; migrations/postgres/holding-read/0002_migration_receipts.sql",
-        test: "tests/platform-operations.test.ts",
-        gap: "Locked Holding write migrations are visible and executable by Platform administrators from the live operations page with a reason, durable receipt, replay-safe idempotency and auditor denial. Production/off-machine RPO/RTO and full business acceptance remain.",
-      },
-      "feature-temporary-access": {
-        status: "implemented",
-        ui: "src/app/security/page.tsx; src/app/security/security-form.tsx",
-        api: "src/app/api/v1/account/iam/[[...path]]/route.ts",
-        service: "src/server/iam-recovery.ts",
-        schema: "migrations/postgres/control/0006_iam.sql; migrations/postgres/holding-write/0020_iam.sql",
-        test: "tests/iam.test.ts",
-        gap: "Designated recovery administrators activate access after fresh MFA; Account Security shows the current browser session's active scope and expiry, and self-revocation is immediate, transactional, audited and replay-safe. Multi-role browser/business acceptance, production operation and off-machine recovery targets remain separate gates.",
-      },
-      "feature-backup-recovery": {
-        status: "flow_accepted",
-        ui: "src/app/platform/[destination]/page.tsx",
-        api: "ops/macos/erpxctl.py",
-        service: "ops/macos/erpxctl.py",
-        schema: "migrations/postgres/control",
-        test: "tests/backup-restore-operations.test.ts",
-        gap: "The shipped operator backup/restore flow is accepted through isolated PostgreSQL 18 rehearsal: database dump, private files, application secret, retained credentials, release selection, pre-restore safety backup and checksum fail-closed behavior, plus source-linked Holding restore and business invariants. Off-machine durability, WAL/PITR, live restart, every production database and signed RPO/RTO remain.",
+      "feature-connectors": {
+        "ui": "src/app/platform/[destination]/page.tsx",
+        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/provision/route.ts; src/app/api/v1/platform/operations/recover/route.ts; src/app/api/v1/platform/operations/migrate/route.ts",
+        "schema": "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/control/0016_platform_holding_provisioning.sql; migrations/postgres/control",
+        "test": "tests/engineering-platform-access.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Register and transition platform connectors. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-infrastructure": {
-        status: "flow_accepted",
-        ui: "src/app/platform/[destination]/page.tsx",
-        api: "ops/macos/erpxctl.py",
-        service: "ops/macos/erpxctl.py",
-        schema: "migrations/postgres/control",
-        test: "tests/recovery-simulation.test.ts",
-        gap: "Isolated recovery restores a source-linked Holding database and verifies table digests, stock reservations and application state without reposting transactions. Installed-host restart, off-machine durability, WAL/PITR, every production database and signed RPO/RTO remain.",
+        "ui": "src/app/platform/[destination]/page.tsx",
+        "api": "ops/macos/erpxctl.py",
+        "service": "ops/macos/erpxctl.py",
+        "schema": "migrations/postgres/control",
+        "test": "tests/platform-operations.test.ts; tests/engineering-recovery.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Read control and Holding health/queue state; Inspect unavailable Holding and preserve actionable failure. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
-    },
+      "feature-backup-recovery": {
+        "ui": "src/app/platform/[destination]/page.tsx",
+        "api": "ops/macos/erpxctl.py",
+        "service": "ops/macos/erpxctl.py",
+        "schema": "migrations/postgres/control",
+        "test": "tests/backup-restore-operations.test.ts; tests/engineering-recovery.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Create isolated database/file/secret backup with encrypted offsite copy; Restore and refuse corrupt or undecryptable artifact. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-projections-events": {
+        "ui": "src/app/platform/[destination]/page.tsx",
+        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/provision/route.ts; src/app/api/v1/platform/operations/recover/route.ts; src/app/api/v1/platform/operations/migrate/route.ts",
+        "schema": "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/control/0016_platform_holding_provisioning.sql; migrations/postgres/control",
+        "test": "tests/platform-operations.test.ts; tests/e2e/demo-workplace-platform-lifecycle.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Inspect durable event projections and dead letters; Review/retry current failed event once. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-migration-runs": {
+        "ui": "src/app/platform/[destination]/page.tsx; src/components/platform/platform-migration-run.tsx",
+        "api": "src/app/api/v1/platform/operations/migrate/route.ts",
+        "service": "src/server/platform-operations.ts; src/server/runtime/migrations.ts",
+        "schema": "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/holding-write/0275_migration_receipts.sql; migrations/postgres/holding-read/0002_migration_receipts.sql",
+        "test": "tests/platform-operations.test.ts; tests/e2e/demo-workplace-platform-lifecycle.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Run reviewed additive Holding migrations; Reload durable migration receipt and replay. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-temporary-access": {
+        "ui": "src/app/security/page.tsx; src/app/security/security-form.tsx",
+        "api": "src/app/api/v1/account/iam/[[...path]]/route.ts",
+        "service": "src/server/iam-recovery.ts",
+        "schema": "migrations/postgres/control/0006_iam.sql; migrations/postgres/holding-write/0020_iam.sql",
+        "test": "tests/engineering-platform-access.test.ts; tests/e2e/demo-workplace-platform-lifecycle.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Request, approve and revoke audited access. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-platform-audit": {
+        "ui": "src/app/platform/[destination]/page.tsx",
+        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/provision/route.ts; src/app/api/v1/platform/operations/recover/route.ts; src/app/api/v1/platform/operations/migrate/route.ts",
+        "schema": "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/control/0016_platform_holding_provisioning.sql; migrations/postgres/control",
+        "test": "tests/iam.test.ts; tests/platform-operations.test.ts; tests/e2e/demo-workplace-platform-lifecycle.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Search durable scope-specific audit history; Review command recovery audit and original receipt. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
   },
-  customer_360: {
-    stage: 3,
-    status: "implemented",
-    ui: "src/app/holdings/[holdingSlug]/commerce/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
-    service: "src/server/commerce.ts",
-    schema: "migrations/postgres/holding-write/0001_baseline.sql",
-    test: "tests/business-commands.test.ts",
-    gap: "Add authorized service timeline, customer notes and a federated customer projection.",
-    overrides: {
+  "customer_360": {
+    "stage": 3,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/customers/page.tsx; src/app/holdings/[holdingSlug]/customers/[id]/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
+    "service": "src/server/customer-timeline.ts; src/server/customer-notes.ts",
+    "schema": "migrations/postgres/holding-write/0001_baseline.sql",
+    "test": "tests/customer-timeline.test.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Create source customer transactions in their owner modules; Read Customer 360 with matching source permissions; Revoke an owner permission and reread the projection. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
       "service-timeline": {
-        status: "implemented",
-        ui: "src/app/holdings/[holdingSlug]/customers/[id]/page.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/customers/route.ts",
-        service: "src/server/customer-timeline.ts",
-        schema:
-          "migrations/postgres/holding-write/0215_crm_leads_opportunities.sql, migrations/postgres/holding-write/0059_legal.sql, migrations/postgres/holding-write/0071_legal_native_references.sql",
-        test: "tests/customer-timeline.test.ts",
-        gap: "Scoped source projection for sales/fulfillment/returns/contact/follow-up/qualified CRM plus permission-gated Support, Field Service agreement, Finance invoice and Legal order-linked state, with explicit field allowlist and pagination. Portal/customer authority, invoice transition history, full multi-role/browser and business acceptance remain.",
+        "api": "src/app/api/v1/holdings/[holdingSlug]/customers/route.ts",
+        "service": "src/server/customer-timeline.ts",
+        "schema": "migrations/postgres/holding-write/0215_crm_leads_opportunities.sql, migrations/postgres/holding-write/0059_legal.sql, migrations/postgres/holding-write/0071_legal_native_references.sql",
+        "test": "tests/customer-timeline.test.ts; tests/e2e/demo-customer-timeline.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Record CRM activities, notes and follow-up outcomes; Read a bounded customer timeline; Reload immutable owner sources. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-customer-profile": {
+        "test": "tests/customer-notes.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Read the authorized canonical customer profile; Attempt notes against stale and out-of-scope customer versions; Reload profile after an authorized contact record. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-customer-notes": {
-        status: "implemented",
-        ui: "src/app/holdings/[holdingSlug]/commerce/orders/[id]/notes/page.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/customer-notes/route.ts",
-        service: "src/server/customer-notes.ts",
-        schema:
-          "migrations/postgres/holding-write/0212_customer_contact_notes.sql",
-        test: "tests/customer-notes.test.ts",
-        gap: "Internal order/quotation contact notes with source scope, immutable correction/archive history, authority and concurrency guards. Standalone customer notes, customer merge/consent, cross-domain timeline, multi-role browser and business acceptance remain.",
-      },
-    },
+        "api": "src/app/api/v1/holdings/[holdingSlug]/customer-notes/route.ts",
+        "service": "src/server/customer-notes.ts",
+        "schema": "migrations/postgres/holding-write/0212_customer_contact_notes.sql",
+        "test": "tests/customer-notes.test.ts; tests/e2e/demo-customer-timeline.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Record a scoped customer contact; Correct the note with expected version; Archive and reload original plus correction events. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
   },
-  customer_authority: {
-    ...preview(
-      3,
-      "Implement explicit customer/object authority bindings, merge review, revocation and access audit.",
-    ),
-    overrides: {
-      "duplicate-review": {
-        status: "implemented",
-        ui: "src/app/holdings/[holdingSlug]/customer-duplicates/page.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/customer-duplicates/route.ts",
-        service: "src/server/customer-duplicates.ts",
-        schema:
-          "migrations/postgres/holding-write/0222_customer_duplicate_reviews.sql, migrations/postgres/holding-write/0264_customer_duplicate_merge.sql, migrations/postgres/holding-write/0265_customer_duplicate_reconciliation.sql",
-        test: "tests/customer-duplicates.test.ts",
-        gap: "Ordered customer pair, independent current reviewer, duplicate/distinct/reopen decisions, canonical selection and immutable history, plus transactional merge/repoint of safe source records with merge lineage and immutable-owner blockers. Balance reconciliation, address/contact changes, browser and business acceptance remain.",
-      },
-      "feature-identity-changes": {
-        status: "implemented",
-        ui: "src/app/holdings/[holdingSlug]/customer-identity/page.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/customer-identity/route.ts",
-        service: "src/server/customer-identity-changes.ts",
-        schema:
-          "migrations/postgres/holding-write/0223_customer_identity_changes.sql, migrations/postgres/holding-write/0266_customer_contact_identity.sql",
-        test: "tests/customer-identity-changes.test.ts",
-        gap: "Before/after snapshot, independent current review, reject/resubmit, optimistic customer-version guard and atomic name/tax/phone/address/notification-email/consent update with immutable history. External registry checks, browser and business acceptance remain.",
+  "customer_authority": {
+    "stage": 3,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/customer-duplicates/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/customer-duplicates/route.ts",
+    "service": "src/server/customer-duplicates.ts",
+    "schema": "migrations/postgres/holding-write/0222_customer_duplicate_reviews.sql, migrations/postgres/holding-write/0264_customer_duplicate_merge.sql, migrations/postgres/holding-write/0265_customer_duplicate_reconciliation.sql",
+    "test": "tests/customer-duplicates.test.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Review an ordered suspected duplicate pair independently; Choose the canonical identity; Merge safe source references and reload lineage/balances. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "access-history": {
+        "ui": "src/app/holdings/[holdingSlug]/customer-access/[id]/page.tsx, src/app/customer-portal/[holdingSlug]/page.tsx",
+        "api": "src/app/api/v1/holdings/[holdingSlug]/customer-access/route.ts, src/app/api/customer-portal/[holdingSlug]/route.ts",
+        "service": "src/server/customer-portal.ts",
+        "schema": "migrations/postgres/holding-write/0221_customer_access.sql, migrations/postgres/holding-write/0267_customer_portal_actions.sql",
+        "test": "tests/customer-access.test.ts; tests/e2e/demo-retail-customer-authority.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Independently approve portal authority; Bind the first verified identity; Read allowlisted documents and attempt a second account. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-authority-bindings": {
-        status: "implemented",
-        ui: "src/app/holdings/[holdingSlug]/customer-access/page.tsx, src/app/customer-portal/[holdingSlug]/page.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/customer-access/route.ts, src/app/api/customer-portal/[holdingSlug]/route.ts",
-        service: "src/server/customer-access.ts, src/server/customer-portal.ts",
-        schema: "migrations/postgres/holding-write/0221_customer_access.sql, migrations/postgres/holding-write/0267_customer_portal_actions.sql",
-        test: "tests/customer-access.test.ts",
-        gap: "Source-bound email authority with independent review, expiry, immediate revocation, first verified-account binding, allowlisted projection and customer acknowledgement/support actions with staff handoff are implemented. Consent preferences, delegated customer administrators, multi-source grants, provider delivery and business acceptance remain.",
+        "ui": "src/app/holdings/[holdingSlug]/customer-access/page.tsx, src/app/customer-portal/[holdingSlug]/page.tsx",
+        "api": "src/app/api/v1/holdings/[holdingSlug]/customer-access/route.ts, src/app/api/customer-portal/[holdingSlug]/route.ts",
+        "service": "src/server/customer-access.ts, src/server/customer-portal.ts",
+        "schema": "migrations/postgres/holding-write/0221_customer_access.sql, migrations/postgres/holding-write/0267_customer_portal_actions.sql",
+        "test": "tests/customer-access.test.ts; tests/e2e/demo-retail-customer-authority.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Prepare and independently approve authority; Revoke the current grant; Attempt portal reads and stale review decisions. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
-      "access-history": {
-        status: "implemented",
-        ui: "src/app/holdings/[holdingSlug]/customer-access/[id]/page.tsx, src/app/customer-portal/[holdingSlug]/page.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/customer-access/route.ts, src/app/api/customer-portal/[holdingSlug]/route.ts",
-        service: "src/server/customer-portal.ts",
-        schema: "migrations/postgres/holding-write/0221_customer_access.sql, migrations/postgres/holding-write/0267_customer_portal_actions.sql",
-        test: "tests/customer-access.test.ts",
-        gap: "Immutable request/review/revoke events, per-view portal audit, customer actions and actionable staff notifications are available to scoped staff. Search/export/retention policy and privacy-officer acceptance remain.",
-      },
-    },
+      "feature-identity-changes": {
+        "ui": "src/app/holdings/[holdingSlug]/customer-identity/page.tsx",
+        "api": "src/app/api/v1/holdings/[holdingSlug]/customer-identity/route.ts",
+        "service": "src/server/customer-identity-changes.ts",
+        "schema": "migrations/postgres/holding-write/0223_customer_identity_changes.sql, migrations/postgres/holding-write/0266_customer_contact_identity.sql",
+        "test": "tests/customer-identity-changes.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Propose a customer identity change; Assign an independent eligible reviewer; Apply only against the captured unchanged customer version. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
   },
-  support: {
-    ...preview(
-      3,
-      "Implement SLA clocks, incidents, support sessions, scoped capabilities and private attachments.",
-    ),
-    overrides: {
+  "support": {
+    "stage": 3,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/support/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/support/route.ts",
+    "service": "src/server/support.ts",
+    "schema": "migrations/postgres/holding-write/0216_support_tickets.sql",
+    "test": "tests/support.test.ts; tests/e2e/demo-support-lifecycle.spec.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Open, triage, reply and resolve customer tickets. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "sla-watch": {
+        "ui": "src/app/holdings/[holdingSlug]/support/sla/page.tsx",
+        "api": "src/app/api/v1/holdings/[holdingSlug]/support/sla/route.ts",
+        "service": "src/server/support-sla.ts",
+        "schema": "migrations/postgres/holding-write/0217_support_sla.sql",
+        "test": "tests/support-sla.test.ts; tests/engineering-workplace-workers.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Prioritize tickets nearing their response target; Drain native queues under current Company production rules, recheck enrollment and authority before each result, and retain human review. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "incidents": {
+        "ui": "src/app/holdings/[holdingSlug]/support/incidents/page.tsx",
+        "api": "src/app/api/v1/holdings/[holdingSlug]/support/incidents/route.ts",
+        "service": "src/server/support-incidents.ts",
+        "schema": "migrations/postgres/holding-write/0219_support_incidents.sql",
+        "test": "tests/support-incidents.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Open incidents, add timeline events and broadcast status. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
       "feature-support-sessions": {
-        status: "implemented",
-        ui: "src/app/holdings/[holdingSlug]/support/sessions/page.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/support/sessions/route.ts",
-        service: "src/server/support-sessions.ts",
-        schema: "migrations/postgres/holding-write/0224_support_sessions.sql",
-        test: "tests/support-sessions.test.ts",
-        gap: "Ticket-bound self-request, independent current manager review, eight-hour ceiling, expiry, immediate revoke, current target eligibility and immutable history are implemented with Work/Inbox. Customer-originated authorization, remote-control tooling, Calendar, browser and business acceptance remain.",
+        "ui": "src/app/holdings/[holdingSlug]/support/sessions/page.tsx",
+        "api": "src/app/api/v1/holdings/[holdingSlug]/support/sessions/route.ts",
+        "service": "src/server/support-sessions.ts",
+        "schema": "migrations/postgres/holding-write/0224_support_sessions.sql",
+        "test": "tests/support-sessions.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Request, approve and revoke customer sessions. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-capabilities": {
-        status: "implemented",
-        ui: "src/app/holdings/[holdingSlug]/support/sessions/[id]/page.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/support/sessions/route.ts",
-        service: "src/server/support-sessions.ts",
-        schema: "migrations/postgres/holding-write/0224_support_sessions.sql",
-        test: "tests/support-sessions.test.ts",
-        gap: "Explicit allowlisted customer-order context and ticket-evidence metadata grants have issue/reissue/revoke, session cascade, optimistic versions and enforcement on every read. File bytes, write capabilities, Portal consent, export/retention, browser and business acceptance remain.",
+        "ui": "src/app/holdings/[holdingSlug]/support/sessions/[id]/page.tsx",
+        "api": "src/app/api/v1/holdings/[holdingSlug]/support/sessions/route.ts",
+        "service": "src/server/support-sessions.ts",
+        "schema": "migrations/postgres/holding-write/0224_support_sessions.sql",
+        "test": "tests/support-sessions.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Issue and revoke scoped support capabilities. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-attachments": {
-        status: "implemented",
-        ui: "src/components/modules/support-evidence-console.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/uploads/route.ts",
-        service: "src/server/support-evidence.ts",
-        schema: "migrations/postgres/holding-write/0220_support_evidence.sql",
-        test: "tests/support-evidence.test.ts",
-        gap: "Private ticket upload/download/withdrawal, source versions, current eligibility, immutable history and resolution freeze. Incident files, Portal sharing/revocation, retention/destruction and multi-role customer acceptance remain.",
-      },
-      incidents: {
-        status: "implemented",
-        ui: "src/app/holdings/[holdingSlug]/support/incidents/page.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/support/incidents/route.ts",
-        service: "src/server/support-incidents.ts",
-        schema: "migrations/postgres/holding-write/0219_support_incidents.sql",
-        test: "tests/support-incidents.test.ts",
-        gap: "Source-linked incident, eligible owner, immutable event history, link/unlink/relink, investigation, mitigation, independent review/rework/reopen and Work/Inbox/Calendar. Customer tickets stay independent. Cross-scope coordination, specialist dispatch, severity SLA, public status/email, attachments and postmortem remain.",
-      },
-      "sla-watch": {
-        status: "implemented",
-        ui: "src/app/holdings/[holdingSlug]/support/sla/page.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/support/sla/route.ts",
-        service: "src/server/support-sla.ts",
-        schema: "migrations/postgres/holding-write/0217_support_sla.sql",
-        test: "tests/support-sla.test.ts",
-        gap: "Independent policy review, immutable calendar snapshots, working-time resolution clocks, pause/resume/reopen, durable breach sweep and scoped manager Work/Inbox acknowledgement. First-response targets, default/effective-dated binding, multi-level escalation, acknowledged-owner reassignment, overnight calendars and customer notification/acceptance remain.",
-      },
-      tickets: {
-        status: "implemented",
-        ui: "src/app/holdings/[holdingSlug]/support/page.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/support/route.ts",
-        service: "src/server/support.ts",
-        schema: "migrations/postgres/holding-write/0216_support_tickets.sql",
-        test: "tests/support.test.ts",
-        gap: "Source-linked ticket ownership, acceptance, wait/resume, proposed resolution, independently reviewed staff-recorded customer confirmation, reopen/cancel/reassign and Work/Inbox/Calendar. Standalone identity, Portal/public replies, Email, attachments and full customer acceptance remain. Working-time targets and durable breach escalation have a separate SLA owner implementation.",
-      },
-    },
+        "ui": "src/components/modules/support-evidence-console.tsx",
+        "api": "src/app/api/v1/holdings/[holdingSlug]/uploads/route.ts",
+        "service": "src/server/support-evidence.ts",
+        "schema": "migrations/postgres/holding-write/0220_support_evidence.sql",
+        "test": "tests/support-evidence.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Share customer-safe evidence or private internal files. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
   },
-  finance: {
-    stage: 1,
-    status: "implemented",
-    ui: "src/app/holdings/[holdingSlug]/finance/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
-    service: "src/server/finance.ts",
-    schema: "migrations/postgres/holding-write/0001_baseline.sql",
-    test: "tests/finance-money.test.ts",
-    gap: "Opening GL/subledger reconciliation, controlled realized settlement, independently approved period-end foreign-currency revaluation and recurring accrual schedules are implemented. Source-linked intercompany items now have independent match, settlement and elimination handoffs with immutable events, and Group Finance can prepare, review, approve and publish a closed-period consolidation snapshot with required source-currency translation rates. Controlled report-level elimination account proposals, independent approval and posting to a separate Group Finance journal are implemented; notes and full close acceptance remain.",
-    overrides: {
-      journals: { status: "flow_accepted", schema:"migrations/postgres/holding-write/0262_finance_accrual_schedules.sql; migrations/postgres/holding-write/0279_finance_consolidation_workflow.sql; migrations/postgres/holding-write/0280_finance_consolidation_eliminations.sql", test:"tests/finance-accruals.test.ts; tests/finance-consolidation.test.ts", gap:"Opening imports, recurring accrual journals and realized/unrealized FX journals are atomic and independently controlled; Group Finance snapshots require independent review, source-currency rates, approval and publication, and approved elimination account pairs post to a separate controlled consolidation journal. Notes and full business acceptance remain." },
-      payables: { status: "flow_accepted", schema:"migrations/postgres/holding-write/0262_finance_accrual_schedules.sql; migrations/postgres/holding-write/0279_finance_consolidation_workflow.sql; migrations/postgres/holding-write/0280_finance_consolidation_eliminations.sql", test:"tests/finance-accruals.test.ts; tests/finance-consolidation.test.ts", gap:"Opening, recurring accrual and foreign-currency payables retain source, period and posting evidence; Group Finance snapshots retain source hashes, translation rates and immutable decisions, while approved elimination account pairs post to a separate controlled consolidation journal. Complete business acceptance remains." },
-      "feature-receivables-aging": { status: "flow_accepted", ui:"src/app/holdings/[holdingSlug]/finance/invoices/page.tsx", schema:"migrations/postgres/holding-write/0256_finance_fx_revaluation.sql", test:"tests/finance-fx-revaluation.test.ts", gap:"Opening, foreign-currency settlement/revaluation, Sales-to-Collection and the authenticated Demo aging workspace now reconcile transaction/functional balances and show currency-separated overdue buckets linked to open records. Notes, schedules, live/provider operation and full business acceptance remain." },
-      "feature-chart-of-accounts": { status:"flow_accepted", ui:"src/app/holdings/[holdingSlug]/finance/setup/page.tsx", api:"src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts", service:"src/server/finance.ts", test:"tests/e2e/demo-finance-chart-setup.spec.ts", gap:"Authorized Finance users can create charts, add posting/control accounts, preview and import validated CSV rows, and safely activate or deactivate accounts with version/reason/audit guards. The isolated Demo browser journey covers create, status change and import. Chart migration, opening/subledger reconciliation, period close, provider/statutory setup, production operation and Company business acceptance remain." },
-      "feature-reports": { status:"flow_accepted", ui:"src/app/holdings/[holdingSlug]/finance/reports/page.tsx", api:"src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts", service:"src/server/ledger.ts", test:"tests/e2e/demo-finance-reports.spec.ts", gap:"The selected chart’s statement totals and trial balance reconcile to the protected report APIs, and every total links to the supporting Accounting journal entries in an isolated Demo browser journey. Period-close evidence, notes, consolidation, provider/production operation and full Company business acceptance remain." },
-      "feature-payments": {
-        status: "flow_accepted",
-        ui: "src/app/holdings/[holdingSlug]/finance/page.tsx, src/app/holdings/[holdingSlug]/finance/payments/page.tsx",
-        schema:
-          "migrations/postgres/holding-write/0255_finance_multi_currency.sql",
-        test: "tests/finance-generic-payments.test.ts, tests/finance-payment-obligations.test.ts, tests/e2e/demo-payroll-runs.spec.ts",
-        gap: "Generic Company receipts/payments require preparer, independent approver and third-person Treasury release; exact bank confirmation posts bank/AR/AP GL, transaction/functional allocations and realized FX, settles the payment and matches the bank row atomically. Supplier batches reserve posted AP balances, require independent beneficiary review, export a recoverable instruction register and settle only against exact imported bank evidence. Finance now exposes one source-linked Payment obligations queue for generic, supplier, refund, payroll and expense/contractor batches, with permission-filtered source access; the isolated multi-role Demo browser paths exercise these handoffs. Live providers and business acceptance remain.",
+  "finance": {
+    "stage": 1,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/finance/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
+    "service": "src/server/finance.ts",
+    "schema": "migrations/postgres/holding-write/0262_finance_accrual_schedules.sql; migrations/postgres/holding-write/0279_finance_consolidation_workflow.sql; migrations/postgres/holding-write/0280_finance_consolidation_eliminations.sql",
+    "test": "tests/thai-accounting-foundation.test.ts; tests/finance-generic-payments.test.ts; tests/finance-invoice-lines.test.ts; tests/finance-withholding.test.ts; tests/e2e/demo-engineering-money-people.spec.ts; tests/finance-journal-route-encoding.test.ts; tests/commerce-foreign-goods.test.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Create, balance, post and inspect multi-currency journals. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "payables": {
+        "test": "tests/finance-generic-payments.test.ts; tests/finance-invoice-lines.test.ts; tests/finance-withholding.test.ts; tests/e2e/demo-engineering-money-people.spec.ts; tests/commerce-foreign-goods.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Create or revise the complete native supplier invoice lines and immutable source snapshots; Independently post the bill and review actual supplier income withholding; Use distinct Treasury approval and exact net bank evidence; retain immediate50tawi copies; Prepare, independently review and remit an ordinary monthly source workpaper; record actual recovery before source cancellation. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
-      "feature-bank-reconciliation": { status: "flow_accepted", schema:"migrations/postgres/holding-write/0255_finance_multi_currency.sql", test:"tests/finance-close-reconciliation.test.ts", gap:"Configured bank control accounts require a period-end statement whose functional closing balance equals cumulative posted GL. Foreign statements retain the closing FX rate. Live provider and complete business acceptance remain." },
+      "feature-chart-of-accounts": {
+        "ui": "src/app/holdings/[holdingSlug]/finance/setup/page.tsx",
+        "schema": "migrations/postgres/holding-write/0001_baseline.sql",
+        "test": "tests/thai-accounting-foundation.test.ts; tests/finance-opening-balances.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Import a chart, add accounts and change status. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-payments": {
+        "ui": "src/app/holdings/[holdingSlug]/finance/page.tsx, src/app/holdings/[holdingSlug]/finance/payments/page.tsx",
+        "schema": "migrations/postgres/holding-write/0255_finance_multi_currency.sql",
+        "test": "tests/finance-generic-payments.test.ts; tests/finance-withholding.test.ts; tests/e2e/demo-engineering-money-people.spec.ts; tests/commerce-foreign-goods.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Create, approve and release payments. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-receivables-aging": {
+        "ui": "src/app/holdings/[holdingSlug]/finance/invoices/page.tsx",
+        "schema": "migrations/postgres/holding-write/0256_finance_fx_revaluation.sql",
+        "test": "tests/thai-accounting-foundation.test.ts; tests/commerce-foreign-goods.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Inspect customer balances and aging. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-bank-reconciliation": {
+        "schema": "migrations/postgres/holding-write/0255_finance_multi_currency.sql",
+        "test": "tests/finance-generic-payments.test.ts; tests/finance-withholding.test.ts; tests/e2e/demo-engineering-money-people.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Import CSV, review matches and reconcile. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-reports": {
+        "ui": "src/app/holdings/[holdingSlug]/finance/reports/page.tsx",
+        "service": "src/server/ledger.ts",
+        "schema": "migrations/postgres/holding-write/0001_baseline.sql",
+        "test": "tests/finance-reporting.test.ts; tests/e2e/demo-engineering-money-people.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Select the independently approved Company NPAEs profile and explicitly classify ledger accounts; Prepare current and comparative position, income, equity changes and note disclosures from posted records; A different Finance approver issues a versioned retained export; Amend a later correction into a new edition while retaining the earlier export and source history. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
       "feature-period-close": {
-        status: "flow_accepted",
-        ui: "src/app/holdings/[holdingSlug]/finance/close/page.tsx",
-        schema: "migrations/postgres/holding-write/0256_finance_fx_revaluation.sql",
-        test: "tests/finance-fx-revaluation.test.ts",
-        gap: "Close preparation snapshots exact AR/AP-to-control and period-end bank-to-GL evidence; open foreign items require source-hashed closing rates and an independently posted revaluation. Final close approval recomputes and rejects stale evidence. Two consecutive closes pass in isolated integration and independent Finance preparer/approver browser sessions. Real-bank provider and business acceptance remain.",
+        "ui": "src/app/holdings/[holdingSlug]/finance/close/page.tsx",
+        "schema": "migrations/postgres/holding-write/0256_finance_fx_revaluation.sql",
+        "test": "tests/finance-close-reconciliation.test.ts; tests/finance-reporting.test.ts; tests/engineering-finance-close-fixture.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Reconcile actual source GL and dated AR/AP/bank evidence; Prepare and independently approve two consecutive monthly closes; Prepare and independently post the reviewed complete fiscal result into retained earnings; Close the final accounting period and require another Finance approver for reopening. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-opening-balances": {
-        status: "flow_accepted",
-        ui: "src/app/holdings/[holdingSlug]/finance/setup/page.tsx",
-        schema: "migrations/postgres/holding-write/0253_finance_control_account_kinds.sql",
-        test: "tests/finance-opening-balances.test.ts",
-        gap: "Exact AR/AP schedule-to-control reconciliation, revision-bound preview, atomic journal/invoice import, independent posting into Aging, Treasury settlement with functional-currency balances, controlled reversal and the independent two-role demo browser import/post journey are flow accepted. Live/provider validation, production operation and company business acceptance remain.",
+        "ui": "src/app/holdings/[holdingSlug]/finance/setup/page.tsx",
+        "schema": "migrations/postgres/holding-write/0253_finance_control_account_kinds.sql",
+        "test": "tests/finance-opening-balances.test.ts; tests/engineering-finance-close-fixture.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Import and verify the opening trial balance. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
+  },
+  "pos": {
+    "stage": 5,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/pos/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/pos/[...path]/route.ts",
+    "service": "src/server/pos.ts",
+    "schema": "migrations/postgres/holding-write/0030_pos.sql",
+    "test": "tests/pos.test.ts; tests/e2e/demo-retail-customer-authority.spec.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Request a partial refund on a paid sale; Independently approve and record provider/bank payout result; Reload original cost, remaining refundable quantities and journals. Stripe test-mode journeys do not certify live payments, physical devices, registered e-Tax or offline selling. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "feature-register-session": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Open an authorized register session; Record split tender against a sale; Count, independently review and close the drawer. Stripe test-mode journeys do not certify live payments, physical devices, registered e-Tax or offline selling. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
-    },
+      "feature-sales-baskets": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Create a source-priced basket; Submit duplicate line commands concurrently; Reload the basket and retained command receipt. Stripe test-mode journeys do not certify live payments, physical devices, registered e-Tax or offline selling. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-payments-receipts": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Reserve actual available stock and freeze sale prices; Receive cash and post invoice/payment/allocation/stock journal atomically; Retry the lost response and reload sale/source GL. Stripe test-mode journeys do not certify live payments, physical devices, registered e-Tax or offline selling. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-voids": {
+        "test": "tests/pos.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Stage clean void evidence for the current sale; Void using the same source version; Attempt a stale attachment set and reload the sale. Stripe test-mode journeys do not certify live payments, physical devices, registered e-Tax or offline selling. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
   },
-  pos: {
-    stage: 5,
-    status: "flow_accepted",
-    ui: "src/app/holdings/[holdingSlug]/pos/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/pos/[...path]/route.ts",
-    service: "src/server/pos.ts",
-    schema: "migrations/postgres/holding-write/0030_pos.sql",
-    test: "tests/pos.test.ts",
-    gap: "Complete real Stripe/peripheral pilot acceptance and the POS-to-room charge handoff.",
-  },
-  sales: {
-    stage: 1,
-    status: "implemented",
-    ui: "src/app/holdings/[holdingSlug]/commerce/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
-    service: "src/server/commerce.ts",
-    schema: "migrations/postgres/holding-write/0001_baseline.sql",
-    test: "tests/business-commands.test.ts",
-    gap: "Versioned company/customer price lists capture effective dates, approved tax, delegated discount limits and immutable order snapshots; exceptional discounts require an independent manager reason. Customer returns split invoice credit and paid-amount refund obligations, quarantine exact returned quantities for independent Quality release or controlled scrap, and preserve bank reconciliation. Consent-aware delivery notifications use immutable snapshots, a durable worker, sandbox delivery and controlled retry. Live email-provider acceptance, complete multi-role browser acceptance and business acceptance remain.",
-    overrides: {
-      quotes: { status: "flow_accepted" },
-      orders: { status: "flow_accepted", test: "tests/flow-routing.test.ts" },
-      fulfillment: { status: "flow_accepted" },
+  "sales": {
+    "stage": 1,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/commerce/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
+    "service": "src/server/commerce.ts",
+    "schema": "migrations/postgres/holding-write/0001_baseline.sql",
+    "test": "tests/sales-pricing.test.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Independently activate a dated price list; Prepare a quotation with captured prices and discount authority; Request independent manager approval for excess discount. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "orders": {
+        "test": "tests/flow-routing.test.ts; tests/commerce-foreign-goods.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Approve a versioned credit limit independently; Prepare and approve Sales demand; Attempt excess or stale credit exposure. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "fulfillment": {
+        "test": "tests/stock-reservations.test.ts; tests/sales-delivery-evidence.test.ts; tests/e2e/demo-engineering-business.spec.ts; tests/business-scheduled-production.test.ts; tests/commerce-delivery-file-authority.test.ts; tests/commerce-foreign-goods.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Approve and confirm Sales demand; Partially fulfill from its own reservation; Finish remaining delivery and reload quantities/costs. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
       "feature-cancellations": {
-        status: "flow_accepted",
-        test: "tests/flow-routing.test.ts",
+        "test": "tests/flow-routing.test.ts; tests/commerce-foreign-goods.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Prepare and independently approve an order; Request independent cancellation before stock movement; Attempt cancellation after delivery. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-revenue-handoff": {
-        status: "flow_accepted",
-        schema: "migrations/postgres/holding-write/0201_commerce_returns.sql",
-        test: "tests/commerce-returns.test.ts",
-      },
-    },
+        "schema": "migrations/postgres/holding-write/0201_commerce_returns.sql",
+        "test": "tests/ecommerce.test.ts; tests/commerce-foreign-goods.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Fulfill an approved Sales order and independently post its actual stock journal; Prepare the source receivable and independently post Finance recognition; Collect the exact balance and replay the lost-response command. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
   },
-  assets: {
-    stage: 4,
-    status: "implemented",
-    ui: "src/app/holdings/[holdingSlug]/assets/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/assets/route.ts",
-    service: "src/server/asset-maintenance.ts",
-    schema: "migrations/postgres/holding-write/0225_asset_maintenance.sql",
-    test: "tests/asset-maintenance.test.ts",
-    gap: "Register, scoped placement/custody, condition history, maintenance linkage and independently reviewed retirement are implemented. Depreciation/Finance linkage, serial/attachment evidence, preventive schedules, browser and business acceptance remain.",
-  },
-  inventory: {
-    stage: 1,
-    status: "implemented",
-    ui: "src/app/holdings/[holdingSlug]/commerce/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
-    service: "src/server/commerce.ts",
-    schema: "migrations/postgres/holding-write/0239_inventory_lot_serial.sql",
-    test: "tests/inventory-lot-serial.test.ts",
-    gap: "Purchase receipt, Sales delivery, direct/staged transfers, physical counts, customer/supplier returns and independently reviewed landed-cost capitalization enforce quantity/value control totals, version guards and immutable item/lot evidence. Sales, POS, Field Service and Manufacturing share available/reserved stock; expiring and expired source reservations notify responsible users. Customer returns quarantine exact quantities for independent Quality release or controlled scrap. A Demo Company browser journey now covers independent purchasing approval, warehouse lot quarantine, serial receipt and Quality visibility; full capability and Company business acceptance remain incomplete.",
-    overrides: {
-      availability: { status: "flow_accepted" },
-      reservations: {
-        status: "flow_accepted",
-        ui: "src/app/holdings/[holdingSlug]/commerce/orders/[id]/page.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
-        service: "src/server/inventory-reservation-alerts.ts",
-        schema:
-          "migrations/postgres/holding-write/0233_planning_manufacturing.sql",
-        test: "tests/stock-reservations.test.ts",
-        gap: "Sales, POS, Field Service and Manufacturing share atomic availability guards, release, expiry and consumption. The scheduled worker sends durable deduplicated Inbox links before expiry and again after availability protection ends; terminal and fully consumed/released sources are excluded. The Demo lot/serial browser journey verifies received quantity and quarantine visibility; broader availability and Company business acceptance remain incomplete.",
+  "assets": {
+    "stage": 4,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/assets/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/assets/route.ts",
+    "service": "src/server/asset-maintenance.ts",
+    "schema": "migrations/postgres/holding-write/0225_asset_maintenance.sql",
+    "test": "tests/asset-maintenance.test.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Recognize a Finance acquisition independently; Register the physical asset with cost/currency and Finance version; Reload its physical event history. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "condition": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Register and place the asset; Record inspection evidence and degraded condition; Reload condition and immutable event sequence. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
-      "feature-stock-register": { status: "flow_accepted" },
-      "feature-receipts": { status: "flow_accepted" },
+      "feature-placement": {
+        "test": "tests/asset-maintenance.test.ts; tests/e2e/demo-engineering-business.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Register an asset linked to recognized Finance cost; Place the asset into an eligible staff member custody; Reload placement and later clear custody on reviewed retirement. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-maintenance-lifecycle": {
+        "test": "tests/asset-maintenance.test.ts; tests/e2e/demo-engineering-business.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Open corrective work against the current asset revision; Start, block, resume and complete an evidenced repair; Reload physical and maintenance records. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-retirement": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Request physical retirement after all work closes; Prepare and independently post the linked Finance disposal; Reject requester self review and independently approve physical retirement. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
+  },
+  "inventory": {
+    "stage": 1,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/commerce/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
+    "service": "src/server/commerce.ts",
+    "schema": "migrations/postgres/holding-write/0239_inventory_lot_serial.sql",
+    "test": "tests/stock-reservations.test.ts; tests/commerce-foreign-goods.test.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Create competing approved Sales demand for the last unit; Reserve concurrently using source versions; Reload shared physical and available quantities. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "reservations": {
+        "ui": "src/app/holdings/[holdingSlug]/commerce/orders/[id]/page.tsx",
+        "service": "src/server/inventory-reservation-alerts.ts",
+        "schema": "migrations/postgres/holding-write/0233_planning_manufacturing.sql",
+        "test": "tests/stock-reservations.test.ts; tests/business-scheduled-production.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Reserve approved Sales demand; Deliver part of the order from its own reservation; Deliver the remainder and reload quantity/value. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-stock-register": {
+        "test": "tests/inventory-lot-serial.test.ts; tests/commerce-foreign-goods.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Receive actual controlled lots; Quarantine only the affected lot; Independently inspect/release and compare lot totals to the stock register. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-receipts": {
+        "test": "tests/purchase-to-payment.test.ts; tests/e2e/demo-inventory-lot-serial.spec.ts; tests/commerce-foreign-goods.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Approve sourced procurement demand; Receive six units then the remaining four; Reload receipt sources, inventory and consolidated invoice. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
       "feature-issues-movements": {
-        status: "flow_accepted",
-        ui: "src/app/holdings/[holdingSlug]/stock-transit/page.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/stock-transit/[[...path]]/route.ts",
-        service: "src/server/inventory-transit.ts",
-        schema: "migrations/postgres/holding-write/0207_inventory_transit.sql",
-        test: "tests/inventory-transit.test.ts",
-        gap: "Same-company staged transfer is accepted through the real Demo Company UI with separate source and receiving warehouse managers: draft, submit, independent approval, dispatch, partial receipt, final receipt and downstream stock/value verification. Intercompany documents, customer POD, structured carrier evidence, provider/production and company business acceptance remain incomplete.",
+        "ui": "src/app/holdings/[holdingSlug]/stock-transit/page.tsx",
+        "api": "src/app/api/v1/holdings/[holdingSlug]/stock-transit/[[...path]]/route.ts",
+        "service": "src/server/inventory-transit.ts",
+        "schema": "migrations/postgres/holding-write/0207_inventory_transit.sql",
+        "test": "tests/inventory-transit.test.ts; tests/inventory-lot-serial.test.ts; tests/commerce-foreign-goods.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Independently approve transfer; Dispatch stock into in-transit custody; Receive partial quantities and final remainder. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
+  },
+  "maintenance": {
+    "stage": 4,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/maintenance/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/maintenance/route.ts; src/app/api/v1/holdings/[holdingSlug]/maintenance/plans/route.ts",
+    "service": "src/server/asset-maintenance.ts; src/server/maintenance-preventive.ts",
+    "schema": "migrations/postgres/holding-write/0225_asset_maintenance.sql",
+    "test": "tests/asset-maintenance.test.ts; tests/maintenance-preventive.test.ts; tests/e2e/demo-engineering-business.spec.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Open an inspection work order; Attempt overlapping work and retirement; Revoke the owner and independently reassign the open work. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "downtime": {
+        "test": "tests/asset-maintenance.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Open and start maintenance; Record an explicit blocker then resume; Complete with condition/evidence and reload the asset and work order. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
-    },
-  },
-  maintenance: {
-    stage: 4,
-    status: "implemented",
-    ui: "src/app/holdings/[holdingSlug]/maintenance/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/maintenance/route.ts",
-    service: "src/server/asset-maintenance.ts",
-    schema: "migrations/postgres/holding-write/0225_asset_maintenance.sql",
-    test: "tests/asset-maintenance.test.ts",
-    gap: "Asset-bound work orders support eligible ownership, scheduling/reassignment, downtime, block/resume, evidenced completion/cancellation, resulting condition and immutable history with Work/Inbox. Parts reservation/costs, recurring preventive plans, Calendar, attachments, browser and business acceptance remain.",
-  },
-  operations: {
-    stage: 4,
-    status: "implemented",
-    ui: "src/app/holdings/[holdingSlug]/staff-tasks/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/staff/[[...path]]/route.ts",
-    service: "src/server/staff-tasks.ts",
-    schema: "migrations/postgres/holding-write/0263_staff_task_delegations.sql; migrations/postgres/holding-write/0271_staff_task_delegation_history.sql",
-    test: "tests/staff-work.test.ts; tests/e2e/demo-task-delegation.spec.ts",
-    gap: "Staff tasks support bounded temporary delegation, versioned revoke with retained reason, protected active/expired/revoked history, current authorization and Flow ownership switching. A four-account Demo browser journey verifies delegation, partial progress, immediate access revocation, accountable handback and independent completion review. Resolution summaries, exception queues, policy-owned queue administration, production scheduling and Company business acceptance remain.",
-  },
-  procurement: {
-    stage: 1,
-    status: "implemented",
-    ui: "src/app/holdings/[holdingSlug]/commerce/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
-    service: "src/server/commerce.ts",
-    schema: "migrations/postgres/holding-write/0001_baseline.sql",
-    test: "tests/purchase-to-payment.test.ts",
-    gap: "A request can split immutable item allocations across several RFQs, supplier awards and POs, with exact request-unit to purchasing-unit conversion evidence, concurrent over-allocation protection and cancellation release. Browser acceptance covers standalone RFQ → independent award → draft-PO and the source-linked employee request → split 6+4 RFQs/POs → all receipts → posted receipt GL journals → matched AP → supplier payment → exact bank evidence → paid reconciliation, including one consolidated supplier invoice across two purchase orders. Live provider, statutory, production operation and company business acceptance remain.",
-    overrides: {
-      requisitions: {
-        status: "flow_accepted",
-        ui: "src/app/holdings/[holdingSlug]/requests/[id]/page.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/requests/[[...path]]/route.ts",
-        service: "src/server/employee-requests.ts",
-        schema:
-          "migrations/postgres/holding-write/0238_split_requisition_uom.sql",
-        test: "tests/employee-services.test.ts",
-        gap: "Approved request items support partial allocation across several RFQs, independently reviewed supplier awards and linked POs. Immutable lines retain requested and purchasing units plus exact conversion; database counters prevent concurrent over-allocation and cancellation releases demand. The isolated Demo browser journey covers the source-linked employee request → split 6+4 RFQs → independent awards → approved POs → all receipts and receipt-specific GL journals → independently matched and posted AP invoices → approved supplier batch → exact bank evidence → paid handoff, including one consolidated invoice across both POs. Live provider, statutory, production operation and company business acceptance remain.",
+      "feature-blocked-work": {
+        "test": "tests/asset-maintenance.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Open and start maintenance; Record an explicit blocker then resume; Complete with condition/evidence and reload the asset and work order. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
-      "purchase-orders": { status: "flow_accepted" },
-      "goods-receipts": { status: "flow_accepted" },
-      "feature-invoice-match": { status: "flow_accepted" },
+      "feature-completion": {
+        "test": "tests/asset-maintenance.test.ts; tests/e2e/demo-engineering-business.spec.ts; tests/finance-journal-route-encoding.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Open and start maintenance; Record an explicit blocker then resume; Complete with condition/evidence and reload the asset and work order. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-maintenance-history": {
+        "test": "tests/asset-maintenance.test.ts; tests/e2e/demo-engineering-business.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Open and start maintenance; Record an explicit blocker then resume; Complete with condition/evidence and reload the asset and work order. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
+  },
+  "operations": {
+    "stage": 4,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/operations/page.tsx; src/components/modules/operations-console.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/operations/route.ts",
+    "service": "src/server/operations-exceptions.ts",
+    "schema": "migrations/postgres/holding-write/0263_staff_task_delegations.sql; migrations/postgres/holding-write/0271_staff_task_delegation_history.sql",
+    "test": "tests/operations-exceptions.test.ts; tests/e2e/demo-workplace-platform-lifecycle.spec.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Acknowledge, assign and prioritize exceptions. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "feature-escalations": {
+        "test": "tests/operations-exceptions.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Escalate exceptions to an operations lead. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-approval-decisions": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Record reviewed operational decisions. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-resolution": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Resolve and close exceptions. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-queue-policies": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Publish and inspect work-queue policies. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-operations-summary": {
+        "test": "tests/operations-exceptions.test.ts; tests/e2e/demo-workplace-platform-lifecycle.spec.ts; tests/engineering-workplace-workers.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Inspect area health and handovers; Drain native queues under current Company production rules, recheck enrollment and authority before each result, and retain human review. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
+  },
+  "procurement": {
+    "stage": 1,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/requests/[id]/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/requests/[[...path]]/route.ts",
+    "service": "src/server/employee-requests.ts",
+    "schema": "migrations/postgres/holding-write/0238_split_requisition_uom.sql",
+    "test": "tests/purchase-to-payment.test.ts; tests/e2e/demo-purchase-request-rfq.spec.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Independently approve ten-unit demand; Compare supplier offers and release an approved purchase order; Receive six and four units, match one AP invoice, post and pay against imported bank evidence. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "purchase-orders": {
+        "ui": "src/app/holdings/[holdingSlug]/commerce/page.tsx",
+        "api": "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
+        "service": "src/server/commerce.ts",
+        "schema": "migrations/postgres/holding-write/0001_baseline.sql",
+        "test": "tests/purchase-to-payment.test.ts; tests/e2e/demo-purchase-request-rfq.spec.ts; tests/commerce-foreign-goods.test.ts"
+      },
+      "goods-receipts": {
+        "ui": "src/app/holdings/[holdingSlug]/commerce/page.tsx",
+        "api": "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
+        "service": "src/server/commerce.ts",
+        "schema": "migrations/postgres/holding-write/0001_baseline.sql",
+        "test": "tests/purchase-to-payment.test.ts; tests/e2e/demo-purchase-request-rfq.spec.ts; tests/commerce-foreign-goods.test.ts"
+      },
+      "feature-invoice-match": {
+        "ui": "src/app/holdings/[holdingSlug]/commerce/page.tsx",
+        "api": "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
+        "service": "src/server/commerce.ts",
+        "schema": "migrations/postgres/holding-write/0001_baseline.sql",
+        "test": "tests/purchase-to-payment.test.ts; tests/e2e/demo-purchase-request-rfq.spec.ts; tests/commerce-foreign-goods.test.ts"
+      },
       "feature-supplier-history": {
-        status: "flow_accepted",
-        ui: "src/app/holdings/[holdingSlug]/commerce/orders/[id]/page.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/supplier-promises/[id]/route.ts",
-        service: "src/server/supplier-promises.ts",
-        schema: "migrations/postgres/holding-write/0208_supplier_promises.sql",
-        test: "tests/supplier-promises.test.ts",
-        gap: "Immutable manual supplier commitments, split dates, replacement/withdrawal, partial receipts and scoped Work/Inbox/Calendar are covered by owner regression and a four-account browser journey. RFQ comparison supports partial request allocation, independent multi-supplier awards and separate PO handoffs. Supplier portal/email evidence, performance reporting, live providers and company business acceptance remain.",
+        "ui": "src/app/holdings/[holdingSlug]/commerce/orders/[id]/page.tsx",
+        "api": "src/app/api/v1/holdings/[holdingSlug]/supplier-promises/[id]/route.ts",
+        "service": "src/server/supplier-promises.ts",
+        "schema": "migrations/postgres/holding-write/0208_supplier_promises.sql",
+        "test": "tests/procurement-rfqs.test.ts; tests/commerce-foreign-goods.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Invite scoped supplier offers; Record immutable price/UOM/expiry quotation evidence; Independently award and replay the PO handoff. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
+  },
+  "quality": {
+    "stage": 4,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/quality/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts",
+    "service": "src/server/quality.ts; src/server/quality-alerts.ts",
+    "schema": "migrations/postgres/holding-write/0244_quality_scrap_disposition.sql; migrations/postgres/holding-write/0281_quality_partial_disposition.sql; migrations/postgres/holding-write/0282_quality_partial_stock_guard.sql; migrations/postgres/holding-write/0283_quality_whole_hold_error.sql; migrations/postgres/holding-write/0284_quality_hold_alerts.sql",
+    "test": "tests/quality.test.ts; tests/business-scheduled-production.test.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Prepare and independently activate measurement thresholds; Inspect the held stock under that source revision; Reload derived results and captured specification. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "results": {
+        "test": "tests/quality.test.ts; tests/e2e/demo-engineering-business.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Record a failed inspection without removing the hold; Reinspect and record passing evidence; Have a third person authorize release. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
-    },
+      "release-gates": {
+        "test": "tests/quality.test.ts; tests/commerce-foreign-goods.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Reserve available Sales stock; Create overlapping quality holds; Attempt fulfillment before and after independent release. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-cancellation": {
+        "test": "tests/quality.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Create an incorrect hold alongside a valid hold; Request cancellation with reason; Independently review and reload all holds. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
   },
-  quality: {
-    ...preview(
-      4,
-      "Whole product/warehouse and receipt lot/serial quarantine are implemented; failed-inspection scrap has independent Quality and Finance controls. Product specifications use independent activation, captured versions, limit-derived results, immutable structured measurements and bound private inspection files. Customer-return holds support partial or complete controlled scrap, with any remainder represented by a linked quarantine hold. Uninspected cancellation requires independent review.",
-    ),
-    overrides: Object.fromEntries(
-      ["inspections", "results", "release-gates", "feature-cancellation"].map(
-        (id) => [
-          id,
-          {
-            status: "implemented" as const,
-            ui: "src/app/holdings/[holdingSlug]/quality/page.tsx",
-            api: "src/app/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts",
-            service: "src/server/quality.ts; src/server/quality-alerts.ts",
-            schema:
-              "migrations/postgres/holding-write/0244_quality_scrap_disposition.sql; migrations/postgres/holding-write/0281_quality_partial_disposition.sql; migrations/postgres/holding-write/0282_quality_partial_stock_guard.sql; migrations/postgres/holding-write/0283_quality_whole_hold_error.sql; migrations/postgres/holding-write/0284_quality_hold_alerts.sql",
-            test: "tests/quality.test.ts",
-          gap: "Whole warehouse/product and specific lot/serial holds, receipt quarantine, immutable pass/fail evidence, independent release and uninspected cancellation are implemented. Product specifications require independent Company Quality activation; each hold captures its specification version, requires every measured value, derives pass/fail from approved limits and binds immutable private files. Failed stock can be sent to independent Company Finance for complete or partial quantity scrap, stock/lot write-off and balanced GL; a partial posting creates a linked remainder hold that stays quarantined. Due-soon and overdue Quality alerts now recover through scheduled sweeps, route to current eligible recipients, and appear in Work/Inbox with acknowledgement evidence. Demo Company browser journeys now verify lot quarantine visibility plus independent inspection and third-person release; failed disposition, broader downstream handoffs and Company business acceptance remain incomplete.",
-          },
-        ],
-      ),
-    ),
+  "legal": {
+    "stage": 4,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/legal/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/legal/[[...path]]/route.ts",
+    "service": "src/server/legal/service.ts",
+    "schema": "migrations/postgres/holding-write",
+    "test": "tests/legal.test.ts; tests/legal-g2.test.ts; tests/e2e/legal-uat.spec.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Draft/version/review exact contract and signer route; Independently import/review signed original and activate. External legal acceptance, real portal/provider delivery and production operation require independent review. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "feature-documents": {
+        "test": "tests/legal.test.ts; tests/legal-law-corpus.test.ts; tests/legal-g2.test.ts; tests/legal-body.test.ts; tests/legal-download-route.test.ts; tests/legal-citation-page.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Import scanned immutable legal originals; Extract/independently review current source text and export; Upload a canonical private original through its native Legal owner; Reject oversized declared body before proxy truncation can hide its true length; Independently review retained document and law text; Open the exact source passage through installed Next Page params. External legal acceptance, real portal/provider delivery and production operation require independent review. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-legal-holds": {
+        "test": "tests/legal.test.ts; tests/attachments-v2.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Apply overlapping holds through typed linked evidence; Independently release one and retain the other. External legal acceptance, real portal/provider delivery and production operation require independent review. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-document-access": {
+        "test": "tests/legal.test.ts; tests/legal-law-corpus.test.ts; tests/legal-download-route.test.ts; tests/legal-citation-page.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Share only selected immutable document with authenticated recipient; Withdraw membership/share and re-read current evidence/citations; Authorize a confidential native member or immutable scoped external share; Download through the actual owner and portal route boundaries; Withdraw native member or exact share authority; Open a reviewed citation before and after current authority changes. External legal acceptance, real portal/provider delivery and production operation require independent review. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-archive": {
+        "test": "tests/legal.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Close/archive under independently reviewed retention policy; Prevent held disposal and authorize exact manifest independently. External legal acceptance, real portal/provider delivery and production operation require independent review. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
   },
-  people_payroll: {
-    stage: 2,
-    status: "implemented",
-    ui: "src/app/holdings/[holdingSlug]/people/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts",
-    service: "src/server/people-payroll.ts",
-    schema: "migrations/postgres/holding-write/0026_people_lifecycle.sql",
-    test: "tests/people-lifecycle.test.ts",
-    gap: "Versioned payroll inputs, configurable overtime, calendar-day proration, deductions, immutable review exports, independently approved post-approval correction, person-scoped final-pay preparation and scheduled payroll advances are implemented. Country packs and statutory adapters remain deferred.",
-    overrides: {
-      employees: { status: "flow_accepted" },
-      "feature-leave-requests": { status: "flow_accepted" },
-      "feature-expenses": { status: "flow_accepted" },
+  "people_payroll": {
+    "stage": 2,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/people/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts",
+    "service": "src/server/people-payroll.ts",
+    "schema": "migrations/postgres/holding-write/0026_people_lifecycle.sql",
+    "test": "tests/talent.test.ts; tests/payroll-statutory.test.ts; tests/e2e/demo-engineering-money-people.spec.ts; tests/e2e/demo-engineering-thai-payroll.spec.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Hire and transition employee status; Employeeownnormal-role reads exactrecoveryproposal; Employee signs ordeclines current specificagreement; Reload immutable agreement and history. Thai rule-pack/employee evidence readiness remains required; external statutory/business certification is separate. Fixtures do not certify bank delivery. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
       "payroll-summaries": {
-        status: "flow_accepted",
-        ui: "src/app/holdings/[holdingSlug]/people/page.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts",
-        service: "src/server/people-payroll.ts",
-        schema: "migrations/postgres/holding-write/0026_people_lifecycle.sql, migrations/postgres/holding-write/0202_payroll_core_configuration.sql, migrations/postgres/holding-write/0276_payroll_gl_posting.sql",
-        test: "tests/e2e/demo-payroll-runs.spec.ts, tests/payroll-core.test.ts",
-        gap: "People → Payroll renders live gross, deductions, employer cost, net and headcount totals from the calculated run; Finance posts an approved run into one balanced, source-linked GL journal; and a separate Treasury reviewer approves, exports and settles the linked payment batch. The isolated five-role Demo browser path covers this handoff and reload persistence. Statutory country packs, provider/production operation and Company business acceptance remain.",
+        "schema": "migrations/postgres/holding-write/0026_people_lifecycle.sql, migrations/postgres/holding-write/0202_payroll_core_configuration.sql, migrations/postgres/holding-write/0276_payroll_gl_posting.sql",
+        "test": "tests/payroll-statutory.test.ts; tests/e2e/demo-engineering-thai-payroll.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Calculate source-dated Thai statutory payroll and independently review and post its journal; Read restricted Company aggregates by actual pay month; Deny Treasury/employee and scoped department assignments, and isolate other Companies; Post originalstatutoryperiod and pay it; Post and pay separatelatepay correction; Calculate nextperiod using retained postedprioritems; Review recovery as cashreceivable without automatic taxrefund. Thai rule-pack/employee evidence readiness remains required; external statutory/business certification is separate. Fixtures do not certify bank delivery. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-leave-requests": {
+        "test": "tests/self-service-journeys.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Create and decide leave requests. Thai rule-pack/employee evidence readiness remains required; external statutory/business certification is separate. Fixtures do not certify bank delivery. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-expenses": {
+        "test": "tests/expense-v2.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Create and decide expense claims. Thai rule-pack/employee evidence readiness remains required; external statutory/business certification is separate. Fixtures do not certify bank delivery. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-payroll-runs": {
-        status: "flow_accepted",
-        ui: "src/app/holdings/[holdingSlug]/people/page.tsx, src/app/holdings/[holdingSlug]/people/payroll/[id]/page.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts",
-        service: "src/server/people-payroll.ts",
-        schema:
-          "migrations/postgres/holding-write/0261_payroll_advances.sql, migrations/postgres/holding-write/0202_payroll_core_configuration.sql, migrations/postgres/holding-write/0276_payroll_gl_posting.sql",
-        test: "tests/e2e/demo-payroll-runs.spec.ts, tests/payroll-core.test.ts",
-        gap: "Demo browser flow covers a real monthly global gross-pay preview, workflow-owner assignment, independent approval and reload persistence; the same multi-role path posts Finance GL, creates a linked payment batch, and lets Treasury approve, export and settle it with payment-only record access. Automated evidence covers exact debit/credit reconciliation and idempotent retry. Statutory payroll, provider/production operation and Company business acceptance remain separately gated.",
-      },
-    },
+        "ui": "src/app/holdings/[holdingSlug]/people/page.tsx, src/app/holdings/[holdingSlug]/people/payroll/[id]/page.tsx",
+        "schema": "migrations/postgres/holding-write/0261_payroll_advances.sql, migrations/postgres/holding-write/0202_payroll_core_configuration.sql, migrations/postgres/holding-write/0276_payroll_gl_posting.sql",
+        "test": "tests/payroll-statutory.test.ts; tests/payroll-core.test.ts; tests/e2e/demo-engineering-thai-payroll.spec.ts; tests/payroll-cancellation.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Prepare source-dated monthly/day/hour/final-pay payroll from reviewed compensation, time, OT, bonus, service charge and actualYTD; Calculate, independently approve and post the retained run revision and balanced GL; Issue an immutable employee-own payslip in the posting transaction; export reviewed payment instructions and match exact bank delivery; Preserve original reviewed and issued bytes through later correction revisions and deny other employee/Company/revoked reads; Post and settle original source run; Prepare/source-review separately paid adjustment or employee-owned recovery agreement; Independently review and Finance post; Independently approve/export/bank-settle positive cash or collect reviewed recovery in later statutory payroll; Reload source history and reject stale/concurrent/reopened source use. Thai rule-pack/employee evidence readiness remains required; external statutory/business certification is separate. Fixtures do not certify bank delivery. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
   },
-  crm: {
-    stage: 3,
-    status: "implemented",
-    ui: "src/app/holdings/[holdingSlug]/commerce/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
-    service: "src/server/commerce.ts",
-    schema: "migrations/postgres/holding-write/0001_baseline.sql",
-    test: "tests/business-commands.test.ts",
-    gap: "Lead qualification, owner-specific activities, scoped opportunity pipeline and source-approved quotation/order handoff implemented; customer identity/consent, deduplication, SLA escalation, provider delivery and full S01 acceptance remain.",
-    overrides: {
-      activities: {
-        status: "flow_accepted",
-        ui: "src/app/holdings/[holdingSlug]/crm/[id]/page.tsx; src/components/modules/crm-activity-console.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/crm/activities/route.ts",
-        service: "src/server/crm-activities.ts",
-        schema: "migrations/postgres/holding-write/0214_customer_followups.sql; migrations/postgres/holding-write/0286_crm_lead_activities.sql",
-        test: "docs/testing/evidence/2026-09-28-crm-marketing-flows.txt; tests/customer-followups.test.ts; tests/crm-activities.test.ts; tests/e2e/demo-crm-activities.spec.ts",
-        gap: "Fresh isolated browser acceptance covers cross-role scheduling, manager visibility and completion. Integration evidence covers replay-safe creation/cancellation, eligible-owner reassignment, stale/scope denial and immutable history. SLA escalation, communication-provider delivery and full Company business acceptance remain.",
+  "crm": {
+    "stage": 3,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/crm/page.tsx; src/app/holdings/[holdingSlug]/crm/[id]/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/crm/route.ts; src/app/api/v1/holdings/[holdingSlug]/crm/activities/route.ts",
+    "service": "src/server/crm.ts; src/server/crm-activities.ts",
+    "schema": "migrations/postgres/holding-write/0001_baseline.sql",
+    "test": "tests/crm.test.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Capture a prospect against an authorized customer identity; Qualify once into a customer opportunity; Reload canonical customer and source opportunity. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "activities": {
+        "schema": "migrations/postgres/holding-write/0214_customer_followups.sql; migrations/postgres/holding-write/0286_crm_lead_activities.sql",
+        "test": "tests/crm-activities.test.ts; tests/e2e/demo-crm-activities.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Schedule an activity on the current lead version; Deliver activity to the named eligible owner; Record outcome and reload activity/Work/history. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-leads": {
-        status: "implemented",
-        ui: "src/app/holdings/[holdingSlug]/crm/page.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/crm/route.ts",
-        service: "src/server/crm.ts",
-        schema:
-          "migrations/postgres/holding-write/0215_crm_leads_opportunities.sql",
-        test: "tests/crm.test.ts",
-        gap: "Scoped lead qualification/disqualification/reopen, eligible owner reassignment, immutable brief/history and linked lead activities with Work/Inbox/Calendar. Deduplication, customer identity/consent, SLA/escalation and complete Company business acceptance remain.",
+        "schema": "migrations/postgres/holding-write/0215_crm_leads_opportunities.sql",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Capture and qualify a lead under competing commands; Record a lost decision; Reopen without overwriting the original evidence. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-opportunities": {
-        status: "implemented",
-        ui: "src/app/holdings/[holdingSlug]/crm/page.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/crm/route.ts",
-        service: "src/server/crm.ts",
-        schema:
-          "migrations/postgres/holding-write/0215_crm_leads_opportunities.sql",
-        test: "tests/crm.test.ts",
-        gap: "Versioned pipeline, approved quote linkage, confirmed source order before win, loss/reopen and exact currency-separated weighted forecast. Contract/brief propagation, forecast policy snapshots, multi-currency precision and full browser/business acceptance remain.",
+        "schema": "migrations/postgres/holding-write/0215_crm_leads_opportunities.sql",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Qualify a source lead into an opportunity; Prepare and independently approve its quote; Confirm the Sales order before recording the win. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
-    },
+      "feature-sales-handoff": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Prepare the opportunity quote; Use the Sales owner approval and confirmation workflow; Finish the CRM win with the current confirmed source order. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
   },
-  marketing: {
-    stage: 5,
-    status: "implemented",
-    ui: "src/app/holdings/[holdingSlug]/marketing/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/marketing/route.ts",
-    service: "src/server/marketing.ts",
-    schema: "migrations/postgres/holding-write/0232_marketing.sql",
-    test: "tests/marketing.test.ts",
-    gap: "Independently activated forms/content/domain/provider assets, consented attributed lead candidates, engagement evidence and idempotent CRM owner-service handoff are implemented. Public form hosting, provider delivery/webhooks, campaign analytics, browser and business acceptance remain.",
-    overrides: {
+  "marketing": {
+    "stage": 5,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/marketing/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/marketing/route.ts",
+    "service": "src/server/marketing.ts",
+    "schema": "migrations/postgres/holding-write/0232_marketing.sql",
+    "test": "tests/marketing.test.ts; tests/public-marketing-form.test.ts; tests/e2e/demo-workplace-platform-lifecycle.spec.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Create typed form, content, domain and provider assets; Submit each for independent review; Reload approved snapshots and explicit readiness. Declared provider adapters/fixtures do not certify live public delivery or production campaigns. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "feature-domains": {
+        "test": "tests/marketing.test.ts"
+      },
+      "feature-provider-readiness": {
+        "test": "tests/marketing.test.ts"
+      },
+      "feature-lead-candidates": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Use an active consented form revision; Capture an attributed lead candidate; Reconcile into the CRM owner command and replay. Declared provider adapters/fixtures do not certify live public delivery or production campaigns. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
       "feature-engagement": {
-        status: "flow_accepted",
-        test: "docs/testing/evidence/2026-09-28-crm-marketing-flows.txt; tests/e2e/demo-marketing-to-crm-lead.spec.ts; tests/marketing.test.ts",
-        gap: "Fresh isolated browser acceptance records campaign/source attribution and a Sales engagement, then verifies the CRM lead handoff retains the brief and source. Service tests cover replay-safe event and handoff writes, consent enforcement and scoped campaign summaries. Public provider/webhook ingestion, approved campaign-ID and Finance-cost analytics, and Company business acceptance remain.",
+        "test": "tests/crm-marketing-analytics.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Capture multiple actual attributed contacts; Query first-touch and last-touch source cohorts; Calculate ROI only from linked posted cost. Declared provider adapters/fixtures do not certify live public delivery or production campaigns. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
+  },
+  "manufacturing": {
+    "stage": 4,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/manufacturing/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/production/route.ts",
+    "service": "src/server/production.ts",
+    "schema": "migrations/postgres/holding-write/0233_planning_manufacturing.sql",
+    "test": "tests/production.test.ts; tests/e2e/demo-engineering-business.spec.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Activate a BOM through an independent reviewer; Calculate and independently release a plan into a manufacturing order; Reserve, issue, report and independently release accepted output. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "material-readiness": {
+        "test": "tests/production.test.ts; tests/business-scheduled-production.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Release two orders against the same last available material; Reserve both concurrently; Reload material availability and protected quantities. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
-    },
-  },
-  manufacturing: {
-    stage: 4,
-    status: "implemented",
-    ui: "src/app/holdings/[holdingSlug]/manufacturing/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/production/route.ts",
-    service: "src/server/production.ts",
-    schema: "migrations/postgres/holding-write/0233_planning_manufacturing.sql",
-    test: "tests/production.test.ts",
-    gap: "Versioned BOM/formula, planning-released orders, shared material reservations, actual issue/cost, output/scrap, independent QC, finished stock and genealogy are implemented. Multi-operation routing, lot/serial genealogy, machine downtime, WIP/GL posting, browser and business acceptance remain.",
-  },
-  planning: {
-    stage: 4,
-    status: "implemented",
-    ui: "src/app/holdings/[holdingSlug]/planning/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/production/route.ts",
-    service: "src/server/production.ts",
-    schema: "migrations/postgres/holding-write/0233_planning_manufacturing.sql",
-    test: "tests/production.test.ts",
-    gap: "Source-versioned demand scenarios calculate shared-stock shortages, capacity-derived feasible dates and independently reviewed production recommendations. Incoming PO/order demand, resource calendars, alternate plans, browser and business acceptance remain.",
-  },
-  projects: {
-    stage: 4,
-    status: "implemented",
-    ui: "src/app/holdings/[holdingSlug]/projects/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/staff/[[...path]]/route.ts",
-    service: "src/server/staff-tasks.ts",
-    schema: "migrations/postgres/holding-write/0001_baseline.sql",
-    test: "tests/staff-work.test.ts",
-    gap: "Complete WBS dependencies, resource/time/cost ownership and project graph acceptance.",
-  },
-  ecommerce: {
-    stage: 5,
-    status: "implemented",
-    ui: "src/app/holdings/[holdingSlug]/ecommerce/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/ecommerce/route.ts",
-    service: "src/server/ecommerce.ts",
-    schema: "migrations/postgres/holding-write/0234_ecommerce.sql",
-    test: "tests/ecommerce.test.ts",
-    gap: "Independently reviewed channels and listings, version-locked carts, idempotent checkout-to-Sales handoff, shared stock reservations, owner fulfillment links and invoice-gated returns are implemented. Live storefront/payment provider, browser and business acceptance remain.",
-  },
-  benefits: {
-    stage: 6,
-    status: "implemented",
-    ui: "src/app/holdings/[holdingSlug]/benefits/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/benefits/route.ts",
-    service: "src/server/benefits.ts",
-    schema: "migrations/postgres/holding-write/0229_benefits.sql",
-    test: "tests/benefits.test.ts",
-    gap: "Reviewed plans and windows, employee dependents/elections, provider acknowledgement and immutable payroll inputs are implemented. Live provider files, enrollment migration, Thai expert review, multi-role browser and business acceptance remain.",
-  },
-  learning: {
-    stage: 6,
-    status: "implemented",
-    ui: "src/app/holdings/[holdingSlug]/learning/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/learning/route.ts",
-    service: "src/server/learning.ts",
-    schema: "migrations/postgres/holding-write/0228_learning.sql",
-    test: "tests/learning.test.ts",
-    gap: "Reviewed course publication, current-worker assignments, learner attendance/results, evidenced completion or reviewed waiver, Work/Inbox and immutable eligibility handoff are implemented. Provider import, certificates/expiry, benefits consumption, Calendar, browser and business acceptance remain.",
-  },
-  talent: {
-    stage: 6,
-    status: "implemented",
-    ui: "src/app/holdings/[holdingSlug]/talent/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/talent/route.ts",
-    service: "src/server/talent.ts",
-    schema: "migrations/postgres/holding-write/0230_talent.sql",
-    test: "tests/talent.test.ts",
-    gap: "Reviewed requisitions, consented private candidates, source-versioned applications, interview proposals, independently approved offers and immutable hire handoffs are implemented. Candidate portal/signature, background checks, handoff consumption, retention erasure, browser and business acceptance remain.",
-  },
-  field_service: {
-    stage: 4,
-    status: "implemented",
-    ui: "src/app/holdings/[holdingSlug]/field-service/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/field-service/route.ts",
-    service: "src/server/field-service.ts",
-    schema: "migrations/postgres/holding-write/0226_field_service.sql, migrations/postgres/holding-write/0268_field_service_warranty_pricing.sql, migrations/postgres/holding-write/0269_field_service_warranty_snapshots.sql",
-    test: "tests/field-service.test.ts",
-    gap: "Agreement activation, ticket-bound service orders, current technician dispatch, shared part reservation/issue, site exceptions, customer-confirmed completion, server-calculated warranty pricing and independent billing release are implemented with Work/Inbox. Reviewed billing release now creates a draft receivable Finance invoice using configured control/revenue accounts with source linkage; posting/collection, travel/labor costing, Calendar, attachment bytes, browser and business acceptance remain.",
-  },
-  agent: {
-    stage: 7,
-    status: "implemented",
-    ui: "src/app/holdings/[holdingSlug]/agents/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/agents/route.ts",
-    service: "src/server/agent-governance.ts",
-    schema: "migrations/postgres/holding-write/0231_agent_governance.sql",
-    test: "tests/agent-governance.test.ts",
-    gap: "Reviewed catalogs/versions, user or pool assignments, private scoped sessions and immutable invocation evidence wrap the read-only assistant. Expand source adapters, evaluation/monitoring, retention/export, browser and business acceptance.",
-    overrides: {
-      "feature-field-suggestions": {
-        status: "implemented",
-        gap: "Expand authorized source adapters to every completed domain.",
+      "quality-disposition": {
+        "test": "tests/production.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Issue protected material; Report output and reject self quality review; Fail, rework, accumulate new conversion costs and independently scrap the unusable batch. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
-    },
+      "feature-specifications": {
+        "test": "tests/production.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Draft a versioned multi-component BOM; Independently activate the specification; Freeze the approved specification revision in a plan and order. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-labor-output": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Configure effective resource capacity and routing; Independently release an allocated plan; Complete ordered routing operations before reporting labor, overhead and output. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-costs-genealogy": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Independently approve inventory/WIP/conversion Finance account mappings; Issue material and report actual conversion costs; Independently release accepted output and reload stock, cost and GL. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
   },
-  collaboration: {
-    stage: 2,
-    status: "implemented",
-    ui: "src/app/holdings/[holdingSlug]/feed/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/feed/route.ts",
-    service: "src/server/social.ts",
-    schema: "migrations/postgres/holding-write/0001_baseline.sql",
-    test: "tests/social-beta.test.ts",
-    gap: "Complete moderation, typed record relations/action cards, retention/export and attachment coverage.",
-    overrides: {
-      threads: {
-        status: "flow_accepted",
-        ui: "src/app/holdings/[holdingSlug]/home/page.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/feed/route.ts",
-        service: "src/server/social.ts",
-        schema: "migrations/postgres/holding-write/0001_baseline.sql",
-        test: "tests/e2e/demo-collaboration-social.spec.ts",
-        gap: "Home feed threads, persisted comments, reload behavior and cross-role visibility are flow accepted in the isolated Demo workspace. Retention/export, moderation coverage, provider/production operation and Company business acceptance remain.",
+  "planning": {
+    "stage": 4,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/planning/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/production/route.ts",
+    "service": "src/server/production.ts",
+    "schema": "migrations/postgres/holding-write/0233_planning_manufacturing.sql",
+    "test": "tests/production.test.ts; tests/e2e/demo-engineering-business.spec.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Select an approved specification and demand quantity; Calculate a scenario without moving stock; Retain the versioned inputs and resulting recommendation. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "shortages": {
+        "test": "tests/production.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Calculate component need from approved BOM and demand; Read available unreserved stock; Reload the persisted shortage result. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
-      mentions: {
-        status: "flow_accepted",
-        ui: "src/app/holdings/[holdingSlug]/home/page.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/feed/route.ts",
-        service: "src/server/social.ts",
-        schema: "migrations/postgres/holding-write/0001_baseline.sql",
-        test: "tests/e2e/demo-collaboration-social.spec.ts",
-        gap: "Resolved person mentions are flow accepted from the real Home composer and remain visible after cross-role reload. Record/agent adapters, retention/export, provider/production operation and Company business acceptance remain.",
+      "recommendations": {
+        "test": "tests/production.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Calculate two plans against the same resource dates; Independently approve competing recommendations; Cancel an unused scenario and replay cancellation. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
-      "feature-comments-moderation": { status: "flow_accepted" },
-      "feature-following-reactions": { status: "flow_accepted" },
-      "feature-topics-feed": { status: "flow_accepted" },
+      "feature-capacity": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Configure weekday resource minutes and a dated closure; Calculate sequential setup/run routing; Release capacity and attempt to reduce already reserved date capacity. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-plan-comparison": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Persist a calendar-based plan; Calculate a second plan using the first immutable plan as comparison; Reload both calculation snapshots. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
+  },
+  "projects": {
+    "stage": 4,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/projects/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/projects/[[...path]]/route.ts; src/app/api/v1/holdings/[holdingSlug]/projects/[id]/structure/route.ts",
+    "service": "src/server/staff-tasks.ts; src/server/project-structure.ts",
+    "schema": "migrations/postgres/holding-write/0001_baseline.sql",
+    "test": "tests/project-actuals.test.ts; tests/e2e/demo-engineering-business.spec.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Create versioned milestones under the project owner; Connect same-project prerequisite edges; Complete prerequisite and reread successor blockers. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "feature-projects-wbs": {
+        "test": "tests/project-structure.test.ts; tests/e2e/demo-client-form-hydration.spec.ts; tests/e2e/demo-engineering-business.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Create hierarchical owner work packages with sibling order; Execute assigned normal staff tasks; Close child packages before their parent and reload derived WBS. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-handoffs": {
+        "test": "tests/project-structure.test.ts; tests/e2e/demo-engineering-business.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Close and classify all actual work and reviews; Prepare immutable project evidence for another current member; Reject, prepare again, independently accept and review reopening. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-time-costs": {
+        "test": "tests/project-structure.test.ts; tests/project-actuals.test.ts; tests/e2e/demo-engineering-business.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Submit project time and review through the independent owner; Create a posted Finance expense journal and independently approve its allocation; Link current approved source versions to the completed work package. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
       "feature-attachments": {
-        status: "flow_accepted",
-        ui: "src/app/holdings/[holdingSlug]/inbox/page.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/messaging/[[...path]]/route.ts",
-        service: "src/server/messaging-files.ts",
-        schema: "migrations/postgres/holding-write/0001_baseline.sql",
-        test: "tests/e2e/demo-collaboration-attachments.spec.ts",
-        gap: "Private conversation file upload, protected member download and reload persistence are flow accepted in the isolated Demo workspace; owner-service tests also cover draft isolation, one-time binding and membership revocation. Retention/export, legal hold, provider/production operation and Company business acceptance remain.",
+        "test": "tests/project-actuals.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Stage scanned documents for the exact project; Bind through the current project owner; Attempt outsider read and member write. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-project-graph": {
+        "test": "tests/project-structure.test.ts; tests/e2e/demo-engineering-business.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Read the WBS hierarchy, prerequisites and actual assigned tasks; Resolve current reviewed time/posted cost sources; Attempt hierarchy/dependency cycles and competing source edits. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
+  },
+  "ecommerce": {
+    "stage": 5,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/ecommerce/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/ecommerce/route.ts",
+    "service": "src/server/ecommerce.ts",
+    "schema": "migrations/postgres/holding-write/0234_ecommerce.sql",
+    "test": "tests/ecommerce.test.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Create and independently review channel and product listing; Build a versioned cart; Checkout once through Sales approval/confirmation and reload sources. Declared channel/payment adapters do not certify live merchant/provider operation. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "returns": {
+        "test": "tests/ecommerce.test.ts; tests/e2e/demo-engineering-business.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Checkout and deliver a Sales-backed order; Independently post invoice, collect exact balance and request partial customer return; Independently release original-cost/credit journals, approve refund and match exact bank evidence. Declared channel/payment adapters do not certify live merchant/provider operation. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-carts": {
+        "test": "tests/ecommerce.test.ts; tests/e2e/demo-engineering-business.spec.ts"
+      },
+      "feature-checkout": {
+        "test": "tests/ecommerce.test.ts; tests/e2e/demo-engineering-business.spec.ts"
+      },
+      "feature-fulfillment": {
+        "test": "tests/ecommerce.test.ts; tests/e2e/demo-engineering-business.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Checkout and reserve stock through Sales; Deliver from the owning reservation; Synchronize delivery evidence into the Ecommerce source. Declared channel/payment adapters do not certify live merchant/provider operation. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
+  },
+  "benefits": {
+    "stage": 6,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/benefits/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/benefits/route.ts",
+    "service": "src/server/benefits.ts",
+    "schema": "migrations/postgres/holding-write/0229_benefits.sql",
+    "test": "tests/benefits.test.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Add and validate dependents. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "coverage": {
+        "test": "tests/benefits.test.ts; tests/e2e/demo-engineering-money-people.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Elect and validate coverage. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-plans": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Publish benefit plans. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-enrollment-windows": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Open and inspect enrollment periods. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-provider-payroll": {
+        "test": "tests/benefits.test.ts; tests/e2e/demo-engineering-money-people.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Submit, acknowledge and release payroll changes. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
+  },
+  "learning": {
+    "stage": 6,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/learning/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/learning/route.ts",
+    "service": "src/server/learning.ts",
+    "schema": "migrations/postgres/holding-write/0228_learning.sql",
+    "test": "tests/learning.test.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Publish and retire courses. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "feature-assignments": {
+        "test": "tests/learning.test.ts; tests/e2e/demo-engineering-money-people.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Assign courses to permitted people. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-attendance-results": {
+        "test": "tests/learning.test.ts; tests/e2e/demo-engineering-money-people.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Record attendance and provider results. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-completion": {
+        "test": "tests/learning.test.ts; tests/e2e/demo-engineering-money-people.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Complete or waive enrollments. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-eligibility-handoff": {
+        "test": "tests/benefits.test.ts; tests/e2e/demo-engineering-money-people.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Open related benefits eligibility. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
+  },
+  "talent": {
+    "stage": 6,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/talent/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/talent/route.ts",
+    "service": "src/server/talent.ts",
+    "schema": "migrations/postgres/holding-write/0230_talent.sql",
+    "test": "tests/talent.test.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Create, approve and transition requisitions. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "applications": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Submit, interview, select or withdraw applications. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "offers": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Create, approve, present and decide offers. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-candidates-privacy": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Create profiles, holds and erasure requests. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-hire-handoffs": {
+        "test": "tests/talent.test.ts; tests/e2e/demo-engineering-money-people.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Request and reconcile employee onboarding. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-proposals": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Create, submit, approve and reconcile proposals. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
+  },
+  "field_service": {
+    "stage": 4,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/field-service/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/field-service/route.ts",
+    "service": "src/server/field-service.ts",
+    "schema": "migrations/postgres/holding-write/0226_field_service.sql, migrations/postgres/holding-write/0268_field_service_warranty_pricing.sql, migrations/postgres/holding-write/0269_field_service_warranty_snapshots.sql",
+    "test": "tests/field-service.test.ts; tests/e2e/demo-engineering-business.spec.ts; tests/business-scheduled-production.test.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Independently activate a customer service agreement; Dispatch an eligible technician and reserve actual parts; Start visit, resolve exception, record customer confirmation and independently release billing. Customer/provider production acceptance remains separate from the isolated workflow. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "feature-agreements": {
+        "test": "tests/field-service.test.ts"
+      },
+      "feature-dispatch": {
+        "test": "tests/field-service.test.ts; tests/e2e/demo-engineering-business.spec.ts"
+      },
+      "feature-visits": {
+        "test": "tests/field-service.test.ts; tests/e2e/demo-engineering-business.spec.ts"
+      },
+      "feature-exceptions": {
+        "test": "tests/field-service.test.ts"
+      },
+      "feature-billing-release": {
+        "test": "tests/field-service.test.ts; tests/e2e/demo-engineering-business.spec.ts"
+      }
+    }
+  },
+  "agent": {
+    "stage": 7,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/agents/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/agents/route.ts",
+    "service": "src/server/agent-governance.ts",
+    "schema": "migrations/postgres/holding-write/0231_agent_governance.sql",
+    "test": "tests/agent-governance.test.ts; tests/e2e/demo-workplace-platform-lifecycle.spec.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Register, suspend and retire agent definitions. Human review and source access remain mandatory; provider operation and autonomous execution are not implied. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "versions": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Add and approve agent versions. Human review and source access remain mandatory; provider operation and autonomous execution are not implied. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "assignments": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Start, delegate, retry or cancel assignments. Human review and source access remain mandatory; provider operation and autonomous execution are not implied. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-pools-routing": {
+        "test": "tests/agent-governance.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Register pools, replace members and inspect routing. Human review and source access remain mandatory; provider operation and autonomous execution are not implied. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-private-sessions": {
+        "test": "tests/agent-governance.test.ts; tests/e2e/demo-workplace-platform-lifecycle.spec.ts; tests/guided-intake.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Run private, held or expiring sessions. Human review and source access remain mandatory; provider operation and autonomous execution are not implied. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-field-suggestions": {
+        "test": "tests/ai-providers.test.ts; tests/expense-ai-draft.test.ts; tests/e2e/demo-workplace-platform-lifecycle.spec.ts; tests/guided-intake.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Generate cited owner-authorized field proposal; Review/apply explicit fields and invalidate changed source. Human review and source access remain mandatory; provider operation and autonomous execution are not implied. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-invocation-evidence": {
+        "test": "tests/agent-governance.test.ts; tests/e2e/demo-workplace-platform-lifecycle.spec.ts; tests/guided-intake.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Inspect attributable agent activity. Human review and source access remain mandatory; provider operation and autonomous execution are not implied. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
+  },
+  "collaboration": {
+    "stage": 2,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/home/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/feed/route.ts",
+    "service": "src/server/social.ts",
+    "schema": "migrations/postgres/holding-write/0001_baseline.sql",
+    "test": "tests/messaging.test.ts; tests/social-beta.test.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Start direct/team thread with eligible company participants; Reply/read/reload current authorized history. Verification covers the named owner/source adapters; it does not promise arbitrary field linking or universal relation-graph coverage. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "mentions": {
+        "test": "tests/social-beta.test.ts; tests/engineering-workplace-workers.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Select eligible scoped mention target; Publish and deliver only to current readable recipients; Drain native queues under current Company production rules, recheck enrollment and authority before each result, and retain human review. Verification covers the named owner/source adapters; it does not promise arbitrary field linking or universal relation-graph coverage. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-comments-moderation": {
+        "ui": "src/app/holdings/[holdingSlug]/feed/page.tsx",
+        "test": "tests/social-beta.test.ts; tests/e2e/demo-workplace-platform-lifecycle.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Reply, edit and tombstone comments. Verification covers the named owner/source adapters; it does not promise arbitrary field linking or universal relation-graph coverage. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-following-reactions": {
+        "ui": "src/app/holdings/[holdingSlug]/feed/page.tsx",
+        "test": "tests/social-beta.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Follow work and add non-decision signals. Verification covers the named owner/source adapters; it does not promise arbitrary field linking or universal relation-graph coverage. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-topics-feed": {
+        "ui": "src/app/holdings/[holdingSlug]/feed/page.tsx",
+        "test": "tests/social-beta.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Publish posts and follow governed hashtags. Verification covers the named owner/source adapters; it does not promise arbitrary field linking or universal relation-graph coverage. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "feature-attachments": {
+        "ui": "src/app/holdings/[holdingSlug]/inbox/page.tsx",
+        "api": "src/app/api/v1/holdings/[holdingSlug]/messaging/[[...path]]/route.ts",
+        "service": "src/server/messaging-files.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Quarantine owned draft files and bind once into authorized content; Revoke membership and recheck original download. Verification covers the named owner/source adapters; it does not promise arbitrary field linking or universal relation-graph coverage. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-action-cards": {
-        status: "flow_accepted",
-        ui: "src/app/holdings/[holdingSlug]/collaboration/page.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/collaboration/route.ts",
-        service: "src/server/collaboration-work.ts",
-        schema: "migrations/postgres/holding-write/0227_collaboration_work.sql",
-        test: "tests/e2e/demo-collaboration-action-card.spec.ts",
-        gap: "Source-versioned action cards, current eligible owner, Work/Inbox, evidence completion, reviewed reassignment/cancellation and authorized CSV export are flow accepted across the owner service and an isolated two-role Demo browser journey. Expand source adapters, Calendar, retention/legal hold, provider/production operation and Company business acceptance.",
+        "ui": "src/app/holdings/[holdingSlug]/collaboration/page.tsx",
+        "api": "src/app/api/v1/holdings/[holdingSlug]/collaboration/route.ts",
+        "service": "src/server/collaboration-work.ts",
+        "schema": "migrations/postgres/holding-write/0227_collaboration_work.sql",
+        "test": "tests/collaboration-work.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Propose and confirm reviewed actions. Verification covers the named owner/source adapters; it does not promise arbitrary field linking or universal relation-graph coverage. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-record-relations": {
-        status: "flow_accepted",
-        ui: "src/app/holdings/[holdingSlug]/collaboration/page.tsx",
-        api: "src/app/api/v1/holdings/[holdingSlug]/collaboration/route.ts",
-        service: "src/server/collaboration-work.ts",
-        schema: "migrations/postgres/holding-write/0227_collaboration_work.sql",
-        test: "tests/e2e/demo-collaboration-record-relations.spec.ts",
-        gap: "Typed version snapshots, symmetric duplicate prevention, permission-filtered backlinks, removal evidence, immutable history and authorized CSV export are flow accepted for a Sales quotation to Support case in the isolated Demo workspace. Expand adapters and add dead-link, relation-graph, retention/legal hold, provider/production and Company business acceptance.",
-      },
-    },
+        "ui": "src/app/holdings/[holdingSlug]/collaboration/page.tsx",
+        "api": "src/app/api/v1/holdings/[holdingSlug]/collaboration/route.ts",
+        "service": "src/server/collaboration-work.ts",
+        "schema": "migrations/postgres/holding-write/0227_collaboration_work.sql",
+        "test": "tests/collaboration-work.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Add, order, inspect and revoke typed links. Verification covers the named owner/source adapters; it does not promise arbitrary field linking or universal relation-graph coverage. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
   },
-  manage_erpx: {
-    stage: 6,
-    status: "implemented",
-    ui: "src/app/holdings/[holdingSlug]/manage-erpx/page.tsx",
-    api: "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/billing/[[...path]]/route.ts; src/app/api/v1/platform/iam/[[...path]]/route.ts; src/app/api/v1/platform/executive/route.ts",
-    service: "src/server/platform-operations.ts; src/server/billing-api.ts; src/server/iam-api.ts; src/server/platform-executive.ts",
-    schema: "migrations/postgres/control",
-    test: "tests/platform-operations.test.ts; tests/billing.test.ts; tests/iam.test.ts",
-    gap: "Manage ERPX composes separately permissioned Platform operations, billing, IAM and control-plane Executive workspaces. Each section keeps its own production and business acceptance gates; this shell does not provide customer Holding access or duplicate Company Executive metrics.",
-    overrides: {
-      overview: {
-        ui: "src/app/holdings/[holdingSlug]/manage-erpx/page.tsx",
-        api: "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/provision/route.ts; src/app/api/v1/platform/operations/recover/route.ts; src/app/api/v1/platform/operations/migrate/route.ts",
-        service: "src/server/platform-operations.ts",
-        test: "tests/platform-operations.test.ts",
-        gap: "Platform health, Holding jobs and migration state use the control plane and isolated Holding resources. Provisioning, recovery, backup operations and production RPO/RTO still require their independent acceptance evidence.",
+  "pms": {
+    "stage": 5,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/pms/[[...section]]/page.tsx",
+    "api": "src/app/api/v1/holdings/[holdingSlug]/pms/route.ts",
+    "service": "src/server/pms.ts",
+    "schema": "migrations/postgres/holding-write/0031_pms.sql",
+    "test": "tests/pms-read-model.test.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Create actual property/reservation/room sources; Read the bounded dashboard; Compare totals to the full source projection. SiteMinder/OTA remains outside this delivery; real source-data cutover, payment providers and hotel acceptance remain separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "reservations": {
+        "test": "tests/pms-booking.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Publish authorized rates and policy; Quote and confirm a multi-night guest reservation; Reload reservation and durable notice queue. SiteMinder/OTA remains outside this delivery; real source-data cutover, payment providers and hotel acceptance remain separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
-      billing: {
-        ui: "src/app/holdings/[holdingSlug]/manage-erpx/billing/page.tsx; src/components/billing/billing-console.tsx",
-        api: "src/app/api/v1/platform/billing/[[...path]]/route.ts",
-        service: "src/server/billing-api.ts; src/server/billing.ts; src/server/billing-stripe.ts",
-        test: "tests/billing.test.ts; tests/billing-api.test.ts",
-        gap: "Platform billing reads the control plane and keeps live payment, tax, refund and production acceptance separate from the sandbox implementation.",
+      "front-desk": {
+        "test": "tests/pms.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Check in an inspected room; Move the in-house guest to another available room; Extend stay under current availability and reload history. SiteMinder/OTA remains outside this delivery; real source-data cutover, payment providers and hotel acceptance remain separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
-      iam: {
-        ui: "src/app/holdings/[holdingSlug]/manage-erpx/iam/[[...section]]/page.tsx; src/components/iam/iam-console.tsx",
-        api: "src/app/api/v1/platform/iam/[[...path]]/route.ts",
-        service: "src/server/iam-api.ts; src/server/iam-service.ts; src/server/authorization.ts",
-        test: "tests/iam.test.ts; tests/iam-providers.test.ts",
-        gap: "Platform IAM requires current Platform authority and retains separate multi-role browser, provider and production acceptance gates.",
+      "rooms": {
+        "test": "tests/pms.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Prepare a dirty room through housekeeping; Require independent inspection before check-in; Attempt maintenance on occupied inventory. SiteMinder/OTA remains outside this delivery; real source-data cutover, payment providers and hotel acceptance remain separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
-      executive: {
-        ui: "src/app/holdings/[holdingSlug]/manage-erpx/executive/page.tsx",
-        api: "src/app/api/v1/platform/executive/route.ts",
-        service: "src/server/platform-executive.ts",
-        test: "tests/platform-operations.test.ts",
-        gap: "The Platform Executive reads control-plane provisioning and service metrics through PlatformContext. Customer Holding data is excluded; source reconciliation, browser review and production acceptance remain pending.",
+      "housekeeping": {
+        "test": "tests/pms.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Create a multi-room booking and check in one room; Cancel only an unarrived room; Attempt stale housekeeping actions against an old occupancy cycle. SiteMinder/OTA remains outside this delivery; real source-data cutover, payment providers and hotel acceptance remain separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
-    },
+      "folios": {
+        "test": "tests/pms.test.ts; tests/e2e/demo-hospitality-setup.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Post hotel service to a guest folio; Split and merge charge ownership; Reverse the recipient charge with expected version. SiteMinder/OTA remains outside this delivery; real source-data cutover, payment providers and hotel acceptance remain separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "cashier": {
+        "test": "tests/pms.test.ts; tests/e2e/demo-hospitality-setup.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Prepare a guest transfer payment without assuming receipt; Match exact imported evidence through a different Finance user; Reload payment allocation and posted journal. SiteMinder/OTA remains outside this delivery; real source-data cutover, payment providers and hotel acceptance remain separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "inventory": {
+        "test": "tests/pms.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Charge actual stocked minibar items; Consume source warehouse quantity and cost atomically; Attempt insufficient stock and reload folio/inventory. SiteMinder/OTA remains outside this delivery; real source-data cutover, payment providers and hotel acceptance remain separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "guests": {
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Read property guest sources under current scope; Change company/branch/permission context; Reload every bounded query model. SiteMinder/OTA remains outside this delivery; real source-data cutover, payment providers and hotel acceptance remain separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "reports": {
+        "test": "tests/pms-read-model.test.ts; tests/pms.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Populate actual property sources; Read dashboard and source report projection; Compare all authorized totals. SiteMinder/OTA remains outside this delivery; real source-data cutover, payment providers and hotel acceptance remain separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "night-audit": {
+        "test": "tests/pms.test.ts; tests/e2e/demo-hospitality-setup.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Prepare an auditable open hotel day; Run competing durable night workers; Restart from committed source chunks and reload the closed day. SiteMinder/OTA remains outside this delivery; real source-data cutover, payment providers and hotel acceptance remain separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "settings": {
+        "test": "tests/pms.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Prepare property Finance and operating mappings; Require independent unchanged review; Activate and reload retained readiness evidence. SiteMinder/OTA remains outside this delivery; real source-data cutover, payment providers and hotel acceptance remain separate. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
   },
-  pms: {
-    stage: 5,
-    status: "flow_accepted",
-    ui: "src/app/holdings/[holdingSlug]/pms/[[...section]]/page.tsx",
-    api: "src/app/api/v1/holdings/[holdingSlug]/pms/route.ts",
-    service: "src/server/pms.ts",
-    schema: "migrations/postgres/holding-write/0031_pms.sql",
-    test: "tests/pms.test.ts",
-    gap: "Complete pilot setup, POS room-charge handoff, online payment and separately gated OTA adapter acceptance.",
-  },
+  "manage_erpx": {
+    "stage": 6,
+    "status": "flow_accepted",
+    "ui": "src/app/holdings/[holdingSlug]/manage-erpx/page.tsx",
+    "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/provision/route.ts; src/app/api/v1/platform/operations/recover/route.ts; src/app/api/v1/platform/operations/migrate/route.ts",
+    "service": "src/server/platform-operations.ts",
+    "schema": "migrations/postgres/control",
+    "test": "tests/platform-operations.test.ts; tests/e2e/demo-workplace-platform-lifecycle.spec.ts",
+    "gap": "Recorded 2026-10-03 engineering acceptance covers: Read source-backed Platform and Holding runtime overview. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
+    "overrides": {
+      "billing": {
+        "ui": "src/app/holdings/[holdingSlug]/manage-erpx/billing/page.tsx; src/components/billing/billing-console.tsx",
+        "api": "src/app/api/v1/platform/billing/[[...path]]/route.ts",
+        "service": "src/server/billing-api.ts; src/server/billing.ts; src/server/billing-stripe.ts",
+        "test": "tests/billing.test.ts; tests/e2e/demo-workplace-platform-lifecycle.spec.ts; tests/billing-api.test.ts; tests/billing-stripe-errors.test.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Review metered monthly costs and reconcile Sandbox invoice recovery. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "iam": {
+        "ui": "src/app/holdings/[holdingSlug]/manage-erpx/iam/[[...section]]/page.tsx; src/components/iam/iam-console.tsx",
+        "api": "src/app/api/v1/platform/iam/[[...path]]/route.ts",
+        "service": "src/server/iam-api.ts; src/server/iam-service.ts; src/server/authorization.ts",
+        "test": "tests/iam.test.ts; tests/e2e/demo-workplace-platform-lifecycle.spec.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Review current IAM matrix and durable scope-specific evidence. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      },
+      "executive": {
+        "ui": "src/app/holdings/[holdingSlug]/manage-erpx/executive/page.tsx",
+        "api": "src/app/api/v1/platform/executive/route.ts",
+        "service": "src/server/platform-executive.ts",
+        "gap": "Recorded 2026-10-03 engineering acceptance covers: Read executive operational aggregates from control-plane projections. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
+      }
+    }
+  }
 };
 
-export function capabilityDelivery(
-  moduleId: string,
-  capabilityId: string,
-): CapabilityDelivery | undefined {
+export function capabilityDelivery(moduleId: string, capabilityId: string): CapabilityDelivery | undefined {
   const base = delivery[moduleId];
   if (!base) return undefined;
-  const defaults: CapabilityDelivery = {
-    stage: base.stage,
-    status: base.status,
-    ui: base.ui,
-    api: base.api,
-    service: base.service,
-    schema: base.schema,
-    test: base.test,
-    gap: base.gap,
-  };
-  return { ...defaults, ...base.overrides?.[capabilityId] };
+  const { overrides, ...defaults } = base;
+  return { ...defaults, ...overrides?.[capabilityId] };
 }
 
-export function deliveryModules() {
-  return Object.keys(delivery);
-}
+export function deliveryModules() { return Object.keys(delivery); }

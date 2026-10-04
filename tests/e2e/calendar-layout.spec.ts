@@ -98,7 +98,7 @@ async function mockCalendarApi(page: import("@playwright/test").Page) {
     json: { data: { nodes: [{ id: "dept-1", parentId: null, name: "Operations", kind: "department", branchId: null, inScope: true }], people: [{ id: "person-1", name: "Mali Srisai", userId: null, departmentId: "dept-1", branchId: null, managerId: null, status: "active" }], nextCursor: null, selfPersonId: "person-1" } },
   }));
   await page.route("**/api/v1/holdings/acme/people/roster?*", (route) => route.fulfill({
-    json: { data: { asOf: 0, departments: [{ id: "dept-1", name: "Operations", branch_id: null, branch_name: null }], departmentId: "dept-1", weekStart: "2026-09-14", week: null, weeks: [], templates: [], shifts: [], assignments: [], requests: [], people: [], history: [], conflicts: [], selfPersonId: null, canManage: true, canApprove: true } },
+    json: { data: { asOf: 0, departments: [{ id: "dept-1", name: "Operations", branch_id: null, branch_name: null }], departmentId: "dept-1", weekStart: "2026-09-14", week: null, weeks: [], templates: [], shifts: [], assignments: [], requests: [], people: [], coverageGaps: [], history: [], conflicts: [], selfPersonId: null, selfRosterRequired: false, canManage: true, canApprove: true } },
   }));
 }
 
@@ -191,15 +191,15 @@ test("calendar view and filters follow URL history and event detail retains the 
   await event.click();
   await expect(page).toHaveURL(/(?:\?|&)view=week(?:&|$)/);
   await expect(page).toHaveURL(/(?:\?|&)event=[^&]+/);
-  await expect(page.locator("dialog[open]")).toHaveCount(1);
+  await expect(page.getByRole("dialog")).toHaveCount(1);
   await page.goBack();
-  await expect(page.locator("dialog[open]")).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(views.getByRole("button", { name: "Week" })).toHaveAttribute(
     "aria-pressed",
     "true",
   );
   await page.goForward();
-  await expect(page.locator("dialog[open]")).toHaveCount(1);
+  await expect(page.getByRole("dialog")).toHaveCount(1);
   await expect(page).toHaveURL(/(?:\?|&)event=[^&]+/);
 });
 
@@ -210,7 +210,7 @@ test("month selection updates the date URL and outside-month dates open their mo
   await page.getByRole("button", { name: "Show Monday, August 31, 2026" }).click();
   await expect(page).toHaveURL(/(?:\?|&)date=2026-08-31(?:&|$)/);
   await expect(page.locator('[data-calendar-view="month"] [data-calendar-date="2026-08-31"][data-selected="true"]')).toBeVisible();
-  await expect(page.locator("#selected-calendar-day")).toContainText("August 31, 2026");
+  await expect(page.locator("#selected-calendar-day")).toContainText(/(?:August 31,|31 August) 2026/);
 });
 
 test("month previews cap at two and the selected date keeps its full loaded list", async ({ page }, testInfo) => {
@@ -227,7 +227,7 @@ test("month previews cap at two and the selected date keeps its full loaded list
     await dayButton.focus();
     await page.keyboard.press("Enter");
   } else {
-    await cell.getByRole("button", { name: /Show \d+ more loaded events for September 10/ }).click();
+    await cell.getByRole("button", { name: /Show \d+ more loaded events for (?:September 10|10 September)/ }).click();
   }
   await expect(page).toHaveURL(/(?:\?|&)date=2026-09-10(?:&|$)/);
   const loadedForSelectedDate = Number(await page.locator('[data-calendar-date="2026-09-10"]').getAttribute("data-event-count"));
@@ -281,8 +281,8 @@ test("calendar attention stays compact and distinguishes loaded warning items", 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 
   await attention.locator("li").first().getByRole("button").click();
-  await expect(page.locator("dialog[open]")).toBeVisible();
-  await expect(page.locator("dialog[open]")).toContainText("Review final payroll");
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("dialog")).toContainText("Review final payroll");
   await page.getByRole("button", { name: "Close dialog" }).click();
   await page.getByRole("button", { name: "Next month" }).click();
   await expect(attention).toHaveCount(0);
@@ -357,10 +357,10 @@ test("authorized roster events open the roster planner", async ({ page }) => {
   await page.goto(`${base}/calendar?${query}`);
   await page.getByRole("button", { name: "Refresh calendar" }).click();
   await page.locator("[data-calendar-event]").filter({ hasText: "Morning shift" }).first().click();
-  const detail = page.locator("dialog[open]");
+  const detail = page.getByRole("dialog");
   await expect(detail.getByRole("button", { name: "Open roster actions" })).toBeVisible();
   await detail.getByRole("button", { name: "Open roster actions" }).click();
-  await expect(page.locator("dialog[open]")).toContainText("Roster planning");
+  await expect(page.getByRole("dialog")).toContainText("Roster planning");
 });
 
 test("day view renders a horizontally scrollable people timeline and opens event details", async ({ page }) => {
@@ -371,6 +371,6 @@ test("day view renders a horizontally scrollable people timeline and opens event
   await expect(timeline.locator("[data-calendar-event]").first()).toBeVisible();
   await timeline.locator("[data-calendar-event]").first().click();
   await expect(page).toHaveURL(/(?:\?|&)event=[^&]+/);
-  await expect(page.locator("dialog[open]")).toHaveCount(1);
+  await expect(page.getByRole("dialog")).toHaveCount(1);
   expect(await timeline.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
 });

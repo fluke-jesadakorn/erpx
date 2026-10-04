@@ -1,5 +1,7 @@
 # CRM leads และ opportunities บนข้อมูลจำลอง
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 ขอบเขต: ชุด D / S01 มี owner service, additive migration0215, API `/api/v1/holdings/{holdingSlug}/crm`, หน้า CRM, Work, Inbox และ Calendar. เป็น implementation บางส่วนของ capability ไม่ใช่ production sign-off.
 
 ## ผู้ใช้และการส่งต่อ

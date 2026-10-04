@@ -1,5 +1,7 @@
 # Customer identity changes
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 Changes to customer legal name, tax registration, phone and structured address use a reviewed before/after snapshot instead of directly overwriting the master.
 
 - The requester selects an active customer and records the current customer version, proposed values and evidence.

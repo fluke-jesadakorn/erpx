@@ -1,5 +1,7 @@
 # Hotel and restaurant pilot implementation — 2026-09-23
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 > Historical report and scoped evidence. Current priorities, payroll scope and launch criteria are governed by [the production plan](../production-plan.md); remaining work below is retained as history, not a competing delivery plan.
 
 The company-scoped production rollout slice is tracked in [hospitality-feature-rollout-2026-09-23.md](./hospitality-feature-rollout-2026-09-23.md).

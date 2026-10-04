@@ -1,6 +1,6 @@
 # ADR-007: Stripe authority for commercial state
 
-> **Next.js era: Reconfirmed (2026-09-02) — still authoritative**
+> **Current scope:** Stripe provider authority is retained for the named Sandbox offering in [ADR-028](ADR-028-sandbox-cost-plus-support-billing.md), [ADR-037](ADR-037-sandbox-ai-gateway-and-rated-holding-billing.md) and the [billing contract](../contracts/next/billing.md). The original grace/read-only consequences below are architectural rationale; actual access restrictions and Live collection are not supported by the current offering.
 > See `CUTOVER.md` (2026-09-02) and `ADR-020-nextjs-stack.md`.
 
 

@@ -17,6 +17,12 @@ import { companyBusinessAcceptance, companyAcceptanceSubmitSchema, companyAccept
 import { grantSchema,grantPersonAccess,revokePersonAccess,invitePerson,retryInvitationDelivery,revokeInvitation } from "@/server/account-access";
 import { directorySchema, directoryUpdateSchema, directoryStatusSchema, saveDirectoryPerson, setDirectoryStatus } from "@/server/people-directory";
 import { z } from "zod";
+import {getPayslip,getPayslipExport,listPayslips,issuePostedPayslips,issuePayslipSchema} from "@/server/payroll-payslips";
+import { cancelPayrollRun, payrollCancelSchema } from "@/server/payroll-cancellation";
+import { createPayrollAdjustment, editPayrollAdjustment, payrollAdjustmentCreateSchema, payrollAdjustmentEditSchema } from "@/server/payroll-adjustments";
+import {requestPayrollRecovery,consentPayrollRecovery,reviewPayrollRecovery,recognizePayrollRecovery,payrollRecoveryPage,payrollRecoveryAgreement,payrollRecoveryRequestSchema,payrollRecoveryConsentSchema,payrollRecoveryReviewSchema,payrollRecoveryRecognizeSchema} from "@/server/payroll-recoveries";
+import { thaiPayrollConfiguration,createThaiPayrollProfile,decideThaiPayrollProfile,thaiPayrollProfileSchema,thaiPayrollProfileDecisionSchema } from "@/server/payroll-statutory";
+import { consumeHireHandoff,hireConsumptionSchema,hireHandoffQueue } from "@/server/people-handoffs";
 import { hasPermission } from "@/lib/permissions";
 import { getPayrollSchedule, savePayrollSchedule, payrollScheduleSchema, payrollReadiness, submitPayrollReview, payrollSubmitReviewSchema } from "@/server/payroll-readiness";
 import { getPayrollLiabilities, remitPayrollLiability, payrollRemittanceSchema } from "@/server/payroll-remittance";
@@ -48,6 +54,7 @@ import {
   listPeople,
   getPerson,
   peopleSummary,
+  payrollSummary,
   payrollRunSchema,
   payGroupSchema,
   paymentBatchSchema,
@@ -103,6 +110,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request, context: Context) {
   try {
     const { holdingSlug, path } = await context.params; const actor = await requireWorkContext(holdingSlug); const p = parts(path);
+    if(p[0]==="hire-handoffs"&&p.length===1)return Response.json({data:await hireHandoffQueue(actor)},{headers:{"Cache-Control":"private, no-store"}});
     if(p[0]==="directory-operations"){const {write}=await holdingResources(actor.holdingId);return Response.json({data:await directoryOperationsApi(write as PostgresDatabase,actor,p.slice(1))},{headers:{"Cache-Control":"private, no-store"}});}
     if(p[0]==="templates"){const {write}=await holdingResources(actor.holdingId);return Response.json({data:await peopleTemplatesData(write as PostgresDatabase,iamActorFromWork(actor))},{headers:{"Cache-Control":"private, no-store"}});}
     if(p[0]==="lifecycle" && p.length===1){const {write}=await holdingResources(actor.holdingId);return Response.json({data:await peopleLifecycleData(write,actor)},{headers:{"Cache-Control":"private, no-store"}});}
@@ -130,11 +138,21 @@ export async function GET(request: Request, context: Context) {
     if (p[0] === "pay-groups" && p[1] && p[2] === "schedule") return Response.json({data:await getPayrollSchedule(actor,p[1])},{headers:{"Cache-Control":"private, no-store"}});
     if (p[0] === "pay-groups") return Response.json({data:await payrollOptions(actor)});
     if (p[0] === "summary") return Response.json({ data: await peopleSummary(actor) });
+    if(p[0]==="payroll"&&p[1]==="payslips"){
+      if(p.length===2)return Response.json({data:await listPayslips(actor)},{headers:{"Cache-Control":"private, no-store"}});
+      if(p.length===3)return Response.json({data:await getPayslip(actor,p[2])},{headers:{"Cache-Control":"private, no-store"}});
+      if(p.length===4&&p[3]==="export"){const issued=await getPayslipExport(actor,p[2]);return new Response(issued.html,{headers:{"Content-Type":"text/html; charset=utf-8","Content-Disposition":`attachment; filename="${p[2]}.html"`,"Cache-Control":"private, no-store","ETag":issued.checksum,"Content-Security-Policy":"default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'"}});}
+    }
+    if(p[0]==="payroll"&&p[1]==="runs"&&p[2]&&p[3]==="payslips"&&p.length===4)return Response.json({data:await listPayslips(actor,{runId:p[2],ownOnly:false})},{headers:{"Cache-Control":"private, no-store"}});
+    if (p[0] === "payroll" && p[1] === "summary" && p.length === 2) return Response.json({data:await payrollSummary(actor,new URL(request.url).searchParams.get("payMonth")??undefined)},{headers:{"Cache-Control":"private, no-store"}});
     if (p[0] === "country-packs") return Response.json({ data: await listCountryPacks(actor) });
+    if (p[0] === "payroll" && p[1] === "thai-configuration") return Response.json({data:await thaiPayrollConfiguration(actor,new URL(request.url).searchParams.get("engagementId")??undefined)},{headers:{"Cache-Control":"private, no-store"}});
     if (p[0] === "payroll" && p[1] === "runs" && p.length === 2) return Response.json({ data: await listPayrollRuns(actor) });
     if (p[0] === "payroll" && p[1] === "posting-options" && p.length === 2) return Response.json({data:await payrollPostingOptions(actor)},{headers:{"Cache-Control":"private, no-store"}});
     if (p[0] === "payroll" && p[1] === "cost-assignments" && p[2] && p.length === 3) return Response.json({data:await payrollCostAssignments(actor,p[2])},{headers:{"Cache-Control":"private, no-store"}});
     if (p[0] === "payroll" && p[1] === "advances" && p.length === 2) return Response.json({ data: await payrollAdvancePage(actor) });
+    if (p[0] === "payroll" && p[1] === "recoveries" && p.length === 2) return Response.json({data:await payrollRecoveryPage(actor)});
+    if (p[0] === "payroll" && p[1] === "recoveries" && p[2] && p[3] === "agreement") {const document=await payrollRecoveryAgreement(actor,p[2]);return new Response(document.html,{headers:{'Content-Type':'text/html; charset=utf-8','Content-Disposition':`attachment; filename="payroll-recovery-${p[2]}.html"`,'X-Content-SHA256':document.checksum,'Cache-Control':'private, no-store'}});}
     if (p[0] === "payroll" && p[1] === "runs" && p[2] && p[3] === "review-file") {
       const query=new URL(request.url).searchParams,revision=Number(query.get("revision"));
       if(!Number.isInteger(revision)||revision<1)throw new ApiError(422,"REVISION_REQUIRED","Choose a payroll revision.");
@@ -153,6 +171,8 @@ export async function POST(request: Request, context: Context) {
   try {
     const origin=request.headers.get("origin"); if(origin && origin!==requestPublicOrigin(request)) throw new ApiError(403,"ORIGIN_FORBIDDEN","Use the application origin for this action.");
     const { holdingSlug, path } = await context.params; const actor = await requireWorkContext(holdingSlug); const p = parts(path); const input = await json(request); const id = command(request);
+    if(p[0]==="payroll"&&p[1]==="runs"&&p[2]&&p[3]==="issue-payslips"&&p.length===4)return Response.json({data:await issuePostedPayslips(actor,p[2],parsed(issuePayslipSchema.safeParse(input)),id)},{status:201});
+    if(p[0]==="hire-handoffs"&&(p.length===1||(p.length===2&&p[1]==="consume")))return Response.json({data:await consumeHireHandoff(actor,parsed(hireConsumptionSchema.safeParse(input)),id)},{status:201});
     if(p[0]==="directory-operations"){const {write}=await holdingResources(actor.holdingId);return Response.json({data:await directoryOperationsApi(write as PostgresDatabase,actor,p.slice(1),input,id)});}
     if(p[0]==="templates"&&p.length===2&&["publish","preview","adopt"].includes(p[1])){const {write}=await holdingResources(actor.holdingId),iam=iamActorFromWork(actor);return Response.json({data:p[1]==="publish"?await saveHoldingTemplate(write as PostgresDatabase,iam,input,id):await adoptHoldingTemplate(write as PostgresDatabase,iam,parsed(adoptTemplateInput.safeParse(input)),id,p[1]==="preview")});}
     if(p[0]==="lifecycle") {
@@ -215,6 +235,8 @@ export async function POST(request: Request, context: Context) {
     if (p[0] === "compensation" && p[2] === "transition") { const data=parsed(compensationTransitionSchema.safeParse(input)); return Response.json({data:await transitionCompensation(actor,p[1],data,id)}); }
     if (p[0] === "pay-groups" && p.length === 1) { const data=parsed(payGroupSchema.safeParse(input)); return Response.json({data:await createPayGroup(actor,data,id)},{status:201}); }
     if (p[0] === "pay-groups" && p[1] && p[2] === "schedule") return Response.json({data:await savePayrollSchedule(actor,p[1],parsed(payrollScheduleSchema.safeParse(input)),id)});
+    if (p[0] === "payroll" && p[1] === "thai-profiles" && p.length === 2) return Response.json({data:await createThaiPayrollProfile(actor,parsed(thaiPayrollProfileSchema.safeParse(input)),id)},{status:201});
+    if (p[0] === "payroll" && p[1] === "thai-profiles" && p[3] === "decision") return Response.json({data:await decideThaiPayrollProfile(actor,p[2],parsed(thaiPayrollProfileDecisionSchema.safeParse(input)),id)});
     if (p[0] === "country-packs" && p.length === 1) { const data=parsed(countryPackSchema.safeParse(input)); return Response.json({data:await createCountryPack(actor,data,id)},{status:201}); }
     if (p[0] === "country-packs" && p[2] === "transition") { const data=parsed(countryPackTransitionSchema.safeParse(input)); return Response.json({data:await transitionCountryPack(actor,p[1],data,id)}); }
     if (p[0] === "expenses") throw new ApiError(410,"EXPENSE_API_MOVED","Use the /expenses workflow for claims, receipts, approval and reimbursement.");
@@ -227,6 +249,13 @@ export async function POST(request: Request, context: Context) {
     if (p[0] === "payroll" && p[1] === "cost-assignments" && p[2] && p[3] === "verify") return Response.json({data:await verifyPayrollCostAssignment(actor,p[2],parsed(payrollCostVerificationSchema.safeParse(input)),id)});
     if (p[0] === "payroll" && p[1] === "account-mappings" && p[2] && p[3] === "approve") { const data=parsed(z.object({expectedVersion:z.number().int().positive()}).safeParse(input)); return Response.json({data:await approvePayrollAccountMapping(actor,p[2],data.expectedVersion,id)}); }
     if (p[0] === "payroll" && p[1] === "runs" && p[3] === "calculate") return Response.json({data:await calculatePayrollRun(actor,p[2],id)});
+    if (p[0] === "payroll" && p[1] === "runs" && p[3] === "cancel" && p.length === 4) return Response.json({data:await cancelPayrollRun(actor,p[2],parsed(payrollCancelSchema.safeParse(input)),id)});
+    if (p[0] === "payroll" && p[1] === "runs" && p[3] === "adjustments" && p.length === 4) return Response.json({data:await createPayrollAdjustment(actor,p[2],parsed(payrollAdjustmentCreateSchema.safeParse(input)),id)},{status:201});
+    if (p[0] === "payroll" && p[1] === "runs" && p[3] === "adjustment-edit" && p.length === 4) return Response.json({data:await editPayrollAdjustment(actor,p[2],parsed(payrollAdjustmentEditSchema.safeParse(input)),id)});
+    if (p[0] === "payroll" && p[1] === "runs" && p[3] === "recoveries" && p.length === 4) return Response.json({data:await requestPayrollRecovery(actor,p[2],parsed(payrollRecoveryRequestSchema.safeParse(input)),id)},{status:201});
+    if (p[0] === "payroll" && p[1] === "recoveries" && p[2] && p[3] === "consent") return Response.json({data:await consentPayrollRecovery(actor,p[2],parsed(payrollRecoveryConsentSchema.safeParse(input)),id)});
+    if (p[0] === "payroll" && p[1] === "recoveries" && p[2] && p[3] === "review") return Response.json({data:await reviewPayrollRecovery(actor,p[2],parsed(payrollRecoveryReviewSchema.safeParse(input)),id)});
+    if (p[0] === "payroll" && p[1] === "recoveries" && p[2] && p[3] === "recognize") return Response.json({data:await recognizePayrollRecovery(actor,p[2],parsed(payrollRecoveryRecognizeSchema.safeParse(input)),id)});
     if (p[0] === "payroll" && p[1] === "runs" && p[3] === "submit-review") return Response.json({data:await submitPayrollReview(actor,p[2],parsed(payrollSubmitReviewSchema.safeParse(input)),id)});
     if (p[0] === "payroll" && p[1] === "runs" && p[3] === "remit") return Response.json({data:await remitPayrollLiability(actor,p[2],parsed(payrollRemittanceSchema.safeParse(input)),id)});
     if (p[0] === "payroll" && p[1] === "runs" && p[3] === "approve") { const data=parsed(z.object({expectedVersion:z.number().int().positive()}).safeParse(input)); return Response.json({data:await approvePayrollRun(actor,p[2],data.expectedVersion,id)}); }

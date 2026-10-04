@@ -1,3 +1,4 @@
+import {createEngineeringBrowserContext} from './helpers/engineering-browser-evidence';
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -61,7 +62,7 @@ test("isolated demo links a support case to its sales source and records removal
   const guide = JSON.parse(
     await readFile(resolve(directory, "demo-guide.json"), "utf8"),
   ) as DemoGuide;
-  const ownerContext = await browser.newContext(testInfo.project.use);
+  const ownerContext = await createEngineeringBrowserContext(browser,testInfo);
   try {
     const ownerPage = await ownerContext.newPage();
     const salesScenario = guide.scenarios.find(
@@ -80,7 +81,7 @@ test("isolated demo links a support case to its sales source and records removal
       `/holdings/simulation/support?orderId=${encodeURIComponent(quoteId)}`,
       { waitUntil: "domcontentloaded" },
     );
-    const supportForm = ownerPage.locator("form").filter({
+    const supportForm = ownerPage.locator("#workspace-content form").filter({
       hasText: "Record customer issue",
     });
     await supportForm.locator('input[name="title"]').fill(title);
@@ -106,7 +107,7 @@ test("isolated demo links a support case to its sales source and records removal
       waitUntil: "domcontentloaded",
     });
     await expect(ownerPage.getByRole("heading", { name: "Cross-record collaboration" })).toBeVisible();
-    const relationForm = ownerPage.locator("form").filter({ hasText: "Link records" });
+    const relationForm = ownerPage.locator("#workspace-content form").filter({ hasText: "Link records" });
     await relationForm.locator('select[name="sourceType"]').selectOption("commerce_order");
     await relationForm.locator('input[name="sourceId"]').fill(quoteId);
     await relationForm.locator('select[name="targetType"]').selectOption("support_ticket");
@@ -122,7 +123,7 @@ test("isolated demo links a support case to its sales source and records removal
     );
     await relationForm.getByRole("button", { name: "Create typed relation" }).click();
     expect((await linkResponse).status()).toBe(200);
-    const relationCard = ownerPage.locator("form").filter({ hasText: "Remove relation" });
+    const relationCard = ownerPage.locator("#workspace-content form").filter({ hasText: "Remove relation" });
     await expect(relationCard).toContainText(`commerce_order ${quoteId}`);
     await expect(relationCard).toContainText(`support_ticket ${ticketId}`);
 
@@ -136,7 +137,7 @@ test("isolated demo links a support case to its sales source and records removal
     );
     await relationCard.getByRole("button", { name: "Remove relation" }).click();
     expect((await removeResponse).status()).toBe(200);
-    await expect(ownerPage.locator("form").filter({ hasText: "Remove relation" })).toHaveCount(0);
+    await expect(ownerPage.locator("#workspace-content form").filter({ hasText: "Remove relation" })).toHaveCount(0);
   } finally {
     await ownerContext.close();
   }

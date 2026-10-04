@@ -1,5 +1,10 @@
 import { ApiError } from "../http";
 export async function boundedBody(request: Request, limit: number) {
+  const declared = request.headers.get("content-length");
+  if (declared !== null && /^\d+$/.test(declared) && BigInt(declared) > BigInt(limit)) {
+    await request.body?.cancel();
+    throw new ApiError(413, "BODY_TOO_LARGE", `Request exceeds ${Math.round(limit / 1024)} KB.`);
+  }
   const reader = request.body?.getReader();
   if (!reader) return new Uint8Array();
   const chunks: Uint8Array[] = [];

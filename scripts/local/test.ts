@@ -16,7 +16,21 @@ const version = Bun.spawnSync([node, "--version"]);
 if (version.exitCode !== 0 || version.stdout.toString().trim() !== "v24.20.0")
   throw new Error("Tests require Node 24.20.0.");
 
-const env: Record<string, string | undefined> = { ...process.env, NODE_ENV: "test" };
+// Disposable fixtures choose their own attachment generation. Legacy fixture
+// cases retain the compatibility path; V2 intake/owner cases explicitly enable
+// V2 and prove its native bind/scan guards. A development rollout must not
+// silently change either fixture generation or freeze the test Companies.
+const attachmentMode = process.env.ERPX_TEST_ATTACHMENTS_V2 ?? "false";
+if (!["false", "true"].includes(attachmentMode)) throw new Error("INVALID_TEST_ATTACHMENT_MODE");
+const env: Record<string, string | undefined> = { ...process.env, NODE_ENV: "test", ERPX_ATTACHMENTS_V2: attachmentMode, ERPX_ATTACHMENT_UPLOAD_FREEZE: "false" };
+if (env.ERPX_TEST_STRIPE_SANDBOX === "1") {
+  // A selected existing Sandbox key is scoped to this disposable test process;
+  // it does not replace deployment credentials or permit a live-mode fallback.
+  const binding = env.ERPX_TEST_STRIPE_KEY_BINDING ?? "STRIPE_SECRET_KEY";
+  if (!["STRIPE_SECRET_KEY", "POS_STRIPE_TEST_SECRET_KEY"].includes(binding) || !env[binding]?.startsWith("sk_test_"))
+    throw new Error("EXISTING_STRIPE_SANDBOX_TEST_KEY_REQUIRED");
+  env.STRIPE_SECRET_KEY = env[binding];
+}
 if (!env.ERPX_TEST_ADMIN_URL) {
   for (const file of [".env.test.local", ".env.test", ".env.local"]) {
     const path = resolve(root, file);

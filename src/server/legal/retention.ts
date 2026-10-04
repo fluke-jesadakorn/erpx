@@ -1,4 +1,5 @@
 import "server-only";
+import {legalDestructionManifest, validateLegalDestructionSources, sealLegalDestructionSources, type LegalDestructionManifest} from "./destruction-sources";
 import { z } from "zod";
 import type { SqlDatabase, FileStore, SqlStatement } from "../runtime/types";
 import type { PostgresDatabase } from "../runtime/postgres";
@@ -215,22 +216,7 @@ export async function retentionCommand(
     )
       fail("This record is still active.");
     steps.push(noHold(db, item.id, key));
-    const docs = (
-      await db
-        .prepare(
-          "SELECT id,checksum,object_key FROM legal_documents WHERE item_id=? AND NOT EXISTS(SELECT 1 FROM legal_disposals d WHERE d.document_id=legal_documents.id)",
-        )
-        .bind(item.id)
-        .all<{ id: string; checksum: string; object_key: string | null }>()
-    ).results;
-    const uploads = (
-      await db
-        .prepare(
-          "SELECT u.id,u.object_key,u.checksum FROM legal_external_uploads u JOIN legal_shares s ON s.id=u.share_id WHERE s.item_id=?",
-        )
-        .bind(item.id)
-        .all<{ id: string; checksum: string; object_key: string }>()
-    ).results;
+    const manifest = await legalDestructionManifest(db,item.id,item.company_id);
     steps.push(
       db
         .prepare(
@@ -243,14 +229,7 @@ export async function retentionCommand(
           assignment.policy_version,
           a.userId,
           x.reason,
-          JSON.stringify({
-            documents: docs,
-            uploads,
-            keys: [
-              ...docs.map((d) => d.object_key).filter(Boolean),
-              ...uploads.map((u) => u.object_key),
-            ],
-          }),
+          JSON.stringify(manifest),
           Date.now(),
         ),
     );
@@ -430,10 +409,8 @@ export async function drainLegalDestruction(
         .run();
       if (!files.destroyPreserved)
         throw new Error("LEGAL_DESTRUCTION_STORE_UNAVAILABLE");
-      const manifest = JSON.parse(r.manifest) as {
-        keys: string[];
-        documents: { id: string; checksum: string }[];
-      };
+      const manifest = JSON.parse(r.manifest) as LegalDestructionManifest;
+      await validateLegalDestructionSources(tx,r.item_id,r.company_id,manifest);
       await tx
         .prepare("UPDATE legal_destructions SET state='executing' WHERE id=?")
         .bind(r.id)
@@ -442,6 +419,7 @@ export async function drainLegalDestruction(
         database: tx,
         destructionId: r.id,
       });
+      await sealLegalDestructionSources(tx,r.company_id,r.id,manifest);
       for (const d of manifest.documents) {
         await tx
           .prepare(

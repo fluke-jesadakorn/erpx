@@ -3,9 +3,9 @@
   gap: 14px;
   min-width: 0;
   padding: 18px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--card) 96%, var(--brand-soft));
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: color-mix(in srgb, var(--ui-card) 96%, var(--ui-brand-soft));
 }
 
 .compact {
@@ -21,7 +21,7 @@
 
 .heading h3 {
   margin: 0;
-  color: var(--ink-strong);
+  color: var(--ui-ink-strong);
   font-size: 15px;
   line-height: 1.4;
 }
@@ -31,7 +31,7 @@
 .hint,
 .statusText {
   margin: 4px 0 0;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 12px;
   line-height: 1.55;
 }
@@ -58,16 +58,16 @@
 }
 
 .bindActions span {
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 11px;
 }
 
 .counter {
   flex: none;
   padding: 4px 8px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 999px;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 11px;
   white-space: nowrap;
 }
@@ -77,38 +77,40 @@
   place-items: center;
   min-height: 116px;
   padding: 18px;
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--radius-md);
-  background: var(--card);
+  border: 1px dashed var(--ui-line-strong);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-card);
   text-align: center;
-  transition: border-color var(--motion-fast), background var(--motion-fast);
+  transition:
+    border-color var(--ui-motion-fast),
+    background var(--ui-motion-fast);
 }
 
 .dropzone[data-dragging="true"] {
-  border-color: var(--brand);
-  background: var(--brand-soft);
+  border-color: var(--ui-brand);
+  background: var(--ui-brand-soft);
 }
 
 .dropzone:focus-within {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--ui-brand);
   outline-offset: 2px;
 }
 
 .dropzone svg {
-  color: var(--brand);
+  color: var(--ui-brand);
 }
 
 .dropzone strong {
   display: block;
   margin-top: 8px;
-  color: var(--ink-strong);
+  color: var(--ui-ink-strong);
   font-size: 13px;
 }
 
 .dropzone span {
   display: block;
   margin-top: 4px;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 11px;
 }
 
@@ -128,10 +130,10 @@
   gap: 7px;
   min-height: 38px;
   padding: 0 12px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-md);
-  background: var(--card);
-  color: var(--ink);
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-card);
+  color: var(--ui-ink);
   font-size: 12px;
   font-weight: 650;
   cursor: pointer;
@@ -146,19 +148,19 @@
 }
 
 .picker:has(input:focus-visible) {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--ui-brand);
   outline-offset: 2px;
 }
 
 .picker:has(input:disabled) {
-  opacity: .55;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
 .caption {
   display: grid;
   gap: 6px;
-  color: var(--ink);
+  color: var(--ui-ink);
   font-size: 12px;
   font-weight: 600;
 }
@@ -168,15 +170,15 @@
 .withdrawForm textarea {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid var(--control-border);
-  border-radius: var(--radius-md);
-  background: var(--card);
-  color: var(--ink);
+  border: 1px solid var(--ui-control-border);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-card);
+  color: var(--ui-ink);
   font: inherit;
 }
 
 .caption input {
-  min-height: var(--control-height);
+  min-height: var(--ui-control-height);
   padding: 0 12px;
 }
 
@@ -202,7 +204,7 @@
   display: grid;
   gap: 10px;
   padding-top: 4px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--ui-line);
 }
 
 .history h4,
@@ -211,7 +213,7 @@
 }
 
 .history h4 {
-  color: var(--ink-strong);
+  color: var(--ui-ink-strong);
   font-size: 13px;
 }
 
@@ -221,7 +223,7 @@
 }
 
 .historySet > p {
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 11px;
 }
 
@@ -232,9 +234,9 @@
   gap: 10px;
   min-width: 0;
   padding: 11px 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--card);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-card);
 }
 
 .fileIcon {
@@ -243,8 +245,8 @@
   width: 34px;
   height: 34px;
   border-radius: 9px;
-  background: var(--card-2);
-  color: var(--muted);
+  background: var(--ui-card-2);
+  color: var(--ui-muted);
 }
 
 .filePreview {
@@ -252,9 +254,9 @@
   width: 52px;
   height: 52px;
   overflow: hidden;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 9px;
-  background: var(--card-2);
+  background: var(--ui-card-2);
 }
 
 .filePreview img {
@@ -265,7 +267,7 @@
 }
 
 .filePreview:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--ui-brand);
   outline-offset: 2px;
 }
 
@@ -276,7 +278,7 @@
 .fileInfo strong {
   display: block;
   overflow: hidden;
-  color: var(--ink-strong);
+  color: var(--ui-ink-strong);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -285,7 +287,7 @@
 .fileInfo span {
   display: block;
   margin-top: 2px;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 11px;
 }
 
@@ -293,23 +295,25 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 
 .state[data-ready="true"] {
-  color: var(--green);
+  color: var(--ui-green);
 }
 
 .state[data-error="true"] {
-  color: var(--red);
+  color: var(--ui-red);
 }
 
 .spin {
-  animation: spin .85s linear infinite;
+  animation: spin 0.85s linear infinite;
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .fileActions {
@@ -324,30 +328,30 @@
   width: 36px;
   height: 36px;
   padding: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--card);
-  color: var(--muted);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-card);
+  color: var(--ui-muted);
   cursor: pointer;
 }
 
 .iconAction:hover:not(:disabled) {
-  border-color: var(--line-strong);
-  color: var(--ink);
+  border-color: var(--ui-line-strong);
+  color: var(--ui-ink);
 }
 
 .iconAction:disabled {
-  opacity: .5;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
 .error {
   margin: 0;
   padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--red) 30%, var(--line));
-  border-radius: var(--radius-md);
-  background: var(--red-soft);
-  color: var(--red);
+  border: 1px solid color-mix(in srgb, var(--ui-red) 30%, var(--ui-line));
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-red-soft);
+  color: var(--ui-red);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -358,9 +362,9 @@
   gap: 8px;
   margin: 0;
   padding: 10px 12px;
-  border-radius: var(--radius-md);
-  background: var(--brand-soft);
-  color: var(--ink);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-brand-soft);
+  color: var(--ui-ink);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -370,13 +374,13 @@
   grid-column: 1 / -1;
   gap: 8px;
   padding-top: 10px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--ui-line);
 }
 
 .withdrawForm label {
   display: grid;
   gap: 5px;
-  color: var(--ink);
+  color: var(--ui-ink);
   font-size: 12px;
   font-weight: 600;
 }
@@ -395,15 +399,43 @@
 }
 
 @media (max-width: 650px) {
-  .panel { padding: 14px; }
-  .heading { flex-direction: column; gap: 8px; }
-  .file { grid-template-columns: auto minmax(0, 1fr); }
-  .fileActions { grid-column: 1 / -1; justify-content: flex-end; }
-  .pickerActions { align-items: stretch; flex-direction: column; }
-  .picker { width: 100%; }
+  .panel {
+    padding: 14px;
+  }
+  .heading {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .file {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .fileActions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+  .pickerActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .picker {
+    width: 100%;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dropzone { transition: none; }
-  .spin { animation-duration: 1.6s; }
+  .dropzone {
+    transition: none;
+  }
+  .spin {
+    animation-duration: 1.6s;
+  }
+}
+
+/* Keep the upload drop target outlined; its enclosing record owns the surface. */
+:global(:is(.ui-panel, .card, [data-slot="widget-content"])) .panel {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
 }

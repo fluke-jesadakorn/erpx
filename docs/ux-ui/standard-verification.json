@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-03T18:43:42.071174+00:00",
+  "status": "in-progress",
+  "completionAccepted": false,
+  "inventory": {
+    "routes": 205,
+    "components": 325,
+    "pendingRoutes": 189,
+    "pendingSources": 494
+  },
+  "checks": [
+    {
+      "command": "bun run typecheck",
+      "result": "passed",
+      "log": ".scratch/ui-standard/typecheck-login.log"
+    },
+    {
+      "command": "bun run lint",
+      "result": "passed with 5 pre-existing warnings, 0 errors",
+      "log": ".scratch/ui-standard/lint-final-2.log"
+    },
+    {
+      "command": "bun run deploy:build",
+      "result": "passed, isolated build only; 3 existing tracing warnings; no deployment",
+      "release": ".runtime/releases/2026-10-03T18-40-57-021Z",
+      "log": ".scratch/ui-standard/build-login.log"
+    },
+    {
+      "command": "ui-foundation + ui-migration-contracts + ui-standard-popups Playwright desktop",
+      "result": "6 passed",
+      "log": ".scratch/ui-standard/e2e-final-2.log"
+    },
+    {
+      "command": "ui-migration-contracts Playwright desktop with table dimensions",
+      "result": "3 passed",
+      "log": ".scratch/ui-standard/e2e-table-final.log"
+    },
+    {
+      "command": "ui-standard-popups Playwright desktop after final drawer changes",
+      "result": "1 passed",
+      "log": ".scratch/ui-standard/e2e-popup-final.log"
+    },
+    {
+      "command": "selected UI/work unit tests",
+      "result": "21 passed across 5 files",
+      "log": ".scratch/ui-standard/tests.log"
+    },
+    {
+      "command": "bun run ui:guard",
+      "result": "passed migrated source and frozen boundary checks"
+    },
+    {
+      "command": "bun run ui:check-complete",
+      "result": "failed as intended: pending route/component browser acceptance",
+      "log": ".scratch/ui-standard/completion.log"
+    },
+    {
+      "command": "targeted ESLint after login boundary adapter",
+      "result": "passed",
+      "log": ".scratch/ui-standard/lint-login.log"
+    }
+  ],
+  "health": [
+    {
+      "url": "http://127.0.0.1:3100/api/health",
+      "httpStatus": 200
+    },
+    {
+      "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+      "httpStatus": 200
+    },
+    {
+      "url": "http://127.0.0.1:3101/api/health",
+      "httpStatus": 200
+    }
+  ],
+  "availability": "Existing detached Bun 1.2.17 / Node 24.20.0 dev process on 3100 retained; production and PostgreSQL retained. No staging access or production deployment.",
+  "browserObservations": [
+    {
+      "route": "/holdings/acme/stock-transfers",
+      "viewport": 1440,
+      "observed": [
+        "14px header/cells",
+        "79px multiline row",
+        "natural-width filter button",
+        "Enter search empty state",
+        "clearing search restores 25 rows"
+      ],
+      "acceptance": "partial"
+    },
+    {
+      "route": "/holdings/acme/commerce?view=pricing",
+      "viewports": [
+        390,
+        768,
+        1440
+      ],
+      "observed": [
+        "complete product/price/tax table content",
+        "table scrolling within frame",
+        "no page overflow",
+        "dirty drawer keep/discard without business save"
+      ],
+      "acceptance": "partial"
+    },
+    {
+      "route": "/holdings/acme/legal",
+      "viewports": [
+        390,
+        1440
+      ],
+      "observed": [
+        "all 9 detail tabs of existing fictional request",
+        "keyboard local tabs",
+        "44px mobile controls",
+        "full-width drawer with fixed header",
+        "dirty keep/discard",
+        "focus restored to Edit record"
+      ],
+      "acceptance": "partial"
+    },
+    {
+      "component": "CurrencySelector standard branch",
+      "observed": [
+        "Base UI nested popup",
+        "THB search without saving currency preference"
+      ],
+      "acceptance": "partial"
+    },
+    {
+      "route": "/login",
+      "viewport": 1280,
+      "observed": [
+        "44px controls",
+        "shared stack form layout",
+        "no page overflow"
+      ],
+      "acceptance": "partial"
+    },
+    {
+      "route": "/front-access/login",
+      "observed": [
+        "console-origin browser request blocked by route policy",
+        "source dependency now uses explicit legacy-default LoginForm adapter"
+      ],
+      "acceptance": "excluded; actual front-host browser appearance not verified"
+    }
+  ]
+}

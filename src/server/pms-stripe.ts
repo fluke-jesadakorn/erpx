@@ -6,6 +6,7 @@ import {executePms} from '@/lib/pms-engine';
 import {hasPermission} from '@/lib/permissions';
 import type {WorkContext} from './authorization';
 import {ApiError} from './http';
+import {snapshotMoney} from './company-money';
 import {bookingSnapshot} from './pms-booking';
 import {effects as persistEffects,persistPmsRecords} from './pms';
 import {stripeCall} from './pos-stripe';
@@ -29,6 +30,8 @@ export async function createPmsStripePayment(db:TransactionalSqlDatabase,actor:W
   const connection=await tx.prepare("SELECT * FROM pos_connections WHERE company_id=? AND state='ready' AND charges_enabled=true AND payouts_enabled=true AND promptpay_enabled=true AND thb_bank_ready=true AND payout_interval='daily'").bind(actor.companyId).first<{account_id:string;livemode:boolean}>();
   if(!connection?.account_id||connection.livemode&&process.env.PMS_STRIPE_LIVE_ENABLED!=='true')throw new ApiError(503,'PMS_PAYMENT_UNAVAILABLE','Company Stripe is not ready for PromptPay');
   await run(tx,"INSERT INTO pms_stripe_payments(id,request_hash,property_id,folio_id,company_id,account_id,livemode,kind,amount_minor,payer_email,state,expires_at,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,'requested',?,?,?,?)",key,digest,input.propertyId,input.folioId,actor.companyId,connection.account_id,connection.livemode,input.kind,input.amountMinor,input.payerEmail||null,now+30*60*1000,actor.userId,now,now);
+  const money=await snapshotMoney(tx,actor,{sourceType:'pms_stripe_payment',sourceId:key,amountKind:'requested',transactionDate:s.property.businessDate,currency:'THB',amountUnits:String(input.amountMinor)});
+  await money.statement.run();
   return key;
  });
  return ensurePmsStripeQr(db,id,now);
@@ -71,6 +74,7 @@ export async function reconcilePmsStripePayment(db:TransactionalSqlDatabase,id:s
    const oldEdc=s.property.config.accounts.edc;
    s.property.config.accounts.edc=settings?JSON.parse(settings.accounts_json).stripe as string:oldEdc;
    const outcome=executePms(s,current.kind==='deposit'?'payment.stripe_deposit':'payment.stripe',{folioId:current.folio_id,amount:Number(current.amount_minor),reference:String(current.provider_id)},{userId:'system:stripe',now,uuid:randomUUID,independent:()=>false});
+   record(s,'entry',outcome.id).data.sourceKey=`counter-payment:${current.id}`;
    await persistPmsRecords(tx,s,before);
    await persistEffects(tx,{companyId:current.company_id,userId:'system:stripe'} as WorkContext,s,outcome.effects);
    s.property.config.accounts.edc=oldEdc;

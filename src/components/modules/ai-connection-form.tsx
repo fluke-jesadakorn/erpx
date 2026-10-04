@@ -1,4 +1,10 @@
 "use client";
+import { SectionHeader } from "@/components/ui/foundation";
+
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
+
 import { TimeText } from "@/components/time/time-preference-context";
 
 import {
@@ -53,12 +59,8 @@ export function AiConnectionForm({
   const modelListId = `${formId}-models`;
   const apiKeyId = `${formId}-api-key`;
   const apiKeyHelpId = `${formId}-api-key-help`;
-  const [preset, setPreset] = useState<AiPreset>(
-    row?.provider_preset ?? "opencode-zen",
-  );
-  const [baseUrl, setBaseUrl] = useState(
-    row?.base_url ?? aiPresets["opencode-zen"].baseUrl,
-  );
+  const [preset, setPreset] = useState<AiPreset>(row?.provider_preset ?? "opencode-zen");
+  const [baseUrl, setBaseUrl] = useState(row?.base_url ?? aiPresets["opencode-zen"].baseUrl);
   const [name, setName] = useState(row?.name ?? "OpenCode Zen");
   const [authMode, setAuthMode] = useState(row?.auth_mode ?? "bearer");
   const [apiKey, setApiKey] = useState("");
@@ -124,28 +126,24 @@ export function AiConnectionForm({
     setLoading(true);
     setDiscoverError("");
     try {
-      const response = await workFetch(
-        `/api/v1${base}/ai-providers/discover`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: abort.signal,
-          cache: "no-store",
-          body: JSON.stringify({
-            baseUrl,
-            authMode,
-            apiKey,
-            removeKey,
-            connectionId: row?.id,
-          }),
-        },
-      );
+      const response = await workFetch(`/api/v1${base}/ai-providers/discover`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: abort.signal,
+        cache: "no-store",
+        body: JSON.stringify({
+          baseUrl,
+          authMode,
+          apiKey,
+          removeKey,
+          connectionId: row?.id,
+        }),
+      });
       const result = (await response.json()) as {
         data: { models: string[]; totalModels: number; fetchedAt: string };
         error?: { message: string };
       };
-      if (!response.ok)
-        throw Error(result.error?.message ?? "Model discovery failed.");
+      if (!response.ok) throw Error(result.error?.message ?? "Model discovery failed.");
       if (requestId === generation.current) {
         setModels(result.data.models);
         setTotalModels(result.data.totalModels);
@@ -153,27 +151,21 @@ export function AiConnectionForm({
       }
     } catch (caught) {
       if (requestId === generation.current && !abort.signal.aborted)
-        setDiscoverError(
-          caught instanceof Error ? caught.message : "Model discovery failed.",
-        );
+        setDiscoverError(caught instanceof Error ? caught.message : "Model discovery failed.");
     } finally {
       if (requestId === generation.current) setLoading(false);
     }
   }
 
-  const unsupported = (id: string) =>
-    !!id.trim() && !supportedModelProtocol(baseUrl, id);
+  const unsupported = (id: string) => !!id.trim() && !supportedModelProtocol(baseUrl, id);
   const selectableModels = supportedModels(baseUrl, models);
-  const invalid =
-    !textModel.trim() || unsupported(textModel) || unsupported(imageModel);
+  const invalid = !textModel.trim() || unsupported(textModel) || unsupported(imageModel);
   const unsupportedCount = Math.max(0, totalModels - selectableModels.length);
   const changedCredentialUrl =
-    !!row?.hasKey &&
-    comparableBaseUrl(baseUrl) !== comparableBaseUrl(row.base_url);
+    !!row?.hasKey && comparableBaseUrl(baseUrl) !== comparableBaseUrl(row.base_url);
   const needsKeyForChangedUrl =
     changedCredentialUrl && authMode === "bearer" && !removeKey && !apiKey.trim();
-  const needsCredentialStorage =
-    authMode === "bearer" && !!apiKey.trim() && !keyStorageReady;
+  const needsCredentialStorage = authMode === "bearer" && !!apiKey.trim() && !keyStorageReady;
   const apiKeyPlaceholder =
     authMode === "none"
       ? "No key sent"
@@ -225,7 +217,7 @@ export function AiConnectionForm({
     >
       <fieldset className={styles.fieldset} disabled={pending}>
         <section className={styles.section} aria-labelledby={`${formId}-access`}>
-          <div className={styles.sectionHeader}>
+          <SectionHeader className={styles.sectionHeader}>
             <div>
               <span className={styles.eyebrow}>CONNECTION</span>
               <h3 id={`${formId}-access`}>Provider and credentials</h3>
@@ -247,38 +239,36 @@ export function AiConnectionForm({
                   ? "Encrypted when saved"
                   : "Credential storage unavailable"}
             </span>
-          </div>
+          </SectionHeader>
 
           <div className={styles.grid}>
-            <label className={styles.field}>
+            <Field appearance="standard" className={styles.field}>
               <span>Provider</span>
-              <select
+              <Select appearance="standard"
                 data-autofocus={edit === "new" ? "" : undefined}
                 value={preset}
-                onChange={(event) =>
-                  choosePreset(event.target.value as AiPreset)
-                }
+                onChange={(event) => choosePreset(event.target.value as AiPreset)}
               >
                 {(Object.keys(aiPresets) as AiPreset[]).map((provider) => (
                   <option key={provider} value={provider}>
                     {aiPresets[provider].name}
                   </option>
                 ))}
-              </select>
-            </label>
-            <label className={styles.field}>
+              </Select>
+            </Field>
+            <Field appearance="standard" className={styles.field}>
               <span>Connection name</span>
-              <input
+              <TextInput appearance="standard"
                 data-autofocus={edit !== "new" ? "" : undefined}
                 required
                 maxLength={100}
                 value={name}
                 onChange={(event) => setName(event.target.value)}
               />
-            </label>
-            <label className={`${styles.field} ${styles.wideField}`}>
+            </Field>
+            <Field appearance="standard" className={`${styles.field} ${styles.wideField}`}>
               <span>Base URL</span>
-              <input
+              <TextInput appearance="standard"
                 type="url"
                 required
                 value={baseUrl}
@@ -289,10 +279,10 @@ export function AiConnectionForm({
                   setPreset(presetForUrl(event.target.value));
                 }}
               />
-            </label>
-            <label className={styles.field}>
+            </Field>
+            <Field appearance="standard" className={styles.field}>
               <span>Authentication</span>
-              <select
+              <Select appearance="standard"
                 value={authMode}
                 onChange={(event) => {
                   invalidate();
@@ -304,20 +294,18 @@ export function AiConnectionForm({
               >
                 <option value="bearer">API key</option>
                 <option value="none">No authentication</option>
-              </select>
-            </label>
+              </Select>
+            </Field>
             <div className={styles.field}>
               <label htmlFor={apiKeyId}>API key</label>
-              <input
+              <TextInput appearance="standard"
                 id={apiKeyId}
                 type="password"
                 autoComplete="new-password"
                 value={apiKey}
                 disabled={authMode === "none" || removeKey}
                 aria-describedby={apiKeyHelpId}
-                aria-invalid={
-                  needsKeyForChangedUrl || needsCredentialStorage || undefined
-                }
+                aria-invalid={needsKeyForChangedUrl || needsCredentialStorage || undefined}
                 placeholder={apiKeyPlaceholder}
                 onChange={(event) => {
                   invalidate();
@@ -328,9 +316,7 @@ export function AiConnectionForm({
               <small
                 id={apiKeyHelpId}
                 className={
-                  needsKeyForChangedUrl || needsCredentialStorage
-                    ? styles.fieldError
-                    : undefined
+                  needsKeyForChangedUrl || needsCredentialStorage ? styles.fieldError : undefined
                 }
               >
                 {apiKeyHelp}
@@ -339,10 +325,11 @@ export function AiConnectionForm({
           </div>
 
           {row?.hasKey && authMode === "bearer" && (
-            <label
+            <Field appearance="standard"
+              orientation="inline"
               className={`${styles.removeKey} ${removeKey ? styles.removeKeyActive : ""}`}
             >
-              <input
+              <TextInput appearance="standard"
                 type="checkbox"
                 checked={removeKey}
                 onChange={(event) => {
@@ -353,12 +340,9 @@ export function AiConnectionForm({
               />
               <span>
                 <strong>Remove saved key</strong>
-                <small>
-                  The active revision keeps working until you activate this
-                  draft.
-                </small>
+                <small>The active revision keeps working until you activate this draft.</small>
               </span>
-            </label>
+            </Field>
           )}
 
           {presetForUrl(baseUrl) === "opencode-go" && (
@@ -366,15 +350,8 @@ export function AiConnectionForm({
               <Info size={18} aria-hidden="true" />
               <div>
                 <strong>OpenCode Go is optimized for coding agents.</strong>
-                <p>
-                  Check that your plan supports the ERP workloads you intend to
-                  run.
-                </p>
-                <a
-                  href="https://opencode.ai/docs/go/"
-                  target="_blank"
-                  rel="noreferrer"
-                >
+                <p>Check that your plan supports the ERP workloads you intend to run.</p>
+                <a href="https://opencode.ai/docs/go/" target="_blank" rel="noreferrer">
                   Review Go documentation
                   <ExternalLink size={13} aria-hidden="true" />
                 </a>
@@ -384,13 +361,14 @@ export function AiConnectionForm({
         </section>
 
         <section className={styles.section} aria-labelledby={`${formId}-models`}>
-          <div className={styles.sectionHeader}>
+          <SectionHeader className={styles.sectionHeader}>
             <div>
               <span className={styles.eyebrow}>MODEL CATALOG</span>
               <h3 id={`${formId}-models`}>Models and document reading</h3>
               <p>Refresh the provider catalog, then choose what ERPX should use.</p>
             </div>
-            <button
+            <Button appearance="standard"
+              variant="ghost"
               type="button"
               className={`button secondary ${styles.catalogButton}`}
               disabled={loading || !baseUrl}
@@ -401,26 +379,22 @@ export function AiConnectionForm({
                 aria-hidden="true"
                 className={loading ? styles.spinning : undefined}
               />
-              {loading
-                ? "Fetching models…"
-                : fetchedAt
-                  ? "Refresh models"
-                  : "Fetch models"}
-            </button>
-          </div>
+              {loading ? "Fetching models…" : fetchedAt ? "Refresh models" : "Fetch models"}
+            </Button>
+          </SectionHeader>
 
           {discoverError && (
-            <div role="alert" className={styles.errorNotice}>
+            <InlineNotice tone="danger" role="alert" className={styles.errorNotice}>
               <Info size={17} aria-hidden="true" />
               <span>
                 <strong>{discoverError}</strong>
                 You can still enter a supported model ID manually.
               </span>
-            </div>
+            </InlineNotice>
           )}
 
           {fetchedAt && (
-            <div role="status" className={styles.catalogStatus}>
+            <InlineNotice tone="info" role="status" className={styles.catalogStatus}>
               <CheckCircle2 size={18} aria-hidden="true" />
               <div>
                 <strong>
@@ -428,24 +402,22 @@ export function AiConnectionForm({
                   {selectableModels.length === 1 ? "" : "s"}
                 </strong>
                 <span>
-                  {totalModels} fetched · Updated{" "}
-                  <TimeText value={fetchedAt} />
+                  {totalModels} fetched · Updated <TimeText appearance="standard" value={fetchedAt} />
                 </span>
                 <small>
-                  Catalog availability does not verify the API key or image
-                  support.
+                  Catalog availability does not verify the API key or image support.
                   {unsupportedCount
                     ? ` ${unsupportedCount} ${unsupportedCount === 1 ? "model uses" : "models use"} a connection method ERPX does not support yet.`
                     : ""}
                 </small>
               </div>
-            </div>
+            </InlineNotice>
           )}
 
           <div className={styles.modelGrid}>
-            <label className={styles.field}>
+            <Field appearance="standard" className={styles.field}>
               <span>Text model ID</span>
-              <input
+              <TextInput appearance="standard"
                 required
                 maxLength={200}
                 list={modelListId}
@@ -458,10 +430,10 @@ export function AiConnectionForm({
                   {unsupportedModelMessage}
                 </small>
               )}
-            </label>
+            </Field>
 
-            <label className={styles.documentOption}>
-              <input
+            <Field appearance="standard" orientation="inline" className={styles.documentOption}>
+              <TextInput appearance="standard"
                 type="checkbox"
                 checked={sameModel}
                 onChange={(event) => {
@@ -471,30 +443,26 @@ export function AiConnectionForm({
               />
               <span>
                 <strong>Read documents with the main model</strong>
-                <small>
-                  Receipt reading turns on after this model passes an image test.
-                </small>
+                <small>Receipt reading turns on after this model passes an image test.</small>
               </span>
-            </label>
+            </Field>
 
             {!sameModel && (
-              <label className={`${styles.field} ${styles.wideField}`}>
+              <Field appearance="standard" className={`${styles.field} ${styles.wideField}`}>
                 <span>Image model ID</span>
-                <input
+                <TextInput appearance="standard"
                   maxLength={200}
                   list={modelListId}
                   value={imageModel}
                   placeholder="Optional; may match the text model"
-                  onChange={(event) =>
-                    chooseModel("image", event.target.value)
-                  }
+                  onChange={(event) => chooseModel("image", event.target.value)}
                 />
                 {unsupported(imageModel) && (
                   <small role="alert" className={styles.fieldError}>
                     {unsupportedModelMessage}
                   </small>
                 )}
-              </label>
+              </Field>
             )}
           </div>
           <datalist id={modelListId}>
@@ -505,10 +473,10 @@ export function AiConnectionForm({
         </section>
 
         {error && (
-          <div role="alert" className={styles.errorNotice}>
+          <InlineNotice tone="danger" role="alert" className={styles.errorNotice}>
             <Info size={17} aria-hidden="true" />
             <strong>{error}</strong>
-          </div>
+          </InlineNotice>
         )}
 
         <footer className={styles.footer}>
@@ -517,30 +485,27 @@ export function AiConnectionForm({
             <span>
               <strong>Next: test and activate</strong>
               <small>
-                Saving creates a draft. The active connection does not change
-                until activation.
+                Saving creates a draft. The active connection does not change until activation.
               </small>
             </span>
           </div>
           <div className={styles.footerActions}>
-            <button
+            <Button appearance="standard"
+              variant="secondary"
               type="button"
-              className="button secondary"
+
               onClick={onCancel}
             >
               Cancel
-            </button>
-            <button
-              className="button"
-              disabled={
-                loading ||
-                invalid ||
-                needsKeyForChangedUrl ||
-                needsCredentialStorage
-              }
+            </Button>
+            <Button appearance="standard"
+              clientManaged type="submit"
+              variant="primary"
+
+              disabled={loading || invalid || needsKeyForChangedUrl || needsCredentialStorage}
             >
               {pending ? "Saving…" : "Save connection"}
-            </button>
+            </Button>
           </div>
         </footer>
       </fieldset>

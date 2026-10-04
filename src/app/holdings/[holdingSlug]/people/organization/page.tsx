@@ -32,13 +32,13 @@ export default async function OrganizationPage({
     // access has been moved there.
     const roster = await organizationRoster(write, actor.companyId);
     return (
-      <FeaturePage className="content-stack" data-source="live">
+      <FeaturePage className="ui-page-content" data-source="live">
         <Link href={`${base}/work`}>← Work</Link>
-        <PageHeader
+        <PageHeader appearance="standard"
           title="Appointments & department flows"
           description="Publish ordered approvers for new department requests."
         />
-        <DepartmentAuthorityWorkspace
+        <DepartmentAuthorityWorkspace appearance="standard"
           holdingSlug={actor.holdingSlug}
           initial={
             authority as Parameters<

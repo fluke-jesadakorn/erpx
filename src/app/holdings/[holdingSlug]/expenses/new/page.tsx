@@ -1,4 +1,3 @@
-import { FinanceRecordWorkspace, FinanceLegacyHeading } from "@/components/finance/finance-record-workspace";
 import Link from "next/link";
 import { FeaturePage } from "@/components/features/feature-page";
 import { ExpenseEditor } from "@/components/modules/expense-controls";
@@ -11,21 +10,17 @@ export const dynamic = "force-dynamic";
 
 export default async function NewExpense({
   params,
+  searchParams,
 }: PageProps<"/holdings/[holdingSlug]/expenses/new">) {
   const actor = await requireWorkContext((await params).holdingSlug);
   const base = workspaceBase(publicScope(actor));
+  const query=await searchParams,returnTo=typeof query.return==="string"?query.return:"view=tracking&tracking=requests";
 
   return (
-    <FeaturePage className="content-stack" data-source="live">
-      <FinanceRecordWorkspace base={base} active="receivables" title="New expense claim" description="Capture what was paid or needs paying, retain evidence, and send it for approval."><FinanceLegacyHeading><Link className="back-link" href={`${base}/expenses`}>
-        ← Expense claims
-      </Link>
-      <PageHeader
-        eyebrow="Finance · Personal requests"
-        title="Claim an expense or request a payment"
-        description="Tell us what was paid or needs paying. Attach evidence, review the details, and send it for approval."
-      />
-      </FinanceLegacyHeading><ExpenseEditor base={base} options={await expenseOptions(actor)} initialOpen />
-    </FinanceRecordWorkspace></FeaturePage>
+    <FeaturePage className="ui-page-content request-page" data-source="live">
+      <Link href={`${base}/work?${new URLSearchParams(returnTo)}`}>← My work</Link>
+      <PageHeader appearance="standard" eyebrow="Personal requests" title="Expense claim" description="Attach evidence, describe the expense, and review who receives it before sending." />
+      <ExpenseEditor base={base} options={await expenseOptions(actor)} initialOpen returnTo={returnTo} />
+    </FeaturePage>
   );
 }

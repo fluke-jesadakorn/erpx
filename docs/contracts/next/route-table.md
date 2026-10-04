@@ -1,6 +1,6 @@
 # docs/contracts/next — Route Table (Living, Next.js)
 
-> Living counterpart to `docs/plan/traceability.md` (552 Rust RPCs archived on `backup/rust-2026-09-02`, see `docs/plan/ARCHIVE.md` + `CUTOVER.md`). Grows as `src/app/api/*` lands.
+> Current versioned REST route reference. Handlers in `src/app/api/` and the owner contracts are authoritative; archived Rust RPCs are recoverable through [CUTOVER](../../../CUTOVER.md).
 
 ## Implemented foundation routes
 
@@ -159,37 +159,17 @@ inherit their app parent for active navigation and `App › Page` breadcrumbs bu
 are not separate default launcher cards. Platform keeps its existing flat
 navigation contract.
 
-## Planned business routes
-
-| Route | Method | Context | Spec (light → deep) | Proto (archived) | Status | Implemented |
-|---|---|---|---|---|---|---|
-| `/api/sales/quotes` | POST | sales | `docs/plan/02-capabilities/03-finance-sales-pos/sales.md:9 CreateQuote` → `docs/plan/03-cross-cutting/@-and-ai/sales.md:15` | `sales/service.proto:CreateQuote` | Living (TBD) | — |
-| `/api/sales/quotes/:id/send` | POST | sales | `02/sales.md:9 SendQuote` → `03/sales.md:15` | `sales/service.proto:SendQuote` | Living (TBD) | — |
-| `/api/sales/quotes/:id/accept` | POST | sales | `02/sales.md:9 AcceptQuote` → `03/sales.md:15` | `sales/service.proto:AcceptQuote` | Living (TBD) | — |
-| `/api/sales/orders` | POST | sales | `02/sales.md:9 CreateSalesOrder` → `03/sales.md:15` | `sales/service.proto:CreateSalesOrder` | Living (TBD) | — |
-| `/api/v1/holdings/{holdingSlug}/finance/journals` | GET/POST | finance | Create, list, balance and persist exact multi-currency journals | `finance/service.proto:CreateJournal` | Living | Implemented |
-| `/api/v1/holdings/{holdingSlug}/finance/journals/:id/post` | POST | finance | Immutable posting with period gate, audit and outbox | `finance/service.proto:PostJournal` | Living | Implemented |
-| `/api/v1/holdings/{holdingSlug}/finance/periods/:id/close` | POST | finance | Human proof, separation of duties and controlled period freeze | `finance/service.proto:ClosePeriod` (HumanDecisionProof) | Living | Implemented |
-| `/api/pos/sales` | POST | pos | `02/pos.md:9 CreateSale` → `03/pos.md:15` | `pos/service.proto:CreateSale` | Living (TBD) | — |
-| `/api/commercial/catalog-plans` | POST | commercial | `02/commercial.md:9 CreateCatalogPlan` → `03/commercial.md:15` | `commercial/service.proto:CreateCatalogPlan` | Living (TBD) | — |
-| `/today` | GET | collaboration | `04-social-paradigm.md` digest | `collaboration/service.proto:ListMyDay` | Living (TBD) | — |
-| `/tags/:tag` | GET | collaboration | `04-social-paradigm.md` hashtags | `collaboration/service.proto:ListHashtagTopics` | Living (TBD) | — |
-| `/posts/:id` | GET | collaboration | `04-social-paradigm.md` Post | `collaboration/service.proto:GetFeedItem` | Living (TBD) | — |
-| `/notifications` | GET | collaboration | `04-social-paradigm.md` inbox | `collaboration/service.proto:ListMentionInbox` | Living (TBD) | — |
-
-Add rows as `src/app/api/<ctx>/*` handlers land. Keep this file in sync with `docs/plan/MAP.md` and `docs/plan/traceability.md` living section.
-
 ## Conventions
 
 - **Idempotency:** every command carries `Idempotency-Key` + authoritative tenant/holding scope (from `CONTRACT_POLICY.md`).
 - **Versioned namespace:** `/api/v1/platform/...` and the canonical Holding/Local workspace prefixes below `/api/v1/holdings/{holdingSlug}/...` — never reuse a route or field with different meaning; removed fields stay reserved.
-- **Verification:** `bun run lint`, `bun run build`, `bun run build:cloudflare`, and `bun run test:integration` pass. Archived Rust gates stay on `backup/rust-2026-09-02`.
+- **Verification:** `bun run lint`, `bun run typecheck`, `bun run deploy:build`, and `bun run test:integration` pass. Archived Rust gates stay on `backup/rust-2026-09-02`.
 
 ## Links
 
-- Archive RPC table: `docs/plan/traceability.md` (banner Archived — Rust era)
+- Current workflow ownership: [catalogue](catalogue.md); Rust recovery: [CUTOVER](../../../CUTOVER.md)
 - Spec hub: `docs/TOC.md` → `docs/production-plan.md` (current scope) → affected owner contract.
-- Policy: `CONTRACT_POLICY.md` + `docs/adr/ADR-020-nextjs-stack.md` + `docs/adr/ADR-022-cloudflare-runtime.md` + `docs/adr/ADR-023-three-level-workspace-routing.md`
+- Policy: `CONTRACT_POLICY.md` + `docs/adr/ADR-020-nextjs-stack.md` + `docs/adr/ADR-024-local-postgresql-runtime.md` + `docs/adr/ADR-023-three-level-workspace-routing.md`
 
 
 ## Staff work and approval routes
@@ -243,7 +223,7 @@ Company Finance/Treasury scope only; mutation commands require `Idempotency-Key`
 
 ### Business readiness
 
-`GET /api/v1/holdings/{holdingSlug}/business-readiness` — active Company organization manager only, private/no-store. Bundled workspace simulation manifest and scoped evidence; no Company production sign-off and no write/approval endpoint. UI: `/holdings/{holdingSlug}/settings/business-readiness`.
+`GET /api/v1/holdings/{holdingSlug}/business-readiness` — active Company organization manager only, private/no-store. Bundled scoped inventory observations plus separate Company setup/release state; release submission, review and revoke commands are listed below. This read does not grant Company production sign-off. UI: `/holdings/{holdingSlug}/settings/business-readiness`.
 
 ## Account time and member profiles
 

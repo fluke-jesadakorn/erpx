@@ -1,4 +1,5 @@
 import { hasPermission } from "@/lib/permissions";
+import Link from "next/link";
 import { organizationOverview } from "@/server/organization";
 import { MemberPanel } from "@/components/beta/member-panel";
 import { PeopleEditor } from "./people-editor";
@@ -39,6 +40,7 @@ export async function MemberProfile({
     : [];
   return (
     <MemberPanel base={base} person={member} canRevoke={false}>
+      {member.id===actor.userId&&<p><Link href={`${base}/people/payslips`}>My payslips</Link></p>}
       {person ? (
         <dl>
           <dt>Department</dt>
@@ -64,7 +66,7 @@ export async function MemberProfile({
         </p>
       )}
       {manage && (
-        <PeopleEditor
+        <PeopleEditor appearance="standard"
           base={base}
           person={person ?? undefined}
           member={!person?.user_id ? member : undefined}
@@ -96,7 +98,7 @@ export async function MemberProfile({
         </details>
       )}
       {access && person && (
-        <AccessEditor
+        <AccessEditor appearance="standard"
           base={base}
           personId={String(person.id)}
           hasAccount={!!person.user_id}

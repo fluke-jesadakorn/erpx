@@ -1,5 +1,7 @@
 # Work/Home performance and native development Redis — 2026-09-17
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 Work and Home share a complete, permission-scoped `WorkSnapshot`. PostgreSQL remains authoritative. Production Redis is not enabled. Public development continues at https://erpx.jesadakorn.com → 127.0.0.1:3100; the installed production service on 3101 is unchanged.
 
 ## Backend measurements

@@ -1,4 +1,9 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { FormDisclosure } from "@/components/ui/form-disclosure";
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
+
 import { useEffect, useState } from "react";
 import { diffWordsWithSpace } from "diff";
 import type { LegalDetail } from "@/lib/legal/model";
@@ -11,8 +16,18 @@ type Props = {
   command: (body: Record<string, unknown>) => Promise<boolean>;
   busy: boolean;
 };
-export function LegalApproval({ detail, call, command, busy, people }: Props & { people: { id: string; name: string }[] }) {
-  const { people: reviewers, error: reviewerError } = useLegalPeople(call, "reviewer", detail.item.id);
+export function LegalApproval({
+  detail,
+  call,
+  command,
+  busy,
+  people,
+}: Props & { people: { id: string; name: string }[] }) {
+  const { people: reviewers, error: reviewerError } = useLegalPeople(
+    call,
+    "reviewer",
+    detail.item.id,
+  );
   const { people: signers, error: signerError } = useLegalPeople(call, "signer", detail.item.id);
   const [approverIds, setApproverIds] = useState([""]);
   const [signerIds, setSignerIds] = useState([""]);
@@ -43,11 +58,14 @@ export function LegalApproval({ detail, call, command, busy, people }: Props & {
   return (
     <section className={s.detail}>
       <h3>Contract approval route</h3>
-      {error && <p role="alert">{error}</p>}
-      {(reviewerError || signerError) && <p role="alert">{reviewerError || signerError}</p>}
+      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+      {(reviewerError || signerError) && <InlineNotice tone="danger" role="alert">{reviewerError || signerError}</InlineNotice>}
       {view?.steps.map((step) => (
         <p key={step.id}>
-          {step.ordinal}. {people.find(person => person.id === step.approver_user_id)?.name ?? "Assigned reviewer"} · {step.state}
+          {step.ordinal}.{" "}
+          {people.find((person) => person.id === step.approver_user_id)?.name ??
+            "Assigned reviewer"}{" "}
+          · {step.state}
         </p>
       ))}
       {["draft", "review", "approval"].includes(detail.item.state) && (
@@ -64,25 +82,47 @@ export function LegalApproval({ detail, call, command, busy, people }: Props & {
             });
           }}
         >
-          <label className={s.field}>
+          <Field appearance="standard" className={s.field}>
             Document version
-            <select name="documentId" required>
+            <Select appearance="standard" name="documentId" required>
               {detail.documents.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name} · v{d.version}
                 </option>
               ))}
-            </select>
-          </label>
-          <LegalPeopleSequence label="Reviewer" name="approver" people={reviewers} values={approverIds} onChange={setApproverIds} />
-          <LegalPeopleSequence label="Expected signer" name="signer" people={signers} values={signerIds} onChange={setSignerIds} />
-          <label className={s.field}>
+            </Select>
+          </Field>
+          <LegalPeopleSequence
+            label="Reviewer"
+            name="approver"
+            people={reviewers}
+            values={approverIds}
+            onChange={setApproverIds}
+          />
+          <LegalPeopleSequence
+            label="Expected signer"
+            name="signer"
+            people={signers}
+            values={signerIds}
+            onChange={setSignerIds}
+          />
+          <Field appearance="standard" className={s.field}>
             Reason
-            <input name="reason" required minLength={3} />
-          </label>
-          <button className={s.button} disabled={busy || !detail.documents.length || !approverIds.every(Boolean) || !signerIds.every(Boolean)}>
+            <TextInput appearance="standard" name="reason" required minLength={3} />
+          </Field>
+          <Button appearance="standard"
+            clientManaged type="submit"
+            variant="ghost"
+            className={s.button}
+            disabled={
+              busy ||
+              !detail.documents.length ||
+              !approverIds.every(Boolean) ||
+              !signerIds.every(Boolean)
+            }
+          >
             Open approval route
-          </button>
+          </Button>
         </form>
       )}
       {view?.instance?.state === "pending" && (
@@ -97,21 +137,21 @@ export function LegalApproval({ detail, call, command, busy, people }: Props & {
               });
             }}
           >
-            <label className={s.field}>
+            <Field appearance="standard" className={s.field}>
               Decision
-              <select name="decision">
+              <Select appearance="standard" name="decision">
                 <option value="approve">Approve this locked version</option>
                 <option value="revise">Return for revision</option>
                 <option value="reject">Reject</option>
-              </select>
-            </label>
-            <label className={s.field}>
+              </Select>
+            </Field>
+            <Field appearance="standard" className={s.field}>
               Reason
-              <input name="reason" required minLength={3} />
-            </label>
-            <button className={s.button} disabled={busy}>
+              <TextInput appearance="standard" name="reason" required minLength={3} />
+            </Field>
+            <Button appearance="standard" clientManaged type="submit" variant="ghost" className={s.button} disabled={busy}>
               Record my decision
-            </button>
+            </Button>
           </form>
           <form
             className={s.detail}
@@ -123,17 +163,24 @@ export function LegalApproval({ detail, call, command, busy, people }: Props & {
               });
             }}
           >
-            <label className={s.field}>
+            <Field appearance="standard" className={s.field}>
               Replacement reviewer
-              <select name="approverId" required><option value="">Choose a reviewer</option>{reviewers.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</select>
-            </label>
-            <label className={s.field}>
+              <Select appearance="standard" name="approverId" required>
+                <option value="">Choose a reviewer</option>
+                {reviewers.map((person) => (
+                  <option key={person.id} value={person.id}>
+                    {person.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field appearance="standard" className={s.field}>
               Reason for replacement
-              <input name="reason" required minLength={3} />
-            </label>
-            <button className={s.button} disabled={busy}>
+              <TextInput appearance="standard" name="reason" required minLength={3} />
+            </Field>
+            <Button appearance="standard" clientManaged type="submit" variant="ghost" className={s.button} disabled={busy}>
               Replace current reviewer
-            </button>
+            </Button>
           </form>
         </>
       )}
@@ -144,17 +191,11 @@ export function LegalApproval({ detail, call, command, busy, people }: Props & {
     </section>
   );
 }
-export function LegalEditor({
-  detail,
-  command,
-  busy,
-}: Pick<Props, "detail" | "command" | "busy">) {
+export function LegalEditor({ detail, command, busy }: Pick<Props, "detail" | "command" | "busy">) {
   const docs = detail.documents.filter((d) => d.body),
     [left, setLeft] = useState(docs[1]?.id ?? docs[0]?.id ?? ""),
     [right, setRight] = useState(docs[0]?.id ?? ""),
-    [sections, setSections] = useState([
-      { id: crypto.randomUUID(), heading: "", body: "" },
-    ]);
+    [sections, setSections] = useState([{ id: crypto.randomUUID(), heading: "", body: "" }]);
   const a = docs.find((d) => d.id === left)?.body ?? "",
     b = docs.find((d) => d.id === right)?.body ?? "",
     changes = diffWordsWithSpace(a, b, { timeout: 100, maxEditLength: 10000 });
@@ -167,9 +208,9 @@ export function LegalEditor({
             [left, setLeft],
             [right, setRight],
           ].map(([value, set], i) => (
-            <label className={s.field} key={i}>
+            <Field appearance="standard" className={s.field} key={i}>
               {i ? "Revised" : "Original"}
-              <select
+              <Select appearance="standard"
                 value={value as string}
                 onChange={(e) => (set as typeof setLeft)(e.target.value)}
               >
@@ -178,8 +219,8 @@ export function LegalEditor({
                     {d.name} · v{d.version}
                   </option>
                 ))}
-              </select>
-            </label>
+              </Select>
+            </Field>
           ))}
         </div>
         <div className={s.body}>
@@ -197,7 +238,7 @@ export function LegalEditor({
         </div>
       </details>
       {detail.item.state === "draft" && (
-        <details>
+        <FormDisclosure appearance="standard">
           <summary>Draft by clause</summary>
           <form
             className={s.detail}
@@ -208,26 +249,22 @@ export function LegalEditor({
                 await command({
                   action: "document",
                   name: v.get("name"),
-                  body: sections
-                    .map((c) => `${c.heading}\n${c.body}`)
-                    .join("\n\n"),
+                  body: sections.map((c) => `${c.heading}\n${c.body}`).join("\n\n"),
                 })
               )
-                setSections([
-                  { id: crypto.randomUUID(), heading: "", body: "" },
-                ]);
+                setSections([{ id: crypto.randomUUID(), heading: "", body: "" }]);
             }}
           >
-            <label className={s.field}>
+            <Field appearance="standard" className={s.field}>
               Version name
-              <input name="name" required />
-            </label>
+              <TextInput appearance="standard" name="name" required />
+            </Field>
             {sections.map((c, i) => (
               <fieldset key={c.id}>
                 <legend>Clause {i + 1}</legend>
-                <label className={s.field}>
+                <Field appearance="standard" className={s.field}>
                   Heading
-                  <input
+                  <TextInput appearance="standard"
                     value={c.heading}
                     onChange={(e) =>
                       setSections(
@@ -237,22 +274,21 @@ export function LegalEditor({
                       )
                     }
                   />
-                </label>
-                <label className={s.field}>
+                </Field>
+                <Field appearance="standard" className={s.field}>
                   Text
-                  <textarea
+                  <TextArea appearance="standard"
                     required
                     value={c.body}
                     onChange={(e) =>
                       setSections(
-                        sections.map((x) =>
-                          x.id === c.id ? { ...x, body: e.target.value } : x,
-                        ),
+                        sections.map((x) => (x.id === c.id ? { ...x, body: e.target.value } : x)),
                       )
                     }
                   />
-                </label>
-                <button
+                </Field>
+                <Button appearance="standard"
+                  variant="ghost"
                   type="button"
                   className={s.button}
                   disabled={i === 0}
@@ -263,36 +299,33 @@ export function LegalEditor({
                   }}
                 >
                   Move up
-                </button>
-                <button
+                </Button>
+                <Button appearance="standard"
+                  variant="ghost"
                   type="button"
                   className={s.button}
                   disabled={sections.length === 1}
-                  onClick={() =>
-                    setSections(sections.filter((x) => x.id !== c.id))
-                  }
+                  onClick={() => setSections(sections.filter((x) => x.id !== c.id))}
                 >
                   Remove clause
-                </button>
+                </Button>
               </fieldset>
             ))}
-            <button
+            <Button appearance="standard"
+              variant="ghost"
               type="button"
               className={s.button}
               onClick={() =>
-                setSections([
-                  ...sections,
-                  { id: crypto.randomUUID(), heading: "", body: "" },
-                ])
+                setSections([...sections, { id: crypto.randomUUID(), heading: "", body: "" }])
               }
             >
               Add clause
-            </button>
-            <button className={s.button} disabled={busy}>
+            </Button>
+            <Button appearance="standard" clientManaged type="submit" variant="ghost" className={s.button} disabled={busy}>
               Save immutable draft version
-            </button>
+            </Button>
           </form>
-        </details>
+        </FormDisclosure>
       )}
     </section>
   );

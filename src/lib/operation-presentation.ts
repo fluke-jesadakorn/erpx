@@ -22,7 +22,7 @@ export function operationFromFlow(flow: FlowView, recordHref: string | null = nu
     blockedReason: flow.blocker,
     dueAt: null,
     recordHref,
-    actionKind: flow.current?.action.toLowerCase().includes("approv") ? "approval" : "work",
+    actionKind: flow.current && flow.current.role !== "finance_preparer" && /^(department_approval|accounts_approval|awaiting_approval|approval_|purchase_|start_|completion_)/.test(flow.current.key) ? "approval" : "work",
   };
 }
 

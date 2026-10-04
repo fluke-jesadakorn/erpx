@@ -42,9 +42,11 @@ All staff-facing producers should publish only meaningful assignments, decisions
 
 ## Development verification
 
+> Recorded observations apply to their stated date/environment. Current coverage and remaining acceptance are in the [verification inventory](../../status/capability-delivery-matrix.md); old gaps do not override current owner behavior.
+
 Apply `0004_messaging.sql` through the existing holding-write migration runner, then grant application/jobs roles access to the new tables using the existing provisioning pattern. Do not edit older applied migrations. The migration was applied to the two local `erpx_dev_*_write` databases for the public dev server, not production databases.
 
-Run `bun run test -- tests/messaging.test.ts tests/staff-migration.test.ts`, `bun run typecheck`, and `bun run lint`. For browser acceptance, run `bun --env-file=.env.local scripts/seed-messaging-e2e.ts`, then `ERPX_E2E_BASE_URL=https://erpx.jesadakorn.com bunx playwright test tests/e2e/messaging.spec.ts`. The seed is restricted to local development databases, creates a separate synthetic company, and stores its generated password in ignored `.scratch/messaging/fixture.json` with mode 0600. Screenshots are saved alongside that fixture. Browser login checks reject redirects.
+Run `bun run test -- tests/messaging.test.ts tests/staff-migration.test.ts`, `bun run typecheck`, and `bun run lint`. For browser acceptance, run `bun --env-file=.env.local scripts/seed-messaging-e2e.ts`, then `ERPX_E2E_BASE_URL=https://console-dev-erpx.jesadakorn.com bunx playwright test tests/e2e/messaging.spec.ts`. The seed is restricted to local development databases, creates a separate synthetic company, and stores its generated password in ignored `.scratch/messaging/fixture.json` with mode 0600. Screenshots are saved alongside that fixture. Browser login checks reject redirects.
 
 ## Public dev routing correction (2026-09-09)
 

@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "incremental": false,
+    "plugins": []
+  },
+  "include": [
+    "tests/e2e/demo-*.spec.ts",
+    "tests/e2e/legal-uat.spec.ts",
+    "tests/e2e/helpers/**/*.ts",
+    "playwright.config.ts"
+  ],
+  "exclude": ["node_modules", ".runtime", ".scratch"]
+}

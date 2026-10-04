@@ -1,3 +1,4 @@
+import { requestActions } from "@/lib/request-actions";
 import { selfServiceHref } from "@/lib/self-service";
 import type { SqlDatabase } from "./runtime/types";
 import "server-only";
@@ -53,16 +54,16 @@ export async function getWorkCapabilities(
   if (checks[1].status === "rejected") unavailable.push("Team coverage");
   const staff = checks[0].status === "fulfilled" && !!checks[0].value;
   const creation: WorkCreation[] = [
-    ["expense", "Expense claim"],
-    ["service_request", "Service request"],
+    ["expense", requestActions.expense.label],
+    ["service_request", requestActions.service_request.label],
     ["equipment_request", "Equipment request"],
-    ["purchase_request", "Purchase request"],
+    ["purchase_request", requestActions.purchase_request.label],
+    ...(!actor.beta ? [["leave", requestActions.leave.label]] : []),
     ...(actor.beta
       ? [["conversation", "Start from a conversation"]]
       : staff
         ? [
             ["task", "Task"],
-            ["leave", "Leave request"],
             ["overtime", "Overtime"],
           ]
         : []),

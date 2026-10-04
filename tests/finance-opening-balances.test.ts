@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "./runtime-env";
 import type { WorkContext } from "../src/server/authorization";
+import { confirmManualRate } from "../src/server/company-money";
 import {
   aging,
   approvePayment,
@@ -72,6 +73,10 @@ beforeAll(async () => {
       ('opening-customer-b','opening-company','customer','C002','Beta customer','THB','active',1,1);
     INSERT INTO finance_periods(id,company_id,name,start_date,end_date,created_at) VALUES('opening-period','opening-company','Opening 2026','2026-01-01','2026-12-31',1);
   `);
+  await confirmManualRate(approver, {
+    currency: "THB", effectiveDate: "2026-01-01", currencyPerUsd: "36",
+    note: "Synthetic isolated opening-balance fixture quote; not a market observation or provider result.",
+  }, "opening-fixture-thb-rate");
 });
 
 describe("opening trial balance", () => {

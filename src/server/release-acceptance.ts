@@ -9,6 +9,8 @@ import type { SqlDatabase } from './runtime/types';
 import { ApiError } from './http';
 import { assertion, executeCommand, replayCommand } from './commands';
 import { authorityGuard, companyAuthority } from './staff-policy';
+import {prepareAttachmentBinding} from './attachments/service';
+import {systemEvidenceInput} from './system-evidence';
 
 const reason = z.string().trim().min(3).max(2000);
 const criterionId = z.enum(allReleaseCriteria.map(row => row.id) as [ReleaseCriterion, ...ReleaseCriterion[]]);
@@ -261,4 +263,27 @@ export async function revokeReleaseAcceptance(db: SqlDatabase, actor: WorkContex
     db.prepare("INSERT INTO company_release_events(id,company_id,release_id,version,action,actor_id,detail_json,created_at) VALUES(?,?,?,?,'revoked',?,?,?)")
       .bind(`release-event-${key}`, actor.companyId, id, version, actor.userId, JSON.stringify(input), now),
   ]);
+}
+
+/** Add a reviewed sanitized artifact without changing any immutable release
+ * snapshot or claiming that a business/provider criterion has passed. */
+export async function bindReleaseEvidence(db:SqlDatabase,actor:WorkContext,id:string,raw:unknown,key:string){
+ await requireReviewer(db,actor,'organization.manage');
+ const input=systemEvidenceInput.parse(raw),operation='release.acceptance.evidence.bind';
+ const prior=await replayCommand(db,actor,key,operation,id,input);if(prior)return prior;
+ const row=await db.prepare('SELECT version,revoked_at FROM company_release_acceptances WHERE company_id=? AND id=?').bind(actor.companyId,id).first<{version:number;revoked_at:number|null}>();
+ if(!row||row.revoked_at!==null)throw new ApiError(404,'RELEASE_NOT_FOUND','Release not found.');
+ if(Number(row.version)!==input.expectedVersion)throw new ApiError(409,'STALE_VERSION','Reload the release before binding its sanitized evidence.');
+ const version=input.expectedVersion+1,prepared=await prepareAttachmentBinding(db,actor,{
+  attachmentSetIds:input.attachmentSetIds,
+  bindingContract:{targetType:'company_release_acceptance',bindingType:'release_acceptance_evidence',contexts:[{purposeKey:'sanitized_release_evidence',componentKind:'action',componentRef:'company_release_acceptance:evidence'}]},
+  targetId:id,expectedTargetVersion:input.expectedVersion,commandId:key,bindingId:`${id}:evidence:${version}`,
+ });
+ return executeCommand(db,actor,key,operation,input,id,version,{id,version,manifest:prepared.manifest},[
+  authorityGuard(db,key,actor,'organization.manage'),
+  assertion(db,key,'release-evidence-current','EXISTS(SELECT 1 FROM company_release_acceptances WHERE company_id=? AND id=? AND version=? AND revoked_at IS NULL)',[actor.companyId,id,input.expectedVersion]),
+  ...prepared.guards,
+  db.prepare('UPDATE company_release_acceptances SET version=?,updated_at=? WHERE company_id=? AND id=?').bind(version,Date.now(),actor.companyId,id),
+  ...prepared.steps,
+ ]);
 }

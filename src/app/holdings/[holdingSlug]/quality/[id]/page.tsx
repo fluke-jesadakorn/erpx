@@ -118,7 +118,7 @@ export default async function Page({
             {formatDate(String(hold.due_date))}
           </p>
         </div>
-        <StatusBadge status={status} />
+        <StatusBadge appearance="standard" status={status} />
       </header>
 
       <div className={styles.recordLayout}>
@@ -213,10 +213,10 @@ export default async function Page({
                     <article className={styles.inspection} key={String(inspection.id)}>
                       <header className={styles.inspectionHeader}>
                         <div>
-                          <StatusBadge status={String(inspection.result)} />
+                          <StatusBadge appearance="standard" status={String(inspection.result)} />
                           <span>Recorded by {String(inspection.inspected_by)}</span>
                         </div>
-                        {Number.isFinite(createdAt) ? <TimeText value={createdAt} /> : "Time unavailable"}
+                        {Number.isFinite(createdAt) ? <TimeText appearance="standard" value={createdAt} /> : "Time unavailable"}
                       </header>
 
                       <p className={styles.evidenceText}>{String(inspection.evidence)}</p>

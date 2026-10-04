@@ -1,5 +1,7 @@
 # คำยืนยันกำหนดส่งจากผู้ขาย — ชุด C / S03
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 PO ที่อนุมัติแล้วเป็นเจ้าของจำนวนที่สั่งและรับจริง ส่วนคำยืนยันผู้ขายเป็นหลักฐานเพิ่มเติม ไม่แก้ required date เดิม ไม่สร้างสต็อก และไม่ลงบัญชี
 
 ฝ่ายจัดซื้อเปิด PO แล้วบันทึกเลขอ้างอิงผู้ขาย วันที่ได้รับคำยืนยัน หลักฐาน และจำนวน/วันส่งแยกงวดได้ ทุกครั้งเป็น snapshot ทดแทนแผนปัจจุบันของยอดที่ยังรับไม่ครบ ประวัติเดิมแก้ทับหรือลบไม่ได้ ผู้ขายยืนยันเพียงบางส่วนได้ แต่หน้าจอและ Work ต้องแสดงส่วนที่ยังไม่ยืนยันอย่างชัดเจน

@@ -1,18 +1,25 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { Button, Field, TextArea, TextInput } from "@/components/ui/foundation";
+
 import { TimeText } from "@/components/time/time-preference-context";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Card, FormLayout } from "@/components/ui/foundation";
 export function AccountSecurity() {
   const [message, setMessage] = useState(""),
     [secret, setSecret] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [emergencyAccess, setEmergencyAccess] = useState<{
-      companyId: string;
-      holdingSlug: string | null;
-      scopeLabel: string;
-      reason: string;
-      expiresAt: number;
-    }[]>([]),
+    [emergencyAccess, setEmergencyAccess] = useState<
+      {
+        companyId: string;
+        holdingSlug: string | null;
+        scopeLabel: string;
+        reason: string;
+        expiresAt: number;
+      }[]
+    >([]),
     [emergencyUnavailable, setEmergencyUnavailable] = useState<string[]>([]),
     [emergencyLoading, setEmergencyLoading] = useState(true),
     [emergencyError, setEmergencyError] = useState(""),
@@ -25,14 +32,11 @@ export function AccountSecurity() {
           cache: "no-store",
         }),
         v = await r.json();
-      if (!r.ok)
-        throw new Error(v.error?.message ?? "Unable to load temporary access.");
+      if (!r.ok) throw new Error(v.error?.message ?? "Unable to load temporary access.");
       setEmergencyAccess(v.data.access ?? []);
       setEmergencyUnavailable(v.data.unavailableScopes ?? []);
     } catch (e) {
-      setEmergencyError(
-        e instanceof Error ? e.message : "Unable to load temporary access.",
-      );
+      setEmergencyError(e instanceof Error ? e.message : "Unable to load temporary access.");
     } finally {
       setEmergencyLoading(false);
     }
@@ -42,8 +46,7 @@ export function AccountSecurity() {
     void fetch("/api/v1/account/iam/emergency/active", { cache: "no-store" })
       .then(async (r) => {
         const v = await r.json();
-        if (!r.ok)
-          throw new Error(v.error?.message ?? "Unable to load temporary access.");
+        if (!r.ok) throw new Error(v.error?.message ?? "Unable to load temporary access.");
         return v.data;
       })
       .then((data) => {
@@ -53,9 +56,7 @@ export function AccountSecurity() {
       })
       .catch((e: unknown) => {
         if (current)
-          setEmergencyError(
-            e instanceof Error ? e.message : "Unable to load temporary access.",
-          );
+          setEmergencyError(e instanceof Error ? e.message : "Unable to load temporary access.");
       })
       .finally(() => {
         if (current) setEmergencyLoading(false);
@@ -105,28 +106,30 @@ export function AccountSecurity() {
   }
   return (
     <>
-      <div role="status">{message}</div>
+      <InlineNotice tone="info" role="status">{message}</InlineNotice>
       {error && (
-        <p role="alert" className="error">
+        <InlineNotice tone="danger" role="alert" className="error">
           {error}
-        </p>
+        </InlineNotice>
       )}
-      <section className="card">
+      <Card as="section" appearance="standard" className="ui-panel">
         <h2>Authenticator</h2>
-        <button
-          className="button secondary"
+        <Button appearance="standard"
+          type="submit"
+          variant="secondary"
+
           disabled={busy}
           onClick={() => send("mfa/enroll", {})}
         >
           Set up authenticator
-        </button>
+        </Button>
         {secret && (
           <p>
             Setup key: <code>{secret}</code>
           </p>
         )}
-        <form
-          className="business-form"
+        <FormLayout
+          className="ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
             void send("mfa/verify", {
@@ -134,44 +137,47 @@ export function AccountSecurity() {
             });
           }}
         >
-          <label>
+          <Field appearance="standard">
             Six-digit code
-            <input
+            <TextInput appearance="standard"
               name="code"
               autoComplete="one-time-code"
               inputMode="numeric"
               pattern="[0-9]{6}"
               required
             />
-          </label>
-          <button className="button" disabled={busy}>
+          </Field>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Verify code
-          </button>
-        </form>
-      </section>
-      <section className="card">
+          </Button>
+        </FormLayout>
+      </Card>
+      <Card as="section" appearance="standard" className="ui-panel">
         <h2>Temporary emergency access</h2>
         <p>
-          Only independently designated local recovery administrators can
-          activate access. Every activation and revocation is audited and
-          expires within one hour.
+          Only independently designated local recovery administrators can activate access. Every
+          activation and revocation is audited and expires within one hour.
         </p>
         <h3>Active in this browser session</h3>
         {emergencyLoading ? (
-          <p role="status">Checking temporary access…</p>
+          <InlineNotice tone="info" role="status">Checking temporary access…</InlineNotice>
         ) : emergencyError ? (
-          <p role="alert" className="error">
+          <InlineNotice tone="danger" role="alert" className="error">
             {emergencyError}
-          </p>
+          </InlineNotice>
         ) : emergencyAccess.length ? (
           <ul>
             {emergencyAccess.map((access) => (
               <li key={`${access.holdingSlug ?? "platform"}:${access.companyId}`}>
                 <strong>{access.scopeLabel}</strong>
                 <p>Reason: {access.reason}</p>
-                <p>Expires: <TimeText value={access.expiresAt} /></p>
-                <button
-                  className="button secondary"
+                <p>
+                  Expires: <TimeText appearance="standard" value={access.expiresAt} />
+                </p>
+                <Button appearance="standard"
+                  type="submit"
+                  variant="secondary"
+
                   disabled={busy}
                   onClick={() =>
                     void send("emergency/revoke", {
@@ -182,7 +188,7 @@ export function AccountSecurity() {
                   }
                 >
                   Deactivate for this session
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -190,12 +196,10 @@ export function AccountSecurity() {
           <p>No temporary emergency access is active in this session.</p>
         )}
         {emergencyUnavailable.length > 0 && (
-          <p role="status">
-            Status could not be checked for: {emergencyUnavailable.join(", ")}
-          </p>
+          <InlineNotice tone="info" role="status">Status could not be checked for: {emergencyUnavailable.join(", ")}</InlineNotice>
         )}
-        <form
-          className="business-form"
+        <FormLayout
+          className="ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
             const f = new FormData(e.currentTarget);
@@ -206,23 +210,23 @@ export function AccountSecurity() {
             });
           }}
         >
-          <label>
+          <Field appearance="standard">
             Holding slug (blank for platform)
-            <input name="holdingSlug" />
-          </label>
-          <label>
+            <TextInput appearance="standard" name="holdingSlug" />
+          </Field>
+          <Field appearance="standard">
             Company ID (or platform)
-            <input name="companyId" required />
-          </label>
-          <label>
+            <TextInput appearance="standard" name="companyId" required />
+          </Field>
+          <Field appearance="standard">
             Recovery reason
-            <textarea name="reason" required minLength={10} />
-          </label>
-          <button className="button" disabled={busy}>
+            <TextArea appearance="standard" name="reason" required minLength={10} />
+          </Field>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Activate temporary access
-          </button>
-        </form>
-      </section>
+          </Button>
+        </FormLayout>
+      </Card>
     </>
   );
 }

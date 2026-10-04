@@ -212,7 +212,7 @@ export function executePms(
       if (
         r.data.kind === "refund" &&
         (pocket === "deposit" ||
-          get("refund", r.data.originalId).data.pocket === "advance")
+          (r.data.refundPocket ?? get("refund", r.data.originalId).data.pocket) === "advance")
       )
         for (const part of r.data.funding ?? [])
           used.set(part.entryId, (used.get(part.entryId) ?? 0) + part.amount);
@@ -1481,7 +1481,7 @@ export function executePms(
       const pocket=op==='payment.stripe_deposit_refund'?'deposit':'advance';
       need(v.amount<=f.data[pocket],"PMS_REFUND_EXCEEDS_BALANCE","Refund exceeds the remaining balance");
       const sources=funding(f.id,pocket,v.amount);
-      const e=entry(f.id,{funding:sources,kind:"refund",description:v.reason,total:-v.amount,method:"stripe",reference:v.reference});
+      const e=entry(f.id,{funding:sources,refundPocket:pocket,kind:"refund",description:v.reason,total:-v.amount,method:"stripe",reference:v.reference});
       post(e.id,"refund",pair(pocket,"edc",v.amount));
       if(pocket==='advance'){
        const tax=v.amount===f.data.advance?f.data.advanceTax:proportion(f.data.advanceTax,v.amount,f.data.advance);

@@ -2,7 +2,7 @@
   display: flex;
   gap: 22px;
   overflow-x: auto;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-line);
   margin: 18px 0 24px;
   scrollbar-width: thin;
   grid-column: 1/-1;
@@ -10,7 +10,7 @@
 .tabs :is(a, button) {
   white-space: nowrap;
   padding: 10px 0 14px;
-  color: var(--muted);
+  color: var(--ui-muted);
   text-decoration: none;
   border-bottom: 2px solid transparent;
   font-size: 14px;
@@ -20,20 +20,20 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  color: var(--ink);
+  color: var(--ui-ink);
 }
 .tabs .peopleToolsTrigger[aria-expanded="true"] {
-  color: var(--brand);
-  border-color: var(--brand);
+  color: var(--ui-brand);
+  border-color: var(--ui-brand);
 }
 .tabs :is(a, button)[aria-current="page"] {
-  color: var(--brand);
-  border-color: var(--brand);
+  color: var(--ui-brand);
+  border-color: var(--ui-brand);
   font-weight: 600;
 }
 .tabs :is(a, button):focus-visible,
 .widget:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--ui-brand);
   outline-offset: 3px;
 }
 .customize {
@@ -53,10 +53,10 @@
   align-items: center;
   gap: 5px;
   padding: 7px 10px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 7px;
-  background: var(--card);
-  color: var(--ink);
+  background: var(--ui-card);
+  color: var(--ui-ink);
   cursor: pointer;
 }
 .customize button:disabled {
@@ -68,7 +68,7 @@
 }
 .customize details[open] {
   padding: 8px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 8px;
 }
 .customize summary {
@@ -95,9 +95,9 @@
   flex-direction: column;
   position: relative;
   min-width: 0;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 12px;
-  background: var(--card);
+  background: var(--ui-card);
   padding: 20px;
   scroll-margin-top: 24px;
 }
@@ -117,7 +117,7 @@
   line-height: 1.5;
   margin: 0;
   font-weight: 600;
-  color: var(--ink);
+  color: var(--ui-ink);
 }
 .widgetTools {
   display: flex;
@@ -155,12 +155,12 @@
   height: 28px;
   border: 0;
   background: transparent;
-  color: var(--brand);
+  color: var(--ui-brand);
   cursor: nwse-resize;
 }
 .error {
   padding: 12px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 8px;
   margin: 12px 0;
   color: var(--danger);
@@ -175,7 +175,7 @@
 }
 .drawerSection {
   padding: 20px 22px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-line);
 }
 .drawerSection h3 {
   margin: 0;
@@ -196,17 +196,17 @@
   justify-content: space-between;
   gap: 12px;
   padding: 10px 12px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 9px;
-  color: var(--ink);
+  color: var(--ui-ink);
   text-decoration: none;
 }
 .moreViews a[aria-current="page"] {
-  border-color: var(--brand);
-  background: color-mix(in srgb, var(--brand) 8%, var(--card));
+  border-color: var(--ui-brand);
+  background: color-mix(in srgb, var(--ui-brand) 8%, var(--ui-card));
 }
 .moreViews small {
-  color: var(--brand);
+  color: var(--ui-brand);
 }
 .drawerSectionHeading {
   display: flex;
@@ -220,10 +220,10 @@
 .widgetSetting input[type="number"],
 .drawerActions > button:not(.button) {
   min-height: 40px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 8px;
-  background: var(--card);
-  color: var(--ink);
+  background: var(--ui-card);
+  color: var(--ui-ink);
 }
 .widgetSettings {
   display: grid;
@@ -233,12 +233,14 @@
   border: 0;
   min-width: 0;
 }
-.widgetSettings:disabled { opacity: .65; }
+.widgetSettings:disabled {
+  opacity: 0.65;
+}
 .widgetSetting {
   padding: 14px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 10px;
-  background: var(--card-2);
+  background: var(--ui-card-2);
 }
 .widgetSettingTitle,
 .widgetSettingTitle label,
@@ -255,7 +257,7 @@
 .widgetSettingControls label,
 .widgetSettingControls > span {
   font-size: 12px;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .widgetSettingTitle input {
   width: 18px;
@@ -270,8 +272,8 @@
 .differenceBadges span {
   padding: 3px 7px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--brand) 11%, var(--card));
-  color: var(--brand);
+  background: color-mix(in srgb, var(--ui-brand) 11%, var(--ui-card));
+  color: var(--ui-brand);
   font-size: 11px;
 }
 .widgetSettingControls {
@@ -305,8 +307,8 @@
   gap: 8px;
   margin-top: auto;
   padding: 14px 22px calc(14px + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--line);
-  background: var(--card);
+  border-top: 1px solid var(--ui-line);
+  background: var(--ui-card);
 }
 .drawerActions button {
   min-height: 44px;
@@ -367,5 +369,5 @@
   font-family: inherit;
 }
 .tabs button[aria-current="page"] {
-  border-bottom-color: var(--brand);
+  border-bottom-color: var(--ui-brand);
 }

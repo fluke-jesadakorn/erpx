@@ -24,8 +24,8 @@ async function pay(sale:string,amount=10700){await change('payment.create',sale,
 async function kitchen(sale:string,action:string){const f=(await one(db,'SELECT f.* FROM pos_fulfillments f JOIN pos_lines l ON l.fulfillment_id=f.id WHERE l.sale_id=?',sale))!;return command(`kitchen.${action}`,{id:f.id,expectedVersion:f.version,reason:'customer changed order'},action==='cancel'?manager:actor);}
 async function clearPosSetup(){await run(db,'DELETE FROM pos_shifts');await run(db,'DELETE FROM pos_tables');await run(db,'DELETE FROM pos_registers');await run(db,'DELETE FROM pos_settings');}
 beforeAll(async()=>{await Promise.all([applyMigrations(db,env.STAFF_TEST_MIGRATIONS),applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS)]);enableAttachmentV2ForTest();},120000);
-beforeEach(async()=>{
- await db.exec(`TRUNCATE pos_day_closes,pos_sale_documents,pos_product_images,pos_register_catalog,hospitality_tax_documents,company_feature_rollouts,pms_sources,pms_postings,pms_records,pms_properties,pos_receipts,pos_audit,pos_jobs,pos_stripe_events,pos_settlements,pos_oauth_states,pos_connections,pos_connection_history,pos_cash_movements,pos_refund_payments,pos_refunds,pos_payments,pos_lines,pos_reservations,pos_stock_moves,pos_fulfillments,pos_sales,pos_tables,pos_shifts,pos_registers,pos_catalog,pos_settings,pos_postings,finance_bank_transactions,finance_bank_statements,finance_allocations,finance_invoices,finance_payments,finance_journal_lines,finance_journals,finance_parties,commerce_stock,commerce_products,commerce_warehouses,commerce_settings,finance_accounts,finance_periods,finance_charts,assignments,command_assertions CASCADE;
+beforeEach(async context=>{
+ await db.exec(`TRUNCATE money_transaction_snapshots,company_fx_rates,pos_day_closes,pos_sale_documents,pos_product_images,pos_register_catalog,hospitality_tax_documents,company_feature_rollouts,pms_sources,pms_postings,pms_records,pms_properties,pos_receipts,pos_audit,pos_jobs,pos_stripe_events,pos_settlements,pos_oauth_states,pos_connections,pos_connection_history,pos_cash_movements,pos_refund_payments,pos_refunds,pos_payments,pos_lines,pos_reservations,pos_stock_moves,pos_fulfillments,pos_sales,pos_tables,pos_shifts,pos_registers,pos_catalog,pos_settings,pos_postings,finance_bank_transactions,finance_bank_statements,finance_allocations,finance_invoices,finance_payments,finance_journal_lines,finance_journals,finance_parties,commerce_stock,commerce_products,commerce_warehouses,commerce_settings,finance_accounts,finance_periods,finance_charts,assignments,command_assertions CASCADE;
  INSERT INTO organization_nodes(id,kind,slug,display_name,company_id) VALUES('pos-company','company','pos-company','POS test','pos-company') ON CONFLICT DO NOTHING;
  INSERT INTO organization_nodes(id,kind,slug,display_name,company_id,parent_id,branch_id) VALUES('pos-branch','branch','pos-branch','Branch','pos-company','pos-company','pos-branch') ON CONFLICT DO NOTHING;
  INSERT INTO assignments(id,user_id,role,modules_json,company_id,scope_kind,valid_from,valid_until) VALUES('pos-cashier','cashier','holding_owner','["pos"]','pos-company','holding',0,9999999999999),('pos-manager','manager','holding_owner','["pos"]','pos-company','holding',0,9999999999999);
@@ -42,8 +42,44 @@ beforeEach(async()=>{
  await command('settings.save',{enabled:true,currency:'THB',timezone:'Asia/Bangkok',cashierDiscountBps:0,accounts:{chartId:'chart',...Object.fromEntries(accountKeys.map(k=>[k,k]))},expectedVersion:0});
  await command('catalog.save',{productId:'latte',barcode:'8850001',category:'Coffee',kind:'recipe',station:'Bar',recipe:[{productId:'milk',quantityMilli:200}],modifiers:[],taxInclusive:false,expectedVersion:0});
  await command('catalog.save',{productId:'tea',barcode:'8850002',category:'Retail',kind:'stock',station:'Shop',recipe:[],modifiers:[],taxInclusive:false,registerIds:['retail','restaurant'],expectedVersion:0});
+ await run(db,"DELETE FROM company_fx_rates WHERE company_id='pos-company'");
+ if(!context.task.name.startsWith("does not silently open"))await run(db,"INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at,note) VALUES(?,?,?,?,?,?,?,?)",`pos-fixture-rate-${serial}`,'pos-company','THB','2020-01-01','36','manager',Date.now(),'Declared synthetic fixture quote; no provider or market observation.');
 });
 describe('POS committed business flows',()=>{
+ it('retains original sale and payment FX through concurrent partial refunds and allocates the final USD cent exactly',async()=>{
+  vi.useFakeTimers({toFake:['Date']});vi.setSystemTime(new Date('2026-09-30T09:00:00Z'));
+  await run(db,"UPDATE pos_shifts SET business_date='2026-09-30' WHERE id IN ('shift-retail','shift-kitchen')");
+  const sale=await createSale();await add(sale,'tea',3000);await pay(sale,32100);await change('sale.complete',sale);
+  const payment=(await one(db,'SELECT id FROM pos_payments WHERE sale_id=?',sale))!;
+  const source=await one(db,"SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE source_type='pos_sale' AND source_id=? AND amount_kind='total'",sale);
+  expect(source).toMatchObject({amount_units:'32100',usd_units:'892'});
+  expect(await one(db,"SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE source_type='pos_payment' AND source_id=? AND amount_kind='received'",payment.id)).toEqual(source);
+  expect(await one(db,"SELECT COUNT(*) n FROM money_transaction_snapshots WHERE source_type='pos_payment' AND source_id=?",payment.id)).toEqual({n:2});
+  vi.setSystemTime(new Date('2026-10-01T09:00:00Z'));
+  await run(db,"INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at,note) VALUES('pos-later-quote','pos-company','THB','2026-10-01','40','manager',?,'Synthetic later quote; must not alter a source-linked return')",Date.now());
+  const line=(await one(db,'SELECT id FROM pos_lines WHERE sale_id=?',sale))!;
+  const request={reason:'Reviewed later-day partial return',payoutShiftId:'shift-retail',lines:[{lineId:line.id,quantityMilli:1000,restock:true}]};
+  const first=await change('refund.request',sale,request),race=await change('refund.request',sale,request);
+  const approve=(id:unknown,key:string)=>command('refund.approve',{id,expectedVersion:1,reason:'Cash returned against the original verified receipt'},manager,key);
+  const outcomes=await Promise.allSettled([approve(first.id,'pos-original-fx-first'),approve(race.id,'pos-original-fx-race')]);
+  expect(outcomes.filter(result=>result.status==='fulfilled')).toHaveLength(1);
+  expect(outcomes.find(result=>result.status==='rejected')).toMatchObject({reason:{code:'POS_REFUND_CHANGED'}});
+  const approvedId=outcomes[0].status==='fulfilled'?first.id:race.id,approvedKey=outcomes[0].status==='fulfilled'?'pos-original-fx-first':'pos-original-fx-race';
+  const journalCount=await one(db,'SELECT COUNT(*) n FROM finance_journals');
+  expect(await approve(approvedId,approvedKey)).toEqual({id:approvedId});
+  expect(await one(db,'SELECT COUNT(*) n FROM finance_journals')).toEqual(journalCount);
+  for(let n=0;n<2;n++){const refund=await change('refund.request',sale,request);await approve(refund.id,`pos-original-fx-rest-${n}`);}
+  for(const sourceType of ['pos_refund','pos_refund_payment']){
+   const rows=await all(db,'SELECT amount_units::text,usd_units::text,fx_rate_id,original_source_type,original_source_id,transaction_date FROM money_transaction_snapshots WHERE source_type=? ORDER BY captured_at,source_id',sourceType);
+   expect(rows).toHaveLength(3);expect(rows.reduce((sum,row)=>sum+Number(row.amount_units),0)).toBe(-32100);expect(rows.reduce((sum,row)=>sum+Number(row.usd_units),0)).toBe(-892);
+   expect(rows.map(row=>Math.abs(Number(row.usd_units))).sort()).toEqual([297,297,298]);
+   for(const row of rows)expect(row).toMatchObject({fx_rate_id:source!.fx_rate_id,transaction_date:'2026-10-01',original_source_type:sourceType==='pos_refund'?'pos_sale':'pos_payment',original_source_id:sourceType==='pos_refund'?sale:payment.id});
+  }
+  expect(await one(db,'SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?','warehouse','tea')).toEqual({quantity_milli:10000,value_minor:30000});
+  expect(await one(db,'SELECT amount_minor,refunded_minor FROM pos_payments WHERE id=?',payment.id)).toEqual({amount_minor:32100,refunded_minor:32100});
+  expect(await one(db,"SELECT SUM(l.base_debit_minor-l.base_credit_minor) net FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id='pos-company' AND j.status='posted'")).toEqual({net:0});
+  expect(await one(db,"SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE source_type='pos_sale' AND source_id=? AND amount_kind='total'",sale)).toEqual(source);
+ });
  it('does not silently open a sale in a different selected currency and requires a manual quote',async()=>{
   const request={shiftId:'shift-retail',serviceMode:'retail' as const};
   await expect(command('sale.create',{...request,currency:'USD'})).rejects.toMatchObject({code:'POS_CURRENCY_SETUP_REQUIRED'});
@@ -194,14 +230,26 @@ describe('POS committed business flows',()=>{
   await expect(command('shift.open',{registerId:'retail',openingMinor:0})).resolves.toHaveProperty('id');
  });
  it('links an external tax reference to one posted sale with independent Finance review and correction history',async()=>{
-  const {taxDocumentCommand,taxDocumentView}=await import('../src/server/hospitality-tax-documents');
+  const {taxDocumentCommand,taxDocumentView,frontTaxDocumentCommand,frontTaxDocumentView}=await import('../src/server/hospitality-tax-documents');
   const sale=await createSale();await add(sale);await pay(sale);await change('sale.complete',sale);
   const invoiceId=String((await one(db,'SELECT invoice_id FROM pos_sales WHERE id=?',sale))!.invoice_id);
+  const {posWorkspace}=await import('../src/server/pos');
+  const front=await posWorkspace(actor,sale,'','sale',undefined,true);
+  expect(front.taxDocumentInvoiceId).toBe(invoiceId);
+  expect(front.sale).not.toHaveProperty('invoice_id');
+  expect(front.accounts).toEqual([]);expect(front.bankTransactions).toEqual([]);
+  expect((await posWorkspace(actor,sale,'','sale')).sale?.invoice_id).toBe(invoiceId);
+  await expect(posWorkspace({...actor,companyId:'another-company'},sale,'','sale',undefined,true)).rejects.toBeDefined();
+  await expect(posWorkspace({...actor,branchId:'another-branch'},sale,'','sale',undefined,true)).rejects.toBeDefined();
   await expect(taxDocumentView({...actor,companyId:'another-company'},invoiceId)).rejects.toMatchObject({code:'TAX_DOCUMENT_INVOICE_NOT_FOUND'});
   await expect(taxDocumentView({...actor,branchId:'another-branch'},invoiceId)).rejects.toMatchObject({code:'TAX_DOCUMENT_INVOICE_NOT_FOUND'});
   const input={action:'record' as const,invoiceId,issuer:'Fictional hotel tax desk',externalReference:'TAX-0001',issuedOn:'2026-09-23',documentTotalMinor:10700,documentTaxMinor:700,reason:'Matched to paper tax invoice'};
-  const saved=await taxDocumentCommand(actor,input,'tax-document-record-0001');
-  expect(await taxDocumentCommand(actor,input,'tax-document-record-0001')).toEqual(saved);
+  await expect(frontTaxDocumentView(actor,invoiceId,'pms')).rejects.toMatchObject({code:'TAX_DOCUMENT_INVOICE_NOT_FOUND'});
+  await expect(frontTaxDocumentCommand({...actor,companyId:'another-company'},input,'front-tax-cross-company','pos')).rejects.toMatchObject({code:'TAX_DOCUMENT_INVOICE_NOT_FOUND'});
+  const saved=await frontTaxDocumentCommand(actor,input,'tax-document-record-0001','pos');
+  expect(await frontTaxDocumentCommand(actor,input,'tax-document-record-0001','pos')).toEqual(saved);
+  expect(await frontTaxDocumentView(actor,invoiceId,'pos')).toMatchObject({canRecord:true,canReview:false});
+  await expect(frontTaxDocumentCommand(manager,{action:'verify',invoiceId,documentId:saved.id,expectedVersion:1},'front-tax-review-forbidden','pos')).rejects.toMatchObject({code:'FRONT_COMMAND_FORBIDDEN'});
   expect((await taxDocumentView(actor,invoiceId)).documents).toMatchObject([{id:saved.id,state:'recorded',total_minor:10700,tax_minor:700}]);
   await expect(taxDocumentCommand(actor,{action:'verify',invoiceId,documentId:saved.id,expectedVersion:1},'tax-document-self-review')).rejects.toMatchObject({code:'INDEPENDENT_REVIEW_REQUIRED'});
   await expect(taxDocumentCommand(manager,input,'tax-document-duplicate')).rejects.toMatchObject({code:'CONFLICT'});
@@ -530,8 +578,8 @@ describe('POS committed business flows',()=>{
   expect(await one(db,"SELECT quantity_milli,value_minor FROM commerce_stock WHERE product_id='tea'")).toEqual({quantity_milli:9000,value_minor:27000});
   expect(await one(db,'SELECT state FROM pos_refunds WHERE id=?',refund.id)).toEqual({state:'completed'});
   expect((await posDayReport(db,manager,'pos-branch',businessDate())).totals).toMatchObject({taxMinor:1400,refundTaxMinor:700,netTaxMinor:700,refundMinor:10700,netMinor:10700});
-  expect(await one(db,"SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE source_type='pos_refund' AND source_id=?",refund.id)).toEqual({amount_units:'10700',usd_units:'297',fx_rate_id:refundRateId});
-  expect((await all(db,"SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE source_type='pos_refund_payment' AND source_id IN (SELECT id FROM pos_refund_payments WHERE refund_id=?)",refund.id))).toEqual([{amount_units:'10700',usd_units:'297',fx_rate_id:refundRateId}]);
+  expect(await one(db,"SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE source_type='pos_refund' AND source_id=?",refund.id)).toEqual({amount_units:'-10700',usd_units:'-297',fx_rate_id:refundRateId});
+  expect((await all(db,"SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE source_type='pos_refund_payment' AND source_id IN (SELECT id FROM pos_refund_payments WHERE refund_id=?)",refund.id))).toEqual([{amount_units:'-10700',usd_units:'-297',fx_rate_id:refundRateId}]);
   await expect(change('refund.request',sale,{reason:'too many',lines:[{lineId:line.id,quantityMilli:2000,restock:true}]})).rejects.toMatchObject({code:'POS_REFUND_QUANTITY'});
  });
  it('closed periods and changed scopes leave no payment or journal effects',async()=>{

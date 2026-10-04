@@ -4,6 +4,7 @@ import { workspaceBase } from "@/lib/workspace";
 import { pageError } from "@/server/page-error";
 import { marketingDetail } from "@/server/marketing";
 import { MarketingConsole } from "@/components/modules/marketing-console";
+import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Page({
   params,
@@ -16,14 +17,14 @@ export default async function Page({
     data = await marketingDetail(a, id).catch((e) => pageError(e, holdingSlug)),
     x = data.candidate;
   return (
-    <div className="content-stack">
+    <PageContent as="div" className="ui-page-content">
       <Link href={`${base}/marketing`}>Marketing</Link>
       <h1>{String(x.contact_name)}</h1>
       <p>
         {String(x.form_name)} · {String(x.status)}
       </p>
       <MarketingConsole base={base} detail={data} />
-      <section className="card">
+      <Card as="section" appearance="standard" className="ui-panel">
         <h2>Engagement history</h2>
         {data.history.map((h) => (
           <p key={String(h.id)}>
@@ -31,10 +32,10 @@ export default async function Page({
             {String(h.channel)} · {String(h.evidence)}
           </p>
         ))}
-      </section>
+      </Card>
       {x.crm_lead_id && (
         <Link href={`${base}/crm/${x.crm_lead_id}`}>Open CRM lead</Link>
       )}
-    </div>
+    </PageContent>
   );
 }

@@ -11,6 +11,7 @@ import { frontOrigin, frontVisibleLocation } from "@/lib/front-host";
 import { assignmentApplies } from "@/lib/workspace-access";
 import { iamRoles } from "./iam-store";
 import { readWorkSelection, selectWorkRole } from "./work-role-store";
+import {publishedBrandIdentity} from "./brand-identity";
 
 export type FrontAppKind = "pos" | "pms";
 export type FrontLocation = { key: string; label: string; path: string };
@@ -134,6 +135,7 @@ export async function frontCompanyBrand(holdingSlug: string, companySlug: string
     logo_publication_id:string|null;
   }>();
   if (!company) return null;
+  const published=await publishedBrandIdentity(write,company.id);
 
   return {
     holdingId: binding.id,
@@ -141,10 +143,10 @@ export async function frontCompanyBrand(holdingSlug: string, companySlug: string
     companyId: company.id,
     companySlug: company.slug,
     companyName: company.display_name,
-    shortName: company.short_name?.trim() || Array.from(company.display_name.trim()).slice(0, 40).join(""),
-    accentColor: company.accent_color ?? "#3659c9",
-    logoAttachmentId: company.logo_attachment_id,
-    logoPublicationId:company.logo_publication_id,
+    shortName: published?published.identity.identity.shortName:company.short_name?.trim() || Array.from(company.display_name.trim()).slice(0, 40).join(""),
+    accentColor: published?.identity.visual.accentColor??company.accent_color ?? "#3659c9",
+    logoAttachmentId: published?null:company.logo_attachment_id,
+    logoPublicationId:published?published.identity.visual.logoPublicationId:company.logo_publication_id,
   };
 }
 
@@ -224,8 +226,8 @@ export async function storefrontLogo(holdingSlug: string, companySlug: string) {
   if (!brand?.logoPublicationId) return null;
   const { write, files } = await holdingResources(brand.holdingId);
   const publication=await write.prepare(`SELECT p.derivative_object_key object_key,p.derivative_media_type media_type FROM attachment_publications p
-    JOIN storefront_app_brands b ON b.company_id=? AND b.logo_publication_id=p.id WHERE p.id=? AND p.state='approved'`)
-    .bind(brand.companyId,brand.logoPublicationId).first<{object_key:string;media_type:string}>();
+    WHERE p.company_id=? AND p.target_type='company_storefront_brand' AND p.target_id=? AND p.id=? AND p.state='approved'`)
+    .bind(brand.companyId,brand.companyId,brand.logoPublicationId).first<{object_key:string;media_type:string}>();
   if(!publication)return null;
   const object = await files.get(publication.object_key);
   if (!object) return null;

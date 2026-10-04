@@ -1,5 +1,7 @@
 # RFQ → supplier comparison → independent award → draft PO
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 ขอบเขตจำลองชุด C/S03: ฝ่ายจัดซื้อระบุ demand/หลักฐาน คลัง วันต้องการ และ product/quantity/UOM; บันทึกข้อเสนอครบทุกบรรทัดจากผู้ขายแต่ละรายในสกุลเงิน Company; เปรียบเทียบราคารวม ภาษี วันส่ง และวันหมดอายุ; เสนอผู้ชนะพร้อมเหตุผลรวมการยอมรับส่งช้า; ผู้จัดการคนอื่นอนุมัติ; สร้าง PO draft ใน transaction เดียวกับ RFQ handoff แล้วดำเนิน workflow PO เดิมต่อ
 
 เริ่มจาก Sales & purchasing → Purchase orders → Supplier quotations & award reviews. Work มีคิว `Supplier quotation reviews`; ผู้สร้าง/ผู้เสนอ/ผู้บันทึกข้อเสนอที่เลือกไม่มีสิทธิ์อนุมัติ award ของตัวเอง แม้สลับ role. Inbox และ Calendar ตรวจ scope จาก RFQ owner; คิวไม่มีผู้มีสิทธิ์แสดง blocked reason ให้ Company administrator ซ่อม role coverage

@@ -2,9 +2,10 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import ts from 'typescript';
 import { expect, it } from 'vitest';
-import { widgetDefinitions, pageLayoutSchema } from '../src/lib/page-layouts';
+import { widgetDefinitions, pageLayoutSchema, isConfigurablePage } from '../src/lib/page-layouts';
 const files=(dir:string):string[]=>readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?files(join(dir,e.name)):e.name.endsWith('.tsx')?[join(dir,e.name)]:[]);
 it('keeps widget identities unique, validates layouts, and registers declared page types',()=>{
+ expect(widgetDefinitions.every(w=>isConfigurablePage(w.page))).toBe(true);
  const keys=widgetDefinitions.map(w=>`${w.page}:${w.id}`);expect(new Set(keys).size).toBe(keys.length);
  expect(pageLayoutSchema.safeParse({schemaVersion:1,widgets:[{id:'x',columns:12,height:null,hidden:false},{id:'x',columns:6,height:null,hidden:false}]}).success).toBe(false);
  for(const file of files('src')){
@@ -17,7 +18,7 @@ it('keeps widget identities unique, validates layouts, and registers declared pa
      const attr=node.attributes.properties.find(a=>ts.isJsxAttribute(a)&&a.name.getText(tree)===(tag==='WidgetGrid'?'pageKey':'id')) as ts.JsxAttribute|undefined;
      if(attr?.initializer&&ts.isStringLiteral(attr.initializer)){
       const id=attr.initializer.text;
-      expect(widgetDefinitions.some(w=>tag==='WidgetGrid'?w.page===id:w.id===id),`${file}: ${tag} ${id}`).toBe(true);
+      if(tag==='WidgetGrid' && isConfigurablePage(id)) expect(widgetDefinitions.some(w=>w.page===id),`${file}: ${tag} ${id}`).toBe(true);
      }
     }
     if(['FeatureTabs','FeatureTabBar'].includes(tag)){

@@ -14,8 +14,15 @@ import { executiveScope, requireAuthor } from "./access";
 import { reportAccess } from "./reports";
 import { metricBreakdowns } from "./metrics";
 import { executiveAiContext } from "./context";
+import {assertProductionModuleEnabled,productionFeatureGuard,scheduledFeaturePredicate} from "../hospitality-rollout";
 
 type Job={id:string;report_id:string;company_id:string;user_id:string;assignment_id:string;scope_key:string;question:string;input_json:string;actor_json:string;provider_json:string;state:Generation["state"];proposal_json:string|null;error:string|null;created_at:number;lease_token:string};
+const scheduledGeneration=(company:string)=>`(${scheduledFeaturePredicate(company,"operations")} AND ${scheduledFeaturePredicate(company,"agent")})`;
+const generationFeatureGuards=(db:SqlDatabase,key:string,company:string)=>process.env.NODE_ENV!=="production"?[]:[
+  db.prepare("SELECT company_id FROM engineering_verification_contexts WHERE company_id=? FOR SHARE").bind(company),
+  ...productionFeatureGuard(db,key,company,"agent"),
+  assertion(db,key,"executive-workspace-rollout",`EXISTS(SELECT 1 FROM organization_nodes worker_company WHERE worker_company.id=? AND ${scheduledGeneration("worker_company.id")})`,[company]),
+];
 export async function generationHistory(db:SqlDatabase,a:WorkContext,id:string):Promise<Generation[]> {
   const x=await reportAccess(db,a,id);if(!x.canEdit)return [];
   return (await db.prepare("SELECT * FROM executive_generation_jobs WHERE report_id=? AND user_id=? AND assignment_id=? AND scope_key=? ORDER BY created_at DESC LIMIT 30").bind(id,a.userId,a.assignmentId,executiveScope(a)).all<Job>()).results.reverse().map(j=>({id:j.id,question:j.question,state:j.state,proposal:j.proposal_json?proposalSchema.parse(JSON.parse(j.proposal_json)):null,error:j.error,createdAt:j.created_at}));
@@ -41,13 +48,14 @@ export async function cancelGeneration(db:SqlDatabase,a:WorkContext,id:string,jo
 }
 /** Durable queue: one lease per inference. Uncertain expired attempts fail visibly, never silently charge twice. */
 export async function drainExecutiveGeneration(db:SqlDatabase,env:BetaEnvironment,generate=generateProviderJson) {
-  await db.prepare("UPDATE executive_generation_jobs SET state='failed',error='Generation was interrupted. Your saved report is unchanged; retry to start a new attempt.',updated_at=? WHERE state='running' AND lease_until<?").bind(Date.now(),Date.now()).run();
+  await db.prepare(`UPDATE executive_generation_jobs j SET state='failed',error='Generation was interrupted. Your saved report is unchanged; retry to start a new attempt.',updated_at=? WHERE state='running' AND lease_until<? AND ${scheduledGeneration("j.company_id")}`).bind(Date.now(),Date.now()).run();
   const token=crypto.randomUUID();
-  const j=await db.prepare("UPDATE executive_generation_jobs SET state='running',lease_token=?,lease_until=?,attempts=attempts+1,updated_at=? WHERE id=(SELECT id FROM executive_generation_jobs WHERE state='queued' ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *").bind(token,Date.now()+120000,Date.now()).first<Job>();
+  const j=await db.prepare(`UPDATE executive_generation_jobs SET state='running',lease_token=?,lease_until=?,attempts=attempts+1,updated_at=? WHERE id=(SELECT id FROM executive_generation_jobs queued WHERE state='queued' AND ${scheduledGeneration("queued.company_id")} ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *`).bind(token,Date.now()+120000,Date.now()).first<Job>();
   if(!j)return false;
   let provider:Awaited<ReturnType<typeof resolveAiProvider>>|undefined;
   try {
     const a=JSON.parse(j.actor_json) as WorkContext;
+    await assertProductionModuleEnabled(db,j.company_id,"operations");await assertProductionModuleEnabled(db,j.company_id,"agent");
     await requireAuthor(db,a,"executive.report.edit");const x=await reportAccess(db,a,j.report_id);if(!x.canEdit)throw new ApiError(403,"REPORT_READ_ONLY","Report editing access has changed.");
     const input=JSON.parse(j.input_json) as {definition:unknown;filters:unknown;version:number;selectedWidget:string|null};
     if(x.r.version!==input.version)throw new ApiError(409,"REPORT_CHANGED","The report changed. Retry with its current design.");
@@ -72,6 +80,7 @@ Return a complete JSON proposal matching: ${JSON.stringify(z.toJSONSchema(propos
     }
     await requireAuthor(db,a,"executive.report.edit");const fresh=await reportAccess(db,a,j.report_id);if(!fresh.canEdit||fresh.r.version!==input.version)throw new ApiError(409,"REPORT_CHANGED","The report changed during generation. Retry with its current design.");
     await executeCommand(db,a,`${j.id}:complete`,"executive.generation.complete",{id:j.id},j.report_id,input.version,{id:j.id},[
+      ...generationFeatureGuards(db,`${j.id}:complete`,j.company_id),
       assertion(db,j.id,"generation-lease","EXISTS(SELECT 1 FROM executive_generation_jobs WHERE id=? AND state='running' AND lease_token=? AND lease_until>?)",[j.id,token,Date.now()]),
       aiSnapshotGuard(db,`${j.id}:complete`,provider.snapshot),
       db.prepare("UPDATE executive_generation_jobs SET state='ready',proposal_json=?,updated_at=? WHERE id=?").bind(JSON.stringify(proposal),Date.now(),j.id),
@@ -81,8 +90,10 @@ Return a complete JSON proposal matching: ${JSON.stringify(z.toJSONSchema(propos
   } catch(e) {
     if(e instanceof z.ZodError)console.warn("Executive proposal schema rejected",e.issues.map(({path,code})=>({path,code})));
     await db.batch([
+      ...generationFeatureGuards(db,`${j.id}:failed`,j.company_id),
       db.prepare("UPDATE executive_generation_jobs SET state='failed',error=?,updated_at=? WHERE id=? AND state='running' AND lease_token=?").bind(e instanceof ApiError?e.message:"AI could not produce a valid English report. Your saved report is unchanged. Try a simpler request.",Date.now(),j.id,token),
       ...(provider?[aiUsageStatement(db,j.id,provider.snapshot,"executive-canvas","failed",0,0,(JSON.parse(j.actor_json) as WorkContext).branchId)]:[]),
+      db.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(`${j.id}:failed`),
     ]);
   }
   return true;

@@ -1,3 +1,4 @@
+import {createEngineeringBrowserContext} from "./helpers/engineering-browser-evidence";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -48,15 +49,16 @@ test("isolated demo sends reviewed overtime from employee to payroll preview", a
 }, testInfo) => {
   const run = process.env.ERPX_DEMO_RUN;
   test.skip(!run, "Set ERPX_DEMO_RUN to an exact prepared browser-simulation run.");
+  test.setTimeout(120_000);
   const directory = resolve(`.runtime/browser/${run}`);
   const credentials = JSON.parse(
     await readFile(resolve(directory, "credentials.json"), "utf8"),
   ) as Credentials;
-  const employeeContext = await browser.newContext(testInfo.project.use);
-  const managerContext = await browser.newContext(testInfo.project.use);
-  const hrContext = await browser.newContext(testInfo.project.use);
-  const payrollContext = await browser.newContext(testInfo.project.use);
-  const unauthorizedContext = await browser.newContext(testInfo.project.use);
+  const employeeContext = await createEngineeringBrowserContext(browser,testInfo);
+  const managerContext = await createEngineeringBrowserContext(browser,testInfo);
+  const hrContext = await createEngineeringBrowserContext(browser,testInfo);
+  const payrollContext = await createEngineeringBrowserContext(browser,testInfo);
+  const unauthorizedContext = await createEngineeringBrowserContext(browser,testInfo);
   try {
     const employeePage = await employeeContext.newPage();
     const managerPage = await managerContext.newPage();
@@ -68,30 +70,30 @@ test("isolated demo sends reviewed overtime from employee to payroll preview", a
     await employeePage.goto("/holdings/simulation/overtime/new", {
       waitUntil: "domcontentloaded",
     });
-    await employeePage.getByLabel("Request path").selectOption("retrospective");
-    await employeePage.getByLabel("Actual start").fill("2026-09-10T22:00");
-    await employeePage.getByLabel("Actual end").fill("2026-09-11T02:00");
-    await employeePage.getByLabel("Unpaid break (minutes)").fill("30");
-    await employeePage.getByLabel("Reason", { exact: true }).fill(
+    await employeePage.locator('#workspace-content').getByLabel("Request path").selectOption("retrospective");
+    await employeePage.locator('#workspace-content').getByLabel("Actual start").fill("2026-09-10T22:00");
+    await employeePage.locator('#workspace-content').getByLabel("Actual end").fill("2026-09-11T02:00");
+    await employeePage.locator('#workspace-content').getByLabel("Unpaid break (minutes)").fill("30");
+    await employeePage.locator('#workspace-content').getByLabel("Reason", { exact: true }).fill(
       "Fictional Demo support escalation coverage.",
     );
-    await employeePage.getByLabel("Late-submission explanation").fill(
+    await employeePage.locator('#workspace-content').getByLabel("Late-submission explanation").fill(
       "This acceptance scenario records a retrospective claim after the work date.",
     );
     await employeePage.getByRole("button", { name: "Review calculated hours" }).click();
-    await expect(employeePage.getByText("3.5 hours", { exact: true })).toBeVisible();
+    await expect(employeePage.locator('#workspace-content').getByText("3.5 hours", { exact: true })).toBeVisible();
     await employeePage.getByRole("button", { name: "Save draft to continue" }).click();
     await expect(employeePage).toHaveURL(/\/overtime\/ot-/);
     const overtimeUrl = employeePage.url();
     const overtimeId = new URL(overtimeUrl).pathname.split("/").pop();
     expect(overtimeId).toBeTruthy();
     await employeePage.reload({ waitUntil: "domcontentloaded" });
-    await expect(employeePage.getByLabel("Actual start")).toHaveValue("2026-09-10T22:00");
-    await expect(employeePage.getByLabel("Actual end")).toHaveValue("2026-09-11T02:00");
-    await expect(employeePage.getByLabel("Unpaid break (minutes)")).toHaveValue("30");
+    await expect(employeePage.locator('#workspace-content').getByLabel("Actual start")).toHaveValue("2026-09-10T22:00");
+    await expect(employeePage.locator('#workspace-content').getByLabel("Actual end")).toHaveValue("2026-09-11T02:00");
+    await expect(employeePage.locator('#workspace-content').getByLabel("Unpaid break (minutes)")).toHaveValue("30");
 
     await employeePage.getByRole("button", { name: "Review calculated hours" }).click();
-    await expect(employeePage.getByText("3.5 hours", { exact: true })).toBeVisible();
+    await expect(employeePage.locator('#workspace-content').getByText("3.5 hours", { exact: true })).toBeVisible();
     const submitResponse = employeePage.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
@@ -153,14 +155,14 @@ test("isolated demo sends reviewed overtime from employee to payroll preview", a
     await payrollPage.goto("/holdings/simulation/people/payroll/settings", {
       waitUntil: "domcontentloaded",
     });
-    await payrollPage.getByRole("button", { name: "Create payroll preview", exact: true }).click();
-    const createForm = payrollPage.locator("form").filter({ hasText: "Select pay group" });
+    await payrollPage.getByRole("button", { name: "Create payroll run", exact: true }).click();
+    const createForm = payrollPage.locator('#workspace-content').locator("form").filter({ hasText: "Select pay group" });
     await createForm
       .locator('select[name="payGroupId"]')
       .selectOption({ label: "Demo monthly payroll · THB" });
     await createForm.locator('input[name="periodStart"]').fill("2026-09-01");
     await createForm.locator('input[name="periodEnd"]').fill("2026-09-30");
-    await createForm.locator('input[name="payDate"]').fill("2026-09-30");
+    await createForm.locator('input[name="payDate"]').fill("2026-10-01");
     const createResponse = payrollPage.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
@@ -176,16 +178,16 @@ test("isolated demo sends reviewed overtime from employee to payroll preview", a
         response.request().method() === "POST" &&
         response.url().endsWith(`/payroll/runs/${runId}/calculate`),
     );
-    await payrollPage.getByRole("button", { name: "Calculate gross-pay preview", exact: true }).click();
+    await payrollPage.getByRole("button", { name: "Calculate payroll preview", exact: true }).click();
     expect((await calculateResponse).status()).toBe(200);
-    await expect(payrollPage.getByText("THB 1000.00").first()).toBeVisible();
+    await expect(payrollPage.locator('#workspace-content').getByText("THB 1,052.50").first()).toBeVisible();
 
     const payrollResponse = await payrollContext.request.get(
       `/api/v1/holdings/simulation/people/payroll/runs/${runId}`,
     );
     expect(payrollResponse.status()).toBe(200);
     const payrollData = (await payrollResponse.json()).data as {
-      items: Array<{ input_snapshot_json: string }>;
+      items: Array<{ input_snapshot_json: string;result_json:string;gross_minor:number }>;
     };
     const item = payrollData.items.find((entry) => {
       const snapshot = JSON.parse(entry.input_snapshot_json) as {
@@ -197,6 +199,8 @@ test("isolated demo sends reviewed overtime from employee to payroll preview", a
     const input = JSON.parse(item!.input_snapshot_json) as {
       hours: { overtime: number; handoffs: Array<{ id: string; request_id: string; minutes: number }> };
     };
+    expect(item!.gross_minor).toBe(105250);
+    expect(JSON.parse(item!.result_json)).toMatchObject({grossMinor:105250,explanation:{hourlyRateMinor:1000,overtimeHours:3.5,overtimeMinor:5250}});
     expect(input.hours.overtime).toBe(3.5);
     expect(input.hours.handoffs).toContainEqual(
       expect.objectContaining({ request_id: overtimeId, minutes: 210 }),

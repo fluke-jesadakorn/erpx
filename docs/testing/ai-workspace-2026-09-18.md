@@ -1,5 +1,7 @@
 # AI workspace acceptance — 2026-09-18
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 ## Implemented and verified
 
 - Acme Corporation's selected custom connection is **OpenCode Go · Muse Spark 1.3**, model `muse-spark-1.3-contributor`, Responses protocol at `https://opencode.ai/zen/go/v1`. Text and image verification passed through the actual Next.js application; activation and default selection persisted after reload. Credentials remain encrypted server-side. No credential values are included in this report.

@@ -1,3 +1,5 @@
+
+import { PageContent } from "@/components/ui/patterns";
 import { selfServiceSeed } from "@/server/self-service";
 import { SocialHome } from "./social-home";
 import { homePosts, postView, socialAudienceOptions } from "@/server/social-home";
@@ -11,17 +13,20 @@ const initialFeedSize = 8;
 export async function SocialPage({
   actor,
   postId,
+  tag,
 }: {
   actor: WorkContext;
   postId?: string;
+  tag?: string;
 }) {
   const { write } = await holdingResources(actor.holdingId);
   const base = workspaceBase(publicScope(actor));
   const initialDay = !postId && !actor.beta ? selfServiceSeed(actor).catch(() => null) : undefined;
-  const [posts, options, moderate] = await Promise.all([
+  const [posts, milestones, options, moderate] = await Promise.all([
     postId
       ? postView(write, actor, postId).then((p) => [p])
-      : homePosts(write, actor, { limit: initialFeedSize }),
+      : homePosts(write, actor, { limit: initialFeedSize, stream: "conversations", tag }),
+    postId ? Promise.resolve([]) : homePosts(write, actor, { limit: initialFeedSize, stream: "milestones", tag }),
     socialAudienceOptions(write, actor),
     companyAuthority(write, actor, ["holding_owner"]),
   ]);
@@ -37,6 +42,7 @@ export async function SocialPage({
       canModerate={moderate}
       canRequestLegal={hasPermission(actor, "legal.create")}
       initialPosts={posts}
+      initialMilestones={milestones}
       initialMeta={{
         handoffContext: { companyId: actor.companyId, userId: actor.userId,
           assignmentId: actor.assignmentId, base: workspaceBase(publicScope(actor)) },
@@ -51,7 +57,7 @@ export async function SocialPage({
       calendarEnabled={!actor.beta}
       initialDay={initialDay}
     />
-    {post&&<div className="content"><RecordDocumentPanel
+    {post&&<PageContent ><RecordDocumentPanel appearance="standard"
       base={base}
       targetType="social_post"
       targetId={post.id}
@@ -63,7 +69,7 @@ export async function SocialPage({
       }:{
         key:'thread_file',label:'Conversation file',description:'Add a controlled file revision to this conversation.',visibility:'Access follows the conversation audience and is rechecked on every read.',
       }]}
-    /></div>}
+    /></PageContent>}
     </>
   );
 }

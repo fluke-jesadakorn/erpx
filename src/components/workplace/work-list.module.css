@@ -1,29 +1,169 @@
-.list { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
-.row { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 18px 20px 18px 16px; border-left: 4px solid var(--work-accent); background: var(--card); }
-.row[data-tone="violet"] { --work-accent: var(--violet); --work-background: var(--violet-soft); }
-.row[data-tone="blue"] { --work-accent: var(--blue); --work-background: var(--blue-soft); }
-.row[data-tone="teal"] { --work-accent: var(--teal); --work-background: var(--teal-soft); }
-.row[data-tone="green"] { --work-accent: var(--green); --work-background: var(--green-soft); }
-.row[data-tone="amber"] { --work-accent: var(--amber); --work-background: var(--amber-soft); }
-.row[data-tone="brand"] { --work-accent: var(--brand-strong); --work-background: var(--brand-soft); }
-.row + .row { border-top: 1px solid var(--line); }
-.row:hover { background: color-mix(in srgb, var(--work-accent) 8%, var(--card)); }
-.row:focus-visible { outline-offset: -3px; }
-.body { min-width: 0; flex: 1; }
-.type { display: block; color: var(--work-accent); font-size: 12px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 4px; }
-.title { display: block; color: var(--ink-strong); font-size: var(--type-card); line-height: 1.35; overflow-wrap: anywhere; }
-.action { color: var(--ink); font-size: 14px; margin: 5px 0 10px; overflow-wrap: anywhere; }
-.flow { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
-.owner { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
-.owner small, .next small { display: block; font-size: 12px; }
-.owner strong { color: var(--ink); font-size: 13px; font-weight: 550; overflow-wrap: anywhere; }
-.current { color: var(--brand-strong); background: var(--brand-soft); padding: 4px 8px; border-radius: 6px; overflow-wrap: anywhere; }
-.next { display: inline-flex; gap: 8px; align-items: center; overflow-wrap: anywhere; }
-.due { display: block; margin-top: 10px; font-size: 13px; color: var(--muted); }
-.blocker { margin: 10px 0 0; color: var(--amber); font-size: 13px; overflow-wrap: anywhere; }
-.row > :global(.badge) { margin-top: 2px; font-size: 12px; max-width: 35%; white-space: normal; overflow-wrap: anywhere; }
-@media (max-width:650px) {
-  .row { gap: 10px; padding: 16px; flex-wrap: wrap; }
-  .body { flex-basis: 100%; }
-  .row > :global(.badge) { max-width: 100%; }
+.list {
+  background: var(--ui-card);
+  border: 1px solid var(--ui-line);
+  border-radius: 14px;
+  overflow: hidden;
 }
+.row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  flex-wrap: wrap;
+  border-left: 4px solid var(--work-accent);
+  background: var(--ui-card);
+}
+.row[data-tone="violet"] {
+  --work-accent: var(--ui-violet);
+  --work-background: var(--ui-violet-soft);
+}
+.row[data-tone="blue"] {
+  --work-accent: var(--ui-blue);
+  --work-background: var(--ui-blue-soft);
+}
+.row[data-tone="teal"] {
+  --work-accent: var(--ui-teal);
+  --work-background: var(--ui-teal-soft);
+}
+.row[data-tone="green"] {
+  --work-accent: var(--ui-green);
+  --work-background: var(--ui-green-soft);
+}
+.row[data-tone="amber"] {
+  --work-accent: var(--ui-amber);
+  --work-background: var(--ui-amber-soft);
+}
+.row[data-tone="brand"] {
+  --work-accent: var(--ui-brand-strong);
+  --work-background: var(--ui-brand-soft);
+}
+.row + .row {
+  border-top: 1px solid var(--ui-line);
+}
+.row:hover {
+  background: color-mix(in srgb, var(--work-accent) 8%, var(--ui-card));
+}
+.row:focus-visible {
+  outline-offset: -3px;
+}
+.body {
+  min-width: 0;
+  flex: 1 1 70%;
+}
+.commands {
+  display: grid;
+  justify-items: end;
+  gap: 12px;
+  max-width: 35%;
+}
+.commands :global(.badge) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.commands button {
+  min-height: 40px;
+}
+.type {
+  display: block;
+  color: var(--work-accent);
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.title {
+  display: block;
+  color: var(--ui-ink-strong);
+  font-size: 14px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+.action {
+  color: var(--ui-ink);
+  font-size: 14px;
+  margin: 4px 0 8px;
+  overflow-wrap: anywhere;
+}
+.flow {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--ui-muted);
+}
+.owner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.owner small,
+.next small {
+  display: block;
+  font-size: 12px;
+}
+.owner strong {
+  color: var(--ui-ink);
+  font-size: 13px;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+.current {
+  color: var(--ui-brand-strong);
+  background: var(--ui-brand-soft);
+  padding: 4px 8px;
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+.next {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  overflow-wrap: anywhere;
+}
+.due {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--ui-muted);
+}
+.blocker {
+  margin: 10px 0 0;
+  color: var(--ui-amber);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.row > :global(.badge) {
+  margin-top: 2px;
+  font-size: 12px;
+  max-width: 35%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 650px) {
+  .row {
+    gap: 10px;
+    padding: 16px;
+    flex-wrap: wrap;
+  }
+  .body {
+    flex-basis: 100%;
+  }
+  .commands {
+    max-width: 100%;
+    display: flex;
+    align-items: center;
+  }
+  .row > :global(.badge) {
+    max-width: 100%;
+  }
+}
+
+.followups { display: block; margin-top: 4px; color: var(--ui-muted); font-size: 13px; line-height: 18px; }
+.followupDetails { flex-basis: 100%; order: 3; font-size: 13px; color: var(--ui-muted); }
+.followupDetails summary { cursor: pointer; min-height: 44px; padding-block: 12px; }
+.followupDetails ul { display: grid; gap: 8px; margin: 8px 0; padding-left: 20px; }
+.followupDetails li span { display: block; }

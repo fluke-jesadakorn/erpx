@@ -117,6 +117,8 @@ SiteMinder remains deferred: connection credentials and property/room-type/rate-
 
 ## Verification and rollout
 
+> Recorded observations apply to their stated date/environment. Current coverage and remaining acceptance are in the [verification inventory](../../status/capability-delivery-matrix.md); old gaps do not override current owner behavior.
+
 Automated PostgreSQL cases in `tests/pms.test.ts` cover the full receipt/stay/audit/checkout path; last-room races; duplicate OTA references; stale versions; independent readiness; group pickup; advances versus damage deposits; refunds/replacement receipt allocation; split/merge/correction; manual OTA settlement; room move/extension; date pricing; Inventory atomicity; closed periods; revoked authority; worker recovery; Finance ownership and the POS contract.
 
 Run with the pinned Node 24.20.0 and Bun 1.2.17:

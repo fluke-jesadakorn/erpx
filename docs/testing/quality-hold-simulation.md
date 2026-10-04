@@ -1,5 +1,7 @@
 # Quality hold — ชุด C (จำลองบางส่วน)
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 ## ขอบเขตที่พัฒนา
 
 หน้า `/holdings/{holdingSlug}/quality` และ API `/api/v1/holdings/{holdingSlug}/quality` เพิ่ม owner service สำหรับกักสินค้าทั้งชนิดในคลังเดียวกัน ไม่ใช่ราย lot/serial และไม่เปลี่ยนจำนวนหรือมูลค่าสินค้าเดิม

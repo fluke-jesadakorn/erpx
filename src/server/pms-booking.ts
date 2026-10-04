@@ -29,6 +29,7 @@ import { executePms, PmsError } from "@/lib/pms-engine";
 import { effects as persistPmsEffects, persistPmsRecords } from "./pms";
 import { stripeCall } from "./pos-stripe";
 import { ApiError } from "./http";
+import { snapshotMoney } from "./company-money";
 import type { WorkContext } from "./authorization";
 import { requirePermission } from "./iam-permissions";
 import { holdingBindingBySlug, holdingResources, runtimeEnv } from "./runtime";
@@ -483,6 +484,8 @@ export async function createPublicReservation(
     }
     const attemptId=randomUUID(),expiresAt=now+30*60*1000;
     await run(tx,"INSERT INTO pms_booking_payments(id,property_id,reservation_id,company_id,holding_slug,account_id,livemode,amount_minor,currency,status,expires_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,'THB','payment_pending',?,?,?)",attemptId,s.property.id,result.id,s.property.companyId,slug,connection!.account_id,connection!.livemode,fresh.total,expiresAt,now,now);
+    const money=await snapshotMoney(tx,{companyId:s.property.companyId},{sourceType:'pms_booking_payment',sourceId:attemptId,amountKind:'requested',transactionDate:s.property.businessDate,currency:'THB',amountUnits:String(fresh.total)});
+    await money.statement.run();
     const response = {attemptId};
     await run(
       tx,
@@ -569,12 +572,17 @@ export async function reconcileBookingPayment(db:TransactionalSqlDatabase,id:str
    const clearing=settings?JSON.parse(settings.accounts_json).stripe as string:s.property.config.accounts.edc;
    if(!clearing)throw new ApiError(409,'PMS_STRIPE_CLEARING_REQUIRED','Configure a company Stripe clearing account');
    const oldEdc=s.property.config.accounts.edc;s.property.config.accounts.edc=clearing;
-   for(const stay of records(s,'stay').filter(st=>st.data.reservationId===current.reservation_id)){
+   let allocated=0;
+   for(const stay of records(s,'stay').filter(st=>st.data.reservationId===current.reservation_id).sort((a,b)=>a.id.localeCompare(b.id))){
     const amount=stay.data.prices.reduce((sum,p)=>sum+p.total,0);
     const outcome=executePms(s,'payment.stripe',{folioId:stay.data.folioId,amount,reference:String(current.checkout_id)},{userId:'system:stripe',now,uuid:randomUUID,independent:()=>false});
+    record(s,'entry',outcome.id).data.sourceKey=`online-payment:${current.id}`;
+    record(s,'entry',outcome.id).data.providerPaymentOffset=allocated;
+    allocated+=amount;
     await persistPmsRecords(tx,s,before);
     await persistPmsEffects(tx,{companyId:current.company_id,userId:'system:stripe'} as WorkContext,s,outcome.effects);
    }
+   if(allocated!==Number(current.amount_minor))throw new ApiError(409,'PMS_PAYMENT_ALLOCATION_CHANGED','The confirmed room allocations must equal the original provider payment.');
    s.property.config.accounts.edc=oldEdc;
    await persist(tx,s,before);
    await run(tx,"UPDATE pms_booking_payments SET status='confirmed',paid_at=?,updated_at=? WHERE id=?",now,now,id);

@@ -52,6 +52,17 @@ export async function taxDocumentView(actor:WorkContext, invoiceId:string) {
   const documents=(await db.prepare('SELECT * FROM hospitality_tax_documents WHERE company_id=? AND invoice_id=? ORDER BY created_at DESC,id DESC').bind(actor.companyId,invoice.id).all<Document>()).results;
   return { invoice:{id:invoice.id,sourceType:invoice.source_type,currency:invoice.currency,totalMinor:Number(invoice.total_minor),taxMinor:Number(invoice.tax_minor),status:invoice.status}, documents, canRecord:hasPermission(actor,invoice.source_type==='pos'?'pos.sell':'pms.cashier'), canReview:hasPermission(actor,'finance.approve'), userId:actor.userId };
 }
+/** Front records its own operational source; independent Finance review stays with Finance. */
+export async function frontTaxDocumentView(actor:WorkContext, invoiceId:string, app:'pos'|'pms') {
+  const view=await taxDocumentView(actor,invoiceId);
+  if(view.invoice.sourceType!==app)throw new ApiError(404,'TAX_DOCUMENT_INVOICE_NOT_FOUND','Invoice not found in this Front app.');
+  return {...view,canReview:false};
+}
+export async function frontTaxDocumentCommand(actor:WorkContext, command:TaxDocumentCommand, key:string, app:'pos'|'pms') {
+  if(command.action!=='record')throw new ApiError(403,'FRONT_COMMAND_FORBIDDEN','Independent document review belongs in Finance.');
+  await frontTaxDocumentView(actor,command.invoiceId,app);
+  return taxDocumentCommand(actor,command,key);
+}
 export async function taxDocumentCommand(actor:WorkContext, command:TaxDocumentCommand, key:string) {
   const {write:db}=await holdingResources(actor.holdingId);
   const operation=`hospitality.tax_document.${command.action}`;

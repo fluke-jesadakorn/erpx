@@ -1,7 +1,12 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { Button, Table as UiTable } from "@/components/ui/foundation";
+
 import { TimeText } from "@/components/time/time-preference-context";
 import { useState } from "react";
 import s from "./legal.module.css";
+import { TableFrame } from "@/components/ui/foundation";
 type Row = Record<string, string | number | null>;
 type Reports = {
   asOf: number;
@@ -32,20 +37,12 @@ const names: Record<string, string> = {
   error: "Failure reason",
   created_at: "Queued at",
 };
-function Table({
-  rows,
-  open,
-}: {
-  rows: Row[];
-  open: (id: string) => Promise<void>;
-}) {
+function Table({ rows, open }: { rows: Row[]; open: (id: string) => Promise<void> }) {
   if (!rows.length) return <p className={s.small}>No matching records.</p>;
-  const columns = Object.keys(rows[0]).filter(
-    (k) => !["id", "item_id"].includes(k),
-  );
+  const columns = Object.keys(rows[0]).filter((k) => !["id", "item_id"].includes(k));
   return (
-    <div style={{ overflowX: "auto" }}>
-      <table className={s.table}>
+    <TableFrame appearance="standard" label="Report records">
+      <UiTable className={s.table}>
         <thead>
           <tr>
             {columns.map((k) => (
@@ -59,14 +56,16 @@ function Table({
               {columns.map((k) => (
                 <td key={k}>
                   {k === "title" && r.id ? (
-                    <button
+                    <Button appearance="standard"
+                      type="submit"
+                      variant="ghost"
                       className={s.link}
                       onClick={() => void open(String(r.id))}
                     >
                       {r[k]}
-                    </button>
+                    </Button>
                   ) : k === "created_at" ? (
-                    <TimeText value={Number(r[k])} />
+                    <TimeText appearance="standard" value={Number(r[k])} />
                   ) : (
                     String(r[k] ?? "—")
                   )}
@@ -75,8 +74,8 @@ function Table({
             </tr>
           ))}
         </tbody>
-      </table>
-    </div>
+      </UiTable>
+    </TableFrame>
   );
 }
 export function LegalReports({
@@ -91,7 +90,9 @@ export function LegalReports({
     [busy, setBusy] = useState(false);
   return (
     <div className={s.toolContent}>
-      <button
+      <Button appearance="standard"
+        type="submit"
+        variant="ghost"
         className={s.button}
         disabled={busy}
         onClick={async () => {
@@ -107,13 +108,12 @@ export function LegalReports({
         }}
       >
         Refresh reports
-      </button>
-      {error && <p role="alert">{error}</p>}
+      </Button>
+      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
       {data && (
         <>
           <p className={s.small}>
-            As of <TimeText value={data.asOf} />. Results follow your
-            current record permissions.
+            As of <TimeText appearance="standard" value={data.asOf} />. Results follow your current record permissions.
           </p>
           {(
             [

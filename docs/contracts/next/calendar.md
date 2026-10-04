@@ -46,6 +46,8 @@ My Calendar Day and Week use a timed grid with an all-day area. Dragging an empt
 
 ## Verification
 
+> Recorded observations apply to their stated date/environment. Current coverage and remaining acceptance are in the [verification inventory](../../status/capability-delivery-matrix.md); old gaps do not override current owner behavior.
+
 `tests/calendar.test.ts` covers source privacy, Company/workspace boundaries, participants, delegates, hierarchy identity, future/ended engagements, independent cutoffs, ordinary and privileged preparation, all-day leave, overnight shifts, DST validation, pagination, overlap warnings, idempotency, concurrent edits and explicit source failures. `tests/calendar-api.test.ts` checks direct request validation, origin, permissions, defaults and cache policy. Existing roster, lifecycle, staff-workflow, inbox/navigation and migration suites provide regression coverage. Browser checks require normal authenticated sessions; authentication is never bypassed.
 
 Verified on 2026-09-17: 103 tests passed across 11 calendar, roster, lifecycle, staff-work, migration and navigation suites; typecheck, lint and the isolated release build passed. Authenticated public browser checks covered the weekly grid, month overview, reporting hierarchy, search, appointment/announcement forms, event history, embedded roster and task planning. A 390px viewport defaulted to agenda and displayed the mobile form and detail panel correctly; Escape closed dialogs. Local and public health returned HTTP 200.

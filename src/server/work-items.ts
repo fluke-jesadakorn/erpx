@@ -16,6 +16,7 @@ import { holdingResources } from "./runtime";
 import { employeeRequestWork } from "./employee-requests";
 import { departmentOverrideWork } from "./department-decisions";
 import { ApiError } from "./http";
+import { sourceRecordLabel } from "@/lib/source-record";
 
 export type WorkSnapshot = { items: WorkItem[]; unavailableSources: string[] };
 
@@ -47,7 +48,22 @@ export function mergeWorkItems(rows: WorkItem[]) {
       ],
     });
   }
-  return [...merged.values()].sort(compareWork);
+  const items = [...merged.values()];
+  // Alerts remain separate in notification history, but share one work context.
+  const holds = new Map(items.filter(item => item.type === "quality_hold").map(item => [item.id, item]));
+  for (const alert of items.filter(item => item.type === "quality_alert")) {
+    const hold = holds.get(alert.source?.id ?? alert.href.split("/").at(-1) ?? "");
+    if (!hold || hold.queue === "completed") continue;
+    hold.relatedAlerts = [...(hold.relatedAlerts ?? []), { id: alert.id, title: alert.title, nextAction: alert.nextAction ?? alert.detail, completed: alert.queue === "completed" }];
+    hold.relationships = [...new Set([...(hold.relationships ?? []), ...(alert.relationships ?? [])])];
+    if (isMyAction(alert) && !isMyAction(hold)) {
+      hold.canAct = true; hold.queue = "todo"; hold.actionKind = "work";
+      hold.nextAction = alert.nextAction ?? alert.detail;
+    }
+  }
+  return items.filter(item => item.type !== "quality_alert" || !holds.has(item.source?.id ?? item.href.split("/").at(-1) ?? "") || holds.get(item.source?.id ?? item.href.split("/").at(-1) ?? "")?.queue === "completed")
+    .map(item => ({ ...item, source: item.source ?? { kind: item.type, id: item.id, href: item.href, label: sourceRecordLabel(item.type), ...(item.flow ? {version: item.flow.recordVersion} : {}) } }))
+    .sort(compareWork);
 }
 export function nextWorkSteps(items: WorkItem[], now = Date.now()) {
   return items
@@ -120,6 +136,7 @@ export async function readWorkSnapshot(actor: WorkContext): Promise<WorkSnapshot
             status: row.state,
             updatedAt: row.updated_at,
             queue: row.queue,
+            actionKind: row.isApproval ? "approval" as const : "work" as const,
             responsibleQueue: row.currentApprover ?? "Requester",
             blocker: row.blockedReason,
             relationships: [
@@ -153,8 +170,11 @@ export async function readWorkSnapshot(actor: WorkContext): Promise<WorkSnapshot
   if (!actor.beta) jobs.push({label:"Support tickets",load:async()=>(await import("./support")).supportWork(actor)});
   if (!actor.beta) jobs.push({label:"Temporary support access",load:async()=>(await import("./support-sessions")).supportSessionWork(actor)});
   if (!actor.beta) jobs.push({label:"Maintenance work",load:async()=>(await import("./asset-maintenance")).maintenanceWork(actor)});
+  if (!actor.beta) jobs.push({label:"Preventive maintenance",load:async()=>(await import("./maintenance-preventive")).preventivePlanWork(actor)});
+  if (!actor.beta) jobs.push({label:"Project handoffs",load:async()=>(await import("./project-structure")).projectHandoffWork(actor)});
   if (!actor.beta) jobs.push({label:"Field service",load:async()=>(await import("./field-service")).fieldServiceWork(actor)});
   if (!actor.beta) jobs.push({label:"Cross-record actions",load:async()=>(await import("./collaboration-work")).collaborationActionWork(actor)});
+  if (!actor.beta) jobs.push({label:"Operational exceptions",load:async()=>(await import("./operations-exceptions")).operationsExceptionWork(actor)});
   if (!actor.beta) jobs.push({label:"Learning assignments",load:async()=>(await import("./learning")).learningWork(actor)});
   if (!actor.beta) jobs.push({label:"Benefit enrollments",load:async()=>(await import("./benefits")).benefitWork(actor)});
   if (!actor.beta) jobs.push({label:"Talent applications",load:async()=>(await import("./talent")).talentWork(actor)});
@@ -185,8 +205,10 @@ export async function readWorkSnapshot(actor: WorkContext): Promise<WorkSnapshot
       'Organization changes':['organization'], 'Company setup acceptance':['organization'], POS:['pos'],
       'CRM pipeline':['crm'], 'Support target escalations':['support'], 'Support incidents':['support'],
       'Support SLA policies':['support'], 'Support tickets':['support'], 'Temporary support access':['support'],
-      'Maintenance work':['maintenance'], 'Field service':['field_service'],
+      'Maintenance work':['maintenance'], 'Preventive maintenance':['maintenance'], 'Field service':['field_service'],
+      'Project handoffs':['projects'],
       'Cross-record actions':['collaboration'], 'Learning assignments':['learning'],
+      'Operational exceptions':['operations'],
       'Benefit enrollments':['benefits'], 'Talent applications':['talent'],
       'Marketing lead candidates':['marketing'], 'Manufacturing orders':['manufacturing'],
       'Customer access reviews':['customer_authority'], 'Customer duplicate reviews':['customer_authority'],

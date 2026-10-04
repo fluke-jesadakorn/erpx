@@ -28,8 +28,7 @@ beforeAll(async () => {
 });
 beforeEach(async () => {
   f = await expenseFixture();
-  f.head.role = "support_agent";
-  f.head.assignmentId = await f.grant(f.head, "support_agent");
+  for(const actor of [f.head,f.claimant,f.tie]){await db.prepare('UPDATE assignments SET revoked_at=? WHERE id=?').bind(Date.now(),actor.assignmentId).run();actor.role="support_agent";actor.assignmentId=await f.grant(actor,"support_agent");}
   for (const a of [f.owner, f.head, f.claimant, f.tie])
     a.modules = ["collaboration", "support"];
   const customer = await saveMaster(
@@ -277,4 +276,17 @@ it("exports visible relations and action cards with a recorded command receipt",
     operation: "collaboration.export",
     record_id: result.commandId,
   });
+});
+it("hides unreadable source-backed content and links from lists, exports, Work and commands",async()=>{
+ f.it.modules=["collaboration"];
+ const created=await createActionCard(f.owner,{sourceType:"support_ticket",sourceId:ticket,title:"Private support installation details",ownerId:f.claimant.userId,dueAt:Date.now()+60000,reason:"Restricted source follow-up evidence"},key());
+ await createRecordRelation(f.owner,{sourceType:"commerce_order",sourceId:order,targetType:"support_ticket",targetId:ticket,relation:"related",reason:"Private linked support context"},key());
+ const view=await collaborationWorkspace(f.it);
+ expect(view.cards).toEqual([]);expect(view.relations).toEqual([]);expect(JSON.stringify(view)).not.toContain("Private support installation details");
+ expect(await collaborationActionWork(f.it)).toEqual([]);
+ const exported=await collaborationExport(f.it);expect(exported.rows).toBe(0);expect(exported.content).not.toContain("Private support installation details");expect(exported.content).not.toContain(ticket);
+ await expect(changeActionCard(f.it,String(created.id),{action:"complete",expectedVersion:1,evidence:"Unreadable source cannot be used",reason:"Source authority denies this action"},key())).rejects.toMatchObject({status:404});
+ await db.prepare("UPDATE assignments SET revoked_at=? WHERE id=?").bind(Date.now(),f.claimant.assignmentId).run();
+ expect((await collaborationWorkspace(f.claimant)).cards).toEqual([]);expect(await collaborationActionWork(f.claimant)).toEqual([]);
+ expect((await collaborationWorkspace(f.owner)).cards).toHaveLength(1);
 });

@@ -1,23 +1,148 @@
-.workspace { display: grid; gap: 20px; }
-.header, .heroTop { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
-.header h1, .hero h2, .card h2 { margin: 4px 0 8px; }
-.safety { padding: 12px 16px; margin: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--card-2); }
-.hero, .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 24px; }
-.hero { display: grid; gap: 18px; }
-.hero > .button, .card > .button { justify-self: start; }
-.status { background: var(--brand-soft); color: var(--brand); border-radius: 999px; padding: 6px 11px; white-space: nowrap; font-size: 12px; font-weight: 650; }
-.stages { list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 0; margin: 0; }
-.stages li { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 9px; padding: 10px; color: var(--muted); font-size: 13px; }
-.stages li span { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 100%; flex: none; background: var(--card-2); }
-.stages li[data-active="true"] { border-color: var(--brand); color: var(--ink); font-weight: 650; }
-.stages li[data-complete="true"] span, .stages li[data-active="true"] span { background: var(--brand); color: white; }
-.metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-.metrics > div { display: grid; gap: 5px; border: 1px solid var(--line); border-radius: 9px; padding: 14px; }
-.metrics span { color: var(--muted); font-size: 12px; }
-.metrics strong { font-size: 16px; font-variant-numeric: tabular-nums; }
-.columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.card p { margin: 8px 0; }
-.item { border-top: 1px solid var(--line); padding: 12px 0; }
-.item summary { display: flex; justify-content: space-between; gap: 12px; cursor: pointer; }
-.item .metrics { margin-top: 14px; }
-@media (max-width: 760px) { .header, .heroTop { flex-wrap: wrap; } .stages, .metrics, .columns { grid-template-columns: 1fr; } .hero, .card { padding: 18px; } }
+.workspace {
+  display: grid;
+  gap: 20px;
+}
+.header,
+.heroTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+.header h1,
+.hero h2,
+.card h2 {
+  margin: 4px 0 8px;
+}
+.safety {
+  padding: 12px 16px;
+  margin: 0;
+  border: 1px solid var(--ui-line);
+  border-radius: 10px;
+  background: var(--ui-card-2);
+}
+.hero,
+.card {
+  background: var(--ui-card);
+  border: 1px solid var(--ui-line);
+  border-radius: 14px;
+  padding: 24px;
+}
+.hero {
+  display: grid;
+  gap: 18px;
+}
+.hero > .button,
+.card > .button {
+  justify-self: start;
+}
+.status {
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand);
+  border-radius: 999px;
+  padding: 6px 11px;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 650;
+}
+.stages {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+}
+.stages li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 2px solid var(--ui-line);
+  border-radius: 0;
+  padding: 10px;
+  color: var(--ui-muted);
+  font-size: 13px;
+}
+.stages li span {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 100%;
+  flex: none;
+  background: var(--ui-card-2);
+}
+.stages li[data-active="true"] {
+  border-color: var(--ui-brand);
+  color: var(--ui-ink);
+  font-weight: 650;
+}
+.stages li[data-complete="true"] span,
+.stages li[data-active="true"] span {
+  background: var(--ui-brand);
+  color: white;
+}
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.metrics > div {
+  display: grid;
+  gap: 5px;
+  border-top: 1px solid var(--ui-line);
+  padding: 14px 0;
+}
+.metrics span {
+  color: var(--ui-muted);
+  font-size: 12px;
+}
+.metrics strong {
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.card p {
+  margin: 8px 0;
+}
+.item {
+  border-top: 1px solid var(--ui-line);
+  padding: 12px 0;
+}
+.item summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+}
+.item .metrics {
+  margin-top: 14px;
+}
+@media (max-width: 760px) {
+  .header,
+  .heroTop {
+    flex-wrap: wrap;
+  }
+  .stages,
+  .metrics,
+  .columns {
+    grid-template-columns: 1fr;
+  }
+  .hero,
+  .card {
+    padding: 18px;
+  }
+}
+
+/* The enclosing widget already supplies this section's surface. */
+:global([data-slot="widget-content"]) > .card {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}

@@ -1,12 +1,10 @@
 "use client";
+import { Button } from "@/components/ui/foundation";
 
 import { Paperclip } from "lucide-react";
 import { useState } from "react";
 import { Dialog } from "@/components/ui/dialog";
-import {
-  RecordDocumentPanel,
-  type RecordDocumentPurpose,
-} from "./record-document-panel";
+import { RecordDocumentPanel, type RecordDocumentPurpose } from "./record-document-panel";
 import { useAttachmentFeatureMode } from "./attachment-feature-context";
 
 type RecordDocumentDrawerProps = {
@@ -47,32 +45,30 @@ function RecordDocumentDrawerContent({
   triggerLabel = "Files",
 }: RecordDocumentDrawerProps) {
   const [open, setOpen] = useState(false);
-  return <>
-    <button
-      type="button"
-      className="button secondary"
-      aria-haspopup="dialog"
-      aria-expanded={open}
-      onClick={() => setOpen(true)}
-    >
-      <Paperclip aria-hidden size={15} />
-      {triggerLabel}
-    </button>
-    <Dialog
-      open={open}
-      onClose={() => setOpen(false)}
-      title={title}
-      presentation="people-drawer"
-    >
-      <RecordDocumentPanel
-        base={base}
-        targetType={targetType}
-        targetId={targetId}
-        expectedTargetVersion={expectedTargetVersion}
-        title={title}
-        purposes={purposes}
-        editable={editable}
-      />
-    </Dialog>
-  </>;
+  return (
+    <>
+      <Button appearance="standard"
+        variant="secondary"
+        type="button"
+
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+      >
+        <Paperclip aria-hidden size={15} />
+        {triggerLabel}
+      </Button>
+      <Dialog appearance="standard" open={open} onClose={() => setOpen(false)} title={title} presentation="people-drawer">
+        <RecordDocumentPanel appearance="standard"
+          base={base}
+          targetType={targetType}
+          targetId={targetId}
+          expectedTargetVersion={expectedTargetVersion}
+          title={title}
+          purposes={purposes}
+          editable={editable}
+        />
+      </Dialog>
+    </>
+  );
 }

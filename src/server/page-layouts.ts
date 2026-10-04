@@ -17,7 +17,7 @@ import { workspaceBase } from "@/lib/workspace";
 import {
   allowedWidgets,
   pageLayoutSchema,
-  widgetDefinitions,
+  isConfigurablePage,
   type LayoutSnapshot,
 } from "@/lib/page-layouts";
 import type { NavigationContext } from "@/lib/workplace-navigation";
@@ -38,7 +38,7 @@ export async function pageLayoutRequest(
   account = false,
 ) {
   try {
-    if (!widgetDefinitions.some((w) => w.page === pageKey))
+    if (!isConfigurablePage(pageKey))
       throw new ApiError(
         404,
         "PAGE_LAYOUT_UNKNOWN",

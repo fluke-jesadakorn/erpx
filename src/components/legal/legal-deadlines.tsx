@@ -1,18 +1,20 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { FormDisclosure } from "@/components/ui/form-disclosure";
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
+
 import { useState } from "react";
 import { previewDeadline } from "@/lib/legal/deadlines";
 import s from "./legal.module.css";
 export function LegalDeadlines() {
-  const [result, setResult] = useState<ReturnType<
-      typeof previewDeadline
-    > | null>(null),
+  const [result, setResult] = useState<ReturnType<typeof previewDeadline> | null>(null),
     [error, setError] = useState("");
   return (
-    <details className={s.event}>
+    <FormDisclosure appearance="standard" className={s.event}>
       <summary>Review a deadline calculation</summary>
       <p>
-        Use an explicit reviewed rule. This calculator does not determine a
-        legal limitation period.
+        Use an explicit reviewed rule. This calculator does not determine a legal limitation period.
       </p>
       <form
         className={s.detail}
@@ -36,37 +38,37 @@ export function LegalDeadlines() {
           }
         }}
       >
-        <label className={s.field}>
+        <Field appearance="standard" className={s.field}>
           Start local date
-          <input name="start" type="date" required />
-        </label>
-        <label className={s.field}>
+          <TextInput appearance="standard" name="start" type="date" required />
+        </Field>
+        <Field appearance="standard" className={s.field}>
           Period
-          <input name="amount" type="number" min={0} max={3660} required />
-        </label>
-        <label className={s.field}>
+          <TextInput appearance="standard" name="amount" type="number" min={0} max={3660} required />
+        </Field>
+        <Field appearance="standard" className={s.field}>
           Counting method
-          <select name="unit">
+          <Select appearance="standard" name="unit">
             <option value="calendar_days">Calendar days</option>
-            <option value="business_days">
-              Monday–Friday excluding supplied holidays
-            </option>
+            <option value="business_days">Monday–Friday excluding supplied holidays</option>
             <option value="months">Months, clamp to month end</option>
-          </select>
-        </label>
-        <label className={s.field}>
+          </Select>
+        </Field>
+        <Field appearance="standard" className={s.field}>
           Reviewed holidays, YYYY-MM-DD separated by spaces
-          <textarea name="holidays" />
-        </label>
-        <button className={s.button}>Preview date</button>
+          <TextArea appearance="standard" name="holidays" />
+        </Field>
+        <Button appearance="standard" clientManaged type="submit" variant="ghost" className={s.button}>
+          Preview date
+        </Button>
       </form>
-      {error && <p role="alert">{error}</p>}
+      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
       {result && (
         <p className={s.notice}>
-          Proposed date: <strong>{result.date}</strong>. {result.convention}{" "}
-          Save this date to the relevant record or workflow only after review.
+          Proposed date: <strong>{result.date}</strong>. {result.convention} Save this date to the
+          relevant record or workflow only after review.
         </p>
       )}
-    </details>
+    </FormDisclosure>
   );
 }

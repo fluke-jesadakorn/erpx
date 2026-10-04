@@ -8,6 +8,7 @@ import { RecordDocumentDrawer } from "@/components/attachments/record-document-d
 import { MediaPublicationPanel } from "@/components/attachments/media-publication-panel";
 import { AttachmentFeatureSurface } from "@/components/attachments/attachment-feature-context";
 import { hasPermission } from "@/lib/permissions";
+import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Page({
   params,
@@ -21,7 +22,7 @@ export default async function Page({
     pageError(error, holdingSlug),
   );
   return (
-    <div className="content-stack">
+    <PageContent as="div" className="ui-page-content">
       <Link href={`${base}/commerce`}>Sales and stock</Link>
       <h1>E-commerce</h1>
       <p>
@@ -32,8 +33,8 @@ export default async function Page({
       <EcommerceConsole base={base} data={data} />
       {data.listings.map((listing) => (
         <AttachmentFeatureSurface key={`files-${String(listing.id)}`}>
-          <section className="card">
-            <div className="section-head">
+          <Card as="section" appearance="standard" className="ui-panel">
+            <div className="ui-section-header">
               <div>
                 <h2>{String(listing.title)}</h2>
                 <p className="muted">
@@ -72,7 +73,7 @@ export default async function Page({
             </div>
             <details>
               <summary>Approved public listing media</summary>
-              <MediaPublicationPanel
+              <MediaPublicationPanel appearance="standard"
                 base={base}
                 targetType="ecommerce_listing"
                 targetId={String(listing.id)}
@@ -82,14 +83,14 @@ export default async function Page({
                 canReview={hasPermission(actor, "commerce.approve")}
               />
             </details>
-          </section>
+          </Card>
         </AttachmentFeatureSurface>
       ))}
-      <section className="card">
+      <Card as="section" appearance="standard" className="ui-panel">
         <h2>Checkout handoffs</h2>
         {data.checkouts.map((x) => (
           <Link
-            className="row"
+            className="ui-record-item"
             key={String(x.id)}
             href={`${base}/ecommerce/${x.id}`}
           >
@@ -97,7 +98,7 @@ export default async function Page({
             {String(x.order_state)}
           </Link>
         ))}
-      </section>
-    </div>
+      </Card>
+    </PageContent>
   );
 }

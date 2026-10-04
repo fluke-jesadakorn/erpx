@@ -1,4 +1,9 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { FormDisclosure } from "@/components/ui/form-disclosure";
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
+
 import { TimeText } from "@/components/time/time-preference-context";
 import { useEffect, useState } from "react";
 import type { LegalDetail } from "@/lib/legal/model";
@@ -55,17 +60,17 @@ export function LegalRetention({
   return (
     <div className={s.detail}>
       {error && (
-        <p role="alert" className={s.error}>
+        <InlineNotice tone="danger" role="alert" className={s.error}>
           {error}
-        </p>
+        </InlineNotice>
       )}
       <h3>Retention and controlled destruction</h3>
       <p>
-        Content is retained until an approved policy has elapsed and a different
-        authorized reviewer approves a specific destruction manifest. Active
-        holds block execution. Audit metadata and checksums remain.
+        Content is retained until an approved policy has elapsed and a different authorized reviewer
+        approves a specific destruction manifest. Active holds block execution. Audit metadata and
+        checksums remain.
       </p>
-      <details>
+      <FormDisclosure appearance="standard">
         <summary>Company retention policies</summary>
         {data.policies.map((p) => (
           <div className={s.notice} key={p.id}>
@@ -74,7 +79,9 @@ export function LegalRetention({
             </strong>
             <p>{p.basis}</p>
             {p.state === "draft" && (
-              <button
+              <Button appearance="standard"
+                type="submit"
+                variant="ghost"
                 className={s.button}
                 disabled={busy}
                 onClick={() =>
@@ -87,7 +94,7 @@ export function LegalRetention({
                 }
               >
                 Approve policy independently
-              </button>
+              </Button>
             )}
           </div>
         ))}
@@ -103,23 +110,23 @@ export function LegalRetention({
             });
           }}
         >
-          <label className={s.field}>
+          <Field appearance="standard" className={s.field}>
             Policy name
-            <input name="name" required />
-          </label>
-          <label className={s.field}>
+            <TextInput appearance="standard" name="name" required />
+          </Field>
+          <Field appearance="standard" className={s.field}>
             Retention days after closure
-            <input name="days" type="number" min={1} max={36500} required />
-          </label>
-          <label className={s.field}>
+            <TextInput appearance="standard" name="days" type="number" min={1} max={36500} required />
+          </Field>
+          <Field appearance="standard" className={s.field}>
             Legal basis and policy review evidence
-            <textarea name="reason" required minLength={3} />
-          </label>
-          <button className={s.button} disabled={busy}>
+            <TextArea appearance="standard" name="reason" required minLength={3} />
+          </Field>
+          <Button appearance="standard" clientManaged type="submit" variant="ghost" className={s.button} disabled={busy}>
             Create draft policy
-          </button>
+          </Button>
         </form>
-      </details>
+      </FormDisclosure>
       <form
         className={s.detail}
         onSubmit={async (e) => {
@@ -128,9 +135,9 @@ export function LegalRetention({
           await act({ action: "retention.assign", ...v });
         }}
       >
-        <label className={s.field}>
+        <Field appearance="standard" className={s.field}>
           Approved policy
-          <select name="policyId" required>
+          <Select appearance="standard" name="policyId" required>
             {data.policies
               .filter((p) => p.state === "approved")
               .map((p) => (
@@ -138,23 +145,24 @@ export function LegalRetention({
                   {p.name} · {p.days} days
                 </option>
               ))}
-          </select>
-        </label>
-        <label className={s.field}>
+          </Select>
+        </Field>
+        <Field appearance="standard" className={s.field}>
           Assignment reason
-          <input name="reason" required minLength={3} />
-        </label>
-        <button
+          <TextInput appearance="standard" name="reason" required minLength={3} />
+        </Field>
+        <Button appearance="standard"
+          clientManaged type="submit"
+          variant="ghost"
           className={s.button}
           disabled={busy || !data.policies.some((p) => p.state === "approved")}
         >
           Apply policy to closed record
-        </button>
+        </Button>
       </form>
       {data.assignment && (
         <p className={s.notice}>
-          Earliest destruction:{" "}
-          <TimeText value={data.assignment.eligible_at} />. A new policy
+          Earliest destruction: <TimeText appearance="standard" value={data.assignment.eligible_at} />. A new policy
           version requires a new assignment; dates never change silently.
         </p>
       )}
@@ -168,13 +176,18 @@ export function LegalRetention({
           });
         }}
       >
-        <label className={s.field}>
+        <Field appearance="standard" className={s.field}>
           Destruction request reason
-          <textarea name="reason" required minLength={3} />
-        </label>
-        <button className={s.button} disabled={busy || !data.assignment}>
+          <TextArea appearance="standard" name="reason" required minLength={3} />
+        </Field>
+        <Button appearance="standard"
+          clientManaged type="submit"
+          variant="ghost"
+          className={s.button}
+          disabled={busy || !data.assignment}
+        >
           Prepare destruction manifest for review
-        </button>
+        </Button>
       </form>
       {data.requests.map((r) => (
         <div className={s.notice} key={r.id}>
@@ -183,9 +196,7 @@ export function LegalRetention({
           {r.error && <p>{r.error}</p>}
           <details>
             <summary>Review exact destruction manifest</summary>
-            <pre className={s.body}>
-              {JSON.stringify(JSON.parse(r.manifest), null, 2)}
-            </pre>
+            <pre className={s.body}>{JSON.stringify(JSON.parse(r.manifest), null, 2)}</pre>
           </details>
           <p className={s.small}>Request {r.id}</p>
           {r.state === "requested" && (
@@ -201,21 +212,23 @@ export function LegalRetention({
                 });
               }}
             >
-              <label className={s.field}>
+              <Field appearance="standard" className={s.field}>
                 Type the request ID to confirm permanent content destruction
-                <input name="confirmation" required pattern={r.id} />
-              </label>
-              <label className={s.field}>
+                <TextInput appearance="standard" name="confirmation" required pattern={r.id} />
+              </Field>
+              <Field appearance="standard" className={s.field}>
                 Independent decision and basis
-                <textarea name="reason" required />
-              </label>
-              <button className={s.button} disabled={busy}>
+                <TextArea appearance="standard" name="reason" required />
+              </Field>
+              <Button appearance="standard" clientManaged type="submit" variant="ghost" className={s.button} disabled={busy}>
                 Authorize permanent destruction
-              </button>
+              </Button>
             </form>
           )}
           {["requested", "approved", "blocked", "failed"].includes(r.state) && (
-            <button
+            <Button appearance="standard"
+              type="submit"
+              variant="ghost"
               className={s.button}
               disabled={busy}
               onClick={() =>
@@ -227,10 +240,12 @@ export function LegalRetention({
               }
             >
               Cancel destruction request
-            </button>
+            </Button>
           )}
           {["failed", "blocked", "executing"].includes(r.state) && (
-            <button
+            <Button appearance="standard"
+              type="submit"
+              variant="ghost"
               className={s.button}
               disabled={busy}
               onClick={() =>
@@ -242,7 +257,7 @@ export function LegalRetention({
               }
             >
               Return for independent review
-            </button>
+            </Button>
           )}
         </div>
       ))}

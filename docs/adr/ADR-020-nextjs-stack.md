@@ -1,30 +1,15 @@
-# ADR-020: Next.js stack (App Router) — successor to ADR-002/010/014/016
+# ADR-020: Next.js App Router stack
 
-> **Status:** Accepted (2026-09-02) — living on `development`. Supersedes ADR-002 (CQRS), deprecates ADR-010 (Dioxus target), ADR-014 (CQRS modular monolith), ADR-016 (Dioxus Native cutover).
-
-## Context
-
-On 2026-09-02 the Rust/Dioxus/Tonic/SQLx monorepo (137 crates) was hard-cut to a docs-only workspace
-with a fresh Next.js scaffold (`f97b74d6` → `d15909bb` → `29136c81`). The prior stack is archived on
-`backup/rust-2026-09-02` (`rust-archive-2026-09-02`, baseline `cc0887d`). New code lives in `src/app/`.
+Accepted 2026-09-02; current implementation clarified 2026-10-03. Supersedes ADR-002 and the Rust/Dioxus runtime decisions ADR-010/014/016. Runtime/deployment is governed by [ADR-024](ADR-024-local-postgresql-runtime.md), shared PostgreSQL by [ADR-032](ADR-032-shared-local-postgresql-cluster.md), and configured MinIO file storage by [ADR-035](ADR-035-minio-object-and-configuration-boundary.md).
 
 ## Decision
 
-- **App framework:** Next.js 16 App Router, React 19, TypeScript 5, Tailwind 4 (`@tailwindcss/postcss`, `src/app/globals.css`). Node 20+ / npm 11+.
-- **API surface:** REST route handlers under `src/app/api/**` and/or tRPC procedures (versioned namespaces). Replaces Tonic gRPC (`:50051`) and Dioxus Server Functions (`/api/server-fn/*`).
-- **Data:** Prisma or Drizzle (TBD) with Postgres. Replaces SQLx embedded migrations (28 files archived). New migrations live under `prisma/` or `drizzle/` and are referenced from `CONTRACT_POLICY.md` and `docs/plan/traceability.md` living columns.
-- **Auth:** NextAuth or Clerk (TBD) — replaces ERPX custom identity provider for this branch; `AuthorityScope` / `HoldingId` isolation semantics from ADR-001/013 remain authoritative but are re-implemented in Next.js middleware.
-- **Build/verify:** `npm run lint` + `npm run build` + `next.config.ts` route typecheck. Replaces `cargo xtask verify` (fmt, clippy, SQLx acceptance, Dioxus build, descriptor check). CI is `.github/workflows/nextjs.yml` (replaces `erpx-targets.yml` which is now Deprecated).
-- **Docs truth:** `docs/plan/traceability.md` gains living `src/app` columns; archived Rust RPC table is marked `Archived` and points to `docs/contracts/proto/` on backup. `docs/contracts/next/` is the future living contract folder (OpenAPI/tRPC).
+Next.js 16 App Router, React 19, TypeScript and Tailwind 4 own the application. Bun 1.2.17 manages the pinned dependencies; standalone web/jobs run on Node 24.20.0. Versioned REST route handlers live under `src/app/api/`; business authorization and domain services live under `src/server/`. This branch uses Better Auth and PostgreSQL runtime adapters/Drizzle; active SQL migrations are in `migrations/postgres/`. The scaffold's Prisma/NextAuth/Clerk/tRPC alternatives are not implemented contracts.
 
-## Consequences
+Holding isolation, current scoped assignments, owner-controlled human decisions, idempotency, immutable evidence and transactional audit/outbox survive the stack change. PostgreSQL jobs and rebuildable projections replace Tonic/SQLx transports and Cloudflare Workers persistence. Native integration, `bun run lint`, `bun run typecheck` and the isolated `bun run deploy:build` are current verification tools.
 
-- ADR-002/010/014/016 are not deleted — they are marked Superseded/Deprecated and remain on `backup/rust-2026-09-02` for audit.
-- `CONTRACT_POLICY.md` now governs REST/tRPC + Prisma, not protobuf field numbers.
-- `CUTOVER.md` 2026-09-02 entry is the authority for the cutover; `docs/plan/LEGACY.md` points to backup for old baselines.
-- Reintroducing Cargo/Dioxus/Tonic requires a new ADR and a branch from `backup/rust-2026-09-02`.
+[Owner contracts](../contracts/next/README.md) and the [route table](../contracts/next/route-table.md) describe the implementation; [the production plan](../production-plan.md) owns delivery scope. A documentation change does not require unrelated schema/traceability edits. Breaking interfaces require a new ADR and cutover entry under [contract policy](../../CONTRACT_POLICY.md).
 
-## Evidence required
+## Recovery
 
-- `npm run lint` and `npm run build` pass on `development` (`src/app/page.tsx` smoke).
-- `docs/TOC.md` is the single hub linking business plan → glossary → ADRs → archive → code.
+[CUTOVER](../../CUTOVER.md) retains the Rust tag and verified commit boundaries. Reintroducing Cargo/Dioxus/Tonic requires a new architectural decision and an isolated recovery checkout. Historical decisions/evidence do not grant current runtime acceptance.

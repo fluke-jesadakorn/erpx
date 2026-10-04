@@ -8,10 +8,18 @@ export type PayrollComponentInput = {
   taxable?: boolean;
 };
 
+function ratio(amount:number,numerator:number,denominator:number){
+  if(!Number.isSafeInteger(amount)||amount<0||!Number.isSafeInteger(numerator)||numerator<0||!Number.isSafeInteger(denominator)||denominator<=0)throw new Error("Payroll quantities must use nonnegative reviewed precision.");
+  const product=BigInt(amount)*BigInt(numerator),result=(product+BigInt(denominator)/BigInt(2))/BigInt(denominator);
+  if(result>BigInt(Number.MAX_SAFE_INTEGER))throw new Error("Payroll money exceeds supported precision.");return Number(result);
+}
+
 export function calculatePayrollAmounts(input: {
-  employmentType: "salaried" | "hourly" | "shift" | "contractor";
+  employmentType: "salaried" | "daily" | "hourly" | "shift" | "contractor";
   baseMinor: number;
   hourlyMinor: number;
+  dailyMinor?:number;
+  regularDays?:number;
   regularHours: number;
   overtimeHours: number;
   overtimeMultiplierBps?: number;
@@ -20,18 +28,18 @@ export function calculatePayrollAmounts(input: {
   components: PayrollComponentInput[];
 }) {
   const base=input.prorationNumerator!==undefined&&input.prorationDenominator
-    ? Math.round(input.baseMinor*input.prorationNumerator/input.prorationDenominator)
+    ? ratio(input.baseMinor,input.prorationNumerator,input.prorationDenominator)
     : input.baseMinor;
-  const overtimeMultiplier=(input.overtimeMultiplierBps??15000)/10000;
-  if (input.employmentType === "salaried" && input.overtimeHours > 0 && input.hourlyMinor <= 0) {
+  if (["salaried","daily"].includes(input.employmentType) && input.overtimeHours > 0 && input.hourlyMinor <= 0) {
     throw new Error("Approved hourly rate is required to pay salaried overtime.");
   }
-  const overtimePay = Math.round(input.hourlyMinor * input.overtimeHours * overtimeMultiplier);
+  const overtimePay = ratio(input.hourlyMinor,Math.round(input.overtimeHours*1_000_000)*(input.overtimeMultiplierBps??15000),10_000_000_000);
   let gross = input.employmentType === "salaried"
     ? base + overtimePay
+    :input.employmentType==="daily"?ratio(input.dailyMinor??0,Math.round((input.regularDays??0)*1_000_000),1_000_000)+overtimePay
     : input.employmentType === "contractor"
       ? input.baseMinor
-      : Math.round(input.hourlyMinor * (input.regularHours + input.overtimeHours * overtimeMultiplier));
+      : ratio(input.hourlyMinor,Math.round(input.regularHours*1_000_000)*10000+Math.round(input.overtimeHours*1_000_000)*(input.overtimeMultiplierBps??15000),10_000_000_000);
   let deductions = 0;
   let employer = 0;
   const applied = input.components.map((component) => {
@@ -41,5 +49,5 @@ export function calculatePayrollAmounts(input: {
     if (component.kind === "employer") employer += amountMinor;
     return { ...component, amountMinor };
   });
-  return { gross, deductions, employer, net: gross - deductions, applied };
+  return { gross, deductions, employer, net: gross - deductions, overtimePay, applied };
 }

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { LegalKind } from "./model";
+import { dateSchema, type LegalKind } from "./model";
 export type FeatureField = {
   key: string;
   label: string;
@@ -92,20 +92,31 @@ export const featureSpecs = {
         false,
       ),
       f("evidence", "Response / notification receipt", "textarea", false),
+      f("knownAt", "Known event time (ISO 8601 with timezone)", "textarea", false),
+      f("riskLevel", "Risk: low / medium / high", "textarea", false),
+      f("notificationDecision", "Notification: required / not_required / pending", "textarea", false),
+      f("notificationBasis", "Notification decision basis", "textarea", false),
+      f("identityVerification", "Identity: verified / missing_information / not_verified", "textarea", false),
+      f("missingInformation", "Information still required", "textarea", false),
+      f("thirdPartyData", "Third-party data: none / present / unknown", "textarea", false),
+      f("thirdPartyHandling", "Third-party handling: redacted / separate_consent / restricted_review", "textarea", false),
+      f("responseDecision", "Response: provide / partial / refuse / notify / no_notification", "textarea", false),
+      f("refusalReason", "Reason for refusing or limiting the response", "textarea", false),
     ],
     initial: "received",
     states: {
-      received: ["assessed", "rejected"],
-      assessed: ["in_progress", "review"],
+      received: ["awaiting_information", "assessed", "rejected"],
+      awaiting_information: ["assessed", "rejected"],
+      assessed: ["awaiting_information", "in_progress", "review"],
       in_progress: ["review"],
-      review: ["approved", "in_progress"],
+      review: ["approved", "in_progress", "awaiting_information"],
       approved: ["responded"],
       responded: ["closed"],
       closed: ["received"],
       rejected: [],
     },
-    evidenceStates: ["assessed", "responded", "closed"],
-    independentStates: ["approved"],
+    evidenceStates: ["awaiting_information", "assessed", "responded", "closed", "rejected"],
+    independentStates: ["approved", "rejected"],
   },
   corporate_action: {
     label: "Corporate filings and permit renewals",
@@ -330,5 +341,59 @@ export function parseFeature(raw: unknown) {
     if (value && field.type === "number" && !/^\d{1,14}$/.test(value))
       throw new Error(`${field.label} must be nonnegative whole units`);
   }
+  if (x.category === "privacy_case") validatePrivacyCase(x.data);
+  for (const [field, values] of Object.entries(workflowFieldChoices[x.category] ?? {}))
+    if (x.data[field] && !values.includes(x.data[field])) throw new Error(`Choose a valid ${field}.`);
   return x;
+}
+
+export const privacyFieldChoices: Record<string, readonly string[]> = {
+    caseType: ["subject_request", "breach", "processing"],
+    riskLevel: ["low", "medium", "high"],
+    notificationDecision: ["required", "not_required", "pending"],
+    identityVerification: ["verified", "missing_information", "not_verified"],
+    thirdPartyData: ["none", "present", "unknown"],
+    thirdPartyHandling: ["redacted", "separate_consent", "restricted_review"],
+    responseDecision: ["provide", "partial", "refuse", "notify", "no_notification"],
+};
+export const workflowFieldChoices: Partial<Record<FeatureKind, Record<string, readonly string[]>>> = {
+  case_event: {eventType:["hearing","filing","order","appeal","settlement","enforcement"]},
+  corporate_action: {actionType:["meeting","resolution","filing","renewal"]},
+  ip_action: {actionType:["application","response","renewal","infringement"]},
+  schedule: {scheduleType:["delivery","payment","notice","guarantee","insurance","renewal"]},
+  privacy_case: privacyFieldChoices,
+  counsel_entry: {entryType:["conflict","time","fee","invoice"]},
+};
+export function validatePrivacyCase(data: Record<string, string>) {
+  for (const [field, values] of Object.entries(privacyFieldChoices))
+    if (data[field] && !values.includes(data[field])) throw new Error(`Choose a valid ${field}.`);
+  if (data.knownAt) {
+    dateSchema.parse(data.knownAt.slice(0, 10));
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(data.knownAt) || !Number.isFinite(Date.parse(data.knownAt)))
+      throw new Error("Known event time requires an ISO 8601 timestamp with a timezone.");
+    if (Date.parse(data.knownAt) > Date.now()) throw new Error("Known event time cannot be in the future.");
+  }
+  if (data.caseType === "breach" && !data.knownAt) throw new Error("Record when the breach became known, independently of ticket creation.");
+}
+
+export function privacyDecisionError(data: Record<string, string>, state: string): string | null {
+  if (state === "awaiting_information" && !data.missingInformation?.trim()) return "Record the information still required.";
+  if (["assessed", "review", "approved", "responded", "closed"].includes(state)) {
+    if (!data.assessment?.trim()) return "Record the identity or impact assessment.";
+    if (data.caseType === "subject_request") {
+      if (!data.identityVerification || !data.thirdPartyData) return "Record identity verification and whether third-party data is present.";
+      if (state !== "assessed" && data.identityVerification !== "verified") return "Obtain the missing identity information before independent response review.";
+      if (state !== "assessed" && data.thirdPartyData === "unknown") return "Assess third-party data before independent response review.";
+      if (data.thirdPartyData === "present" && state !== "assessed" && !data.thirdPartyHandling) return "Record how third-party data will be protected.";
+      if (state !== "assessed" && !["provide", "partial", "refuse"].includes(data.responseDecision)) return "Choose the proposed data-subject response.";
+      if (["partial", "refuse"].includes(data.responseDecision) && !data.refusalReason?.trim()) return "Record the reason for limiting or refusing the response.";
+    }
+    if (data.caseType === "breach" && state !== "assessed") {
+      if (!data.riskLevel || !["required", "not_required"].includes(data.notificationDecision) || !data.notificationBasis?.trim()) return "Review the risk and a reasoned notification decision before approval.";
+      if (data.responseDecision !== (data.notificationDecision === "required" ? "notify" : "no_notification")) return "The response must match the reviewed notification decision.";
+    }
+  }
+  if (state === "rejected" && (data.responseDecision !== "refuse" || !data.refusalReason?.trim() || !data.response?.trim())) return "A refused request requires a reason and the response to be independently reviewed.";
+  if (["responded", "closed"].includes(state) && !data.response?.trim()) return "Retain the response or notification evidence.";
+  return null;
 }

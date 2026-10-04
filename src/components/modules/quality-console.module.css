@@ -19,21 +19,21 @@
 .detailAction {
   gap: 13px !important;
   padding: 17px !important;
-  border: 1px solid var(--line) !important;
-  border-radius: var(--radius-md);
-  background: var(--paper);
+  border: 1px solid var(--ui-line) !important;
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-paper);
 }
 
 .detailAction h2 {
   margin: 0;
-  color: var(--ink-strong);
+  color: var(--ui-ink-strong);
   font-size: 16px;
   line-height: 1.35;
 }
 
 .detailAction > p {
   margin: 0;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 12px;
   line-height: 1.6;
 }
@@ -44,7 +44,7 @@
   gap: 7px;
   min-width: 0;
   margin: 0;
-  color: var(--ink);
+  color: var(--ui-ink);
   font-size: 12px;
   font-weight: 600;
 }
@@ -55,8 +55,8 @@
 }
 
 .primaryAction {
-  border-color: color-mix(in srgb, var(--brand) 55%, var(--line)) !important;
-  box-shadow: inset 3px 0 0 var(--brand);
+  border-color: color-mix(in srgb, var(--ui-brand) 55%, var(--ui-line)) !important;
+  box-shadow: inset 3px 0 0 var(--ui-brand);
 }
 
 .primaryAction > .eyebrow {
@@ -65,15 +65,15 @@
 
 .console .qualityForm {
   padding: 22px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--card);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-card);
 }
 
 .formHeading h2,
 .sectionHeading h2 {
   margin: 0;
-  color: var(--ink-strong);
+  color: var(--ui-ink-strong);
   font-size: 18px;
   line-height: 1.35;
 }
@@ -81,7 +81,7 @@
 .formHeading p {
   max-width: 760px;
   margin: 7px 0 0;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 13px;
   line-height: 1.65;
 }
@@ -89,7 +89,7 @@
 .eyebrow {
   display: block;
   margin-bottom: 7px;
-  color: var(--brand);
+  color: var(--ui-brand);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -139,7 +139,7 @@
   gap: 7px;
   min-width: 0;
   margin: 0;
-  color: var(--ink);
+  color: var(--ui-ink);
   font-size: 13px;
   font-weight: 550;
 }
@@ -151,17 +151,17 @@
   min-width: 0;
   box-sizing: border-box;
   padding: 10px 12px;
-  border: 1px solid var(--control-border);
-  border-radius: var(--radius-md);
-  background: var(--card);
-  color: var(--ink);
+  border: 1px solid var(--ui-control-border);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-card);
+  color: var(--ui-ink);
   font: inherit;
   font-weight: 400;
 }
 
 .field input,
 .field select {
-  min-height: var(--control-height);
+  min-height: var(--ui-control-height);
 }
 
 .field textarea {
@@ -172,7 +172,7 @@
 .field input:focus-visible,
 .field select:focus-visible,
 .field textarea:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--brand) 72%, white);
+  outline: 2px solid color-mix(in srgb, var(--ui-brand) 72%, white);
   outline-offset: 2px;
 }
 
@@ -183,7 +183,7 @@
 .helper,
 .resultCount {
   margin: 0;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 12px;
   line-height: 1.55;
 }
@@ -202,7 +202,7 @@
 .specList {
   min-width: 0;
   padding-top: 20px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--ui-line);
 }
 
 .sectionHeading {
@@ -214,7 +214,7 @@
 }
 
 .sectionHeading span {
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 12px;
 }
 
@@ -227,14 +227,14 @@
 .specItem {
   min-width: 0;
   padding: 17px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--card);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-card);
 }
 
 .specItem h3 {
   margin: 0 0 8px;
-  color: var(--ink-strong);
+  color: var(--ui-ink-strong);
   font-size: 14px;
   line-height: 1.5;
   overflow-wrap: anywhere;
@@ -242,14 +242,14 @@
 
 .specItem > p {
   margin: 0;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 12px;
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
 
 .status {
-  color: var(--ink-strong);
+  color: var(--ui-ink-strong);
   font-weight: 650;
   text-transform: capitalize;
 }
@@ -278,23 +278,23 @@
 .error {
   margin: 0;
   padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, #bd3434 26%, var(--line));
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, #bd3434 7%, var(--card));
+  border: 1px solid color-mix(in srgb, #bd3434 26%, var(--ui-line));
+  border-radius: var(--ui-radius-md);
+  background: color-mix(in srgb, #bd3434 7%, var(--ui-card));
   color: #a42929;
   font-size: 13px;
 }
 
 .alerts > h2 {
   margin: 0 0 14px;
-  color: var(--ink-strong);
+  color: var(--ui-ink-strong);
   font-size: 18px;
 }
 
 .alerts article + article {
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--ui-line);
 }
 
 .alerts h3 {
@@ -304,7 +304,7 @@
 
 .alerts article > p {
   margin: 0 0 10px;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 13px;
   line-height: 1.6;
 }
@@ -347,3 +347,15 @@
     gap: 4px;
   }
 }
+
+/* The enclosing widget already supplies this section's surface. */
+:global([data-slot="widget-content"]) > .console {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+/* Use section dividers within the enclosing surface. */
+.console .specItem, .console .detailAction { border: 0; border-top: 1px solid var(--ui-line); border-radius: 0; box-shadow: none; padding-inline: 0; }

@@ -89,6 +89,11 @@ export async function saveProjectWorkLog(db: SqlDatabase, actor: StaffActor, pro
   input: z.infer<typeof projectWorkLogSchema>, key: string) {
   const project = await getProject(db, actor, projectId);
   const staff = await activeStaff(db, actor.companyId, actor.userId);
+  const receipt=await db.prepare('SELECT operation,record_id FROM command_receipts WHERE command_id=?').bind(key).first<{operation:string;record_id:string}>();
+  if(receipt&&['project.actual-time.submit','project.actual-time.revise'].includes(receipt.operation)){
+    const prior=await replayCommand<{id:string;version:number;state:string}>(db,actor,key,receipt.operation,receipt.record_id,{projectId,...input});if(prior)return prior;
+  }
+  if(project.lifecycle_status!=='active')throw new ApiError(409,'PROJECT_STRUCTURE_FROZEN','Reopen the project before changing actual time.');
   const today = new Date().toISOString().slice(0, 10);
   if (input.workDate > today || input.workDate < staff.start_date || (staff.end_date && input.workDate > staff.end_date))
     throw new ApiError(422, "PROJECT_WORK_DATE_INVALID", "Project work date must fall within your active engagement and cannot be in the future.");
@@ -214,6 +219,11 @@ export async function listProjectCostSources(actor: WorkContext, projectId: stri
 export async function createProjectCostAllocation(actor: WorkContext, input: z.infer<typeof projectCostAllocationSchema>, key: string) {
   actor = financeProject(actor, "finance.write");
   const { write, project } = await visibleFinanceProject(actor, input.projectId);
+  const receipt=await write.prepare('SELECT operation,record_id FROM command_receipts WHERE command_id=?').bind(key).first<{operation:string;record_id:string}>();
+  if(receipt&&['project.cost-allocation.create','project.cost-allocation.revise'].includes(receipt.operation)){
+    const prior=await replayCommand<{id:string;version:number;state:string}>(write,actor,key,receipt.operation,receipt.record_id,input);if(prior)return prior;
+  }
+  if(project.lifecycle_status!=='active')throw new ApiError(409,'PROJECT_STRUCTURE_FROZEN','Reopen the project before changing actual cost.');
   const amountMinor = decimalToMinor(input.amount);
   if (amountMinor <= 0) throw new ApiError(422, "INVALID_PROJECT_COST", "Project cost allocations must be greater than zero.");
   const line = await write.prepare(`SELECT l.id,l.debit_minor,j.currency,j.entry_date,j.status journal_status,ac.category

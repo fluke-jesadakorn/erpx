@@ -1,13 +1,13 @@
 .wrap {
-  --booking-accent: light-dark(#125e55, #84c4b3);
-  --booking-on-accent: light-dark(#ffffff, #12241f);
+  --booking-accent: var(--ui-brand);
+  --booking-on-accent: var(--ui-on-brand);
   max-width: 1120px;
   margin: 0 auto;
-  color: var(--ink, #203631);
+  color: var(--ui-ink, #203631);
 }
 .hero {
   padding: 48px 0 30px;
-  border-bottom: 1px solid var(--line, #dce7e1);
+  border-bottom: 1px solid var(--ui-line, #dce7e1);
   margin-bottom: 28px;
 }
 .eyebrow {
@@ -15,7 +15,7 @@
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.16em;
-  color: var(--muted, #50776a);
+  color: var(--ui-muted, #50776a);
 }
 .hero h1 {
   font-size: clamp(30px, 5vw, 52px);
@@ -24,17 +24,17 @@
   margin: 12px 0;
 }
 .hero p {
-  color: var(--muted, #58736b);
+  color: var(--ui-muted, #58736b);
   max-width: 620px;
   line-height: 1.7;
 }
 .surface {
-  background: var(--card, #fff);
-  border: 1px solid var(--line, #dce7e1);
+  background: var(--ui-card, #fff);
+  border: 1px solid var(--ui-line, #dce7e1);
   border-radius: 18px;
   padding: 24px;
   margin: 20px 0;
-  color: var(--ink, #203631);
+  color: var(--ui-ink, #203631);
 }
 .grid {
   display: grid;
@@ -53,9 +53,9 @@
 .wrap input,
 .wrap select,
 .wrap textarea {
-  background: var(--card-2, #fff);
-  color: var(--ink, #203631);
-  border: 1px solid var(--control-border, #bbcfc6);
+  background: var(--ui-card-2, #fff);
+  color: var(--ui-ink, #203631);
+  border: 1px solid var(--ui-control-border, #bbcfc6);
   padding: 11px 12px;
   border-radius: 8px;
   width: 100%;
@@ -91,7 +91,7 @@
   color: var(--booking-on-accent, #fff);
 }
 .secondary {
-  background: var(--card, #fff);
+  background: var(--ui-card, #fff);
   color: var(--booking-accent);
 }
 .wrap button:disabled {
@@ -105,10 +105,10 @@
   gap: 12px;
   flex-wrap: wrap;
   font-size: 13px;
-  color: var(--muted, #607b70);
+  color: var(--ui-muted, #607b70);
 }
 .steps li {
-  border-bottom: 2px solid var(--line, #dce7e1);
+  border-bottom: 2px solid var(--ui-line, #dce7e1);
   padding: 9px 0;
 }
 .steps li[aria-current="step"] {
@@ -122,7 +122,7 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 18px;
-  border-top: 1px solid var(--line, #e6ede9);
+  border-top: 1px solid var(--ui-line, #e6ede9);
   padding: 20px 0;
 }
 .offer h3 {
@@ -131,7 +131,7 @@
 }
 .offer p {
   margin: 5px 0;
-  color: var(--muted, #58736b);
+  color: var(--ui-muted, #58736b);
   font-size: 14px;
 }
 .price {
@@ -140,22 +140,22 @@
   letter-spacing: -0.02em;
 }
 .small {
-  color: var(--muted, #60776d);
+  color: var(--ui-muted, #60776d);
   font-size: 13px;
   line-height: 1.6;
 }
 .error {
-  border: 1px solid var(--red, #ebbbb7);
-  color: var(--red, #8a2622);
-  background: var(--red-soft, #fff5f3);
+  border: 1px solid var(--ui-red, #ebbbb7);
+  color: var(--ui-red, #8a2622);
+  background: var(--ui-red-soft, #fff5f3);
   padding: 14px;
   border-radius: 9px;
   margin: 15px 0;
 }
 .notice {
-  background: var(--green-soft, #eef7f1);
-  color: var(--green, #245541);
-  border: 1px solid var(--green, #c7e3d2);
+  background: var(--ui-green-soft, #eef7f1);
+  color: var(--ui-green, #245541);
+  border: 1px solid var(--ui-green, #c7e3d2);
   padding: 16px;
   border-radius: 10px;
 }
@@ -168,7 +168,7 @@
 .table td {
   padding: 10px 8px;
   text-align: left;
-  border-bottom: 1px solid var(--line, #e2ebe5);
+  border-bottom: 1px solid var(--ui-line, #e2ebe5);
 }
 .scroll {
   overflow-x: auto;
@@ -180,7 +180,7 @@
   margin: 12px 0;
 }
 .hotel {
-  border-left: 4px solid var(--green, #9bbaa5);
+  border-left: 4px solid var(--ui-green, #9bbaa5);
   padding-left: 18px;
   margin: 22px 0;
 }
@@ -192,8 +192,8 @@
 }
 .page {
   min-height: 100vh;
-  background: var(--paper, #f5f8f4);
-  color: var(--ink, #203631);
+  background: var(--ui-paper, #f5f8f4);
+  color: var(--ui-ink, #203631);
   padding: 20px 5vw 60px;
 }
 .nav {

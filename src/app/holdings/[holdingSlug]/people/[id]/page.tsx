@@ -31,6 +31,7 @@ import { staffSettings } from "@/server/staff-settings";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { forbidden, notFound } from "next/navigation";
+import { Card } from "@/components/ui/foundation";
 
 export const dynamic = "force-dynamic";
 
@@ -107,22 +108,22 @@ export default async function PersonDetail({
       <Link className="back-link" href={`${base}/people`}>
         <ArrowLeft size={14} /> Back to people
       </Link>
-      <div className="section-head">
+      <div className="ui-section-header">
         <div>
           <h1>{String(person.legal_name)}</h1>
           <p className="muted">
             {String(person.job_title ?? "")} · {String(person.email ?? "")}
           </p>
         </div>
-        <StatusBadge
+        <StatusBadge appearance="standard"
           status={String(person.engagement_status ?? person.status)}
         />
       </div>
 
       <FeatureTabs/><WidgetGrid>
-      {lifecycleData && <FeatureWidget id="person-lifecycle" title="Lifecycle"><LifecyclePanel base={base} data={lifecycleData} person={{id,name:String(person.legal_name),status:String(person.engagement_status),engagementId:String(person.engagement_id),positionId:person.position_id?String(person.position_id):null,managerPersonId:person.manager_person_id?String(person.manager_person_id):null}}/></FeatureWidget>}
-      {true && <FeatureWidget id="person-profile" title="Profile"><>
-          <section className="card">
+      {lifecycleData && <FeatureWidget appearance="standard" id="person-lifecycle" title="Lifecycle"><LifecyclePanel base={base} data={lifecycleData} person={{id,name:String(person.legal_name),status:String(person.engagement_status),engagementId:String(person.engagement_id),positionId:person.position_id?String(person.position_id):null,managerPersonId:person.manager_person_id?String(person.manager_person_id):null}}/></FeatureWidget>}
+      {true && <FeatureWidget appearance="standard" id="person-profile" title="Profile"><>
+          <Card as="section" appearance="standard" className="ui-panel">
             <dl className="staff-facts">
               {[
                 ["Staff level", person.level_name ?? "Not set"],
@@ -138,9 +139,9 @@ export default async function PersonDetail({
             </dl>
             {data.recommendedLeave&&<p>Level leave recommendation: {data.recommendedLeave.annual_days} annual days and {data.recommendedLeave.sick_days} sick days / year · policy v{data.recommendedLeave.version}</p>}
             {data.leaveAssignment&&<p>Assigned leave policy: {data.leaveAssignment.name} · v{data.leaveAssignment.version} · effective {data.leaveAssignment.effective_from}</p>}
-          </section>
+          </Card>
           {employeeDocumentPurposes.length > 0 && (
-            <RecordDocumentPanel
+            <RecordDocumentPanel appearance="standard"
               base={base}
               targetType="hr_person"
               targetId={String(person.id)}
@@ -159,7 +160,7 @@ export default async function PersonDetail({
                   ? { key: "transfer_document", label: "Transfer document", description: "Attach the approved transfer or placement document for this case." }
                   : { key: "offboarding_document", label: "Offboarding document", description: "Attach the approved offboarding, suspension, or exit document for this case." };
               return (
-                <RecordDocumentPanel
+                <RecordDocumentPanel appearance="standard"
                   key={item.id}
                   base={base}
                   targetType="people_lifecycle_case"
@@ -172,7 +173,7 @@ export default async function PersonDetail({
               );
             })}
           {canManagePeople(actor) && (
-            <PeopleEditor
+            <PeopleEditor appearance="standard"
               lifecycleManaged={!actor.beta}
               base={base}
               person={person}
@@ -193,20 +194,20 @@ export default async function PersonDetail({
               levels={staffOptions.levels}
             />
           )}
-          <details className="card">
+          <details className="ui-panel">
             <summary>Level history</summary>
             {!levelHistory.length && <p>No level changes recorded.</p>}
             {levelHistory.map((h) => (
               <p key={String(h.id)}>
                 {String(h.previous_level_name ?? "Not set")} →{" "}
                 {String(h.level_name)} · {String(h.reason)} ·{" "}
-                {<TimeText value={Number(h.created_at)} />}
+                {<TimeText appearance="standard" value={Number(h.created_at)} />}
               </p>
             ))}
           </details>
         </></FeatureWidget>}
-      {access && <FeatureWidget id="person-access" title="Login & access">
-        <AccessEditor
+      {access && <FeatureWidget appearance="standard" id="person-access" title="Login & access">
+        <AccessEditor appearance="standard"
           base={base}
           personId={id}
           hasAccount={Boolean(person.user_id)}
@@ -221,26 +222,26 @@ export default async function PersonDetail({
           }
         />
       </FeatureWidget>}
-      {true && <FeatureWidget id="person-work" title="Work history"><section className="card">
+      {true && <FeatureWidget appearance="standard" id="person-work" title="Work history"><Card as="section" appearance="standard" className="ui-panel">
           <h2>Leave history</h2>
           {!data.leave.length ? (
             <p>No leave requests linked to this worker.</p>
           ) : (
             data.leave.map((item) => (
-              <div className="row" key={String(item.id)}>
+              <div className="ui-record-item" key={String(item.id)}>
                 <div className="row-main">
                   <strong>{String(item.number)}</strong>
                   <p>
                     {String(item.start_date)} · {String(item.days)} days
                   </p>
                 </div>
-                <StatusBadge status={String(item.state)} />
+                <StatusBadge appearance="standard" status={String(item.state)} />
               </div>
             ))
           )}
-        </section></FeatureWidget>}
-      {data.privateAccess && Boolean(person.engagement_id) && <FeatureWidget id="person-pay" title="Pay & time">
-          <section className="card">
+        </Card></FeatureWidget>}
+      {data.privateAccess && Boolean(person.engagement_id) && <FeatureWidget appearance="standard" id="person-pay" title="Pay & time">
+          <Card as="section" appearance="standard" className="ui-panel">
             
             <p>
               Approved current base pay:{" "}
@@ -250,8 +251,8 @@ export default async function PersonDetail({
             </p>
             {data.recommendedPay&&<p>Position recommendation: {data.recommendedPay.currency} {minorToDecimal(data.recommendedPay.monthly_amount_minor)} / month · v{data.recommendedPay.version}</p>}
             {data.revisions.filter((revision:Record<string,unknown>)=>revision.status==="draft").map((revision:Record<string,unknown>)=><p key={String(revision.id)}>Pay draft awaiting another approver: {String(revision.currency)} {minorToDecimal(Number(revision.base_amount_minor))} · effective {String(revision.effective_from)}</p>)}
-          </section>
-          <CompensationEditor
+          </Card>
+          <CompensationEditor appearance="standard"
             base={base}
             person={person}
             groups={groups}
@@ -265,7 +266,7 @@ export default async function PersonDetail({
             userId={actor.userId}
           />
           {hasPermission(actor,"payroll.prepare")&&!actor.branchId&&!actor.departmentId&&<PayrollCostAssignmentReview base={base} engagementId={String(person.engagement_id)} userId={actor.userId}/>}
-          <TimeEntryEditor
+          <TimeEntryEditor appearance="standard"
             base={base}
             person={person}
             entries={data.time}

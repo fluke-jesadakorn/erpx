@@ -1,8 +1,10 @@
+import { workViews, workViewAvailable, type WorkViewAvailability } from "./work-item";
 import { adminSections, type AdminSection } from "./administration";
 import { iamSections } from "./iam";
 import { hasPermission } from "./permissions";
 import { peopleIamDestination } from "./people-lifecycle";
 import { financeDestinationForRoute, financeNavigation, financeRootItems, financeSidebarId } from "./finance-navigation";
+import { workplaceCategories, workplaceModuleDestinations, workplaceStartActions, type WorkplaceCategoryId, type AiSupport } from "./workplace-catalogue";
 
 export type NavigationScopeKind =
   | "platform"
@@ -12,11 +14,14 @@ export type NavigationScopeKind =
 
 export type NavigationContext = {
   workspaceBase: string;
+  workViewAvailability?: WorkViewAvailability | null;
   /** Daily POS/PMS links are rendered in the separate staff Front surface. */
   frontPosHref?: string;
   frontPmsHref?: string;
   /** Effective company rollout, supplied by the server for production navigation. */
   availableAppIds?: readonly string[];
+  /** Module grants remain separate from display categories. */
+  moduleIds?: readonly string[];
   financeWorkspaceV2?: boolean;
   scopeKind?: NavigationScopeKind;
   beta?: boolean;
@@ -78,6 +83,10 @@ export type NavigationItem = {
   icon: NavigationIconId;
   openInNewTab?: boolean;
   keywords?: string[];
+  categoryId?: WorkplaceCategoryId | "daily";
+  ownerModuleId?: string;
+  objective?: string;
+  aiSupport?: AiSupport;
   /** Direct destinations nested under a sidebar module. */
   submodules?: NavigationItem[];
 };
@@ -94,7 +103,7 @@ export type NavigationApp = {
 
 /** Sidebar-only grouping. Categories never become route or breadcrumb parents. */
 export type NavigationCategory = {
-  id: "people-organization" | "crm" | "sales" | "procurement" | "inventory" | "operations" | "erpx-management" | "pos" | "pms" | "finance" | "management" | "system";
+  id: WorkplaceCategoryId;
   label: string;
   icon: NavigationIconId;
   apps: NavigationItem[];
@@ -221,10 +230,16 @@ export function workplaceNavigation(
       ]
     : [
         item("home", "Today", "home", "Workspace", "home", ["work", "my day", "feed", "tasks"]),
+        item("work", "My work", "work", "Workspace", "work", ["actions", "approvals", "tracking", "requests", "for me"]),
         item("calendar", "Calendar", "calendar", "Workspace", "calendar", ["shifts", "leave", "appointments", "onboarding"]),
         item("inbox", "Messages", "inbox", "Workspace", "inbox", ["chat", "notifications", "teams"]),
       ];
   if (!platform) {
+    primary.find((entry) => entry.id === "work")!.submodules = workViews
+      .filter(([id]) => ["actions", "approvals", "tracking", "team"].includes(id))
+      .filter(([id]) => context.workViewAvailability === undefined || workViewAvailable(id, context.workViewAvailability))
+      .map(([id, label]) => item(`work-${id}`, label, `work?view=${id}`, "My work", "work"));
+    primary.find((entry) => entry.id === "work")!.submodules!.push(item("work-reports", "Work reports", "work/reports", "My work", "work"));
     const inbox = primary.find((entry) => entry.id === "inbox")!;
     inbox.submodules = [
       item("inbox-chats", "Messages", "inbox?tab=chats", "Inbox", "inbox"),
@@ -301,6 +316,7 @@ export function workplaceNavigation(
 
   const peopleItems = [
     item("people-directory", "People", "people", "People", "admin-people", ["employees", "staff", "profiles", "organization", "positions", "archived profiles", "roster", "shifts", "schedule", "HR settings", "leave policy", "pay groups"]),
+    ...(!beta && hasPermission(actor,"roster.read") ? [item("people-roster","Roster","people/roster","People","calendar",["staffing","leave","overtime","coverage"])] : []),
     ...(scopeKind === "holding" && !beta &&
       (holdingRolesWithPayroll.has(role) || hasPermission(actor, "payroll.read") || hasPermission(actor, "payroll.payment.read"))
       ? [
@@ -319,10 +335,6 @@ export function workplaceNavigation(
           ),
         ]
       : []),
-    ...(!beta ? [
-      item("handbook", "Company handbook", "handbook", "People", "handbook", ["policies", "knowledge"]),
-      item("learn", "Learn", "learn", "People", "education"),
-    ] : []),
   ];
   group(
     "people",
@@ -365,7 +377,7 @@ export function workplaceNavigation(
           "commerce?view=pricing",
           "Sales",
           "invoice",
-          ["price lists", "discount approvals"],
+          ["price lists", "discount controls", "pricing rules"],
         )] : []),
       ],
       `${base}/commerce`,
@@ -373,7 +385,7 @@ export function workplaceNavigation(
     );
     group(
       "procurement",
-      "Procurement",
+      "Purchasing",
       "purchasing",
       "business",
       [
@@ -475,7 +487,7 @@ export function workplaceNavigation(
   }
 
   if (!beta && hasPermission(actor, "commerce.read")) {
-    group("crm", "CRM", "parties", "business", [item("crm-pipeline","Leads & opportunities","crm","CRM","quotation"),item("customer-timeline","Customer 360","customers","CRM","parties"),item("customer-followups","Customer follow-ups","customer-followups","CRM","calendar"),item("crm-customers","Customer directory","commerce?view=parties&kind=customer","CRM","parties",["customers","contacts"])], `${base}/crm`);
+    group("crm", "CRM", "parties", "business", [item("customer-timeline","Customers","customers","CRM","parties",["Customer 360","accounts","contacts","directory"]),item("crm-pipeline","Pipeline","crm","CRM","quotation",["leads","opportunities","activities"]),item("customer-followups","Follow-ups","customer-followups","CRM","calendar"),item("crm-customers","Customer directory","commerce?view=parties&kind=customer","CRM","parties",["customers","contacts"])], `${base}/customers`);
   }
   if (!beta && hasPermission(actor, "support.read")) {
     group("support", "Customer support", "feedback", "business", [item("support-cases","Support cases","support","Customer support","feedback")], `${base}/support`);
@@ -504,7 +516,7 @@ export function workplaceNavigation(
   }
   if (!beta) {
     const financeItems = hasPermission(actor, "finance.read") ? [
-        item("finance-overview", "My work", "finance", "Finance", "home", ["finance work", "accounting"]),
+        item("finance-overview", "Finance work", "finance", "Finance", "home", ["finance work", "accounting"]),
         item("finance-receivables", "Receivables", "finance/invoices?kind=receivable&queue=open", "Finance", "invoice", ["accounts receivable", "collections"]),
         item("finance-payables", "Payables", "finance/invoices?kind=payable&queue=open", "Finance", "invoice", ["accounts payable", "supplier invoices"]),
         item("finance-bank", "Cash & banking", "finance/bank", "Finance", "bank", ["bank statements", "cash", "reconciliation", "bank reconciliation"]),
@@ -518,7 +530,7 @@ export function workplaceNavigation(
           ["journals", "general ledger"],
         ),
         item("finance-close", "Period close", "finance/close", "Finance", "routine", ["period close", "close checklist"]),
-        item("finance-tax", "ภาษี", "finance/tax", "Finance", "ledger", ["VAT", "ภ.พ.30", "tax register"]),
+        item("finance-tax", "Tax", "finance/tax", "Finance", "ledger", ["VAT", "ภ.พ.30", "tax register"]),
         item("finance-reports", "Reports", "finance/reports", "Finance", "ledger", ["trial balance", "financial statements", "aging"]),
         item("finance-engines", "Calculation engines", "finance/engines", "Finance", "routine", ["cash flow", "statutory", "goodwill", "NCI", "equity method", "manufacturing costing"]),
         ...(scopeKind === "holding" ? [item("finance-group", "Group reporting", "finance/group", "Finance", "organization", ["consolidation", "intercompany", "NCI"])] : []),
@@ -560,9 +572,6 @@ export function workplaceNavigation(
           "routine",
           ["routines", "schedules"],
         ),
-        ...(context.canManageApprovals && visibleAdminSections.includes("approvals") ? [
-          item("administration-approvals", "Approvals", "settings?section=approvals", "Projects & Routines", "admin-approvals", ["approval queue", "requests"]),
-        ] : []),
       ],
       `${base}/projects`,
       ["project list"],
@@ -581,6 +590,9 @@ export function workplaceNavigation(
     );
     if (visibleAdminSections.includes("ai")) technologyItems.push(
       item("administration-ai", "AI providers", "settings?section=ai", "Technology", "admin-ai"),
+    );
+    if (context.canManageApprovals && visibleAdminSections.includes("approvals")) technologyItems.push(
+      item("administration-approvals", "Approval routing", "settings?section=approvals", "Administration", "admin-approvals", ["approval settings", "routes", "policies"]),
     );
     if (visibleAdminSections.includes("usage")) technologyItems.push(
       item("administration-usage", "Usage & billing", "settings?section=usage", "Technology", "admin-usage", ["subscription", "costs"]),
@@ -649,10 +661,41 @@ export function workplaceNavigation(
     }
   }
 
+  if (!beta) {
+    group("guides", "Knowledge", "learn", "secondary", [
+      item("learn", "Guides", "learn", "Knowledge", "learn", ["help using ERPX", "SOP", "FAQs", "how to"]),
+      item("handbook", "Company handbook", "handbook", "Knowledge", "handbook", ["policies", "knowledge"]),
+    ]);
+    // These owner pages require both a module grant and records.read.
+    const modules = context.moduleIds ?? [];
+    const extraModules = [
+      ["talent", "Talent", "talent", "people"], ["benefits", "Benefits administration", "benefits", "people"],
+      ["marketing", "Marketing", "marketing", "feed"], ["ecommerce", "E-commerce / Channels", "ecommerce", "commerce"],
+      ["assets", "Assets", "assets", "technology"], ["maintenance", "Maintenance", "maintenance", "technology"],
+      ["field_service", "Field service", "field-service", "technology"], ["planning", "Planning", "planning", "calendar"],
+      ["manufacturing", "Manufacturing", "manufacturing", "product"], ["learning", "My learning & courses", "learning", "education"],
+      ["agent", "Agent governance", "agents", "admin-ai"],
+    ] as const;
+    for (const [module, label, route, icon] of extraModules) {
+      if (modules.includes(module) && hasPermission(actor, module === "ecommerce" ? "commerce.read" : "records.read"))
+        group(module, label, icon, "business", [item(route, label, route, label, icon)], `${base}/${route}`);
+    }
+    if (hasPermission(actor, "commerce.read") && hasPermission(actor, "commerce.sales") &&
+        (!context.availableAppIds || context.availableAppIds.includes("customer_authority")))
+      group("customer_authority", "Customer reviews", "access", "business", [
+        item("customer-identity", "Identity reviews", "customer-identity", "Customer reviews", "parties"),
+        item("customer-duplicates", "Duplicate reviews", "customer-duplicates", "Customer reviews", "parties"),
+        item("customer-access", "Customer access reviews", "customer-access", "Customer reviews", "access"),
+      ]);
+    group("services", "Service desk", "feedback", "business", [
+      item("service-desk", "Service desk", "requests", "Services", "feedback", ["IT requests", "equipment", "get help", "internal requests"]),
+    ]);
+  }
+
   if (context.availableAppIds) {
     const allowed = new Set(context.availableAppIds);
     for (let index = apps.length - 1; index >= 0; index--)
-      if (!allowed.has(apps[index].id)) apps.splice(index, 1);
+      if (!["guides", "services"].includes(apps[index].id) && !allowed.has(apps[index].id)) apps.splice(index, 1);
     const finance = apps.find((app) => app.id === 'finance');
     if (finance) finance.items = finance.items.filter((entry) => !['finance-engines','finance-group'].includes(entry.id));
   }
@@ -679,81 +722,55 @@ export function workplaceNavigation(
     ...((!context.availableAppIds || context.availableAppIds.includes('legal')) && hasPermission(actor, "legal.read")
       ? [item("legal", "Legal", "legal", "Legal", "handbook", ["contracts", "cases", "compliance"])]
       : []),
-    item("feedback", "Help & feedback", "settings?section=feedback", "Help & feedback", "feedback", ["support", "reports"]),
+    item("feedback", "Help using ERPX", "settings?section=feedback", "Help using ERPX", "feedback", ["product feedback", "reports"]),
     ...(scopeKind==='holding' && hasPermission(actor,'organization.manage')
       ? [item('pilot-features','Pilot feature rollout','settings/pilot-features','Pilot feature rollout','settings',['availability','coming soon','hotel pilot'])]
       : []),
-    item("future-features", "Future features", "future-features", "Future features", "learn", ["coming soon", "prototype", "roadmap"]),
+    item("future-features", "Product roadmap", "future-features", "Product roadmap", "learn", ["future features", "coming soon", "prototype", "roadmap"]),
   ];
 
-  const appDestinations = apps.flatMap((entry) => entry.items.map((child) => ({
-    ...child,
-    keywords: [...(child.keywords ?? []), ...(entry.keywords ?? [])],
-  })));
-  const appItems = new Map(apps.map((app) => [app.id, {
-    id: app.id,
-    label: app.label,
-    icon: app.icon,
-    href: app.href ?? app.items[0].href,
-    group: "Apps",
-    keywords: app.keywords,
-    submodules: app.items.filter((entry) => entry.href !== (app.href ?? app.items[0].href)),
-  } satisfies NavigationItem]));
-  const destinationItems = new Map(
-    [...primary, ...standalone].map((entry) => [entry.id, entry]),
-  );
-  const category = (
-    id: NavigationCategory["id"],
-    label: string,
-    icon: NavigationIconId,
-    ids: string[],
-  ): NavigationCategory | null => {
-    const entries = ids.flatMap((entryId) => {
-      const entry = appItems.get(entryId) ?? destinationItems.get(entryId);
-      return entry ? [{ ...entry, group: label }] : [];
-    });
-    return entries.length ? { id, label, icon, apps: entries } : null;
+  const ownerForApp: Record<string, string> = {
+    people: "organization", technology: "identity_access", procurement: "procurement",
+    executive: "finance", resources: "collaboration", administration: "identity_access",
+    "erpx-management": "manage_erpx", guides: "learning", services: "operations",
   };
-  const pos = apps.find((app) => app.id === "pos");
-  const pms = apps.find((app) => app.id === "pms");
-  const finance = apps.find((app) => app.id === "finance");
-  const erpxManagementApp = apps.find((app) => app.id === "erpx-management");
-  const erpxManagementCategory: NavigationCategory | null = erpxManagementApp
-    ? {
-        id: "erpx-management",
-        label: "ERPX Management",
-        icon: "technology",
-        apps: erpxManagementApp.items,
-      }
-    : null;
-  const categories = (beta
-    ? [
-        category("people-organization", "People & organization", "people", ["people", "resources"]),
-        category("management", "Management", "projects", ["executive"]),
-        category("system", "System", "technology", ["administration"]),
-      ]
-    : [
-        category("people-organization", "People & organization", "people", ["people"]),
-        category("crm", "CRM", "parties", ["crm", "support"]),
-        category("sales", "Sales", "commerce", ["sales"]),
-        category("procurement", "Procurement", "purchasing", ["procurement"]),
-        category("inventory", "Inventory", "warehouse", ["inventory", "quality"]),
-        erpxManagementCategory,
-        ...(pos ? [{ id: "pos", label: "POS", icon: "commerce", apps: pos.items } satisfies NavigationCategory] : []),
-        ...(pms ? [{ id: "pms", label: "Hotel PMS", icon: "pms", apps: pms.items } satisfies NavigationCategory] : []),
-        category("operations", "Projects & Routines", "projects", ["projects"]),
-        ...(context.financeWorkspaceV2 && finance
-          ? [{ id: "finance", label: "Finance", icon: "finance", apps: financeRootItems(finance.items) } satisfies NavigationCategory]
-          : [category("finance", "Finance", "finance", ["finance"])]),
-        category("management", "Management", "projects", ["executive", "legal"]),
-        category("system", "System", "technology", ["technology", "feedback", "pilot-features", "future-features"]),
-      ]).filter((entry): entry is NavigationCategory => entry !== null);
+  const metadata = (entry: NavigationItem, appId?: string): NavigationItem => {
+    const owner = entry.id === "work" || entry.id.startsWith("work-") || entry.id.startsWith("calendar") ? "operations"
+      : entry.id === "people-payroll" || entry.id === "people-roster" ? "people_payroll"
+      : entry.id === "administration-usage" || entry.id === "branch-usage" ? "commercial"
+      : entry.id === "administration-ai" ? "agent"
+      : entry.id === "administration-approvals" ? "operations"
+      : ownerForApp[appId ?? ""] ?? appId ?? (entry.id === "legal" ? "legal" : "collaboration");
+    const destination = workplaceModuleDestinations[owner];
+    const categoryId = ["home", "work", "calendar", "inbox"].includes(entry.id) ? "daily"
+      : ["learn", "handbook", "feedback", "future-features"].includes(entry.id) ? "knowledge"
+      : entry.id.startsWith("administration-") || ["pilot-features", "technology-business-readiness", "branch-usage"].includes(entry.id) ? "administration"
+      : appId === "executive" ? "insights"
+      : appId === "services" ? "services"
+      : destination?.categoryId ?? "administration";
+    return { ...entry, categoryId, ownerModuleId: owner, objective: destination?.objective,
+      aiSupport: destination?.aiSupport ?? "guide" };
+  };
+  const appDestinations = apps.flatMap((app) => app.items.map((child) => metadata(child, app.id)));
+  // One level of work entries; detailed views stay with their owning page.
+  const categoryEntries = [...appDestinations, ...standalone.map(entry => metadata(entry))]
+    .filter(entry => entry.id !== "crm-customers");
+  const categories = workplaceCategories.flatMap(([id, label, icon]): NavigationCategory[] => {
+    let entries = categoryEntries.filter(entry => entry.categoryId === id);
+    if (id === "customers-sales") {
+      const order = ["customer-timeline","crm-pipeline","customer-followups","operations-quotations","operations-sales"];
+      entries = entries.sort((a,b)=>(order.includes(a.id)?order.indexOf(a.id):99)-(order.includes(b.id)?order.indexOf(b.id):99));
+    }
+    if (id === "finance" && context.financeWorkspaceV2) entries = financeRootItems(entries);
+    return entries.length ? [{ id, label, icon, apps: entries }] : [];
+  });
   return {
     primary,
     apps,
     categories,
     standalone,
-    search: uniqueDestinations([...primary, ...appDestinations, ...standalone]),
+    search: uniqueDestinations([...primary.map(entry => metadata(entry)), ...primary.flatMap(entry => entry.submodules ?? []).map(entry => ({...metadata(entry), categoryId: "daily" as const})), ...appDestinations, ...standalone.map(entry => metadata(entry)),
+      ...workplaceStartActions.map(action=>({...item(`start-${action.id}`,action.label,`${base}${action.path}`,"Start","work"),categoryId:"daily" as const,ownerModuleId:action.owner,objective:action.objective,aiSupport:"prepare" as const}))]),
     settingsDefault: visibleAdminSections.some((section) => ["people", "usage", "ai"].includes(section)) ? visibleAdminSections[0] : "feedback",
   };
 }
@@ -814,7 +831,7 @@ export function resolveNavigation(
   if (route === "billing" && base === "/platform") return { activeId: "platform-billing" };
   if (route === "usage") return { activeId: model.search.some((item) => item.id === "branch-usage") ? "branch-usage" : "administration-usage", groupId: "technology" };
   if (route === "my-access") return { activeId: "my-access" };
-  if (route === "work") return { activeId: hasApp(model, "resources") || base === "/platform" ? "work" : "home" };
+  if (route === "work") return { activeId: "work" };
   if (route === "payroll") return {
     activeId: "people-payroll",
     groupId: "people",
@@ -822,16 +839,16 @@ export function resolveNavigation(
   };
   if (route === "future-features") return { activeId: "future-features" };
   if (route === "requests")
-    return { activeId: "home", detailLabel: second ? "Request" : undefined };
+    return { activeId: second ? "work" : "service-desk", ...(second ? {} : { groupId: "services" }), detailLabel: second ? "Request" : undefined };
   if (route === "tasks")
     return {
-      activeId: "home",
+      activeId: "work",
       detailLabel:
         second === "people_payroll" ? "Annual leave request" : "Task",
     };
   if (route === "technology") return {activeId: ({organization:"technology-organization",positions:"technology-organization",employees:"technology-organization",directory:"technology-organization",resources:"technology-devices",attributes:"technology-attributes"} as Record<string,string>)[searchParams?.get("view")??"organization"]??"technology-organization",groupId:"technology"};
   if (route === "people") {
-    if (second === "roster") return { activeId: "people-directory", groupId: "people" };
+    if (second === "roster") return { activeId: model.search.some(item=>item.id==="people-roster") ? "people-roster" : "people-directory", groupId: "people" };
     if (second === "settings") {
       const section = queryValue(searchParams, "section");
       const technologyId: Record<string, string> = {
@@ -925,6 +942,13 @@ export function resolveNavigation(
       return { activeId: "pms-approvals", groupId: "pms" };
     return { activeId: "pms-front", groupId: "pms" };
   }
+  const extraRouteApps: Record<string, string> = {
+    assets: "assets", maintenance: "maintenance", "field-service": "field_service", planning: "planning",
+    manufacturing: "manufacturing", talent: "talent", benefits: "benefits", learning: "learning",
+    marketing: "marketing", ecommerce: "ecommerce", agents: "agent",
+    "customer-identity": "customer_authority", "customer-duplicates": "customer_authority", "customer-access": "customer_authority",
+  };
+  if (extraRouteApps[route]) return { activeId: route, groupId: extraRouteApps[route], detailLabel: second ? "Record" : undefined };
   if (route === "finance") {
     if (model.search.some(item => item.id === "finance-payments")) {
       const activeId = financeDestinationForRoute(second, queryValue(searchParams, "kind"));
@@ -996,13 +1020,13 @@ export function resolveNavigation(
   if (route === "handbook")
     return {
       activeId: "handbook",
-      groupId: standard ? "people" : "resources",
+      groupId: standard ? "guides" : "resources",
       detailLabel: second ? "Article" : undefined,
     };
   if (route === "learn")
     return {
       activeId: "learn",
-      groupId: standard ? "people" : hasApp(model, "resources") ? "resources" : undefined,
+      groupId: standard ? "guides" : hasApp(model, "resources") ? "resources" : undefined,
     };
   if (route === "settings") {
     if(second==='pilot-features')return {activeId:'pilot-features'};
@@ -1013,7 +1037,7 @@ export function resolveNavigation(
       if (section === "usage") return { activeId: "administration-usage", groupId: "technology" };
       if (section === "ai") return { activeId: "administration-ai", groupId: "technology" };
       if (section === "approvals") return model.search.some((item) => item.id === "administration-approvals")
-        ? { activeId: "administration-approvals", groupId: "projects" }
+        ? { activeId: "administration-approvals", groupId: "technology" }
         : { activeId: "projects-routines", groupId: "projects" };
       return { activeId: "people-directory", groupId: "people" };
     }
@@ -1122,10 +1146,11 @@ export function navigationCategory(
   model: WorkplaceNavigationModel,
   resolved: NavigationResolution,
 ) {
-  const activeAppId = resolved.groupId ?? resolved.activeId;
-  return model.categories.find((entry) =>
-    entry.id === activeAppId || entry.apps.some((app) => app.id === activeAppId),
-  );
+  const activeId = resolved.sidebarId ?? resolved.activeId;
+  return model.categories.find(entry => entry.apps.some(item => item.id === activeId))
+    ?? model.categories.find(entry => entry.apps.some(item =>
+      model.apps.find(app => app.id === resolved.groupId)?.items.some(child => child.id === item.id)));
+
 }
 
 /** Carry forward retained groups' v2 preferences; new Technology starts closed. */

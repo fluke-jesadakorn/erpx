@@ -7,6 +7,7 @@ import {
   type BillingInput,
 } from "../src/server/billing";
 import { drainBilling } from "../src/server/billing-jobs";
+import { ApiError } from "../src/server/http";
 import { billingMonth, monthBounds, proratedSupport } from "../src/lib/billing";
 import {
   billingStripe,
@@ -324,6 +325,44 @@ it("applies changes only at month end, allows withdrawal, ends Hosting without s
   await f.drain(october.end_at + 13);
   expect((await f.get()).invoices[0].total_satang).toBe(30000);
   expect((await f.get()).periods).toHaveLength(2);
+});
+it("holds a Sandbox credential failure for explicit repair and resumes the original reviewed invoice once", async () => {
+  const f = await fixture();
+  await f.command("enroll", { planId: "standard" });
+  const period = (await f.get()).periods[0];
+  await f.command("complete-costs", { periodId: period.id, complete: true }, period.end_at + 1, f.admin);
+  await f.command("approve", { periodId: period.id }, period.end_at + 2, f.admin);
+  let unavailable = true;
+  const stripe: BillingStripe = async (path, fields, key) => {
+    if (unavailable && path === "invoices")
+      throw new ApiError(503, "STRIPE_AUTHENTICATION_REQUIRED", "Sandbox configuration needs repair.");
+    return f.stripe.request(path, fields, key);
+  };
+  await drainBilling({ ...env }, period.end_at + 3, stripe);
+  const failed = (await db.pool.query("SELECT * FROM billing_jobs WHERE holding_id=$1", [f.id])).rows[0];
+  expect(failed).toMatchObject({ state: "attention", attempts: 1, last_error: "STRIPE_AUTHENTICATION_REQUIRED" });
+  expect(JSON.parse(failed.progress_json)).toEqual({ operationAt: period.end_at + 3 });
+  expect((await f.get()).invoices).toHaveLength(1);
+  expect((await f.get()).invoices[0].stripe_id).toBeNull();
+  await drainBilling({ ...env }, period.end_at + 60003, stripe);
+  const held = (await db.pool.query("SELECT * FROM billing_jobs WHERE id=$1", [failed.id])).rows[0];
+  expect(held.attempts).toBe(1);
+  expect(held.progress_json).toBe(failed.progress_json);
+  unavailable = false;
+  const retryKey = crypto.randomUUID(), retryVersion = (await f.get()).account!.version;
+  const input: BillingInput = { action: "retry", reason: "Sandbox configuration repaired", version: retryVersion, jobId: failed.id };
+  const retry = () => billingCommand(db, f.admin, f.id, input, retryKey, stripe, "https://example.test", period.end_at + 60004);
+  expect(await retry()).toEqual(await retry());
+  await drainBilling({ ...env }, period.end_at + 60005, stripe);
+  const done = (await db.pool.query("SELECT * FROM billing_jobs WHERE id=$1", [failed.id])).rows[0];
+  expect(done).toMatchObject({ state: "done", attempts: 1, last_error: null });
+  expect(JSON.parse(done.progress_json).operationAt).toBe(period.end_at + 3);
+  const final = await f.get();
+  expect(final.invoices).toHaveLength(1);
+  expect(final.invoices[0]).toMatchObject({ id: failed.invoice_id, status: "open", total_satang: 50000 });
+  expect(f.stripe.calls.filter(call => call.path === "invoices")).toHaveLength(1);
+  expect(f.stripe.calls.find(call => call.path === "invoices")?.key).toBe(`erpx-invoice-${failed.invoice_id}`);
+  expect(final.audit.filter(event => event.action === "retry")).toHaveLength(1);
 });
 it("requires explicit consent and a card, handles withdrawal before issue, rejects cross-holding and legacy active enrollment", async () => {
   const f = await fixture();

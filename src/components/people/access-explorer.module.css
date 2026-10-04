@@ -1,6 +1,6 @@
 .explorer {
   min-width: 0;
-  color: var(--ink);
+  color: var(--ui-ink);
 }
 .toolbar,
 .crumbs {
@@ -12,19 +12,16 @@
   margin: 16px 0;
 }
 .toolbar p {
-  color: var(--muted);
+  color: var(--ui-muted);
   margin: 0;
   font-size: 13px;
 }
 .panes {
   display: grid;
-  grid-template-columns: minmax(180px, 0.75fr) minmax(230px, 1fr) minmax(
-      300px,
-      1.4fr
-    );
-  border: 1px solid var(--line);
+  grid-template-columns: minmax(180px, 0.75fr) minmax(230px, 1fr) minmax(300px, 1.4fr);
+  border: 1px solid var(--ui-line);
   border-radius: 14px;
-  background: var(--card);
+  background: var(--ui-card);
   overflow: hidden;
   min-height: 560px;
 }
@@ -36,12 +33,12 @@
   overscroll-behavior: contain;
 }
 .pane + .pane {
-  border-inline-start: 1px solid var(--line);
+  border-inline-start: 1px solid var(--ui-line);
 }
 .pane h2 {
   font-size: 16px;
   margin: 0 0 12px;
-  color: var(--ink-strong);
+  color: var(--ui-ink-strong);
 }
 .pane h3 {
   font-size: 14px;
@@ -49,7 +46,7 @@
 }
 .pane p {
   font-size: 13px;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .pane ul[role="tree"] {
   list-style: none;
@@ -67,27 +64,27 @@
 }
 .pane li[aria-selected="true"],
 .entry[aria-pressed="true"] {
-  background: var(--brand-soft);
-  color: var(--brand);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand);
 }
 .pane li:focus-visible,
 .entry:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--ui-brand);
   outline-offset: -2px;
 }
 .pane small {
   display: block;
   font-size: 11px;
-  color: var(--muted);
+  color: var(--ui-muted);
   margin-top: 4px;
 }
 .search,
 .select {
   width: 100%;
-  border: 1px solid var(--control-border);
+  border: 1px solid var(--ui-control-border);
   border-radius: 7px;
-  background: var(--card);
-  color: var(--ink);
+  background: var(--ui-card);
+  color: var(--ui-ink);
   padding: 10px;
   margin: 6px 0 14px;
 }
@@ -96,7 +93,7 @@
   width: 100%;
   display: block;
   padding: 14px 10px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-line);
   border-radius: 7px;
   cursor: pointer;
   overflow-wrap: anywhere;
@@ -112,13 +109,13 @@
 }
 .badge {
   font-size: 10px;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--ui-line-strong);
   border-radius: 5px;
   padding: 2px 5px;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .area {
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 8px;
   padding: 12px;
   margin: 8px 0;
@@ -129,7 +126,7 @@
   font-weight: 600;
 }
 .area details {
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--ui-line);
   padding-top: 10px;
   margin-top: 10px;
 }
@@ -144,11 +141,11 @@
 }
 .comparison {
   margin-top: 20px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 12px;
   padding: 16px;
   min-width: 0;
-  background: var(--card);
+  background: var(--ui-card);
 }
 .compareScroll {
   overflow-x: auto;
@@ -163,7 +160,7 @@
   width: 270px;
   flex-shrink: 0;
   padding: 12px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 8px;
 }
 .compareCard > label {
@@ -174,7 +171,7 @@
   float: right;
   width: 28px;
   height: 28px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 6px;
 }
 .mobile {
@@ -182,7 +179,7 @@
 }
 .message {
   padding: 12px;
-  background: var(--brand-soft);
+  background: var(--ui-brand-soft);
   border-radius: 8px;
   margin: 12px 0;
 }
@@ -199,17 +196,14 @@
 .form select {
   width: 100%;
   padding: 8px;
-  background: var(--card);
-  border: 1px solid var(--control-border);
+  background: var(--ui-card);
+  border: 1px solid var(--ui-control-border);
   border-radius: 5px;
   min-width: 0;
 }
 @media (max-width: 1100px) {
   .panes {
-    grid-template-columns: minmax(160px, 0.65fr) minmax(210px, 1fr) minmax(
-        240px,
-        1fr
-      );
+    grid-template-columns: minmax(160px, 0.65fr) minmax(210px, 1fr) minmax(240px, 1fr);
   }
   .pane {
     padding: 12px;
@@ -235,3 +229,7 @@
     border: 0;
   }
 }
+
+/* Internal content shares the parent surface; use dividers for hierarchy. */
+.panes .area, .comparison .compareCard { border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+.panes .area + .area { border-top: 1px solid var(--ui-line); }

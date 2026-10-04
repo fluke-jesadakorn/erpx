@@ -52,13 +52,13 @@ export default async function Task({
     if (!["queue", "type", "q"].includes(key)) returnQuery.delete(key);
   const flow = await documentFlow(actor,"staff_task",id);
   return (
-    <FeaturePage className="content-stack" data-source="live"><WorkReturn base={base}/>
+    <FeaturePage className="ui-page-content" data-source="live"><WorkReturn base={base}/>
       <Link className="back-link" href={`${base}/work?${returnQuery}`}>
         ← Your work
       </Link>
-      <div className="section-head">
+      <div className="ui-section-header">
         <h1>{t.title}</h1>
-        <StatusBadge status={t.state} />
+        <StatusBadge appearance="standard" status={t.state} />
       </div><FeatureTabs/><WidgetGrid pageKey="staff-tasks-detail">
       {sourceId && (
         <Link
@@ -68,7 +68,7 @@ export default async function Task({
           Open source conversation ↗
         </Link>
       )}
-      <section data-critical-notice><RecordNextAction flow={flow}/></section><TaskActions key={t.id} base={base} detail={{...detail,permittedActions:detail.permittedActions.filter(a=>flow.canAct||detail.task.active_delegate_user_id===actor.userId||["edit","revise","cancel","delegate"].includes(a))}} /><TaskDelegationControls base={base} detail={detail} options={options} /><FeatureWidget id="staff-tasks-detail-completion-note" title="Completion note">
+      <section data-critical-notice><RecordNextAction flow={flow}/></section><TaskActions appearance="standard" key={t.id} base={base} detail={{...detail,permittedActions:detail.permittedActions.filter(a=>flow.canAct||detail.task.active_delegate_user_id===actor.userId||["edit","revise","cancel","delegate"].includes(a))}} /><TaskDelegationControls appearance="standard" base={base} detail={detail} options={options} /><FeatureWidget appearance="standard" id="staff-tasks-detail-completion-note" title="Completion note">
         <dl className="staff-facts">
           <dt>Accountable assignee</dt>
           <dd>{t.assignee_name}</dd>
@@ -76,7 +76,7 @@ export default async function Task({
           <dd>
             {t.due_at === null
               ? "No due date"
-              : <TimeText value={t.due_at} />}
+              : <TimeText appearance="standard" value={t.due_at} />}
           </dd>
         </dl>
         {t.completion_note && (
@@ -88,12 +88,12 @@ export default async function Task({
       </FeatureWidget>
 
       {t.description && (
-        <FeatureWidget id="staff-tasks-detail-task-instructions" title="Task instructions"><details className="card" open={t.description.length <= 500}>
+        <FeatureWidget appearance="standard" id="staff-tasks-detail-task-instructions" title="Task instructions"><details className="ui-panel" open={t.description.length <= 500}>
           <summary>Task instructions</summary>
           <p style={{ whiteSpace: "pre-wrap" }}>{t.description}</p>
         </details></FeatureWidget>
       )}
-      <FeatureWidget id="staff-tasks-detail-record-information" title="Record information"><details className="card">
+      <FeatureWidget appearance="standard" id="staff-tasks-detail-record-information" title="Record information"><details className="ui-panel">
         <summary>Record information</summary>
         <p>
           Created by {t.creator_name} · {t.project_title ?? "Standalone work"}
@@ -110,7 +110,7 @@ export default async function Task({
           <ApprovalAdminLink base={base} kind="task" id={t.id} />
         )}
       {detail.permittedActions.includes("edit") && (
-        <TaskEditor
+        <TaskEditor appearance="standard"
           key={`edit-${t.version}`}
           base={base}
           options={options}
@@ -120,7 +120,7 @@ export default async function Task({
         />
       )}{" "}
       {detail.permittedActions.includes("revise") && t.state !== "draft" && (
-        <TaskEditor
+        <TaskEditor appearance="standard"
           key={`revise-${t.version}`}
           base={base}
           options={options}

@@ -174,7 +174,12 @@ def restore(home,snapshot,offline=False):
         if has_minio: minio_snapshot(home,'restore',snapshot,offline)
         env,pg=postgres(home)
         for name in metadata['databases']:
-            options=['--clean','--if-exists','--exit-on-error','--single-transaction']
+            # The complete catalogue has thousands of tables, indexes and
+            # triggers. Holding every DROP+CREATE lock until one final commit
+            # exhausts PostgreSQL's lock table on the shared local cluster.
+            # PG18 bounds locks per batch; maintenance remains active if any
+            # batch fails, before files or the matching release are activated.
+            options=['--clean','--if-exists','--exit-on-error','--transaction-size=64']
             if offline: options.append('--no-owner')
             run([pg/'pg_restore',*options,'--dbname',name,snapshot/'databases'/(name+'.dump')],env=env)
         incoming=home/'data/files.restore'

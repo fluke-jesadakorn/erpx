@@ -13,8 +13,11 @@ export const workTypeTone = {
   support_ticket: "teal",
   support_session: "teal",
   maintenance_work: "teal",
+  maintenance_plan: "teal",
+  project_handoff: "brand",
   field_service: "teal",
   collaboration_action: "brand",
+  operational_exception: "teal",
   learning_assignment: "violet",
   benefit_enrollment: "violet",
   talent_application: "violet",
@@ -53,7 +56,7 @@ export const workTypeTone = {
   payroll: "violet",
 } satisfies Record<WorkItem["type"], QuickTone>;
 
-export const workCardTone = {
+export const workCardTone: Record<WorkCardId, QuickTone> = {
   tasks: "brand",
   expenses: "amber",
   shifts: "violet",
@@ -66,4 +69,11 @@ export const workCardTone = {
   team: "brand",
   counts: "green",
   transfers: "green",
+  "customer-followups": "blue", "crm-pipeline": "blue", "customer-timeline": "blue",
+  "operations-quotations": "blue", "operations-sales": "blue",
+  "operations-stock": "green", "operations-purchasing": "green", "procurement-rfqs": "green", "operations-transit": "green",
+  "finance-payments": "amber", "finance-ledger": "amber", "finance-bank": "amber", "finance-payables": "amber", "finance-receivables": "amber",
+  "projects-list": "brand", "projects-routines": "brand", "support-cases": "teal", "quality-holds": "green",
+  assets: "teal", maintenance: "teal", "field-service": "teal", learning: "violet", benefits: "violet", talent: "violet",
+  marketing: "blue", planning: "green", manufacturing: "green", "executive-canvas": "brand",
 } satisfies Record<WorkCardId, QuickTone>;

@@ -23,11 +23,21 @@
 }
 
 @media (max-width: 1199px) {
-  .layout { grid-template-columns: minmax(0, 1fr); }
-  .rail { grid-column: 1; grid-row: 1; }
-  .content { grid-column: 1; grid-row: 2; }
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .rail {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .content {
+    grid-column: 1;
+    grid-row: 2;
+  }
 }
 
 @media print {
-  .rail { display: none; }
+  .rail {
+    display: none;
+  }
 }

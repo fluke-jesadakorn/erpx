@@ -13,7 +13,8 @@ import {
 } from "./iam-recovery";
 import "server-only";
 import { z } from "zod";
-import { currentSession } from "./authorization";
+import { currentSession,requireWorkContext } from "./authorization";
+import {bindIamReviewEvidence,bindIamMigrationEvidence} from './system-evidence';
 import { iamContext } from "./iam-context";
 import {
   iamOverview,
@@ -288,7 +289,11 @@ export async function iamApi(
     sameOrigin(request);
     const input = await request.json();
     let result: unknown;
-    if (path[0] === "user-management" && ["preview", "save"].includes(path[1]))
+    if(holdingSlug&&path.length===3&&path[2]==='evidence'&&path[0]==='reviews')
+      result=await bindIamReviewEvidence(db,await requireWorkContext(holdingSlug),path[1],input,key);
+    else if(holdingSlug&&path.length===3&&path[2]==='evidence'&&path[0]==='migrations')
+      result=await bindIamMigrationEvidence(db,await requireWorkContext(holdingSlug),path[1],input,key);
+    else if (path[0] === "user-management" && ["preview", "save"].includes(path[1]))
       result = await managementCommand(db, actor, input.change, key, path[1] === "preview", input.previewToken);
     else if (route === "roles")
       result = await saveIamRole(db, actor, roleInput.parse(input), key);

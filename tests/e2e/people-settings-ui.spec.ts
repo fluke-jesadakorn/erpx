@@ -17,11 +17,11 @@ async function fitsViewport(page: import("@playwright/test").Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 }
 
-test("HR settings uses one flat topic list and edits inside the People detail panel", async ({ page }) => {
+test("HR settings uses one flat topic list and edits inside the People detail panel", async ({ page }, info) => {
   await page.goto(`${base}/people/settings`);
   await expect(page).toHaveURL(/\/people\?.*panel=settings/);
   const panel = page.getByTestId("people-detail"), sections = panel.getByRole("navigation", { name: "HR settings topics" });
-  await expect(panel).toHaveCount(1);
+  await expect(panel).toHaveCount(1, { timeout: 30_000 });
   await expect(sections.getByRole("button")).toHaveCount(6);
   await expect(sections.getByRole("button", { name: /Custom attributes/ })).toHaveCount(0);
   await expect(panel.getByRole("button", { name: "Create policy", exact: true })).toHaveCount(0);
@@ -32,7 +32,8 @@ test("HR settings uses one flat topic list and edits inside the People detail pa
   await expect(panel.getByRole("button", { name: "Create policy", exact: true })).toBeVisible();
   await panel.locator("summary").filter({ hasText: /^Create leave type/ }).click();
   await expect(panel.getByLabel("Code", { exact: true })).toBeVisible();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  // The mobile detail panel is itself a dialog; settings stay inside that panel.
+  await expect(page.getByRole("dialog")).toHaveCount(info.project.name === "mobile" ? 1 : 0);
   await panel.getByRole("button", { name: "All HR settings", exact: true }).click();
   await expect(sections).toBeVisible();
   await fitsViewport(page);

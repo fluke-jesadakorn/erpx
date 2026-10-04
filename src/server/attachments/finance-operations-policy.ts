@@ -63,6 +63,7 @@ export const financeOperationsAttachmentPolicies: readonly AttachmentPolicy[] = 
   policy("finance_period", "close_workpaper", ["action"], { maxFiles: 50 }),
   policy("finance_accrual_schedule", "accrual_support", ["record"], { maxFiles: 50 }),
   policy("finance_asset", "asset_support", ["record"], { maxFiles: 50 }),
+  policy("finance_tax_identity", "signer_signature", ["record"], { mediaTypes: ["image/png","image/jpeg"],maxFiles:1,maxBytes:MiB,requiredCount:1,classification:"restricted" }),
   policy("finance_lease", "lease_support", ["record"], { maxFiles: 50 }),
   policy("finance_loan", "loan_support", ["record"], { maxFiles: 50 }),
   policy("finance_revenue_contract", "revenue_support", ["record"], { maxFiles: 50 }),
@@ -117,6 +118,7 @@ type Row = {
   submitted_by?: string;
   state?: string;
   status?: string;
+  party_id?: string|null;
 };
 
 function forbidden(message = "Your current assignment cannot access files for this record."): never {
@@ -159,6 +161,7 @@ const financeRecords: Record<string, { table: string; version: string; write: st
   finance_period: { table: "finance_periods", version: "close_version", write: "finance.write" },
   finance_accrual_schedule: { table: "finance_accrual_schedules", version: "version", write: "finance.write" },
   finance_asset: { table: "finance_assets", version: "version", write: "finance.write" },
+  finance_tax_identity: { table: "finance_tax_identities",version:"version",write:"finance.write" },
   finance_lease: { table: "finance_leases", version: "version", write: "finance.write" },
   finance_loan: { table: "finance_loans", version: "version", write: "finance.write" },
   finance_revenue_contract: { table: "finance_revenue_contracts", version: "version", write: "finance.write" },
@@ -206,9 +209,13 @@ export async function authorizeFinanceOperationsAttachmentTarget(
     const row = await companyRow(
       db,
       actor,
-      `SELECT company_id,NULL::text branch_id,NULL::text department_id,${finance.version} AS version FROM ${finance.table} WHERE id=? AND company_id=?`,
+      `SELECT company_id,NULL::text branch_id,NULL::text department_id,${finance.version} AS version${policy.targetType==="finance_tax_identity"?",party_id,status":""} FROM ${finance.table} WHERE id=? AND company_id=?`,
       targetId,
     );
+    if(policy.targetType==="finance_tax_identity"){
+      if(actor.branchId||actor.departmentId||row.party_id!==null)forbidden("Scanned signer evidence belongs to the Company payer's tax identity.");
+      if(operation!=="read"&&row.status!=="draft")throw new ApiError(409,"ATTACHMENT_TARGET_LOCKED","Prepare a new tax identity revision to change an approved signer source.");
+    }
     if (policy.targetType === "finance_period" && Number(row.version) < 1)
       throw new ApiError(409, "ATTACHMENT_TARGET_NOT_READY", "Begin the period close before attaching close workpapers.");
     return result(row, operation);
@@ -309,6 +316,7 @@ const versionDescriptors: Record<string, { table: string; column?: string; extra
   finance_period: { table: "finance_periods", column: "close_version" },
   finance_accrual_schedule: { table: "finance_accrual_schedules" },
   finance_asset: { table: "finance_assets" },
+  finance_tax_identity:{table:"finance_tax_identities",extra:"party_id IS NULL AND status='draft'"},
   finance_lease: { table: "finance_leases" },
   finance_loan: { table: "finance_loans" },
   finance_revenue_contract: { table: "finance_revenue_contracts" },

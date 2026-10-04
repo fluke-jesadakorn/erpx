@@ -61,3 +61,35 @@ it("clamps missing pages, rejects invalid offsets and preserves incomplete actio
   expect(projectWorkPage(snapshot, query).actionCount).toBeNull();
   expect(projectWorkPage(summary([]), query).list).toEqual({ offset: 0, total: 0, hasMore: false });
 });
+
+it("keeps Tracking's requested and waiting filters distinct from actual approval authority",()=>{
+  const snapshot=summary([
+    item(1,{queue:"waiting",relationships:["requested"]}),
+    item(2,{queue:"waiting",relationships:["assigned"]}),
+    item(3,{queue:"todo",canAct:true,relationships:["approval"],actionKind:"work"}),
+    item(4,{queue:"todo",canAct:true,relationships:["approval"],actionKind:"approval"}),
+    item(5,{queue:"completed",relationships:["requested"]}),
+  ]);
+  expect(projectWorkPage(snapshot,{...query,view:"tracking",tracking:"requests"}).items.map(item=>item.id)).toEqual(["5","1"]);
+  expect(projectWorkPage(snapshot,{...query,view:"tracking",tracking:"waiting"}).items.map(item=>item.id)).toEqual(["2","1"]);
+  expect(projectWorkPage(snapshot,{...query,view:"approvals"}).items.map(item=>item.id)).toEqual(["4"]);
+  expect(projectWorkPage({...snapshot,capabilities:{...snapshot.capabilities,unavailable:["Creation"]}},query).actionCount).toBeNull();
+});
+
+it("finds retained Quality escalations on one source hold without including unrelated work or changing source authority", () => {
+  const source = { kind: "quality_hold", id: "held", href: "/quality/held", label: "Quality hold", version: 3 };
+  const held = item(1, { id: "held", type: "quality_hold", source, relationships: ["assigned"], relatedAlerts: [
+    { id: "soon", title: "Quality hold due soon", nextAction: "Prepare the next inspection", completed: false },
+    { id: "late", title: "Overdue quality hold", nextAction: "Record follow-up evidence", completed: false },
+  ] });
+  const snapshot = summary([held, item(2, { type: "quality_hold" }), item(3)]);
+  const result = projectWorkPage(snapshot, { ...query, type: "quality_alert", responsibility: "assigned" });
+  expect(result.items).toEqual([held]);
+  expect(result.items[0].source).toEqual(source);
+  expect(result.list).toEqual({ offset: 0, total: 1, hasMore: false });
+  expect(result.viewCounts).toMatchObject({ actions: 1, all: 1, completed: 0 });
+  expect(result.availableTypes).toContain("quality_alert");
+  expect(projectWorkPage(snapshot, { ...query, type: "quality_alert", q: "OVERDUE QUALITY HOLD" }).items).toEqual([held]);
+  expect(projectWorkPage(snapshot, { ...query, type: "quality_alert", responsibility: "approval" }).items).toEqual([]);
+  expect(projectWorkPage(summary([item(2, { type: "quality_hold" })]), { ...query, type: "quality_alert" }).availableTypes).not.toContain("quality_alert");
+});

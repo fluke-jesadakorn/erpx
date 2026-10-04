@@ -1,8 +1,11 @@
+import { isEngineeringVerificationOrigin } from "../server/engineering-verification";
+
 function origin(value: string | undefined): URL | null {
   if (!value) return null;
   const url = new URL(value);
   if (url.pathname !== "/" || url.search || url.hash || url.username || url.password ||
-      (process.env.NODE_ENV === "production" && url.protocol !== "https:"))
+      !["https:", "http:"].includes(url.protocol) ||
+      (process.env.NODE_ENV === "production" && url.protocol !== "https:" && !isEngineeringVerificationOrigin(url)))
     throw new Error("INVALID_ERPX_ORIGIN");
   return url;
 }

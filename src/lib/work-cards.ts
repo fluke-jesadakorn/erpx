@@ -1,5 +1,7 @@
+import { requestAction } from "./request-actions";
 import { selfServiceHref } from "./self-service";
 import type { WorkItem } from "./work-item";
+import { shortcutDestinationIds } from "./workplace-catalogue";
 
 export const workCardIds = [
   "tasks",
@@ -14,6 +16,7 @@ export const workCardIds = [
   "team",
   "counts",
   "transfers",
+  ...shortcutDestinationIds,
 ] as const;
 export type WorkCardId = (typeof workCardIds)[number];
 export type NewWorkKind =
@@ -47,6 +50,8 @@ export type WorkActionCard = {
   waiting: number | null;
   blocked: number;
   incomplete: boolean;
+  destination?: boolean;
+  objective?: string;
 };
 export type WorkCardPreferences = {
   pinnedIds: WorkCardId[] | null;
@@ -139,11 +144,16 @@ export const workCardCatalog: {
     sources: ["Warehouse transfers"],
   },
 ];
-export function defaultWorkCardIds(cards: WorkActionCard[]): WorkCardId[] {
+export function defaultWorkCardIds(cards: WorkActionCard[], role = ""): WorkCardId[] {
+  const recommended = /sales|commercial/.test(role) ? ["customer-followups", "crm-pipeline", "operations-quotations", "operations-sales"]
+    : /warehouse|inventory|stock/.test(role) ? ["operations-transit", "operations-stock", "transfers", "counts"]
+    : /finance|treasury|account/.test(role) ? ["finance-payments", "finance-ledger", "finance-bank", "approvals"]
+    : /hr|people|payroll/.test(role) ? ["team", "approvals", "shifts", "leave"] : [];
   const pending = ["approvals", "team"].filter((id) =>
     cards.some((c) => c.id === id && (c.toDo ?? 0) + (c.waiting ?? 0) > 0),
   );
   const order = [
+    ...recommended,
     ...pending,
     "shifts",
     "leave",
@@ -159,13 +169,18 @@ export function defaultWorkCardIds(cards: WorkActionCard[]): WorkCardId[] {
   ];
   return [...new Set(order)]
     .filter((id) => cards.some((c) => c.id === id))
-    .slice(0, 6) as WorkCardId[];
+    .slice(0, 4) as WorkCardId[];
 }
 export function newWorkHref(
   base: string,
   creation: WorkCreation,
   current: string,
 ) {
+  const request=requestAction(creation.kind);
+  if (request) {
+    const path=request.path;
+    return `${base}${path}${path.includes("?") ? "&" : "?"}${new URLSearchParams({return:current})}`;
+  }
   const personal=selfServiceHref(base,creation.kind);
   if(personal)return personal;
   if (creation.kind === "conversation") return creation.href;

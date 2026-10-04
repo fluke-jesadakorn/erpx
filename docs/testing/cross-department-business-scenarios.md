@@ -1,5 +1,7 @@
 # ERPX — ตรวจสถานการณ์ธุรกิจข้ามแผนกและผลลัพธ์ต่อลูกค้า
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 > Historical report and scoped evidence. Current priorities, payroll scope and launch criteria are governed by [the production plan](../production-plan.md); remaining work below is retained as history, not a competing delivery plan.
 
 > สถานะหลัง audit: เริ่ม implement ตามแผนแล้ว ดู [progress register](cross-department-implementation-progress.md) และ [paid-return/refund simulation S04](return-refund-simulation.md) สำหรับสิ่งที่เปลี่ยนและผลทดสอบใหม่ ตารางด้านล่างคงเป็น baseline ณ เวลาตรวจ ไม่ใช่ production sign-off
@@ -37,7 +39,7 @@
 |---|---|
 | E01 | [Capability registry](../../src/data/module-registry.json), [delivery](../../src/data/capability-delivery.ts), [live destinations](../../src/data/module-registry.ts): inventory/เส้นทางและช่องว่างที่ประกาศ ไม่ใช่ผล UAT |
 | E02 | [Commerce service](../../src/server/commerce.ts), [API](../../src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts), [baseline schema](../../migrations/postgres/holding-write/0001_baseline.sql), [Flow tests](../../tests/flow-routing.test.ts): quote/order, partial fulfilment, GL, invoices, payment, credit limit, cancellation |
-| E03 | [Flow routing](../../src/server/flow-routing.ts), [Flow work](../../src/server/flow-work.ts), [handoff contract](../archive/planning-2026-09/2026-09-10-flow-handoffs.md): named owner, eligibility, revision, My Work และการแยกอนุมัติ/GL/ชำระ |
+| E03 | [Flow routing](../../src/server/flow-routing.ts), [Flow work](../../src/server/flow-work.ts), [handoff contract](../production-plan.md): named owner, eligibility, revision, My Work และการแยกอนุมัติ/GL/ชำระ |
 | E04 | [Returns test](../../tests/commerce-returns.test.ts), [return schema](../../migrations/postgres/holding-write/0201_commerce_returns.sql), [payment correction test](../../tests/finance-payment-corrections.test.ts), [Finance service](../../src/server/finance.ts): supplier return และแก้รับเงินผิด; ไม่ใช่หลักฐาน customer paid-refund |
 | E05 | [POS service](../../src/server/pos.ts), [POS API](../../src/app/api/v1/holdings/[holdingSlug]/pos/[...path]/route.ts), [POS schema](../../migrations/postgres/holding-write/0030_pos.sql), [POS tests](../../tests/pos.test.ts), [contract](../contracts/next/pos.md) |
 | E06 | [PMS service](../../src/server/pms.ts), [PMS schema](../../migrations/postgres/holding-write/0031_pms.sql), [PMS tests](../../tests/pms.test.ts), [booking tests](../../tests/pms-booking.test.ts), [contract/API](../contracts/next/pms.md) |

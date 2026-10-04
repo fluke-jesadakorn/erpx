@@ -58,12 +58,13 @@ export function proxy(request: NextRequest) {
   const frontApp = frontAppForHost(host);
   const erpOrigin = consoleOrigin();
   const marketing = isMarketingHost(host);
+  const publicFont = ["/fonts/NotoSansThai.ttf", "/fonts/NotoSansThai.woff2", "/fonts/NotoSansThaiOther.woff2"].includes(path);
   const localHost = /^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(host ?? "");
   const loopbackHealth = localHost && (path === "/api/health" || path === "/api/ready");
   if (!frontApp && !marketing && host !== erpOrigin?.host && !(localHost && (!production || loopbackHealth))) return new NextResponse("Invalid host", { status: 421 });
   if (production) {
     const origin = frontApp ? frontOrigin(frontApp)! : marketing ? marketingOrigin()! : erpOrigin!;
-    if (!loopbackHealth && request.headers.get("x-forwarded-proto") === "http") {
+    if (!loopbackHealth && origin.protocol === "https:" && request.headers.get("x-forwarded-proto") === "http") {
       const secure = new URL(origin);
       secure.pathname = path;
       secure.search = request.nextUrl.search;
@@ -84,7 +85,7 @@ export function proxy(request: NextRequest) {
   }
   if (marketing) {
     if (path === "/api/health" || path === "/api/ready") return NextResponse.next();
-    if (path.startsWith("/_next/")) return NextResponse.next();
+    if (path.startsWith("/_next/") || publicFont) return NextResponse.next();
     if (path.startsWith("/api/")) return new NextResponse("Not found", { status: 404 });
     if (path === "/") {
       const internal = new URL(request.url);
@@ -100,7 +101,11 @@ export function proxy(request: NextRequest) {
   }
   if (path === "/marketing") return new NextResponse("Not found", { status: 404 });
   if (frontApp) {
-    if (path === "/api/health" || path === "/api/ready" || path.startsWith("/_next/") || path === "/fonts/NotoSansThai.ttf") return NextResponse.next();
+    if (path === "/api/health" || path === "/api/ready" || path.startsWith("/_next/") || publicFont) return NextResponse.next();
+    // The shared date renderer reads only the signed-in account's preference.
+    // Its route handler still requires a normal session; Front cannot edit it
+    // or use this exception to reach other account/administration commands.
+    if (path === "/api/v1/account/time-preference" && request.method === "GET") return NextResponse.next();
     if (path === "/erpx-push-sw.js") return NextResponse.next();
     if (path.startsWith("/api/v1/front/")) {
       const parts = path.slice("/api/v1/front/".length).split("/");

@@ -1,3 +1,4 @@
+import {createEngineeringBrowserContext} from './helpers/engineering-browser-evidence';
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -30,19 +31,22 @@ test("isolated demo renders receivables and payables aging from live finance dat
   const directory = resolve(`.runtime/browser/${run}`);
   const credentials = JSON.parse(await readFile(resolve(directory, "credentials.json"), "utf8")) as Credentials;
   expect(credentials.users.find((user) => user.role === "finance_approver"), "finance reviewer demo account").toBeTruthy();
-  const context = await browser.newContext(testInfo.project.use);
+  const context = await createEngineeringBrowserContext(browser,testInfo);
   try {
     const page = await context.newPage();
-    await signInFinance(context, page, credentials, "/holdings/simulation/finance/invoices?kind=receivable&queue=open");
-    await expect(page.getByRole("heading", { name: "Receivables aging", exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Payables aging", exact: true })).toBeVisible();
-    await expect(page.getByText("Open posted obligations grouped by days overdue as of", { exact: false }).first()).toBeVisible();
+    await signInFinance(context, page, credentials, "/holdings/simulation/finance/invoices?queue=open&asOf=2027-01-30");
+    const content = page.locator('#workspace-content');
+    await content.getByText("Aging summary · 2027-01-30", { exact: true }).click();
+    await expect(content.getByRole("heading", { name: "Receivables aging", exact: true })).toBeVisible();
+    await expect(content.getByRole("heading", { name: "Payables aging", exact: true })).toBeVisible();
+    const receivables = content.getByRole('region', { name: 'Receivables aging', exact: true });
+    await expect(receivables.getByText("Open posted obligations grouped by days overdue as of 2027-01-30", { exact: false })).toBeVisible();
     await expect(page.getByRole("link", { name: "Open receivables →", exact: true })).toHaveAttribute("href", "/holdings/simulation/finance/invoices?kind=receivable&queue=open");
-    const aging = await page.request.get("/api/v1/holdings/simulation/finance/aging?kind=receivable&asOf=2026-09-22");
+    const aging = await page.request.get("/api/v1/holdings/simulation/finance/aging?kind=receivable&asOf=2027-01-30");
     expect(aging.ok(), await aging.text()).toBe(true);
     const body = await aging.json() as { data: Array<{ bucket: string; outstanding: string }> };
     expect(body.data).toEqual(expect.arrayContaining([expect.objectContaining({ bucket: "current", outstanding: "300.00" })]));
-    await expect(page.getByText("300.00", { exact: true }).first()).toBeVisible();
+    await expect(receivables.getByText("THB 300.00", { exact: true })).toBeVisible();
   } finally {
     await context.close();
   }

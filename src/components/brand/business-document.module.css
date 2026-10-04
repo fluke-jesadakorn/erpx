@@ -1,15 +1,86 @@
-.controls { display:flex; flex-wrap:wrap; align-items:end; justify-content:flex-end; gap:10px; }
-.controls label { display:grid; gap:4px; color:var(--muted); font-size:11px; }
-.controls select { min-height:38px; }
-.header { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:14px 28px; padding:0 0 18px; border-bottom:2px solid #0B1F3A; color:#0B1F3A; }
-.brands { display:flex; align-items:center; gap:18px; }
-.identity { display:flex; align-items:center; gap:10px; }
-.identity img,.identity > span { display:grid; place-items:center; width:54px; height:42px; object-fit:contain; border-radius:6px; background:#fff; color:#0B1F3A; font-weight:750; }
-.identity img { padding:3px; }
-.identity strong { font-size:16px; }
-.endorsement { grid-column:1/-1; margin:0; color:#4a5568; font-size:11px; }
-.legal,.document { display:grid; gap:2px; }
-.legal span,.document span { color:#64748b; font-size:9px; letter-spacing:.12em; text-transform:uppercase; }
-.legal small { color:#64748b; }
-.document { text-align:right; }
-@media screen { .header { margin-top:8px; padding:20px; border:1px solid var(--line); border-bottom:2px solid #0B1F3A; border-radius:12px; background:#fff; } }
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.controls label {
+  display: grid;
+  gap: 4px;
+  color: var(--ui-muted);
+  font-size: 11px;
+}
+.controls select {
+  min-height: 38px;
+}
+.header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px 28px;
+  padding: 0 0 18px;
+  border-bottom: 2px solid #0b1f3a;
+  color: #0b1f3a;
+}
+.brands {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.identity img,
+.identity > span {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 42px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #fff;
+  color: #0b1f3a;
+  font-weight: 750;
+}
+.identity img {
+  padding: 3px;
+}
+.identity strong {
+  font-size: 16px;
+}
+.endorsement {
+  grid-column: 1/-1;
+  margin: 0;
+  color: #4a5568;
+  font-size: 11px;
+}
+.legal,
+.document {
+  display: grid;
+  gap: 2px;
+}
+.legal span,
+.document span {
+  color: #64748b;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.legal small {
+  color: #64748b;
+}
+.document {
+  text-align: right;
+}
+@media screen {
+  .header {
+    margin-top: 8px;
+    padding: 20px;
+    border: 1px solid var(--ui-line);
+    border-bottom: 2px solid #0b1f3a;
+    border-radius: 12px;
+    background: #fff;
+  }
+}

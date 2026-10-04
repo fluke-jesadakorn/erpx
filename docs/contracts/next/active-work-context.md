@@ -50,7 +50,7 @@ BroadcastChannel and focus revalidation detect another tab's changes. Stale cont
 
 Automated coverage is in `tests/active-work-context.test.ts`, `tests/preferred-role.test.ts`, spending/expense, business command, employee service, Work and AI tests, and `tests/e2e/preferred-role.spec.ts` / `auth-smoke.spec.ts`. Coverage includes stale/racing writes, revoked/expired/future/foreign grants, scope inheritance, identical role names in different branches, company and session isolation, audit and cross-role replay, People Manager versus Employee, Treasury versus Accounting, a 17-role account's direct API denials, two tabs and a single-assignment employee.
 
-The development database has the migrations applied. The public development origin remains `https://erpx.jesadakorn.com` through port 3100; the installed port 3101 production service is unchanged. Builds use the isolated release builder.
+The development database has the migrations applied. The public development origin remains `https://console-dev-erpx.jesadakorn.com` through port 3100; the installed port 3101 production service is unchanged. Builds use the isolated release builder.
 
 Verification on 2026-09-14: typecheck, lint and the isolated Node 24.20.0 release build passed; 331 unit/integration tests and 24 desktop/mobile Playwright cases passed. The authenticated public UI switched Employee → Finance Approver → Employee, opened Finance under the selected reviewer role, returned Home when selecting Employee, and displayed the role at 390px without document overflow. Home and Finance returned HTTP 200; both local/public health endpoints returned HTTP 200. Dev remained running on port 3100.
 

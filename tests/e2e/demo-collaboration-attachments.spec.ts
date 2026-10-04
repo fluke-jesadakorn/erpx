@@ -1,3 +1,4 @@
+import {createEngineeringBrowserContext} from './helpers/engineering-browser-evidence';
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -53,8 +54,8 @@ test("isolated demo exchanges a conversation attachment between members", async 
   const credentials = JSON.parse(
     await readFile(resolve(directory, "credentials.json"), "utf8"),
   ) as Credentials;
-  const ownerContext = await browser.newContext(testInfo.project.use);
-  const employeeContext = await browser.newContext(testInfo.project.use);
+  const ownerContext = await createEngineeringBrowserContext(browser,testInfo);
+  const employeeContext = await createEngineeringBrowserContext(browser,testInfo);
   try {
     const ownerPage = await ownerContext.newPage();
     const employeePage = await employeeContext.newPage();
@@ -68,12 +69,12 @@ test("isolated demo exchanges a conversation attachment between members", async 
     await ownerPage.getByRole("button", { name: "Start chat", exact: true }).click();
     await expect(ownerPage.getByRole("heading", { name: "Support agent", exact: true })).toBeVisible();
     const greeting = `Attachment handoff ${Date.now()}`;
-    await ownerPage.getByLabel("Message", { exact: true }).fill(greeting);
+    await ownerPage.locator("#workspace-content").getByLabel("Message", { exact: true }).fill(greeting);
     await ownerPage.getByRole("button", { name: "Send", exact: true }).click();
     await expect(ownerPage.getByRole("log").getByText(greeting, { exact: true })).toBeVisible();
 
     const fileName = "handoff-evidence.csv";
-    await ownerPage.getByLabel("Attach files").setInputFiles({
+    await ownerPage.locator("#workspace-content").getByLabel("Attach files").setInputFiles({
       name: fileName,
       mimeType: "text/csv",
       buffer: Buffer.from("step,result\nattachment,verified\n"),

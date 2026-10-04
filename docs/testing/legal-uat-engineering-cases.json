@@ -1,0 +1,288 @@
+[
+  {
+    "id": "UAT-01",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-01: Company forms and templates require independent review before they can affect an operational draft",
+    "proof": "Normal-login maker cannot apply pending Company forms/templates or approve their own content; independent reviewer approves exact versions; interpolated draft and derived template link persist and another Company sees no policy.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-02",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-02/03/09/23: request from Today restores a Thai draft, routes to Legal and uses current scope",
+    "proof": "Thai request draft survives reload from Today; current owner and branch route are checked; eligible specialist clarifies and answers through review, approval, active, completed and reopen states with immutable feature and assignment history.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-03",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-03/09: current Company, department, reviewer role and revoked assignment determine eligible recipients",
+    "proof": "Normal-login department request pins its actual department; foreign Company, branch, department and revoked recipients are absent from live choices and cannot be persisted; Finance and revoked/foreign Legal reviewers cannot open approval routes.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-04",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-04/05/06/07: ordered independent approval and signed-copy review preserve distinct originals",
+    "proof": "Normal-login ordered reviewers cannot skip the first step; exact document version and signer authority are selected; independently approved copy remains distinct from two checksum-pinned signed original revisions.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-05",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-04/05/06/07: ordered independent approval and signed-copy review preserve distinct originals",
+    "proof": "Content author cannot open self-approval or confirm their imported signed copy; corrected content remains approved until a fresh independent review confirms exact content, pages, parties, signatures and authority.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-06",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-04/05/06/07: ordered independent approval and signed-copy review preserve distinct originals",
+    "proof": "Actual scanned PDF original retains checksum, signing date, parties, signer and authority evidence; independent reviewer checks each field before the record becomes executed; all original revisions remain present.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-07",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-04/05/06/07: ordered independent approval and signed-copy review preserve distinct originals",
+    "proof": "Incomplete confirmation is refused; changed copy is marked changes_required and record remains approved; corrected scanned original still awaits independent confirmation and preserves the prior failed copy.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-08",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-08/09/20/21/25: Companies and Holdings stay scoped, pending law stays out of search and readiness stays pending",
+    "proof": "Unassigned confidential detail, document and AI history return 404; search returns zero rows/total and export/report omit the private record; foreign Company/Holding access and stale active-Company context are refused.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-09",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-03/09: current Company, department, reviewer role and revoked assignment determine eligible recipients",
+    "proof": "Normal-login record member initially reads the scoped request; after native membership removal, detail and AI history immediately return 404; current Company context changes reject stale tab commands and old-Company reads.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-10",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-10/21: scanned Thai DOCX retains its original checksum and enters retrieval only after independent text review",
+    "proof": "Actual Thai DOCX upload is scanned, checksum-pinned and downloaded unchanged; malformed and oversized originals fail; compiled extraction must finish; author cannot approve extraction and pending text is excluded from retrieval.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-11",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-11/25: compiled workers notify the eligible owner and escalation reviewer once and recover without changing certification",
+    "proof": "Actual attested compiled jobs emit exactly one owner and one eligible escalation notification, retain original OCR checksum/text, stop/restart with advancing heartbeat and preserve deduplicated business effects.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-12",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-12/13/16: reviewed dates and typed case, corporate and IP actions retain scoped evidence and filing corrections",
+    "proof": "Browser reviewed deadline calculator handles leap-year month end and declared Company holiday in Bangkok local dates without mutating parent deadline or inventing any statutory limitation period.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-13",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-12/13/16: reviewed dates and typed case, corporate and IP actions retain scoped evidence and filing corrections",
+    "proof": "All hearing, filing, order, appeal, settlement and enforcement feature actions retain original matter linkage and immutable 18-event workflow history; completion without receipt is refused.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-14",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-14/15: DSAR clarification and breach known-event time require typed independent response review",
+    "proof": "DSAR missing identity enters clarification; unverified identity cannot reach review; third-party redaction and partial-refusal reason are retained; self-approval fails and independent response evidence closes the case.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-15",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-14/15: DSAR clarification and breach known-event time require typed independent response review",
+    "proof": "Breach known-event timestamp predates ticket creation and persists unchanged; pending notification cannot be approved; risk, notification basis, independent response decision and manual due date survive reload.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-16",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-12/13/16: reviewed dates and typed case, corporate and IP actions retain scoped evidence and filing corrections",
+    "proof": "Corporate, license and IP typed filing/renewal packets require independent approval; absent filing receipts keep work incomplete; submitted/filed and completed states retain exact acceptance receipts.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-17",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-17: external counsel sees only the shared revision and sends one reviewed spending request to Finance",
+    "proof": "Ordinary external identity sees only explicitly shared original revision and no internal comments; another recipient sees no private billing; one repeated billing receipt creates exactly one reviewed Finance spending request; revoke denies portal and replay.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-18",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-18: cyclic evidence links retain both holds and releasing one preserves the other original",
+    "proof": "Native cyclic evidence links carry two overlapping holds; author cannot release their own hold; independent release leaves one hold on both records; native delete and replacement attempts fail and original SHA256 remains unchanged.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-19",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-19: independently approved canonical destruction resumes the same immutable manifest after an isolated interruption",
+    "proof": "Normal-login requester and independent reviewer approve one immutable canonical destruction manifest; wrong confirmation and self-approval fail; actual deletion is interrupted, same journal resumes, bytes/quota disappear and one retained certificate/checksum remains.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-20",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-20/21: independently reviewed fixture revisions respect dates and conflicts and open exact authorized citations",
+    "proof": "Independently reviewed synthetic revision is excluded before its effective date; future and overlapping conflicting revisions remain explicit; retirement restores the prior exact source and existing manual deadlines remain unchanged; no law certification is claimed.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-21",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-20/21: independently reviewed fixture revisions respect dates and conflicts and open exact authorized citations",
+    "proof": "Authorized citation returns exact document version/checksum, printed page and as-of date; unassigned identity receives 404 and conflicting revision removes citation; browser opens the same retained original passage.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-22",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-22: unavailable Legal AI leaves untrusted evidence inert and a persisted manual document workflow available",
+    "proof": "Declared fixture provider tests actual untrusted prompt/human-review output, wrong-citation refusal, in-flight native ACL revocation, provider failure and real pre-network budget refusal; normal-login unconfigured provider fails without business side effects and manual document saves/reloads.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-23",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-23/24: repeated and concurrent imports preserve one atomic register with scoped exports and reload",
+    "proof": "Same-key concurrent import and lost-response replay create the same two records once with one created event each; simultaneous versioned comments yield one success and one 409; repeated response receipt adds one comment and one version.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-24",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-23/24: repeated and concurrent imports preserve one atomic register with scoped exports and reload",
+    "proof": "Invalid-row and changed-digest commits fail atomically; valid imported IDs equal scoped export and report IDs; foreign Holding export omits both; persistent discussion/reload and screenshots run separately on desktop/mobile.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-25",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-11/25: compiled workers notify the eligible owner and escalation reviewer once and recover without changing certification",
+    "proof": "Paused Company emits no reminders while independently launched attested compiled workers recover after a Holding processing fault and stop/restart with new PIDs/advancing heartbeat; Company release/provider certification remains pending.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  {
+    "id": "UAT-26",
+    "review": "reviewed",
+    "file": "tests/e2e/legal-uat.spec.ts",
+    "title": "UAT-26: encrypted restore and compatible rollback retain Legal originals, histories, ACLs, holds and queued job state",
+    "proof": "Actual encrypted RC recovery artifact verifies full table/file restore, tamper refusal, compatible/incompatible rollback, Legal original SHA256, history, ACL, overlapping holds, queued job and replay deduplication; ordinary authorized browser reload retains originals/history and unassigned read is refused.",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  }
+]

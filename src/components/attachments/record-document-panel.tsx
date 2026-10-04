@@ -1,8 +1,10 @@
 "use client";
+import { Field, Select } from "@/components/ui/foundation";
 
 import { useState } from "react";
 import { AttachmentPanel } from "./attachment-panel";
 import { useAttachmentFeatureMode } from "./attachment-feature-context";
+import { type UiAppearance } from "@/components/ui/foundation";
 
 export type RecordDocumentPurpose = {
   key: string;
@@ -22,18 +24,18 @@ type RecordDocumentPanelProps = {
   editable?: boolean;
 };
 
-export function RecordDocumentPanel(props: RecordDocumentPanelProps) {
+export function RecordDocumentPanel(props: (RecordDocumentPanelProps) & { appearance?: UiAppearance }) {
   const mode = useAttachmentFeatureMode();
   if (mode === "disabled") return null;
   return (
-    <RecordDocumentPanelContent
+    <RecordDocumentPanelContent appearance={(props.appearance ?? "legacy")}
       {...props}
       editable={props.editable !== false && mode !== "read-only"}
     />
   );
 }
 
-function RecordDocumentPanelContent({
+function RecordDocumentPanelContent({ appearance = "legacy",
   base,
   targetType,
   targetId,
@@ -41,21 +43,25 @@ function RecordDocumentPanelContent({
   title = "Record documents",
   purposes,
   editable = true,
-}: RecordDocumentPanelProps) {
+}: (RecordDocumentPanelProps) & { appearance?: UiAppearance }) {
   const [purposeKey, setPurposeKey] = useState(purposes[0]?.key ?? "");
   const [available, setAvailable] = useState<boolean | null>(null);
   const purpose = purposes.find((item) => item.key === purposeKey) ?? purposes[0];
   if (!purpose || available === false) return null;
   return (
-    <section className="card business-form">
-      <h2>{title}</h2>
-      <label>
+    <section data-ui-appearance={appearance} className={appearance === "standard" ? "ui-panel ui-form-grid" : "card business-form"}>
+      <h2 data-ui-appearance={appearance}>{title}</h2>
+      <Field appearance={appearance}>
         Document purpose
-        <select value={purpose.key} onChange={(event) => setPurposeKey(event.target.value)}>
-          {purposes.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
-        </select>
-      </label>
-      <AttachmentPanel
+        <Select appearance={appearance} value={purpose.key} onChange={(event) => setPurposeKey(event.target.value)}>
+          {purposes.map((item) => (
+            <option data-ui-appearance={appearance} key={item.key} value={item.key}>
+              {item.label}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <AttachmentPanel appearance={appearance}
         key={`${targetType}:${targetId}:${expectedTargetVersion}:${purpose.key}`}
         base={base}
         targetType={targetType}

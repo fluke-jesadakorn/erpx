@@ -1,8 +1,8 @@
-> **Directory policy superseded by [ADR-025](ADR-025-multiple-identity-providers-and-scoped-replacement.md), 2026-09-15.** Multiple active providers and Company-scoped reviewed replacement replace the single-connector/fallback rules below. Database isolation remains authoritative.
+> **Directory policy superseded by [ADR-025](ADR-025-multiple-identity-providers-and-scoped-replacement.md), 2026-09-15.** Multiple active providers and Company-scoped reviewed replacement replace the single-connector/fallback rules below. Holding isolation remains authoritative. The physical branch-pair/bootstrap procedures below describe the archived Rust implementation; current Holding resource bindings use the scoped PostgreSQL manifests in [runtime operations](../../ops/macos/README.md), with topology governed by [ADR-032](ADR-032-shared-local-postgresql-cluster.md).
 
 # ADR-013: Holding-plus-branch database isolation and scoped directory authority
 
-> **Next.js era: Reconfirmed (2026-09-02) — still authoritative**
+> **Disposition: retain Holding isolation; apply the amendments and current-runtime boundaries above.**
 > See `CUTOVER.md` (2026-09-02) and `ADR-020-nextjs-stack.md`.
 
 

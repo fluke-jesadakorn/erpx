@@ -12,6 +12,8 @@ export const projectMilestoneSchema = z.object({
   description: z.string().trim().max(10000).default(""),
   dueAt: z.iso.datetime({ offset: true }),
   ownerUserId: z.string().min(1).max(160),
+  parentMilestoneId: z.string().min(1).max(200).nullable().optional(),
+  ordinalPosition: z.number().int().min(0).max(1000000).optional(),
   dependsOnMilestoneIds: z.array(z.string().min(1).max(200)).max(50).refine((ids) => new Set(ids).size === ids.length, "Prerequisite milestones must be unique.").optional(),
   expectedVersion: z.number().int().positive().default(1),
   reason: z.string().trim().min(3).max(2000).default("Milestone details reviewed by the project owner."),
@@ -27,6 +29,8 @@ export type ProjectMilestoneRow = {
   id: string;
   company_id: string;
   project_id: string;
+  parent_milestone_id: string | null;
+  ordinal_position: number;
   title: string;
   description: string;
   due_at: number;
@@ -47,6 +51,16 @@ export type ProjectMilestoneRow = {
 
 type MilestoneInput = z.infer<typeof projectMilestoneSchema>;
 type MilestoneEventAction = "created" | "revised" | "started" | "completed" | "reopened" | "cancelled";
+
+/** Preserve durable owner constraints as reviewable lifecycle conflicts. */
+export function projectConstraint(error:unknown):never{
+  const message=error instanceof Error?error.message:'';
+  if((error as {code?:string}).code==='23514'&&/^PROJECT_[A-Z_]+$/.test(message)){
+    const descriptions:Record<string,string>={PROJECT_STRUCTURE_FROZEN:'Reopen the project before changing its work or evidence.',PROJECT_PACKAGE_CHILDREN_INCOMPLETE:'Complete or cancel the active child packages before closing their parent.',PROJECT_PACKAGE_TASKS_INCOMPLETE:'Complete or cancel the assigned tasks before closing this work package.',PROJECT_PACKAGE_CYCLE_OR_DEPTH:'Choose a parent that keeps the work structure acyclic and within thirty levels.',PROJECT_EXECUTION_GRAPH_CYCLE:'The selected hierarchy and prerequisites would prevent the project from completing. Choose an acyclic work structure.'};
+    const conflict=new ApiError(409,message,descriptions[message]??'The project source changed. Reload its current work structure and review again.');conflict.cause=error;throw conflict;
+  }
+  throw error;
+}
 
 function projectOwner(project: ProjectRow, actor: StaffActor) {
   if (!samePerson(actor, project.owner_user_id))
@@ -112,6 +126,10 @@ export async function saveProjectMilestone(db: SqlDatabase, actor: StaffActor, p
   projectOwner(project, actor);
   await assertProjectMember(db, project, input.ownerUserId);
   const current = milestoneId ? await loadMilestone(db, projectId, milestoneId) : null;
+  const parentId=input.parentMilestoneId===undefined?current?.parent_milestone_id??null:input.parentMilestoneId,position=input.ordinalPosition??current?.ordinal_position??0;
+  const parent=parentId?await db.prepare('SELECT id,version,state FROM staff_project_milestones WHERE id=? AND company_id=? AND project_id=?').bind(parentId,actor.companyId,project.id).first<{id:string;version:number;state:string}>():null;
+  if(parentId&&(!parent||parentId===id))throw new ApiError(422,'PROJECT_PACKAGE_PARENT_INVALID','Choose a different parent package in this project.');
+  if(parent&&parent.state!=='planned'&&parent.state!=='in_progress')throw new ApiError(409,'PROJECT_PACKAGE_PARENT_TERMINAL','Reopen the parent package before adding or revising its work.');
   if (current && (current.state === "completed" || current.state === "cancelled"))
     throw new ApiError(409, "PROJECT_MILESTONE_TERMINAL", "Reopen the milestone before editing its details.");
   const priorDependencies = current ? (await db.prepare(`SELECT predecessor_milestone_id FROM staff_project_milestone_dependencies
@@ -141,13 +159,14 @@ export async function saveProjectMilestone(db: SqlDatabase, actor: StaffActor, p
     if (cycle?.cyclic) throw new ApiError(422, "PROJECT_DEPENDENCY_CYCLE", "This prerequisite would create a project dependency cycle.");
   }
   const now = Date.now(), version = current ? input.expectedVersion + 1 : 1;
-  const snapshot = { projectId, title: input.title, description: input.description, dueAt: Date.parse(input.dueAt), ownerUserId: input.ownerUserId, dependsOnMilestoneIds: dependencyIds };
+  const snapshot = { projectId, title: input.title, description: input.description, dueAt: Date.parse(input.dueAt), ownerUserId: input.ownerUserId, dependsOnMilestoneIds: dependencyIds,parentMilestoneId:parentId,ordinalPosition:position };
   const dependencyJson = JSON.stringify(dependencyIds);
   return executeCommand(db, actor, key, operation, { projectId, ...input }, id, version, { id, version }, [
     db.prepare("SELECT id FROM staff_projects WHERE id=? AND company_id=? FOR UPDATE").bind(project.id, actor.companyId),
     staffGuard(db, key, actor.companyId, actor.userId),
     staffGuard(db, key, actor.companyId, input.ownerUserId, "milestone-owner"),
     assertion(db, key, "project-owner", "EXISTS(SELECT 1 FROM staff_projects WHERE id=? AND company_id=? AND version=? AND iam_same_person(owner_user_id,?,company_id))", [project.id, actor.companyId, project.version, actor.userId]),
+    ...(parent?[assertion(db,key,'package-parent',"EXISTS(SELECT 1 FROM staff_project_milestones WHERE id=? AND company_id=? AND project_id=? AND version=? AND state IN ('planned','in_progress'))",[parent.id,actor.companyId,project.id,parent.version])]:[]),
     assertion(db, key, "milestone-prerequisites", `jsonb_array_length(?::jsonb)=(SELECT count(*) FROM jsonb_array_elements_text(?::jsonb) candidate
       JOIN staff_project_milestones dependency ON dependency.id=candidate.value AND dependency.company_id=? AND dependency.project_id=? AND dependency.state<>'cancelled'
       WHERE dependency.id<>?)`, [dependencyJson, dependencyJson, actor.companyId, project.id, id]),
@@ -163,13 +182,13 @@ export async function saveProjectMilestone(db: SqlDatabase, actor: StaffActor, p
     )`, [id, id, actor.companyId, project.id, dependencyJson]),
     ...(current ? [
       assertion(db, key, "milestone-version", "EXISTS(SELECT 1 FROM staff_project_milestones WHERE id=? AND project_id=? AND company_id=? AND version=? AND state IN ('planned','in_progress'))", [id, project.id, actor.companyId, input.expectedVersion]),
-      db.prepare(`UPDATE staff_project_milestones SET title=?,description=?,due_at=?,owner_user_id=?,version=version+1,updated_at=? WHERE id=?`)
-        .bind(input.title, input.description, Date.parse(input.dueAt), input.ownerUserId, now, id),
+      db.prepare(`UPDATE staff_project_milestones SET title=?,description=?,due_at=?,owner_user_id=?,parent_milestone_id=?,ordinal_position=?,version=version+1,updated_at=? WHERE id=?`)
+        .bind(input.title, input.description, Date.parse(input.dueAt), input.ownerUserId,parentId,position,now,id),
     ] : [
       assertion(db, key, "project-member", "EXISTS(SELECT 1 FROM staff_projects p WHERE p.id=? AND p.company_id=? AND (iam_same_person(p.owner_user_id,?,p.company_id) OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=?)))", [project.id, actor.companyId, input.ownerUserId, input.ownerUserId]),
-      db.prepare(`INSERT INTO staff_project_milestones(id,company_id,project_id,title,description,due_at,owner_user_id,state,version,created_by,completed_at,created_at,updated_at)
-        VALUES(?,?,?,?,?,?,?,'planned',1,?,NULL,?,?)`)
-        .bind(id, actor.companyId, project.id, input.title, input.description, Date.parse(input.dueAt), input.ownerUserId, actor.userId, now, now),
+      db.prepare(`INSERT INTO staff_project_milestones(id,company_id,project_id,title,description,due_at,owner_user_id,parent_milestone_id,ordinal_position,state,version,created_by,completed_at,created_at,updated_at)
+        VALUES(?,?,?,?,?,?,?,?,?,'planned',1,?,NULL,?,?)`)
+        .bind(id, actor.companyId, project.id, input.title, input.description, Date.parse(input.dueAt), input.ownerUserId,parentId,position,actor.userId,now,now),
     ]),
     db.prepare("DELETE FROM staff_project_milestone_dependencies WHERE company_id=? AND project_id=? AND successor_milestone_id=?")
       .bind(actor.companyId, project.id, id),
@@ -178,7 +197,7 @@ export async function saveProjectMilestone(db: SqlDatabase, actor: StaffActor, p
       .bind(actor.companyId, project.id, predecessorId, id, actor.userId, now)),
     db.prepare("UPDATE staff_projects SET version=version+1,updated_at=? WHERE id=? AND company_id=?").bind(now, project.id, actor.companyId),
     eventStatement(db, id, version, current ? "revised" : "created", actor, input.reason, snapshot, now),
-  ], { companyId: project.company_id, branchId: project.branch_id, departmentId: project.department_id });
+  ], { companyId: project.company_id, branchId: project.branch_id, departmentId: project.department_id }).catch(projectConstraint);
 }
 
 export async function transitionProjectMilestone(db: SqlDatabase, actor: StaffActor, projectId: string, milestoneId: string, input: z.infer<typeof projectMilestoneTransitionSchema>, key: string) {
@@ -242,5 +261,5 @@ export async function transitionProjectMilestone(db: SqlDatabase, actor: StaffAc
       .bind(nextState, nextState === "completed" ? now : null, now, milestoneId),
     db.prepare("UPDATE staff_projects SET version=version+1,updated_at=? WHERE id=? AND company_id=?").bind(now, project.id, actor.companyId),
     eventStatement(db, milestoneId, version, action, actor, input.reason, snapshot, now),
-  ], { companyId: project.company_id, branchId: project.branch_id, departmentId: project.department_id });
+  ], { companyId: project.company_id, branchId: project.branch_id, departmentId: project.department_id }).catch(projectConstraint);
 }

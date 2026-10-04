@@ -26,6 +26,7 @@ const publicPrefixes = [
   "/join",
   "/legal-portal/enroll",
   "/login",
+  "/marketing",
   "/reset-password",
   "/signup",
   "/verify-email",

@@ -1,5 +1,7 @@
 # ERPX UAT execution report
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 **Run date:** 2026-09-25
 **Scope:** implemented page routes and supported workflow paths in the current source tree. This report does not certify every capability listed in the product catalog.
 

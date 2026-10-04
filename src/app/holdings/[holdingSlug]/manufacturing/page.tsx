@@ -7,6 +7,7 @@ import { ProductionConsole } from "@/components/modules/production-console";
 import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
 import { AttachmentFeatureSurface } from "@/components/attachments/attachment-feature-context";
 import { hasPermission } from "@/lib/permissions";
+import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Page({
   params,
@@ -20,7 +21,7 @@ export default async function Page({
       pageError(e, holdingSlug),
     );
   return (
-    <div className="content-stack">
+    <PageContent as="div" className="ui-page-content">
       <Link href={`${base}/planning`}>Planning</Link>
       <h1>Manufacturing</h1>
       <p>
@@ -29,11 +30,11 @@ export default async function Page({
       </p>
       <ProductionConsole base={base} module="manufacturing" data={data} />
       {data.specifications.map((specification) => (
-        <AttachmentFeatureSurface key={`files-${String(specification.id)}`}><details className="card">
+        <AttachmentFeatureSurface key={`files-${String(specification.id)}`}><details className="ui-panel">
           <summary>
             Controlled files · {String(specification.name)} · version {String(specification.version)}
           </summary>
-          <RecordDocumentPanel
+          <RecordDocumentPanel appearance="standard"
             base={base}
             targetType="manufacturing_spec"
             targetId={String(specification.id)}
@@ -49,18 +50,18 @@ export default async function Page({
           />
         </details></AttachmentFeatureSurface>
       ))}
-      <section className="card">
+      <Card as="section" appearance="standard" className="ui-panel">
         <h2>Orders</h2>
         {data.orders.map((x) => (
           <Link
-            className="row"
+            className="ui-record-item"
             key={String(x.id)}
             href={`${base}/manufacturing/${x.id}`}
           >
             {String(x.specification_name)} · {String(x.status)}
           </Link>
         ))}
-      </section>
-    </div>
+      </Card>
+    </PageContent>
   );
 }

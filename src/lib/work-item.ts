@@ -1,4 +1,6 @@
 export type WorkItem = {
+  source?: import("./source-record").SourceRecordReference;
+  relatedAlerts?: { id: string; title: string; nextAction: string; completed: boolean }[];
   actionKind?: "work" | "approval" | "override";
   canAct?: boolean;
   category?: "operational" | "setup";
@@ -6,6 +8,7 @@ export type WorkItem = {
   flow?: import("./flow").FlowView;
   id: string;
   type:
+    | "operational_exception"
     | "customer_identity"
     | "customer_duplicate"
     | "customer_access"
@@ -15,6 +18,8 @@ export type WorkItem = {
     | "support_ticket"
     | "support_session"
     | "maintenance_work"
+    | "maintenance_plan"
+    | "project_handoff"
     | "field_service"
     | "collaboration_action"
     | "learning_assignment"
@@ -63,6 +68,7 @@ export type WorkItem = {
   relationships?: ("requested" | "assigned" | "approval" | "team")[];
 };
 export const workTypes = [
+  ["operational_exception", "Operational exceptions"],
   ["customer_identity", "Customer identity changes"],
   ["customer_duplicate", "Customer duplicate reviews"],
   ["customer_access", "Customer access reviews"],
@@ -72,6 +78,8 @@ export const workTypes = [
   ["support_ticket", "Support cases"],
   ["support_session", "Temporary support access"],
   ["maintenance_work", "Maintenance work"],
+  ["maintenance_plan", "Preventive maintenance"],
+  ["project_handoff", "Project handoffs"],
   ["field_service", "Field service"],
   ["collaboration_action", "Cross-record actions"],
   ["learning_assignment", "Learning assignments"],
@@ -119,6 +127,10 @@ export const workResponsibilities = [
   ["approval", "Approvals"],
   ["team", "Team queue"],
 ] as const;
+export function workMatchesType(item: WorkItem, type: string) {
+  return type === "all" || item.type === type ||
+    type === "quality_alert" && item.type === "quality_hold" && !!item.relatedAlerts?.length;
+}
 export function filterWork(
   items: WorkItem[],
   queue: string,
@@ -129,24 +141,34 @@ export function filterWork(
   return items.filter(
     (item) =>
       (queue === "all" || item.queue === queue) &&
-      (type === "all" || item.type === type) &&
+      workMatchesType(item, type) &&
       (responsibility === "all" ||
         item.relationships?.some((r) => r === responsibility)) &&
-      `${item.title} ${item.detail} ${item.status}`
+      `${item.title} ${item.detail} ${item.status} ${(item.relatedAlerts ?? []).map(alert => `${alert.title} ${alert.nextAction}`).join(" ")}`
         .toLowerCase()
         .includes(q.toLowerCase()),
   );
 }
 
 export const workViews = [
-  ["actions", "My actions"], ["waiting", "Waiting"], ["requests", "My requests"],
-  ["team", "Team"], ["completed", "Completed"], ["all", "All work"],
+  ["actions", "My actions"], ["approvals", "Approvals"], ["tracking", "Tracking"],
+  ["team", "Team"], ["for-me", "For me"], ["completed", "Completed"],
+  ["waiting", "Waiting"], ["requests", "My requests"], ["all", "All work"],
   ["routing", "Routing attention"],
 ] as const;
 export type WorkView = typeof workViews[number][0];
+export type WorkViewAvailability = { team: boolean; routing: boolean };
+export function workViewAvailable(view: string, availability: WorkViewAvailability | null): boolean {
+  return view === "team" ? !!availability?.team : view === "routing" ? !!availability?.routing : true;
+}
+
 /** Source adapters decide authority. Legacy queues remain valid deep links. */
 export function isMyAction(item: WorkItem) {
   return item.queue === "todo" && (item.canAct ?? true);
+}
+export function isApprovalAction(item: WorkItem) {
+  return isMyAction(item) && (item.actionKind === "approval" || item.actionKind === "override" ||
+    item.actionKind === undefined && !!item.relationships?.includes("approval"));
 }
 export function compareWork(a: WorkItem, b: WorkItem) {
   return (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity) ||
@@ -155,6 +177,9 @@ export function compareWork(a: WorkItem, b: WorkItem) {
 export function workMatchesView(item: WorkItem, view: string) {
   return view === "routing" ? !!(item.flow?.canManage && item.flow.current && item.flow.blocker)
     : view === "actions" ? isMyAction(item)
+    : view === "approvals" ? isApprovalAction(item)
+    : view === "tracking" ? item.relationships?.includes("requested") || item.queue === "waiting" && !!item.relationships?.some(r => r !== "team")
+    : view === "for-me" ? false
     : view === "waiting" ? item.queue === "waiting" && !!item.relationships?.some(r => r !== "team")
     : view === "requests" ? item.relationships?.includes("requested")
     : view === "team" ? item.queue !== "completed" && (item.category === "setup" || item.relationships?.includes("team"))

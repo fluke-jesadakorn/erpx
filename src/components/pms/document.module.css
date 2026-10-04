@@ -1,14 +1,76 @@
-.sourceLinks { display: flex; flex-wrap: wrap; gap: 8px; margin-block: 12px; }
-.journalLink { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); font-size: 12px; }
-.journalLink:hover { border-color: var(--ink); }
-.journalLink:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
-.reference { overflow-wrap: anywhere; font-size: 12px; color: var(--muted); }
+.sourceLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block: 12px;
+}
+.journalLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--ui-line);
+  border-radius: 10px;
+  background: var(--ui-paper);
+  color: var(--ui-ink);
+  font-size: 12px;
+}
+.journalLink:hover {
+  border-color: var(--ui-ink);
+}
+.journalLink:focus-visible {
+  outline: 2px solid var(--ui-ink);
+  outline-offset: 3px;
+}
+.reference {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  color: var(--ui-muted);
+}
 @media screen and (max-width: 600px) {
-  .entries { min-width: 0; width: 100%; }
-  .entries thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  .entries tbody { display: grid; gap: 12px; }
-  .entries tbody tr { display: grid; padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
-  .entries tbody td { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; border: 0; padding: 7px 0; white-space: normal; overflow-wrap: anywhere; text-align: right; }
-  .entries tbody td::before { content: attr(data-label); flex-shrink: 0; color: var(--muted); font-size: 11px; text-align: left; }
-  .entries tbody td:last-child { margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--line); font-weight: 700; }
+  .entries {
+    min-width: 0;
+    width: 100%;
+  }
+  .entries thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .entries tbody {
+    display: grid;
+    gap: 12px;
+  }
+  .entries tbody tr {
+    display: grid;
+    padding: 12px;
+    border: 1px solid var(--ui-line);
+    border-radius: 12px;
+  }
+  .entries tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    border: 0;
+    padding: 7px 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: right;
+  }
+  .entries tbody td::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    color: var(--ui-muted);
+    font-size: 11px;
+    text-align: left;
+  }
+  .entries tbody td:last-child {
+    margin-top: 4px;
+    padding-top: 12px;
+    border-top: 1px solid var(--ui-line);
+    font-weight: 700;
+  }
 }

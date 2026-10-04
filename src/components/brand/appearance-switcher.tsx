@@ -1,15 +1,23 @@
 "use client";
+import { Select } from "@/components/ui/foundation";
 
 import { useId, useSyncExternalStore } from "react";
 import { appearancePreference, type AppearancePreference } from "@/lib/appearance-preference";
 import styles from "./appearance-switcher.module.css";
+import { type UiAppearance } from "@/components/ui/foundation";
 
 function subscribe(changed: () => void) {
   window.addEventListener("erpx-appearance", changed);
   return () => window.removeEventListener("erpx-appearance", changed);
 }
 
-export function AppearanceSwitcher({ initialTheme, compact = false }: { initialTheme: AppearancePreference; compact?: boolean }) {
+export function AppearanceSwitcher({ appearance = "legacy",
+  initialTheme,
+  compact = false,
+}: ({
+  initialTheme: AppearancePreference;
+  compact?: boolean;
+}) & { appearance?: UiAppearance }) {
   const id = useId();
   const theme = useSyncExternalStore(
     subscribe,
@@ -23,12 +31,18 @@ export function AppearanceSwitcher({ initialTheme, compact = false }: { initialT
     window.dispatchEvent(new Event("erpx-appearance"));
   }
 
-  return <div className={`${styles.switcher} ${compact ? styles.compact : ""}`}>
-    <label htmlFor={id}>Theme</label>
-    <select id={id} value={theme} onChange={event => change(appearancePreference(event.target.value))}>
-      <option value="system">System</option>
-      <option value="light">Light</option>
-      <option value="dark">Dark</option>
-    </select>
-  </div>;
+  return (
+    <div data-ui-appearance={appearance} className={`${styles.switcher} ${compact ? styles.compact : ""}`}>
+      <label data-ui-appearance={appearance} htmlFor={id}>Theme</label>
+      <Select appearance={appearance}
+        id={id}
+        value={theme}
+        onChange={(event) => change(appearancePreference(event.target.value))}
+      >
+        <option data-ui-appearance={appearance} value="system">System</option>
+        <option data-ui-appearance={appearance} value="light">Light</option>
+        <option data-ui-appearance={appearance} value="dark">Dark</option>
+      </Select>
+    </div>
+  );
 }

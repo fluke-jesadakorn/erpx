@@ -4,7 +4,7 @@
   gap: 20px;
   width: 100%;
   min-width: 0;
-  color: var(--ink);
+  color: var(--ui-ink);
 }
 .header {
   display: flex;
@@ -17,27 +17,30 @@
   margin: 0 0 6px;
 }
 .muted {
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 13px;
 }
 .sandbox {
   padding: 12px 16px;
-  border: 1px solid var(--line);
-  background: var(--blue-soft);
+  border: 1px solid var(--ui-line);
+  background: var(--ui-blue-soft);
   border-radius: 12px;
-  color: var(--blue);
+  color: var(--ui-blue);
   font-size: 14px;
 }
 .targetPinned {
   display: grid;
   gap: 16px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 14px;
-  background: var(--card);
+  background: var(--ui-card);
   padding: 20px;
   min-width: 0;
 }
-.forecastStack { display: grid; gap: 16px; }
+.forecastStack {
+  display: grid;
+  gap: 16px;
+}
 .tabs,
 .actions {
   display: flex;
@@ -45,9 +48,9 @@
   flex-wrap: wrap;
 }
 .root.root button {
-  border: 1px solid var(--control-border);
-  background: var(--card);
-  color: var(--ink);
+  border: 1px solid var(--ui-control-border);
+  background: var(--ui-card);
+  color: var(--ui-ink);
   border-radius: 9px;
   padding: 9px 14px;
   cursor: pointer;
@@ -55,7 +58,7 @@
   font-size: 13px;
 }
 .root.root button:hover {
-  background: var(--card-2);
+  background: var(--ui-card-2);
 }
 .root.root button:disabled {
   opacity: 0.5;
@@ -63,9 +66,9 @@
 }
 .root.root .tabs button[aria-current="page"],
 .root.root button.primary {
-  background: var(--brand);
-  color: var(--on-brand);
-  border-color: var(--brand);
+  background: var(--ui-brand);
+  color: var(--ui-on-brand);
+  border-color: var(--ui-brand);
 }
 .grid {
   display: grid;
@@ -73,10 +76,10 @@
   gap: 14px;
 }
 .card {
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 14px;
   padding: 20px;
-  background: var(--card);
+  background: var(--ui-card);
 }
 .card h3 {
   margin: 0 0 10px;
@@ -95,11 +98,11 @@
 .root.root input,
 .root.root select,
 .root.root textarea {
-  border: 1px solid var(--control-border);
+  border: 1px solid var(--ui-control-border);
   border-radius: 8px;
   padding: 9px;
-  background: var(--card);
-  color: var(--ink);
+  background: var(--ui-card);
+  color: var(--ui-ink);
   width: 100%;
   min-width: 0;
   font: inherit;
@@ -116,20 +119,20 @@
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--ui-line);
   padding: 14px 0;
 }
 .row p {
   margin: 3px 0;
 }
 .root a {
-  color: var(--blue);
+  color: var(--ui-blue);
   text-decoration: underline;
 }
 .root .usageLink {
   align-self: flex-start;
   max-width: 100%;
-  color: var(--ink);
+  color: var(--ui-ink);
   text-align: center;
   text-decoration: none;
   white-space: normal;
@@ -137,16 +140,16 @@
 .status {
   padding: 10px 14px;
   border-radius: 10px;
-  background: var(--card-2);
+  background: var(--ui-card-2);
   white-space: pre-wrap;
 }
 .error {
-  background: var(--red-soft);
-  color: var(--red);
+  background: var(--ui-red-soft);
+  color: var(--ui-red);
 }
 .tag {
   display: inline-block;
-  background: var(--card-2);
+  background: var(--ui-card-2);
   padding: 3px 8px;
   border-radius: 6px;
   font-size: 12px;
@@ -163,7 +166,7 @@
 .table td {
   text-align: left;
   padding: 10px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-line);
   vertical-align: top;
 }
 .check {
@@ -171,7 +174,7 @@
   align-items: center;
 }
 .danger {
-  color: var(--red) !important;
+  color: var(--ui-red) !important;
 }
 .root details > summary {
   cursor: pointer;
@@ -191,4 +194,13 @@
     align-items: flex-start;
     flex-direction: column;
   }
+}
+
+/* The enclosing widget already supplies this section's surface. */
+:global([data-slot="widget-content"]) > .card {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
 }

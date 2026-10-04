@@ -122,10 +122,19 @@ export async function configureCurrencyScale(actor: WorkContext, input: z.infer<
       .bind(actor.companyId, input.currency, input.scale, actor.userId, now)]);
 }
 
+const moneyIdentitySchema = z.object({
+  sourceType: z.string().trim().min(1).max(100),
+  sourceId: z.string().trim().min(1).max(200),
+  amountKind: z.string().trim().min(1).max(100),
+  transactionDate: z.iso.date(),
+  amountUnits: z.string().regex(/^-?\d{1,38}$/),
+});
+
 export async function snapshotMoney(db: SqlDatabase, actor: Pick<WorkContext, "companyId">, input: {
   sourceType: string; sourceId: string; amountKind: string; transactionDate: string;
   currency: string; amountUnits: bigint | string; currencyScale?: number;
 }) {
+  moneyIdentitySchema.extend({ currency: code }).parse({ ...input, amountUnits: String(input.amountUnits) });
   const customScale = await db.prepare("SELECT scale FROM company_currency_scales WHERE company_id=? AND currency=?")
     .bind(actor.companyId, input.currency).first<{ scale: number }>();
   const configuredScale = currencyScale(input.currency, customScale?.scale);
@@ -146,5 +155,65 @@ export async function snapshotMoney(db: SqlDatabase, actor: Pick<WorkContext, "c
       .bind(actor.companyId, input.sourceType, input.sourceId, input.amountKind, input.transactionDate,
         input.currency, scale, String(input.amountUnits), String(converted.amountUnits),
         converted.sourceRate.id === "USD" ? null : converted.sourceRate.id, converted.usedLatestFallback, now),
+  };
+}
+
+/** An internal handoff preserves the source currency/scale/quote at its new date. */
+export async function snapshotMoneyCarry(db:SqlDatabase,actor:Pick<WorkContext,"companyId">,input:{
+ sourceType:string;sourceId:string;amountKind:string;transactionDate:string;amountUnits:bigint|string;
+ allocationOffsetUnits?:bigint|string;
+ original:{sourceType:string;sourceId:string;amountKind:string};
+}) {
+ moneyIdentitySchema.parse({...input,amountUnits:String(input.amountUnits)});
+ moneyIdentitySchema.pick({sourceType:true,sourceId:true,amountKind:true}).parse(input.original);
+ const source=await db.prepare(`SELECT currency,currency_scale,amount_units::text,usd_units::text,fx_rate_id,used_latest_fallback,original_source_type
+   FROM money_transaction_snapshots WHERE company_id=? AND source_type=? AND source_id=? AND amount_kind=?`)
+  .bind(actor.companyId,input.original.sourceType,input.original.sourceId,input.original.amountKind)
+  .first<{currency:string;currency_scale:number;amount_units:string;usd_units:string;fx_rate_id:string|null;used_latest_fallback:boolean;original_source_type:string|null}>();
+ const amount=BigInt(input.amountUnits);
+ if(!source||BigInt(source.amount_units)<=BigInt(0)||source.original_source_type!==null||amount<BigInt(0)||amount>BigInt(source.amount_units))
+  throw new ApiError(422,"MONEY_CARRY_SOURCE_INVALID","Choose a positive immutable monetary source in this Company for the handoff.");
+ const offset=input.allocationOffsetUnits===undefined?null:
+  BigInt(z.string().regex(/^\d{1,38}$/).parse(String(input.allocationOffsetUnits)));
+ const sourceAmount=BigInt(source.amount_units),sourceUsd=BigInt(source.usd_units);
+ if(offset!==null&&offset+amount>sourceAmount)
+  throw new ApiError(422,"MONEY_CARRY_ALLOCATION_EXCEEDS_SOURCE","The handoff allocation exceeds its original monetary source.");
+ const rounded=(units:bigint)=>(sourceUsd*units+sourceAmount/BigInt(2))/sourceAmount;
+ const usd=offset===null?rounded(amount):rounded(offset+amount)-rounded(offset);
+ return {amountUnits:String(amount),usdUnits:String(usd),currencyScale:Number(source.currency_scale),rateId:source.fx_rate_id,usedLatestFallback:source.used_latest_fallback,
+  statement:db.prepare(`INSERT INTO money_transaction_snapshots(company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at,carried_source_type,carried_source_id,carried_amount_kind,carried_allocation_offset_units)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(actor.companyId,input.sourceType,input.sourceId,input.amountKind,input.transactionDate,source.currency,source.currency_scale,String(amount),String(usd),source.fx_rate_id,source.used_latest_fallback,Date.now(),input.original.sourceType,input.original.sourceId,input.original.amountKind,offset===null?null:String(offset))};
+}
+
+/** A return reverses the original evidence, including rounding, instead of quoting today's FX. */
+export async function snapshotMoneyReversal(db: SqlDatabase, actor: Pick<WorkContext, "companyId">, input: {
+  sourceType: string; sourceId: string; amountKind: string; transactionDate: string;
+  amountUnits: bigint | string;
+  original: { sourceType: string; sourceId: string; amountKind: string };
+}) {
+  moneyIdentitySchema.extend({ amountUnits: z.string().regex(/^\d{1,38}$/) }).parse({ ...input, amountUnits: String(input.amountUnits) });
+  const amount = BigInt(input.amountUnits);
+  if (amount <= BigInt(0)) throw new ApiError(422, "INVALID_REVERSAL_AMOUNT", "A reversal must have a positive amount in original minor units.");
+  const original = await db.prepare(`SELECT currency,currency_scale,amount_units::text,usd_units::text,fx_rate_id,used_latest_fallback
+    FROM money_transaction_snapshots WHERE company_id=? AND source_type=? AND source_id=? AND amount_kind=?`)
+    .bind(actor.companyId, input.original.sourceType, input.original.sourceId, input.original.amountKind)
+    .first<{ currency: string; currency_scale: number; amount_units: string; usd_units: string; fx_rate_id: string | null; used_latest_fallback: boolean }>();
+  if (!original) throw new ApiError(404, "MONEY_SOURCE_SNAPSHOT_NOT_FOUND", "The original money evidence is unavailable in this Company.");
+  const originalUnits = BigInt(original.amount_units), originalUsd = BigInt(original.usd_units);
+  if (originalUnits <= BigInt(0) || originalUsd < BigInt(0) || amount > originalUnits)
+    throw new ApiError(422, "INVALID_REVERSAL_AMOUNT", "The reversal exceeds the positive original money evidence.");
+  // The INSERT trigger locks the source and uses cumulative allocation. Returning
+  // the original USD total exactly matters when many small partial returns round.
+  return {
+    currency: original.currency, currencyScale: Number(original.currency_scale),
+    rateId: original.fx_rate_id, usedLatestFallback: original.used_latest_fallback,
+    amountUnits: String(-amount),
+    statement: db.prepare(`INSERT INTO money_transaction_snapshots
+      (company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at,
+       original_source_type,original_source_id,original_amount_kind)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .bind(actor.companyId, input.sourceType, input.sourceId, input.amountKind, input.transactionDate,
+        original.currency, Number(original.currency_scale), String(-amount), "0", original.fx_rate_id,
+        original.used_latest_fallback, Date.now(), input.original.sourceType, input.original.sourceId, input.original.amountKind),
   };
 }

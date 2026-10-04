@@ -1,5 +1,7 @@
 # Staff self-service acceptance
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 Verified on 2026-09-17 with Bun 1.2.17, Node 24.20.0 and the pinned Next.js 16.3.4 workspace. See [implemented interfaces and boundaries](../contracts/next/staff-self-service.md).
 
 ## Automated verification

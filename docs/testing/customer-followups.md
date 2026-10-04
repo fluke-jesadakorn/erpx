@@ -1,5 +1,7 @@
 # CRM activities — customer follow-up simulation
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 เปิด sales order/quotation → Assign customer follow-up → เลือกผู้รับที่มีสิทธิ์ Sales และยังทำงานอยู่ → กำหนดวันและ next action. ผู้รับเห็นงานใน Work, Inbox และ Calendar ของตน เปิด source order ได้ตามสิทธิ์เดิม และบันทึกผลการติดต่อเพื่อจบงาน.
 
 เฉพาะผู้รับปัจจุบันปิดงานว่า complete ได้. Sales manager เปลี่ยนผู้รับ/วันนัดหรือยกเลิกพร้อมเหตุผลได้ แต่ไม่ปิดแทนว่าติดต่อสำเร็จ. ผู้รับหมดสิทธิ์หรือสิ้นสุด engagement ทำให้ completion ถูกปฏิเสธและ Work แสดง blocker. ไม่มีการเลือกคนแทนเงียบ ๆ. ทุกการเปลี่ยนเก็บ owner/date/reason/actor/version ในประวัติ immutable.

@@ -1,25 +1,155 @@
-.root { display: grid; gap: 14px; border: 1px solid var(--line); border-radius: 14px; padding: 18px; background: var(--card); }
-.header { display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 12px; }
-.header h3 { margin: 0 0 5px; font-size: 20px; }
-.header p { margin: 0; color: var(--muted); font-size: 13px; max-width: 74ch; }
-.badge { border-radius: 999px; padding: 5px 9px; background: var(--accent-soft, #293c60); color: var(--ink); font-size: 11px; font-weight: 700; white-space: nowrap; }
-.context, .footnote { margin: 0; color: var(--muted); font-size: 13px; }
-.warning { margin: 0; color: var(--danger, #f0b6a9); font-size: 13px; }
-.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(235px, 1fr)); gap: 12px; }
-.control { display: grid; align-content: start; gap: 8px; min-width: 0; padding: 13px; border: 1px solid var(--line); border-radius: 10px; }
-.control label { font-size: 13px; font-weight: 650; }
-.control small { color: var(--muted); line-height: 1.4; }
-.control small.warning { color: var(--danger, #f0b6a9); }
-.control input[type="range"] { width: 100%; accent-color: var(--accent, #6586ea); }
-.inputRow { display: flex; align-items: center; gap: 8px; }
-.inputRow input { min-width: 0; width: 100%; min-height: 38px; padding: 7px 9px; border: 1px solid var(--control-border); border-radius: 8px; background: var(--card); color: var(--ink); font: inherit; }
-.inputRow span { color: var(--muted); font-size: 12px; white-space: nowrap; }
-.reset { justify-self: start; border: 1px solid var(--control-border); border-radius: 8px; padding: 8px 11px; background: var(--card); color: var(--ink); font: inherit; cursor: pointer; }
-.result { display: grid; gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-.result > div { display: flex; justify-content: space-between; gap: 15px; padding: 10px 13px; border-bottom: 1px solid var(--line); }
-.result > div:last-of-type { border-bottom: 0; }
-.result span { color: var(--muted); }
-.result strong { text-align: right; }
-.result .subtotal, .result .total { background: var(--accent-soft, #293c60); }
-.result .total { font-size: 18px; }
-.result p { margin: 0; padding: 10px 13px; color: var(--muted); font-size: 13px; }
+.root {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--ui-line);
+  border-radius: 14px;
+  padding: 18px;
+  background: var(--ui-card);
+}
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.header h3 {
+  margin: 0 0 5px;
+  font-size: 20px;
+}
+.header p {
+  margin: 0;
+  color: var(--ui-muted);
+  font-size: 13px;
+  max-width: 74ch;
+}
+.badge {
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: var(--accent-soft, #293c60);
+  color: var(--ui-ink);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.context,
+.footnote {
+  margin: 0;
+  color: var(--ui-muted);
+  font-size: 13px;
+}
+.warning {
+  margin: 0;
+  color: var(--danger, #f0b6a9);
+  font-size: 13px;
+}
+.controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(235px, 1fr));
+  gap: 12px;
+}
+.control {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid var(--ui-line);
+  border-radius: 10px;
+}
+.control label {
+  font-size: 13px;
+  font-weight: 650;
+}
+.control small {
+  color: var(--ui-muted);
+  line-height: 1.4;
+}
+.control small.warning {
+  color: var(--danger, #f0b6a9);
+}
+.control input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent, #6586ea);
+}
+.inputRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.inputRow input {
+  min-width: 0;
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 9px;
+  border: 1px solid var(--ui-control-border);
+  border-radius: 8px;
+  background: var(--ui-card);
+  color: var(--ui-ink);
+  font: inherit;
+}
+.inputRow span {
+  color: var(--ui-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.reset {
+  justify-self: start;
+  border: 1px solid var(--ui-control-border);
+  border-radius: 8px;
+  padding: 8px 11px;
+  background: var(--ui-card);
+  color: var(--ui-ink);
+  font: inherit;
+  cursor: pointer;
+}
+.result {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--ui-line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.result > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 10px 13px;
+  border-bottom: 1px solid var(--ui-line);
+}
+.result > div:last-of-type {
+  border-bottom: 0;
+}
+.result span {
+  color: var(--ui-muted);
+}
+.result strong {
+  text-align: right;
+}
+.result .subtotal,
+.result .total {
+  background: var(--accent-soft, #293c60);
+}
+.result .total {
+  font-size: 18px;
+}
+.result p {
+  margin: 0;
+  padding: 10px 13px;
+  color: var(--ui-muted);
+  font-size: 13px;
+}
+
+/* Internal content shares the parent surface; use dividers for hierarchy. */
+.root .control, .root .result { border: 0; border-radius: 0; box-shadow: none; }
+.root .control { padding: 8px 0; }
+.root .result { border-top: 1px solid var(--ui-line); }
+
+/* The enclosing widget already supplies this section's surface. */
+:global([data-slot="widget-content"]) > .root {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}

@@ -15,7 +15,8 @@ import {
   fieldServiceDetail,
   fieldServiceWork,
 } from "../src/server/field-service";
-import { postInvoice } from "../src/server/finance";
+import { postInvoice, postJournal } from "../src/server/finance";
+import { assignFlowPrimary, resolveFlow } from "../src/server/flow-routing";
 import { escalateInventoryReservations } from "../src/server/inventory-reservation-alerts";
 import { queryMetric } from "../src/server/executive/metrics";
 import { readExecutiveEvidence, searchExecutiveEvidence } from "../src/server/executive/evidence";
@@ -98,6 +99,10 @@ beforeEach(async () => {
     )
     .bind(`${f.company}-receivable`, f.chart, f.company, "1200", "Trade receivables")
     .run();
+  await db.batch([
+    db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,?,?,'asset','THB',1,1)").bind(`${f.company}-parts-stock`,f.chart,f.company,'1300','Service spare inventory'),
+    db.prepare('UPDATE commerce_settings SET inventory_account_id=? WHERE company_id=?').bind(`${f.company}-parts-stock`,f.company),
+  ]);
   const order = await saveOrder(
     f.owner,
     null,
@@ -296,6 +301,17 @@ it("runs agreement, dispatch, parts, exception, customer sign-off and independen
       .bind(warehouse, product)
       .first(),
   ).toEqual({ quantity_milli: 0, value_minor: 0 });
+  const cost = (await fieldServiceDetail(f.owner,id)).consumptions[0];
+  expect(cost).toMatchObject({ source_kind:'field_service',quantity_milli:1000,value_minor:8000,journal_status:'draft' });
+  await expect(act(f.claimant,id,{ action:'complete',expectedVersion:7,laborMinutes:90,evidence:'Startup checks passed.',customerConfirmation:'Customer confirmed operation.',reason:'Cost must be reviewed before closing the visit' })).rejects.toMatchObject({code:'CONFLICT'});
+  const costJournal = String(cost.journal_id), flow = await resolveFlow(db,f.owner,'journal',costJournal);
+  await assignFlowPrimary(db,f.owner,'journal',costJournal,{stepKey:'draft',userId:f.manager.userId,reason:'Independent review of consumed spare stock and service cost',saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());
+  await postJournal(f.manager,costJournal,key(),{expectedVersion:1});
+  expect((await db.prepare('SELECT account_id,base_debit_minor,base_credit_minor FROM finance_journal_lines WHERE journal_id=? ORDER BY ordinal').bind(costJournal).all()).results).toEqual([
+    {account_id:f.accounts.expense,base_debit_minor:8000,base_credit_minor:0},
+    {account_id:`${f.company}-parts-stock`,base_debit_minor:0,base_credit_minor:8000},
+  ]);
+  expect(await db.prepare("SELECT quantity_milli,value_minor FROM inventory_ledger WHERE source_type='field_service' AND source_id=?").bind(id).first()).toEqual({quantity_milli:-1000,value_minor:-8000});
   await act(f.claimant, id, {
     action: "complete",
     expectedVersion: 7,

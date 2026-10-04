@@ -169,6 +169,7 @@ export function calculateThaiHotelPayrollFixture(input: {
     deductions,
     employer,
     net: adjustedGross - deductions,
+    overtimePay: ordinary.overtimePay,
     applied,
     adapter: {
       id: thaiHotelPayrollMockId,

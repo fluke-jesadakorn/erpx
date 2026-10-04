@@ -9,6 +9,7 @@ import { EmptyState,PageHeader } from "@/components/ui/primitives";
 import { administrationAccess } from "@/server/administration";
 import { staffPage } from "@/server/staff-page";
 import Link from "next/link";
+import { Card } from "@/components/ui/foundation";
 export default async function Projects({
   params,
   searchParams,
@@ -22,13 +23,13 @@ export default async function Projects({
   const visible=projects.filter(p=>!query.q||`${p.title} ${p.description}`.toLowerCase().includes(query.q.toLowerCase()));
   const access = await administrationAccess(actor);
   return (
-    <FeaturePage className="content-stack" data-source="live">
-      <PageHeader
+    <FeaturePage className="ui-page-content" data-source="live">
+      <PageHeader appearance="standard"
         eyebrow={actor.beta ? undefined : "Projects & workflows"}
         title={actor.beta ? "Projects" : "All projects"}
       /><WidgetGrid pageKey="projects-list">
       {actor.beta ? (
-        <StaffTaskLinks base={base} />
+        <StaffTaskLinks appearance="standard" base={base} />
       ) : (
         <ServiceNavigation
           context={{
@@ -43,20 +44,20 @@ export default async function Projects({
           activeId="projects-list"
         />
       )}
-      {staff && <ProjectEditor base={base} options={options} />}
-      <ListFilters action={`${base}/projects`} query={query.q} placeholder="Search projects"/>
-      <FeatureWidget id="projects-list-your-projects" title="Your projects"><section className="card">
+      {staff && <ProjectEditor appearance="standard" base={base} options={options} />}
+      <ListFilters appearance="standard" action={`${base}/projects`} query={query.q} placeholder="Search projects"/>
+      <FeatureWidget appearance="standard" id="projects-list-your-projects" title="Your projects"><Card as="section" appearance="standard" className="ui-panel">
         
         {!visible.length && <EmptyState title={query.q?"No matching projects":"No projects yet"} description={query.q?"Try a different search or clear filters.":"Create a project to bring its work and teammates together."}/>}
         {visible.map((p) => (
-          <Link className="row" key={p.id} href={`${base}/projects/${p.id}`}>
+          <Link className="ui-record-item" key={p.id} href={`${base}/projects/${p.id}`}>
             <div>
               <strong>{p.title}</strong>
               <p>{p.description}</p>
             </div>
           </Link>
         ))}
-      </section></FeatureWidget>
+      </Card></FeatureWidget>
     </WidgetGrid></FeaturePage>
   );
 }

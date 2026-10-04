@@ -37,6 +37,28 @@ it("sends a named notice without exposing recipient read state to the sender",as
   const page=await inboxPage(db,colleague,{view:"all",category:"notice"});
   expect(page.items.some(item=>item.message.includes("Shift handoff"))).toBe(true);
 });
+it("resolves the current appointment reference while retaining the delivered source identity",async()=>{
+  const source=await appointment(f.claimant);
+  await publishInboxEvent(db,{key:`appointment:${key()}`,companyId:f.claimant.companyId,sourceType:"calendar_appointment",sourceId:source.id,
+    sourceVersion:1,category:"calendar",preview:"Appointment ready",recipientIds:[f.claimant.userId]});
+  await db.prepare("UPDATE calendar_appointments SET version=version+1 WHERE id=?").bind(source.id).run();
+  const page=await inboxPage(db,f.claimant,{view:"all",category:"calendar"});
+  const item=page.items.find(item=>item.message==="Appointment ready")!;
+  expect(item).toMatchObject({sourceType:"calendar_appointment",sourceId:source.id,
+    source:{kind:"calendar_appointment",id:source.id,version:2,label:"Appointment",href:`/calendar?event=appointment:${encodeURIComponent(source.id)}`}});
+  expect(item.href).toBe(item.source?.href);
+});
+it("keeps the Inbox page available when the selected role cannot read a delivered source",async()=>{
+  const source=await appointment(f.claimant);
+  await publishInboxEvent(db,{key:`visible:${key()}`,companyId:f.claimant.companyId,sourceType:"calendar_removed",sourceId:source.id,
+    sourceVersion:1,category:"calendar",preview:"Visible meeting update",recipientIds:[f.claimant.userId]});
+  await publishInboxEvent(db,{key:`restricted:${key()}`,companyId:f.claimant.companyId,sourceType:"quality_hold",sourceId:key(),
+    sourceVersion:1,category:"work",preview:"Restricted quality evidence",recipientIds:[f.claimant.userId]});
+  const page=await inboxPage(db,{...f.claimant,pageRequest:true},{view:"unread"});
+  expect(page.items.some(item=>item.message==="Visible meeting update")).toBe(true);
+  expect(page.items.some(item=>item.message==="Restricted quality evidence")).toBe(false);
+  expect((await inboxSummary(db,{...f.claimant,pageRequest:true})).categories.work).toBe(0);
+});
 it("fans out a scoped manager notice once when the worker retries",async()=>{
   const manager=await f.member("notice-manager","people_manager");
   const colleague=await f.member("notice-department-colleague","employee");

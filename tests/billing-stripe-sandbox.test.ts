@@ -54,7 +54,7 @@ it.skipIf(!enabled)(
           },
           crypto.randomUUID(),
           stripe,
-          "https://erpx.jesadakorn.com",
+          "https://console-dev-erpx.jesadakorn.com",
           at,
         );
       await cmd("enroll", { planId: "standard" });

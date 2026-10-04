@@ -1,3 +1,4 @@
+import {createEngineeringBrowserContext} from './helpers/engineering-browser-evidence';
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -55,8 +56,8 @@ test("isolated demo publishes a mentioned update and keeps thread actions after 
   const credentials = JSON.parse(
     await readFile(resolve(directory, "credentials.json"), "utf8"),
   ) as Credentials;
-  const ownerContext = await browser.newContext(testInfo.project.use);
-  const employeeContext = await browser.newContext(testInfo.project.use);
+  const ownerContext = await createEngineeringBrowserContext(browser,testInfo);
+  const employeeContext = await createEngineeringBrowserContext(browser,testInfo);
   try {
     const ownerPage = await ownerContext.newPage();
     const employeePage = await employeeContext.newPage();
@@ -66,8 +67,8 @@ test("isolated demo publishes a mentioned update and keeps thread actions after 
     expect(mentioned, "mentioned employee").toBeTruthy();
 
     await signInRole(ownerContext, ownerPage, credentials, "holding_owner");
-    await ownerPage.getByText("Share an update", { exact: true }).click();
-    const composer = ownerPage.locator("details.beta-composer");
+    const composer = ownerPage.locator("#workspace-content details.beta-composer");
+    await composer.locator("summary").click();
     const body = `Operations handoff ${Date.now()} @Support`;
     await composer.getByLabel("Post message", { exact: true }).fill(body);
     const mentionMenu = ownerPage.getByRole("listbox", {
@@ -83,7 +84,7 @@ test("isolated demo publishes a mentioned update and keeps thread actions after 
     await supportOption.click();
     await composer.getByLabel("Post audience").selectOption({ index: 1 });
     await composer.getByRole("button", { name: "Share update", exact: true }).click();
-    await expect(ownerPage.getByText(body.replace(" @Support", " @Support agent"), { exact: true })).toBeVisible();
+    await expect(ownerPage.locator("#workspace-content").getByText(body.replace(" @Support", " @Support agent"), { exact: true })).toBeVisible();
     const post = ownerPage.getByRole("article").filter({ hasText: "Operations handoff" });
     await expect(post).toBeVisible();
     await expect(post.getByText(/@Support agent/)).toBeVisible();

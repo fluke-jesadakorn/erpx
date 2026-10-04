@@ -1,0 +1,54 @@
+/* A surface owns its outline. Content within it uses spacing and dividers.
+   Restrict this to presentation primitives; controls, pickers, drag targets,
+   dialogs and document previews retain their own interaction boundaries. */
+[data-slot="widget-content"] > :is(.ui-panel[data-slot="card"][data-appearance], [data-slot="card"], .ui-panel, .card),
+[data-slot="widget-content"] > div > :is(.ui-panel[data-slot="card"][data-appearance], [data-slot="card"], .ui-panel, .card) {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+:is([data-slot="card"], .ui-panel, .card) :is(.ui-panel[data-slot="card"][data-appearance], [data-slot="card"], .ui-panel, .card) {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 16px 0;
+}
+
+:is([data-slot="card"], .ui-panel, .card) > :is([data-slot="card"], .ui-panel, .card) + :is(.ui-panel[data-slot="card"][data-appearance], [data-slot="card"], .ui-panel, .card) {
+  border-top: 1px solid var(--ui-line);
+}
+
+:is([data-slot="card"], .ui-panel, .card, [data-slot="widget-content"]) > :is(.ui-record-list, [data-slot="table-frame"]) {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+:is([data-slot="card"], .ui-panel, .card, [data-slot="widget-content"]) .ui-notice {
+  border-width: 0;
+  border-inline-start-width: 3px;
+  border-radius: 0;
+}
+
+.ui-detail-list { display: grid; gap: 0; min-width: 0; }
+.ui-section-header > div { min-width: 0; max-width: 100%; }
+.ui-section-header h1 { overflow-wrap: anywhere; }
+.ui-detail-entry { display: grid; gap: 14px; min-width: 0; padding: 24px 0; }
+.ui-detail-entry:first-child { padding-top: 0; }
+.ui-detail-entry:last-child { padding-bottom: 0; }
+.ui-detail-entry + .ui-detail-entry { border-top: 1px solid var(--ui-line); }
+.ui-detail-entry > .ui-section-header { margin: 0; gap: 8px 24px; }
+.ui-detail-entry > .ui-section-header > :is(strong, a) { overflow-wrap: anywhere; }
+.ui-detail-entry p { margin: 0; }
+.ui-inline-note { border-inline-start: 3px solid var(--ui-amber); padding: 4px 0 4px 14px; min-width: 0; }
+.ui-inline-note strong { font-size: 14px; }
+.ui-inline-note p { margin: 4px 0 0; font-size: 14px; line-height: 1.6; }
+
+@media (max-width: 650px) {
+  .ui-detail-entry { padding-block: 20px; }
+  .ui-detail-entry > .ui-section-header { flex-direction: column; }
+}

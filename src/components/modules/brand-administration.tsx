@@ -1,12 +1,9 @@
 "use client";
+import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
 import { useState } from "react";
 import Image from "next/image";
-import type {
-  DocumentBrandMode,
-  StorefrontAppBrand,
-  WorkspaceBrand,
-} from "@/server/branding";
+import type { DocumentBrandMode, StorefrontAppBrand, WorkspaceBrand } from "@/server/branding";
 import { workFetch } from "@/lib/work-fetch";
 import { WorkspaceBrandMark } from "@/components/brand/workspace-brand";
 import { MediaPublicationPanel } from "@/components/attachments/media-publication-panel";
@@ -15,6 +12,7 @@ import {
   useAttachmentFeatureMode,
 } from "@/components/attachments/attachment-feature-context";
 import styles from "./brand-administration.module.css";
+import { type UiAppearance } from "@/components/ui/foundation";
 
 type Props = {
   base: string;
@@ -27,7 +25,7 @@ type Props = {
   canReviewPublications: boolean;
 };
 
-export function BrandAdministration({
+export function BrandAdministration({ appearance = "legacy",
   base,
   holding,
   branches,
@@ -36,7 +34,7 @@ export function BrandAdministration({
   canBranches,
   canStorefront,
   canReviewPublications,
-}: Props) {
+}: (Props) & { appearance?: UiAppearance }) {
   const attachmentMode = useAttachmentFeatureMode();
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
@@ -74,22 +72,17 @@ export function BrandAdministration({
         error?: { message: string };
       };
       if (!reserve.ok || !reserved.data)
-        throw new Error(
-          reserved.error?.message ?? "Logo upload could not start.",
-        );
+        throw new Error(reserved.error?.message ?? "Logo upload could not start.");
       const stored = await workFetch(reserved.data.uploadUrl, {
         method: "PUT",
         headers: { "Content-Type": file.type },
         body: file,
       });
       const result = (await stored.json()) as { error?: { message: string } };
-      if (!stored.ok)
-        throw new Error(result.error?.message ?? "Logo upload failed.");
+      if (!stored.ok) throw new Error(result.error?.message ?? "Logo upload failed.");
       window.location.reload();
     } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Logo upload failed.",
-      );
+      setMessage(error instanceof Error ? error.message : "Logo upload failed.");
       setBusy("");
     }
   }
@@ -104,10 +97,7 @@ export function BrandAdministration({
       removeLogo?: boolean;
     },
   ) {
-    if (
-      attachmentMode !== "enabled" &&
-      (body.remove !== undefined || body.removeLogo === true)
-    )
+    if (attachmentMode !== "enabled" && (body.remove !== undefined || body.removeLogo === true))
       return;
     setBusy(path + JSON.stringify(body));
     setMessage("");
@@ -134,67 +124,63 @@ export function BrandAdministration({
     canEdit: boolean,
   ) {
     const path =
-      brand.scopeKind === "holding"
-        ? "holding"
-        : `branches/${encodeURIComponent(brand.scopeId)}`;
+      brand.scopeKind === "holding" ? "holding" : `branches/${encodeURIComponent(brand.scopeId)}`;
     const canMutateFiles = canMutateAttachments(attachmentMode, canEdit);
     return (
-      <article
-        className={styles.profile}
-        key={`${brand.scopeKind}:${brand.scopeId}`}
-      >
-        <div className={styles.preview}>
-          <WorkspaceBrandMark brand={brand} />
-          <div>
-            <strong>{brand.label}</strong>
-            <small>
-              {brand.scopeKind === "holding" ? "Holding brand" : "Branch brand"}
-            </small>
+      <article data-ui-appearance={appearance} className={styles.profile} key={`${brand.scopeKind}:${brand.scopeId}`}>
+        <div data-ui-appearance={appearance} className={styles.preview}>
+          <WorkspaceBrandMark appearance={appearance} brand={brand} />
+          <div data-ui-appearance={appearance}>
+            <strong data-ui-appearance={appearance}>{brand.label}</strong>
+            <small data-ui-appearance={appearance}>{brand.scopeKind === "holding" ? "Holding brand" : "Branch brand"}</small>
           </div>
         </div>
         {canEdit && (canMutateFiles || brand.scopeKind === "branch") && (
-          <div className={styles.actions}>
+          <div data-ui-appearance={appearance} className={styles.actions}>
             {canMutateFiles &&
               (["primary", "inverse"] as const).map((variant) => (
-                <label className="button secondary" key={variant}>
+                <Field appearance={appearance} className="button secondary" key={variant}>
                   {busy === `${ownerType}:${brand.scopeId}:${variant}`
                     ? "Uploading…"
                     : `Upload ${variant}`}
-                  <input
+                  <TextInput appearance={appearance}
                     hidden
                     type="file"
                     accept="image/png,image/webp"
                     disabled={!!busy}
                     onChange={(event) => {
                       const file = event.target.files?.[0];
-                      if (file)
-                        void upload(ownerType, brand.scopeId, variant, file);
+                      if (file) void upload(ownerType, brand.scopeId, variant, file);
                     }}
                   />
-                </label>
+                </Field>
               ))}
             {canMutateFiles && brand.primaryUrl && (
-              <button
-                className="button secondary"
+              <Button appearance={appearance}
+                type="submit"
+                variant="secondary"
+
                 disabled={!!busy}
                 onClick={() => void patch(path, { remove: "primary" })}
               >
                 Remove primary
-              </button>
+              </Button>
             )}
             {canMutateFiles && brand.inverseUrl && (
-              <button
-                className="button secondary"
+              <Button appearance={appearance}
+                type="submit"
+                variant="secondary"
+
                 disabled={!!busy}
                 onClick={() => void patch(path, { remove: "inverse" })}
               >
                 Remove inverse
-              </button>
+              </Button>
             )}
             {brand.scopeKind === "branch" && (
-              <label>
+              <Field appearance={appearance}>
                 Document default
-                <select
+                <Select appearance={appearance}
                   value={brand.documentMode}
                   disabled={!!busy}
                   onChange={(event) =>
@@ -203,16 +189,16 @@ export function BrandAdministration({
                     })
                   }
                 >
-                  <option value="branch">Branch only</option>
-                  <option value="holding">Holding only</option>
-                  <option value="both">Holding + Branch</option>
-                </select>
-              </label>
+                  <option data-ui-appearance={appearance} value="branch">Branch only</option>
+                  <option data-ui-appearance={appearance} value="holding">Holding only</option>
+                  <option data-ui-appearance={appearance} value="both">Holding + Branch</option>
+                </Select>
+              </Field>
             )}
           </div>
         )}
         {(["primary", "inverse"] as const).map((variant) => (
-          <MediaPublicationPanel
+          <MediaPublicationPanel appearance={appearance}
             key={variant}
             base={base}
             targetType={ownerType}
@@ -229,20 +215,20 @@ export function BrandAdministration({
   }
 
   return (
-    <section className="card">
-      <h2>Workspace branding</h2>
-      <p className="muted">
-        ERPX remains the product brand. These private PNG or WebP assets
-        identify the Holding and Branch in the workspace and printed documents.
+    <section data-ui-appearance={appearance} className={appearance === "standard" ? "ui-panel" : "card"}>
+      <h2 data-ui-appearance={appearance}>Workspace branding</h2>
+      <p data-ui-appearance={appearance} className="muted">
+        ERPX remains the product brand. These private PNG or WebP assets identify the Holding and
+        Branch in the workspace and printed documents.
       </p>
       {message && (
-        <p className="error" role="alert">
+        <p data-ui-appearance={appearance} className="error" role="alert">
           {message}
         </p>
       )}
-      <article className={styles.profile}>
-        <div className={styles.preview}>
-          <span
+      <article data-ui-appearance={appearance} className={styles.profile}>
+        <div data-ui-appearance={appearance} className={styles.preview}>
+          <span data-ui-appearance={appearance}
             style={{
               width: 52,
               height: 52,
@@ -268,36 +254,37 @@ export function BrandAdministration({
               (Array.from(shortName.trim())[0]?.toLocaleUpperCase() ?? "•")
             )}
           </span>
-          <div>
-            <strong>
+          <div data-ui-appearance={appearance}>
+            <strong data-ui-appearance={appearance}>
               {shortName} POS · {shortName} PMS
             </strong>
-            <small>
-              Company storefront app brand · legal issuer stays{" "}
-              {storefront.companyName}
+            <small data-ui-appearance={appearance}>
+              Company storefront app brand · legal issuer stays {storefront.companyName}
             </small>
           </div>
         </div>
         {canStorefront && (
-          <div className={styles.actions}>
-            <label>
+          <div data-ui-appearance={appearance} className={styles.actions}>
+            <Field appearance={appearance}>
               Short app name
-              <input
+              <TextInput appearance={appearance}
                 value={shortName}
                 maxLength={40}
                 onChange={(event) => setShortName(event.target.value)}
               />
-            </label>
-            <label>
+            </Field>
+            <Field appearance={appearance}>
               App color
-              <input
+              <TextInput appearance={appearance}
                 type="color"
                 value={accentColor}
                 onChange={(event) => setAccentColor(event.target.value)}
               />
-            </label>
-            <button
-              className="button"
+            </Field>
+            <Button appearance={appearance}
+              type="submit"
+              variant="primary"
+
               disabled={!!busy || !shortName.trim()}
               onClick={() =>
                 void patch("storefront", {
@@ -307,14 +294,13 @@ export function BrandAdministration({
               }
             >
               Save app brand
-            </button>
+            </Button>
             {attachmentMode === "enabled" && (
-              <label className="button secondary">
-                {busy ===
-                "company_storefront_brand:" + storefront.companyId + ":logo"
+              <Field appearance={appearance} className="button secondary">
+                {busy === "company_storefront_brand:" + storefront.companyId + ":logo"
                   ? "Uploading…"
                   : "Upload app logo"}
-                <input
+                <TextInput appearance={appearance}
                   hidden
                   type="file"
                   accept="image/png,image/webp"
@@ -322,27 +308,24 @@ export function BrandAdministration({
                   onChange={(event) => {
                     const file = event.target.files?.[0];
                     if (file)
-                      void upload(
-                        "company_storefront_brand",
-                        storefront.companyId,
-                        "logo",
-                        file,
-                      );
+                      void upload("company_storefront_brand", storefront.companyId, "logo", file);
                   }}
                 />
-              </label>
+              </Field>
             )}
             {attachmentMode === "enabled" && storefront.logoUrl && (
-              <button
-                className="button secondary"
+              <Button appearance={appearance}
+                type="submit"
+                variant="secondary"
+
                 disabled={!!busy}
                 onClick={() => void patch("storefront", { removeLogo: true })}
               >
                 Remove app logo
-              </button>
+              </Button>
             )}
-            <span>
-              <a
+            <span data-ui-appearance={appearance}>
+              <a data-ui-appearance={appearance}
                 href={
                   "/front/" +
                   encodeURIComponent(storefront.holdingSlug) +
@@ -354,7 +337,7 @@ export function BrandAdministration({
                 Install POS
               </a>
               {" · "}
-              <a
+              <a data-ui-appearance={appearance}
                 href={
                   "/front/" +
                   encodeURIComponent(storefront.holdingSlug) +
@@ -368,7 +351,7 @@ export function BrandAdministration({
             </span>
           </div>
         )}
-        <MediaPublicationPanel
+        <MediaPublicationPanel appearance={appearance}
           base={base}
           targetType="company_storefront_brand"
           targetId={storefront.companyId}
@@ -379,7 +362,7 @@ export function BrandAdministration({
           canReview={canStorefront && canReviewPublications}
         />
       </article>
-      <div className={styles.grid}>
+      <div data-ui-appearance={appearance} className={styles.grid}>
         {editor(holding, "holding_brand", canHolding)}
         {branches.map((branch) => editor(branch, "branch_brand", canBranches))}
       </div>

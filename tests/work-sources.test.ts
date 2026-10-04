@@ -1,6 +1,7 @@
 vi.mock("../src/server/overtime", () => ({ overtimeWork: async()=>[] }));
 vi.mock("../src/server/department-decisions", () => ({ departmentOverrideWork: async()=>[] }));
 vi.mock("../src/server/retirement-clearance", () => ({retirementWork:async()=>[]}));
+vi.mock("../src/server/support", () => ({supportWork:async()=>[]}));
 vi.mock("../src/server/flow-work", () => ({enrichFlowWork:async (_actor:unknown,items:WorkItem[])=>items,otherFlowWork:async()=>[]}));
 import { expect, it, vi } from "vitest";
 import {
@@ -73,6 +74,19 @@ it("limits Home priorities to three actionable items from any source, with overd
     "expense",
     "late",
   ]);
+});
+
+it("groups active quality follow-ups with their source hold and retains notification history references",()=>{
+  const source={kind:"quality_hold",id:"hold",href:"/quality/hold",label:"Quality hold",version:3};
+  const rows=mergeWorkItems([
+    item("hold",{type:"quality_hold",source,href:source.href,actionKind:"approval",relationships:["approval"]}),
+    item("alert",{type:"quality_alert",source,href:source.href,actionKind:"work",relationships:["assigned"]}),
+  ]);
+  expect(rows).toHaveLength(1);expect(rows[0].source).toEqual(source);
+  expect(rows[0].actionKind).toBe("approval");
+  expect(rows[0].relatedAlerts?.map(alert=>alert.id)).toEqual(["alert"]);
+  expect(rows[0].relationships).toEqual(["approval","assigned"]);
+  expect(mergeWorkItems([item("hold",{type:"quality_hold",queue:"completed"}),item("alert",{type:"quality_alert",source})])).toHaveLength(2);
 });
 it("retains the workspace when one source fails and reports only that source", async () => {
   const actor = {

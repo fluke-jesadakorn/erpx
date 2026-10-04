@@ -1,3 +1,5 @@
+
+import { PageContent } from "@/components/ui/patterns";
 import { assignmentApplies, canEnterManageErpx } from "@/server/authorization";
 import { WorkspaceMenu } from "@/components/workplace/workspace-menu";
 import { workspaceChoices } from "@/server/workspace-choices";
@@ -48,7 +50,7 @@ export default async function WorkRolePage({searchParams}:PageProps<'/work-role'
  return (
   <>
   <a href="#work-role-content" className="skip-link">Skip to work role</a>
-  <main className="content" style={{maxWidth:1360}}>
+  <PageContent as="main" style={{maxWidth:1360}}>
    <header style={{maxWidth:700,marginBottom:24}}>
     <h1>Choose your work role</h1>
     <p>Each role uses only its own permissions. Select the company and team scope you need.</p>
@@ -56,16 +58,16 @@ export default async function WorkRolePage({searchParams}:PageProps<'/work-role'
    </header>
    <div className={rail.layout}>
    <aside className={rail.rail} aria-label="Quick access">
-    <QuickAccessShelf items={items} initialPreferences={preferences} defaultIds={items.map(item=>item.id)} endpoint={`/api/v1/account/quick-access/work-role?from=${encodeURIComponent(from)}`} requestMode="plain" embedded placement="rail" />
+    <QuickAccessShelf appearance="standard" items={items} initialPreferences={preferences} defaultIds={items.map(item=>item.id)} endpoint={`/api/v1/account/quick-access/work-role?from=${encodeURIComponent(from)}`} requestMode="plain" embedded placement="rail" />
    </aside>
    <div id="work-role-content" tabIndex={-1} className={rail.content}>
    <section style={{display:"grid",gap:16,maxWidth:520}}>
     <div id="role-picker"><WorkRolePicker base={workspaceBase(parsed.scope)} options={options} revision={selection?.revision??0} from={from} companyId={access.scope.companyId} activeAssignmentId={selected?.id} /></div>
-    <div id="available-workspaces"><WorkspaceMenu label={access.scope.holdingSlug} choices={choices} current={current} canManageErpx={canManageErpx} /></div>
+    <div id="available-workspaces"><WorkspaceMenu appearance="standard" label={access.scope.holdingSlug} choices={choices} current={current} canManageErpx={canManageErpx} /></div>
    </section>
    </div>
    </div>
-  </main>
+  </PageContent>
   </>
  );
 }

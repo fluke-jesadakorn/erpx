@@ -1,3 +1,4 @@
+import {createEngineeringBrowserContext} from './helpers/engineering-browser-evidence';
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -30,7 +31,7 @@ test("isolated demo traces finance report totals to the selected ledger", async 
   const directory = resolve(`.runtime/browser/${run}`);
   const credentials = JSON.parse(await readFile(resolve(directory, "credentials.json"), "utf8")) as Credentials;
   expect(credentials.users.find((user) => user.role === "finance_approver"), "finance reviewer demo account").toBeTruthy();
-  const context = await browser.newContext(testInfo.project.use);
+  const context = await createEngineeringBrowserContext(browser,testInfo);
   try {
     const page = await context.newPage();
     await signInFinance(context, page, credentials, "/holdings/simulation/finance/reports");
@@ -50,7 +51,7 @@ test("isolated demo traces finance report totals to the selected ledger", async 
 
     await page.goto(`/holdings/simulation/finance/reports?chart=${encodeURIComponent(chart.id)}&refresh=${Date.now()}`, { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "Reports and statements", exact: true })).toBeVisible();
-    await expect(page.getByText(`${chart.base_currency} ${statementsBody.data.balanceSheet.assets}`, { exact: true }).first()).toBeVisible();
+    await expect(page.locator('#workspace-content').getByText(`${chart.base_currency} ${statementsBody.data.balanceSheet.assets}`, { exact: true }).first()).toBeVisible();
     const traceLinks = page.getByRole("link", { name: "Trace journal entries →", exact: true });
     await expect(traceLinks).toHaveCount(5);
     await expect(traceLinks.first()).toHaveAttribute("href", new RegExp(`finance/accounting\\?chart=${chart.id}#journal-entries$`));

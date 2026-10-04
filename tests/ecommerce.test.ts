@@ -6,8 +6,12 @@ import {
   key,
 } from "./helpers/expense-fixture";
 import { deliveryEvidence } from "./helpers/delivery-evidence";
-import { fulfillOrder, getOrder, saveMaster } from "../src/server/commerce";
+import { completeCommerceReturn, decideCommerceReturn, fulfillOrder, getOrder, invoiceFulfillment, saveMaster, settleInvoice } from "../src/server/commerce";
+import { importBankStatement, postInvoice, postJournal } from "../src/server/finance";
+import { approveRefund, confirmRefundInstruction, exportRefundInstructions, prepareRefundInstruction, refundWorkspace } from "../src/server/refunds";
+import { confirmManualRate } from "../src/server/company-money";
 import { assignFlowPrimary, resolveFlow } from "../src/server/flow-routing";
+import { countSchema, saveCount, transitionCount } from "../src/server/inventory-counts";
 import type { WorkContext } from "../src/server/authorization";
 import {
   addCartLine,
@@ -17,6 +21,7 @@ import {
   createChannel,
   createListing,
   ecommerceDetail,
+  ecommerceWorkspace,
 } from "../src/server/ecommerce";
 
 vi.mock("../src/server/runtime", () => ({
@@ -32,8 +37,96 @@ let fixture: Awaited<ReturnType<typeof expenseFixture>>,
 beforeAll(async () => {
   await applyMigrations(db, env.STAFF_TEST_MIGRATIONS);
 });
+
+async function assignOwnerStep(kind:"order"|"invoice"|"journal",id:string,stepKey:string,userId:string){
+ const flow=await resolveFlow(db,owner,kind,id);
+ await assignFlowPrimary(db,owner,kind,id,{stepKey,userId,reason:'Independent owner handoff for checkout evidence',saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());
+}
+
+it("collects a Sales-backed checkout and completes its reviewed return and bank refund with original stock and FX evidence",async()=>{
+ fixture.manager.branchId=null;fixture.manager.departmentId=null;fixture.payer.branchId=null;fixture.payer.departmentId=null;
+ await db.prepare("INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,'5400','Declared stock count variance','expense','THB',1,1)").bind(`${fixture.company}-count-variance`,fixture.company,fixture.chart).run();
+ // Use a native counted lot source so the Ecommerce adapter must retain the
+ // exact fulfilled identity as well as the historical financial snapshots.
+ product=String((await saveMaster(fixture.owner,'products',null,{sku:key(),name:'Lot-tracked online item',price:'20',trackingMode:'lot'},key())).id);
+ const counted=await saveCount(fixture.owner,null,countSchema.parse({warehouseId:warehouse,countDate:'2026-09-21',reason:'Count the declared initial labelled online stock through its native owner.',lines:[{productId:product,countedQuantity:'2',unitCost:'6',allocations:[{lotCode:'ONLINE-ORIGINAL',countedQuantity:'2',unitCost:'6'}]}]}),key());
+ await transitionCount(fixture.owner,String(counted.id),'submit',{expectedVersion:1,attachmentSetIds:[]},key());
+ const countFlow=await resolveFlow(db,fixture.owner,'stock_count',String(counted.id));await assignFlowPrimary(db,fixture.owner,'stock_count',String(counted.id),{stepKey:'submitted',userId:fixture.manager.userId,expectedVersion:countFlow.version,recordVersion:2,reason:'Independent Finance reviews the labelled opening stock.',saveDefault:false},key());
+ await transitionCount(fixture.manager,String(counted.id),'approve',{expectedVersion:2,attachmentSetIds:[],reason:'The physical lot count and original 12.00 THB value are independently verified.'},key());
+ const approvedCountFlow=await resolveFlow(db,fixture.owner,'stock_count',String(counted.id));await assignFlowPrimary(db,fixture.owner,'stock_count',String(counted.id),{stepKey:'approved',userId:fixture.manager.userId,expectedVersion:approvedCountFlow.version,recordVersion:3,reason:'The reviewer posts the independently approved inventory result.',saveDefault:false},key());
+ await transitionCount(fixture.manager,String(counted.id),'post',{expectedVersion:3,attachmentSetIds:[],reason:'Post the independently approved original lot valuation.'},key());
+ const lotId=String(await db.prepare("SELECT id FROM inventory_lots WHERE product_id=? AND lot_code='ONLINE-ORIGINAL'").bind(product).first('id'));
+ const checkout=await submittedCheckout('2'),checkoutId=String(checkout.id),orderId=String(checkout.salesOrderId);
+ const approveKey=key(),approveInput={action:'approve-order',expectedVersion:1,reason:'Confirm exact customer order and source stock',expiresAt:Date.now()+3600000};
+ await changeEcommerce(reviewer,'checkout',checkoutId,approveInput,approveKey);
+ await expect(changeEcommerce(reviewer,'checkout',checkoutId,approveInput,approveKey)).resolves.toMatchObject({status:'confirmed',salesOrderVersion:4});
+ await assignStock(orderId);
+ const order=await getOrder(owner,orderId),delivered=await fulfillOrder(owner,orderId,{expectedVersion:4,date:'2026-09-22',lines:[{lineId:String(order.lines[0].id),quantity:'2',allocations:[{lotId,quantity:'2'}]}],...(await deliveryEvidence(db,owner,orderId))},key());
+ const fulfillmentId=String(delivered.fulfillmentId),goodsJournal=String(await db.prepare('SELECT journal_id FROM commerce_fulfillments WHERE id=?').bind(fulfillmentId).first('journal_id'));
+ await assignOwnerStep('journal',goodsJournal,'draft',fixture.manager.userId);await postJournal(fixture.manager,goodsJournal,key(),{expectedVersion:1});
+ await assignOwnerStep('order',orderId,'invoicing',owner.userId);
+ const invoice=await invoiceFulfillment(owner,fulfillmentId,{expectedVersion:1,date:'2026-09-22',dueDate:'2026-09-28'},key()),invoiceId=String(invoice.invoiceId);
+ await assignOwnerStep('invoice',invoiceId,'draft',fixture.manager.userId);await postInvoice(fixture.manager,invoiceId,{expectedVersion:1,periodId:fixture.period,entryDate:'2026-09-22'},key());
+ await assignOwnerStep('invoice',invoiceId,'posted',fixture.payer.userId);
+ const payKey=key(),payInput={expectedVersion:2,date:'2026-09-22',amount:'50',reference:'Fictional customer transfer after verified receipt'};
+ await settleInvoice(fixture.payer,invoiceId,payInput,payKey);await expect(settleInvoice(fixture.payer,invoiceId,payInput,payKey)).resolves.toMatchObject({id:orderId,outstandingMinor:0});
+ expect(await db.prepare('SELECT status,outstanding_minor,base_outstanding_minor FROM finance_invoices WHERE id=?').bind(invoiceId).first()).toEqual({status:'paid',outstanding_minor:0,base_outstanding_minor:0});
+ expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:0,value_minor:0});
+ const original=await db.prepare("SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE source_type='finance_invoice' AND source_id=? AND amount_kind='total'").bind(invoiceId).first<{amount_units:string;usd_units:string;fx_rate_id:string}>();
+ await confirmManualRate(fixture.manager,{currency:'THB',effectiveDate:'2026-09-23',currencyPerUsd:'50',note:'Later synthetic quote must not rewrite original invoice/stock evidence'},key());
+ const detail=await getOrder(owner,orderId),returnKey=key(),returnInput={action:'request-return',expectedVersion:2,reason:'Customer returned one unopened item',fulfillmentId,fulfillmentVersion:2,date:'2026-09-23',lines:[{lineId:String(detail.fulfillmentLines[0].id),quantity:'1',allocations:[{lotId,quantity:'1'}],condition:'unopened',conditionNote:'Sealed original packaging is independently checked',qualityDueDate:'2026-09-24'}]};
+ await expect(changeEcommerce(owner,'checkout',checkoutId,{...returnInput,lines:[{...returnInput.lines[0],allocations:[{lotId:'not-the-fulfilled-lot',quantity:'1'}]}]},key())).rejects.toMatchObject({code:'RETURN_LOT_INVALID'});
+ expect(await db.prepare('SELECT COUNT(*) n FROM ecommerce_return_links WHERE checkout_id=?').bind(checkoutId).first('n')).toBe(0);
+ expect(await db.prepare('SELECT version FROM commerce_fulfillments WHERE id=?').bind(fulfillmentId).first('version')).toBe(2);
+ const requested=await changeEcommerce(owner,'checkout',checkoutId,returnInput,returnKey),returnId=String(requested.commerceReturnId);
+ await expect(changeEcommerce(owner,'checkout',checkoutId,returnInput,returnKey)).resolves.toEqual(requested);
+ await expect(decideCommerceReturn(owner,returnId,'approve',{expectedVersion:1,reason:'Requester self review'},key())).rejects.toMatchObject({code:'INDEPENDENT_APPROVER_REQUIRED'});
+ const approved=await decideCommerceReturn(reviewer,returnId,'approve',{expectedVersion:1,reason:'Independent original delivery, condition and financial credit reviewed'},key());
+ for(const journal of [approved.stockJournalId,approved.creditJournalId]){await assignOwnerStep('journal',String(journal),'draft',fixture.manager.userId);await postJournal(fixture.manager,String(journal),key(),{expectedVersion:1});}
+ const completeKey=key(),completed=await completeCommerceReturn(fixture.manager,returnId,{expectedVersion:2},completeKey);
+ await expect(completeCommerceReturn(fixture.manager,returnId,{expectedVersion:2},completeKey)).resolves.toEqual(completed);
+ expect(completed).toMatchObject({status:'posted',refundMinor:2500,creditedMinor:0});
+ const reversal=await db.prepare("SELECT amount_units::text,usd_units::text,fx_rate_id,original_source_type,original_source_id FROM money_transaction_snapshots WHERE source_type='commerce_return' AND source_id=? AND amount_kind='credit_total'").bind(returnId).first<{amount_units:string;usd_units:string;fx_rate_id:string;original_source_type:string;original_source_id:string}>();
+ expect(reversal).toMatchObject({amount_units:'-2500',fx_rate_id:original!.fx_rate_id,original_source_type:'finance_invoice',original_source_id:invoiceId});
+ expect(Number(reversal!.usd_units)).toBe(-Math.round(Number(original!.usd_units)/2));
+ expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:1000,value_minor:600});
+ expect(await db.prepare('SELECT a.lot_id,a.quantity_milli,a.value_minor,a.fulfillment_allocation_id FROM commerce_return_lot_allocations a JOIN commerce_return_lines l ON l.id=a.return_line_id WHERE l.return_id=?').bind(returnId).first()).toEqual({lot_id:lotId,quantity_milli:1000,value_minor:600,fulfillment_allocation_id:detail.lotAllocations[0].id});
+ expect(await db.prepare('SELECT quantity_milli,value_minor FROM inventory_lot_balances WHERE warehouse_id=? AND lot_id=?').bind(warehouse,lotId).first()).toEqual({quantity_milli:1000,value_minor:600});
+ expect(await db.prepare("SELECT h.lot_id,h.held_quantity_milli FROM inventory_quality_holds h JOIN commerce_return_lot_allocations a ON a.id=h.source_id JOIN commerce_return_lines l ON l.id=a.return_line_id WHERE h.source_type='customer_return' AND l.return_id=?").bind(returnId).first()).toEqual({lot_id:lotId,held_quantity_milli:1000});
+ expect(await db.prepare('SELECT inventory_quarantined_quantity(?,?) q').bind(warehouse,product).first('q')).toBe(1000);
+ const refundId=String(completed.refundId);
+ await approveRefund(reviewer,refundId,{expectedVersion:1,reason:'Review return beneficiary and exact gross amount',beneficiaryName:'Fictional online customer',beneficiaryAccount:'SIMULATED-Ecommerce-REFUND'},key());
+ const instruction=await prepareRefundInstruction(fixture.payer,refundId,{expectedVersion:2,amount:'25',plannedDate:'2026-09-23',bankAccount:fixture.accounts.cash,cashAccountId:fixture.accounts.cash},key());
+ await exportRefundInstructions(fixture.payer,{instructions:[{id:String(instruction.id),expectedVersion:1}]},key());
+ const statement=await importBankStatement(fixture.payer,{bankAccount:fixture.accounts.cash,statementNumber:key(),statementDate:'2026-09-23',opening:'100',closing:'75',sourceHash:key(),rows:[{transactionDate:'2026-09-23',externalId:'SIMULATED-Ecommerce-REFUND',description:'Fictional exact customer refund',amount:'-25',currency:'THB'}]},key());
+ const bank=(await db.prepare('SELECT id,version FROM finance_bank_transactions WHERE statement_id=?').bind(statement.id).first<{id:string;version:number}>())!;
+ const confirmationKey=key(),confirmation={expectedVersion:2,bankTransactionId:bank.id,bankVersion:bank.version,periodId:fixture.period,bankReference:'SIMULATED-Ecommerce-REFUND',evidence:'Exact independent bank statement confirms the approved refund'};
+ await confirmRefundInstruction(fixture.payer,String(instruction.id),confirmation,confirmationKey);
+ await expect(confirmRefundInstruction(fixture.payer,String(instruction.id),confirmation,confirmationKey)).resolves.toMatchObject({status:'confirmed'});
+ expect((await refundWorkspace(fixture.payer,refundId)).owner).toMatchObject({status:'settled',outstanding_minor:0});
+ const after=await ecommerceDetail(owner,checkoutId);
+ expect(after.returnLinks).toHaveLength(1);expect(after.order.returns).toMatchObject([{id:returnId,status:'posted',refund_minor:2500}]);
+ const sums=await db.prepare("SELECT SUM(l.debit_minor) debit,SUM(l.credit_minor) credit FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id=? AND j.status='posted'").bind(fixture.company).first();expect(sums!.debit).toBe(sums!.credit);
+ await expect(db.prepare('DELETE FROM ecommerce_return_links WHERE checkout_id=?').bind(checkoutId).run()).rejects.toThrow('ECOMMERCE_HISTORY_IMMUTABLE');
+});
+
+it("keeps stale, cross-scope and concurrent checkout commands from leaving Sales or return side effects",async()=>{
+ const checkout=await submittedCheckout(),id=String(checkout.id),orderId=String(checkout.salesOrderId);
+ const hidden={...owner,branchId:'other-branch',departmentId:null};
+ await expect(ecommerceDetail(hidden,id)).rejects.toMatchObject({status:404});
+ expect((await ecommerceWorkspace(hidden)).checkouts).toHaveLength(0);
+ await expect(changeEcommerce(reviewer,'checkout',id,{action:'approve-order',expectedVersion:99,reason:'Wrong parent source version'},key())).rejects.toMatchObject({code:'ECOMMERCE_SOURCE_CHANGED'});
+ expect((await getOrder(owner,orderId)).order).toMatchObject({state:'submitted',version:2});
+ const results=await Promise.allSettled([key(),key()].map(k=>changeEcommerce(reviewer,'checkout',id,{action:'approve-order',expectedVersion:1,reason:'Competing independent approval',expiresAt:Date.now()+3600000},k)));
+ expect(results.filter(x=>x.status==='fulfilled')).toHaveLength(1);
+ expect(await db.prepare('SELECT COUNT(*) n FROM inventory_order_reservations WHERE order_line_id=?').bind(`${orderId}-line-0`).first('n')).toBe(1);
+ expect((await getOrder(owner,orderId)).order).toMatchObject({state:'confirmed',version:4});
+ await expect(createCart(owner,{channelId:'unknown',partyId:party,warehouseId:warehouse,currency:'USD'},key())).rejects.toMatchObject({code:'ECOMMERCE_CURRENCY_MAPPING_REQUIRED'});
+});
 beforeEach(async () => {
   fixture = await expenseFixture();
+  for(const [suffix,category] of [['receivable','asset'],['inventory','asset'],['clearing','liability']])await db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,?,?,?,'THB',1,1)").bind(`${fixture.company}-${suffix}`,fixture.chart,fixture.company,suffix,suffix,category).run();
+  await db.prepare('UPDATE commerce_settings SET receivable_account_id=?,inventory_account_id=?,clearing_account_id=? WHERE company_id=?').bind(`${fixture.company}-receivable`,`${fixture.company}-inventory`,`${fixture.company}-clearing`,fixture.company).run();
   owner = { ...fixture.owner, modules: ["ecommerce"] };
   reviewer = {
     ...fixture.tie,

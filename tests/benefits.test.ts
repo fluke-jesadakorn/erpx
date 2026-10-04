@@ -4,6 +4,8 @@ import {expenseDb as db,expenseFixture,key} from "./helpers/expense-fixture";
 import {benefitDetail,benefitsWorkspace,benefitWork,changeBenefitRecord,createBenefitDependent,createBenefitElection,createBenefitPlan,createBenefitWindow} from "../src/server/benefits";
 import {calculatePayrollRun,createPayrollRun,payrollRunSchema} from "../src/server/people-payroll";
 import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from "./helpers/attachment-v2";
+import {changeLearningAssignment,changeLearningCourse,createLearningAssignment,createLearningCourse,learningAssignmentDetail} from "../src/server/learning";
+import {certificateRevocationSchema,revokeLearningCertificate} from "../src/server/learning-eligibility";
 vi.mock("../src/server/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);enableAttachmentV2ForTest();});
@@ -14,13 +16,52 @@ beforeEach(async()=>{
  f=await expenseFixture();for(const a of [f.owner,f.tie,f.claimant,f.reviewer])a.modules=["benefits","people_payroll"];
 });
 afterEach(()=>vi.useRealTimers());
-async function reviewedSources(type:"employee"|"family"="family"){
- const plan=await createBenefitPlan(f.owner,{name:"Health Plus",provider:"Simulated Provider",coverageType:type,currency:"THB",employeeDeduction:"125.50",employerCost:"300.00",effectiveFrom:"2026-09-01",effectiveTo:null},key());
+it("keeps My benefits personal when the actor also has benefit review authority",async()=>{
+ const{plan,win}=await reviewedSources("employee"), election=await createBenefitElection(f.claimant,{planId:plan.id,planVersion:2,windowId:win.id,windowVersion:2,dependentIds:[]},key());
+ expect((await benefitsWorkspace(f.owner)).elections.map(row=>row.id)).toContain(election.id);
+ expect((await benefitsWorkspace(f.owner,true)).elections).toEqual([]);
+ expect((await benefitsWorkspace(f.claimant,true)).elections.map(row=>row.id)).toContain(election.id);
+});
+async function reviewedSources(type:"employee"|"family"="family",requiredEligibilityCode:string|null=null){
+ const plan=await createBenefitPlan(f.owner,{name:"Health Plus",provider:"Simulated Provider",coverageType:type,currency:"THB",employeeDeduction:"125.50",employerCost:"300.00",effectiveFrom:"2026-09-01",effectiveTo:null,requiredEligibilityCode},key());
  await expect(changeBenefitRecord(f.owner,"plan",String(plan.id),{action:"publish",expectedVersion:1,reason:"Self review must fail"},key())).rejects.toMatchObject({code:"CONFLICT"});
  await changeBenefitRecord(f.tie,"plan",String(plan.id),{action:"publish",expectedVersion:1,reason:"Plan terms reviewed independently"},key());
  const win=await createBenefitWindow(f.owner,{name:"September enrollment",opensOn:"2026-09-01",closesOn:"2026-10-01",effectiveOn:"2026-09-01"},key());
  await changeBenefitRecord(f.tie,"window",String(win.id),{action:"open",expectedVersion:1,reason:"Window dates reviewed independently"},key());return{plan,win};
 }
+async function qualifiedLearner(){
+ for(const a of[f.owner,f.tie,f.claimant])a.modules.push("learning");
+ const course=await createLearningCourse(f.owner,{title:"Benefit eligibility course",description:"Synthetic safety course required by the benefit plan",provider:"Fixture academy",durationMinutes:60,requiredFor:"equipment_operator"},key());
+ await changeLearningCourse(f.tie,String(course.id),{action:"publish",expectedVersion:1,reason:"Independent course content and eligibility review"},key());
+ const assignment=await createLearningAssignment(f.owner,{courseId:course.id,courseVersion:2,learnerId:f.claimant.userId,dueDate:"2026-10-01",reason:"Qualification before employee coverage"},key());
+ await changeLearningAssignment(f.claimant,String(assignment.id),{action:"start",expectedVersion:1,reason:"Employee begins the assigned course"},key());
+ await changeLearningAssignment(f.claimant,String(assignment.id),{action:"complete",expectedVersion:2,attendance:"attended",scoreBps:9500,evidence:"Synthetic provider certificate valid from September through October 1",reason:"Provider assessment and attendance complete",certificateValidFrom:"2026-09-01",certificateExpiresOn:"2026-10-01"},key());
+ return await learningAssignmentDetail(f.claimant,String(assignment.id));
+}
+it("consumes immutable Learning eligibility once into Benefits and rechecks certificate expiry before handoff release",async()=>{
+ const {plan,win}=await reviewedSources("employee","equipment_operator"),input={planId:plan.id,planVersion:2,windowId:win.id,windowVersion:2,dependentIds:[]};
+ await expect(createBenefitElection(f.claimant,input,key())).rejects.toMatchObject({code:"BENEFIT_LEARNING_ELIGIBILITY_REQUIRED"});
+ const learning=await qualifiedLearner(),command=key(),election=await createBenefitElection(f.claimant,input,command);
+ expect(await createBenefitElection(f.claimant,input,command)).toEqual(election);
+ expect(await db.prepare("SELECT * FROM learning_benefit_consumption_receipts WHERE election_id=?").bind(election.id).first()).toMatchObject({certificate_id:learning.certificate!.id,handoff_id:learning.handoff!.id,person_id:learning.handoff!.person_id,source_assignment_version:3,eligibility_code:"equipment_operator",source_digest:expect.stringMatching(/^[a-f0-9]{64}$/)});
+ const submitInput={action:"submit",expectedVersion:1,reason:"Employee confirms qualified coverage"},submitKey=key(),submitted=await changeBenefitRecord(f.claimant,"election",String(election.id),submitInput,submitKey);
+ vi.setSystemTime(new Date("2026-10-02T09:00:00Z"));
+ expect(await createBenefitElection(f.claimant,input,command)).toEqual(election);
+ expect(await changeBenefitRecord(f.claimant,"election",String(election.id),submitInput,submitKey)).toEqual(submitted);
+ await expect(changeBenefitRecord(f.owner,"election",String(election.id),{action:"acknowledge",expectedVersion:2,reason:"Provider acknowledgement after expiry",providerReference:"SYNTHETIC-EXPIRED"},key())).rejects.toMatchObject({code:"BENEFIT_LEARNING_CERTIFICATE_EXPIRED"});
+ expect((await benefitDetail(f.claimant,String(election.id))).election).toMatchObject({status:"submitted",version:2,learning_certificate_id:learning.certificate!.id});
+ expect(await db.prepare("SELECT COUNT(*) n FROM learning_benefit_consumption_receipts WHERE election_id=?").bind(election.id).first("n")).toBe(1);
+ expect(await db.prepare("SELECT status FROM learning_eligibility_handoffs WHERE id=?").bind(learning.handoff!.id).first("status")).toBe("open");
+ await expect(db.prepare("DELETE FROM learning_certificates WHERE id=?").bind(learning.certificate!.id).run()).rejects.toThrow("PEOPLE_CONSUMPTION_EVIDENCE_IMMUTABLE");
+});
+it("revokes a reviewed Learning certificate without changing completion or its original Benefits consumption receipt",async()=>{
+ const learning=await qualifiedLearner(),{plan,win}=await reviewedSources("employee","equipment_operator"),election=await createBenefitElection(f.claimant,{planId:plan.id,planVersion:2,windowId:win.id,windowVersion:2,dependentIds:[]},key()),certId=String(learning.certificate!.id);
+ const revocation=certificateRevocationSchema.parse({expectedAssignmentVersion:3,reason:"Provider withdrew the synthetic qualification evidence"}),command=key(),revoked=await revokeLearningCertificate(f.tie,certId,revocation,command);expect(await revokeLearningCertificate(f.tie,certId,revocation,command)).toEqual(revoked);
+ await expect(changeBenefitRecord(f.claimant,"election",String(election.id),{action:"submit",expectedVersion:1,reason:"Cannot use revoked qualification"},key())).rejects.toMatchObject({code:"BENEFIT_LEARNING_CERTIFICATE_EXPIRED"});
+ expect((await learningAssignmentDetail(f.claimant,String(learning.assignment.id))).assignment.status).toBe("completed");
+ expect(await db.prepare("SELECT COUNT(*) n FROM learning_benefit_consumption_receipts WHERE election_id=?").bind(election.id).first("n")).toBe(1);
+ await expect(db.prepare("UPDATE learning_certificate_revocations SET reason='changed' WHERE certificate_id=?").bind(certId).run()).rejects.toThrow("PEOPLE_CONSUMPTION_EVIDENCE_IMMUTABLE");
+});
 async function releasedElection(){const{plan,win}=await reviewedSources();const dependent=await createBenefitDependent(f.claimant,{name:"Family Member",relationship:"child",birthDate:"2018-02-03"},key());await changeBenefitRecord(f.tie,"dependent",String(dependent.id),{action:"verify",expectedVersion:1,reason:"Identity evidence reviewed"},key());const election=await createBenefitElection(f.claimant,{planId:plan.id,planVersion:2,windowId:win.id,windowVersion:2,dependentIds:[dependent.id]},key());await changeBenefitRecord(f.claimant,"election",String(election.id),{action:"submit",expectedVersion:1,reason:"Employee confirms election"},key());await changeBenefitRecord(f.owner,"election",String(election.id),{action:"acknowledge",expectedVersion:2,reason:"Provider accepted enrollment",providerReference:"SIM-ACK-1001"},key());await expect(changeBenefitRecord(f.owner,"election",String(election.id),{action:"release",expectedVersion:3,reason:"Same reviewer cannot release"},key())).rejects.toMatchObject({code:"CONFLICT"});await changeBenefitRecord(f.tie,"election",String(election.id),{action:"release",expectedVersion:3,reason:"Payroll amount and provider receipt reconciled"},key());return String(election.id);}
 it("snapshots family coverage through independent provider and payroll release",async()=>{const id=await releasedElection(),d=await benefitDetail(f.claimant,id);expect(d.election).toMatchObject({status:"released",provider_reference:"SIM-ACK-1001",version:4});expect(d.payroll).toMatchObject({employee_deduction_minor:12550,employer_cost_minor:30000,source_election_version:4,status:"released"});expect(d.history.map(x=>x.action)).toEqual(["elect","submit","acknowledge","release"]);expect((await benefitWork(f.claimant)).find(x=>x.id===id)).toBeUndefined();await expect(db.prepare("DELETE FROM benefit_payroll_inputs WHERE election_id=?").bind(id).run()).rejects.toThrow("BENEFIT_HISTORY_IMMUTABLE");});
 it("blocks family coverage without verified dependents and stale source versions",async()=>{const{plan,win}=await reviewedSources();await expect(createBenefitElection(f.claimant,{planId:plan.id,planVersion:2,windowId:win.id,windowVersion:2,dependentIds:[]},key())).rejects.toMatchObject({code:"VERIFIED_DEPENDENT_REQUIRED"});await expect(createBenefitElection(f.claimant,{planId:plan.id,planVersion:1,windowId:win.id,windowVersion:2,dependentIds:["missing"]},key())).rejects.toMatchObject({code:"BENEFIT_SOURCE_CHANGED"});});

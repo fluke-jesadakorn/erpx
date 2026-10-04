@@ -1,4 +1,8 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { Button, Field, TextInput } from "@/components/ui/foundation";
+
 import { useSyncExternalStore, useState } from "react";
 import s from "./legal.module.css";
 const subscribe = (notify: () => void) => {
@@ -6,19 +10,19 @@ const subscribe = (notify: () => void) => {
   return () => window.removeEventListener("hashchange", notify);
 };
 export function LegalEnrollment() {
-  const token = useSyncExternalStore(subscribe,
+  const token = useSyncExternalStore(
+    subscribe,
     () => new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "",
-    () => "");
-  const
-    [message, setMessage] = useState(""),
+    () => "",
+  );
+  const [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false);
   return (
     <main className={s.workspace} style={{ maxWidth: 600, padding: 32 }}>
       <h1>Accept your Legal invitation</h1>
       <p>
-        Create an account for the email address that received this invitation.
-        Verify that email before opening shared documents. Signing also requires
-        MFA.
+        Create an account for the email address that received this invitation. Verify that email
+        before opening shared documents. Signing also requires MFA.
       </p>
       <form
         className={s.detail}
@@ -36,9 +40,7 @@ export function LegalEnrollment() {
             setMessage(
               response.ok
                 ? "Check your invited email address to verify the account and return to the portal."
-                : (result.error?.message ??
-                    result.message ??
-                    "Unable to create the account."),
+                : (result.error?.message ?? result.message ?? "Unable to create the account."),
             );
           } catch {
             setMessage("Unable to complete enrollment. Try again.");
@@ -47,13 +49,13 @@ export function LegalEnrollment() {
           }
         }}
       >
-        <label className={s.field}>
+        <Field appearance="standard" className={s.field}>
           Your name
-          <input name="name" required maxLength={100} autoComplete="name" />
-        </label>
-        <label className={s.field}>
+          <TextInput appearance="standard" name="name" required maxLength={100} autoComplete="name" />
+        </Field>
+        <Field appearance="standard" className={s.field}>
           Choose a password
-          <input
+          <TextInput appearance="standard"
             name="password"
             type="password"
             required
@@ -61,18 +63,16 @@ export function LegalEnrollment() {
             maxLength={200}
             autoComplete="new-password"
           />
-        </label>
-        <button className={s.button} disabled={busy || !token}>
+        </Field>
+        <Button appearance="standard" clientManaged type="submit" variant="ghost" className={s.button} disabled={busy || !token}>
           Create invited account and send verification
-        </button>
+        </Button>
       </form>
-      <p role="status">
-        {message ||
-          (!token ? "Open the complete invitation link from your email." : "")}
-      </p>
+      <InlineNotice tone="info" role="status">
+        {message || (!token ? "Open the complete invitation link from your email." : "")}
+      </InlineNotice>
       <a href="/login">
-        Already have an ERPX account? Sign in and open the portal link in your
-        invitation.
+        Already have an ERPX account? Sign in and open the portal link in your invitation.
       </a>
     </main>
   );

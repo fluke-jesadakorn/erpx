@@ -1,7 +1,8 @@
 import "server-only";
 
 import { hasModuleAccess } from "@/data/module-access";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission,permissionCatalog } from "@/lib/permissions";
+import {modulesForRole} from '@/lib/business-roles';
 import type { WorkContext } from "../authorization";
 import { ApiError } from "../http";
 import type { SqlDatabase } from "../runtime/types";
@@ -140,7 +141,7 @@ type Descriptor = {
 const descriptors: Record<string, Descriptor> = {
   procurement_rfq: { table: "procurement_rfqs", version: "version", branch: "branch_id", department: "department_id", readPermission: "commerce.read", writePermission: "commerce.purchase" },
   purchase_order: { table: "commerce_orders", version: "version", branch: "branch_id", readPermission: "commerce.read", writePermission: "commerce.purchase", extra: "kind='purchase'" },
-  supplier_bill: { table: "finance_invoices", version: "version", readPermission: "finance.read", writePermission: "finance.write" },
+  supplier_bill: { table: "finance_invoices", version: "version", readPermission: "finance.read", writePermission: "finance.write", extra: "kind='payable'" },
   landed_cost: { table: "inventory_landed_costs", version: "version", branch: "branch_id", readPermission: "inventory.read", writePermission: "inventory.prepare" },
   stock_count: { table: "inventory_counts", version: "version", branch: "branch_id", readPermission: "inventory.read", writePermission: "inventory.prepare" },
   inventory_stock_count: { table: "inventory_counts", version: "version", branch: "branch_id", readPermission: "inventory.read", writePermission: "inventory.prepare" },
@@ -152,7 +153,7 @@ const descriptors: Record<string, Descriptor> = {
   quality_hold: { table: "inventory_quality_holds", version: "version", branch: "branch_id", readPermission: "quality.read", writePermission: "quality.hold" },
   inventory_quality_hold: { table: "inventory_quality_holds", version: "version", branch: "branch_id", readPermission: "quality.read", writePermission: "quality.hold" },
   commerce_order: { table: "commerce_orders", version: "version", branch: "branch_id", readPermission: "commerce.read", writePermission: "commerce.sales" },
-  commerce_order_delivery: { table: "commerce_orders", version: "version", branch: "branch_id", readPermission: "commerce.read", writePermission: "commerce.sales" },
+  commerce_order_delivery: { table: "commerce_orders", version: "version", branch: "branch_id", department: "department_id", readPermission: "commerce.read", writePermission: "inventory.prepare", extra: "kind='sales'" },
   commerce_return: { table: "commerce_returns", version: "version", branch: "branch_id", readPermission: "commerce.read", writePermission: "commerce.sales" },
   asset: { table: "operational_assets", version: "version", branch: "branch_id", department: "department_id", readPermission: "records.read", writePermission: "records.write" },
   maintenance_work: { table: "maintenance_work_orders", version: "version", branch: "branch_id", department: "department_id", readPermission: "records.read", writePermission: "records.write" },
@@ -242,7 +243,46 @@ async function marketingCampaignAttachmentScope(
   return {companyId:row.company_id,branchId:null,departmentId:null,version:Number(row.version),editable:operation!=="read"};
 }
 
+export async function authorizePosProductImageTarget(db: SqlDatabase, actor: WorkContext, targetId: string, operation: AttachmentOperation): Promise<AttachmentTargetScope> {
+  const permission = operation === "read" ? "pos.read" : "pos.configure";
+  const row = await db.prepare(`SELECT product.company_id,product.version FROM commerce_products product
+    JOIN pos_catalog catalog ON catalog.product_id=product.id AND catalog.company_id=product.company_id
+    WHERE product.id=? AND product.company_id=? AND ?::text IS NULL
+      AND EXISTS(SELECT 1 FROM assignments grant_row WHERE grant_row.id=? AND grant_row.user_id=?
+        AND grant_row.role=? AND grant_row.company_id=product.company_id
+        AND iam_assignment_active(grant_row.id,?) AND iam_principal_active(grant_row.user_id,grant_row.company_id,?)
+        AND iam_role_allows(grant_row.role,grant_row.company_id,?)
+        AND (grant_row.scope_kind='holding' OR grant_row.scope_kind='branch' AND grant_row.scope_node_id=?))
+      AND (?::text IS NULL OR EXISTS(SELECT 1 FROM pos_register_catalog selected
+        JOIN pos_registers register_row ON register_row.id=selected.register_id
+        WHERE selected.product_id=product.id AND register_row.company_id=product.company_id
+          AND register_row.branch_id=? AND selected.enabled=true))`)
+    .bind(targetId,actor.companyId,actor.departmentId,actor.assignmentId,actor.userId,actor.role,Date.now(),Date.now(),permission,
+      actor.branchId,actor.branchId,actor.branchId).first<{company_id:string;version:number}>();
+  if (!row) throw new ApiError(404,"ATTACHMENT_TARGET_NOT_FOUND","Product image is unavailable in this POS scope.");
+  return {companyId:row.company_id,branchId:null,departmentId:null,version:Number(row.version),editable:operation!=="read"};
+}
+
+/** A cached WorkContext never keeps access after its selected grant changes. */
+async function currentAttachmentActor(db:SqlDatabase,actor:WorkContext,policy:AttachmentPolicy,targetId:string):Promise<WorkContext>{
+  // This synthetic actor has no staff assignment. Its exact owner adapter below
+  // rechecks the current customer identity, binding, scope and expiry instead.
+  if(actor.role==='external_customer'&&policy.targetType==='customer_access_binding'&&actor.assignmentId===`customer-portal:${targetId}`)return actor;
+  const now=Date.now(),row=await db.prepare(`SELECT a.role,a.modules_json,
+      COALESCE((SELECT v.permissions_json FROM iam_roles r JOIN iam_role_revisions v ON v.company_id=r.company_id AND v.role_id=r.id AND v.revision=r.published_revision
+        WHERE r.id=a.role AND r.company_id IN ('*',a.company_id) AND r.status='active' ORDER BY (r.company_id=a.company_id) DESC LIMIT 1),'[]'::jsonb)::text role_permissions,
+      COALESCE((SELECT jsonb_agg(p.id) FROM iam_permissions p WHERE iam_role_allows(a.role,a.company_id,p.id)),'[]'::jsonb)::text permissions
+    FROM assignments a WHERE a.id=? AND a.company_id=? AND a.user_id=? AND a.role=? AND iam_assignment_active(a.id,?) AND iam_principal_active(a.user_id,a.company_id,?)
+      AND (a.scope_kind='holding' OR a.scope_kind='branch' AND a.scope_node_id=? OR a.scope_kind='department' AND a.scope_node_id=?) FOR SHARE OF a`)
+    .bind(actor.assignmentId,actor.companyId,actor.userId,actor.role,now,now,actor.branchId,actor.departmentId).first<{role:string;modules_json:string;role_permissions:string;permissions:string}>();
+  if(!row)throw new ApiError(404,'ATTACHMENT_TARGET_NOT_FOUND','The file owner is unavailable in your current work role.');
+  const currentPermissions=new Set(JSON.parse(row.permissions) as string[]),permissions=permissionCatalog.filter(permission=>currentPermissions.has(permission.id)&&hasPermission(actor,permission.id)).map(permission=>permission.id),assigned=JSON.parse(row.modules_json) as string[],rolePermissions=JSON.parse(row.role_permissions) as string[],currentModules=actor.role.startsWith('custom_')?rolePermissions.filter(p=>p.startsWith('module.')).map(p=>p.split('.')[1]):modulesForRole(actor.role,assigned);
+  // Intersect both sets: a freshly published broader role cannot expand the
+  // request's original permission or module snapshot during an owner operation.
+  return {...actor,...(actor.iam?{iam:{...actor.iam,permissions}}:{permissions}),modules:actor.modules.filter(module=>currentModules.includes(module))};
+}
 export async function authorizeAttachmentTarget(db: SqlDatabase, actor: WorkContext, policy: AttachmentPolicy, targetId: string, operation: AttachmentOperation): Promise<AttachmentTargetScope> {
+  actor=await currentAttachmentActor(db,actor,policy,targetId);
   const portalCollaboration=await authorizePortalCollaborationAttachmentTarget(db,actor,policy,targetId,operation);
   if(portalCollaboration)return portalCollaboration;
   const sensitive=await authorizeSensitiveAttachmentTarget(db,actor,policy,targetId,operation);
@@ -263,6 +303,22 @@ export async function authorizeAttachmentTarget(db: SqlDatabase, actor: WorkCont
     const leaveModule = await import("../leave") as unknown as { assertLeaveAttachmentAccess?: (database: SqlDatabase, workActor: WorkContext, input: { leaveRequestId: string; purposeKey: "medical_certificate" | "leave_supporting_photo"; operation: "read" | "write" | "bind" }) => Promise<AttachmentTargetScope> };
     if (leaveModule.assertLeaveAttachmentAccess) return leaveModule.assertLeaveAttachmentAccess(db, actor, { leaveRequestId: targetId, purposeKey: policy.purposeKey as "medical_certificate" | "leave_supporting_photo", operation: operation === "publish" ? "read" : operation });
     throw new ApiError(503, "LEAVE_ATTACHMENT_ADAPTER_UNAVAILABLE", "Leave evidence access is not ready.");
+  }
+  if (policy.targetType === "product" && policy.purposeKey === "product_image" &&
+      !hasPermission(actor, operation === "read" ? "commerce.read" : "commerce.purchase") &&
+      hasPermission(actor, operation === "read" ? "pos.read" : "pos.configure"))
+    return authorizePosProductImageTarget(db,actor,targetId,operation);
+  if (policy.targetType === "commerce_order_delivery") {
+    const allowed = operation === "read"
+      ? hasPermission(actor, "commerce.read")
+      : hasPermission(actor, "inventory.prepare") && hasModuleAccess(actor.modules, "inventory");
+    if (!allowed) throw new ApiError(403, "ATTACHMENT_FORBIDDEN", "Use your current warehouse assignment to prepare delivery evidence.");
+    const row = await db.prepare("SELECT company_id,branch_id,department_id,version FROM commerce_orders WHERE id=? AND company_id=? AND kind='sales'")
+      .bind(targetId, actor.companyId).first<{company_id:string;branch_id:string|null;department_id:string|null;version:number}>();
+    if (!row) throw new ApiError(404, "ATTACHMENT_TARGET_NOT_FOUND", "Sales delivery not found in this Company.");
+    if (actor.branchId && actor.branchId !== row.branch_id) throw new ApiError(403, "ATTACHMENT_SCOPE_FORBIDDEN", "The delivery is outside your Branch scope.");
+    if (actor.departmentId && actor.departmentId !== row.department_id) throw new ApiError(403, "ATTACHMENT_SCOPE_FORBIDDEN", "The delivery is outside your Department scope.");
+    return {companyId:row.company_id,branchId:row.branch_id,departmentId:row.department_id,version:Number(row.version),editable:operation!=="read"};
   }
   if (policy.targetType === "purchase_receipt") {
     const row = await db.prepare("SELECT o.company_id,o.branch_id,o.department_id,o.version FROM commerce_orders o WHERE o.id=? AND o.company_id=? AND o.kind='purchase'").bind(targetId,actor.companyId).first<{company_id:string;branch_id:string|null;department_id:string|null;version:number}>();
@@ -305,14 +361,15 @@ export async function authorizeAttachmentTarget(db: SqlDatabase, actor: WorkCont
     return {companyId:row.company_id,branchId:null,departmentId:null,version:Number(row.version),editable:operation!=="read"};
   }
   if(policy.targetType==="project"){
-    const row=await db.prepare(`SELECT p.company_id,p.branch_id,p.department_id,p.version,
+    const row=await db.prepare(`SELECT p.company_id,p.branch_id,p.department_id,p.version,p.lifecycle_status,
       CASE WHEN iam_same_person(p.owner_user_id,?,p.company_id) THEN 1 ELSE 0 END is_owner
       FROM staff_projects p WHERE p.id=? AND p.company_id=? AND
       (iam_same_person(p.owner_user_id,?,p.company_id) OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=?))`)
-      .bind(actor.userId,targetId,actor.companyId,actor.userId,actor.userId).first<{company_id:string;branch_id:string|null;department_id:string|null;version:number;is_owner:number}>();
+      .bind(actor.userId,targetId,actor.companyId,actor.userId,actor.userId).first<{company_id:string;branch_id:string|null;department_id:string|null;version:number;is_owner:number;lifecycle_status:string}>();
     const permission=operation==="read"?"records.read":"records.write";
     if(!row||!hasPermission(actor,permission))throw new ApiError(row?403:404,"ATTACHMENT_TARGET_NOT_FOUND","Project not found or unavailable.");
     if(operation!=="read"&&!Number(row.is_owner))throw new ApiError(403,"ATTACHMENT_PROJECT_OWNER_REQUIRED","Only the current project owner can manage project documents.");
+    if(operation!=="read"&&row.lifecycle_status!=='active')throw new ApiError(409,'PROJECT_STRUCTURE_FROZEN','Reopen the project before changing its documents.');
     return {companyId:row.company_id,branchId:row.branch_id,departmentId:row.department_id,version:Number(row.version),editable:operation!=="read"};
   }
   if(policy.targetType==="crm_account")return crmAccountAttachmentScope(db,actor,targetId,operation);

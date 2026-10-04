@@ -1,21 +1,20 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { Button } from "@/components/ui/foundation";
 
 import { workFetch } from "@/lib/work-fetch";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-export function JoinForm({
-  holding,
-  token,
-}: {
-  holding: string;
-  token: string;
-}) {
+export function JoinForm({ holding, token }: { holding: string; token: string }) {
   const router = useRouter();
   const [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false);
   return (
     <div>
-      <button
+      <Button appearance="standard"
+        type="submit"
+        variant="ghost"
         disabled={busy}
         onClick={async () => {
           setBusy(true);
@@ -36,12 +35,11 @@ export function JoinForm({
         }}
       >
         Join this company
-      </button>
-      <p role="status">{message}</p>
+      </Button>
+      <InlineNotice tone="info" role="status">{message}</InlineNotice>
       <p>
-        Use the verified email that received this invitation.{" "}
-        <a href="/login">Sign in</a> or <a href="/signup">create an account</a>,
-        then return to this link.
+        Use the verified email that received this invitation. <a href="/login">Sign in</a> or{" "}
+        <a href="/signup">create an account</a>, then return to this link.
       </p>
     </div>
   );

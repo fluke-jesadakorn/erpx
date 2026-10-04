@@ -65,10 +65,19 @@ async function ensureWorkspacePath(page: Page, homePath: string) {
 }
 
 async function selectRole(page: Page, profile: Profile, homePath: string) {
-  const picker = page.getByRole("combobox", { name: "Role for actions & approvals" });
+  const desired = normalizedRole(profile.role);
+  const trigger = page.getByRole("button", { name: /^Role for actions & approvals/ });
+  if (await trigger.isVisible()) {
+    const current = (await trigger.innerText()).toLowerCase();
+    if (current.includes(desired) && (!profile.scope || current.includes(profile.scope))) {
+      await ensureWorkspacePath(page, homePath);
+      return;
+    }
+    await trigger.click();
+  }
+  const picker = page.getByRole("combobox", { name: /^(?:Search roles|Role for actions & approvals)$/ });
   await picker.waitFor({ state: "visible", timeout: 15_000 });
   const current = (await picker.inputValue()).toLowerCase();
-  const desired = normalizedRole(profile.role);
   if (current.includes(desired) && (!profile.scope || current.includes(profile.scope))) {
     await ensureWorkspacePath(page, homePath);
     return;
@@ -103,7 +112,7 @@ async function configureProfile(page: Page, profile: Profile, homePath: string) 
 
 async function waitForSignedInLanding(page: Page) {
   await page.waitForFunction(() => {
-    if (location.pathname === "/work-role") return Boolean(document.querySelector('input[role="combobox"]'));
+    if (location.pathname === "/work-role") return Boolean(document.querySelector('input[role="combobox"], button.work-role-trigger'));
     return location.pathname.startsWith("/holdings/") && Boolean(document.querySelector('button[aria-label^="Account menu for"]'));
   }, null, { timeout: 30_000 });
 }

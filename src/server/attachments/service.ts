@@ -340,6 +340,13 @@ export async function completeAttachmentUpload(db: SqlDatabase, files: FileStore
       AND (status IN ('uploaded','ready') OR (status='pending' AND expires_at>?))`).bind(uploadIntentId,actor.userId,actor.companyId,Date.now()).first<Record<string,unknown>>();
   } catch(error) { logUploadOperationFailure(options,"load_intent",error); throw error; }
   if(!intent)throw new ApiError(404,"UPLOAD_NOT_FOUND","Upload intent not found or expired.");
+  // Replays may follow a completed owner command, but still require the
+  // caller's current read grant. New bytes require the original live revision.
+  if(intent.owner_type!=='leave_request'){
+    const sourceSet=await setRow(db,String(intent.attachment_set_id),actor.companyId),replay=intent.status==='uploaded'||intent.status==='ready';
+    const scope=await authorizeAttachmentTarget(db,actor,attachmentPolicy(sourceSet.target_type,sourceSet.purpose_key,sourceSet.component_kind),sourceSet.target_id,replay?'read':'write');
+    if(!replay&&(sourceSet.state!=='draft'||scope.version!==Number(intent.owner_version)||scope.version!==Number(sourceSet.expected_target_version)))throw new ApiError(409,'ATTACHMENT_TARGET_CHANGED','The record changed after this file reservation. Create a file set for its current version.');
+  }
   const declared=Number(intent.declared_bytes);
   if(buffer.byteLength<1||buffer.byteLength!==declared||buffer.byteLength>10*1024*1024)throw new ApiError(422,"UPLOAD_SIZE","The uploaded bytes must exactly match the reserved size.");
   const bytes=new Uint8Array(buffer),detected=detectedAttachmentMediaType(bytes,String(intent.media_type));
@@ -391,6 +398,9 @@ export async function completeAttachmentUpload(db: SqlDatabase, files: FileStore
           componentKind:pendingSet.component_kind,
           expectedTargetVersion:Number(pendingSet.expected_target_version),
         },undefined,current.status==="uploaded"||current.status==="ready"?"read":"write");
+      }else{
+        const sourceSet=await setRow(tx,String(current.attachment_set_id),actor.companyId),replay=current.status==='uploaded'||current.status==='ready',scope=await authorizeAttachmentTarget(tx,actor,attachmentPolicy(sourceSet.target_type,sourceSet.purpose_key,sourceSet.component_kind),sourceSet.target_id,replay?'read':'write');
+        if(!replay&&(sourceSet.state!=='draft'||scope.version!==Number(current.owner_version)||scope.version!==Number(sourceSet.expected_target_version)))throw new ApiError(409,'ATTACHMENT_TARGET_CHANGED','The record changed after this file reservation. Create a file set for its current version.');
       }
       if(current.status==="uploaded"||current.status==="ready"){
         const existing=await tx.prepare("SELECT checksum_sha256,source_state FROM attachments WHERE id=? AND company_id=?").bind(attachmentId,actor.companyId).first<{checksum_sha256:string;source_state:AttachmentSourceState}>();
@@ -758,7 +768,7 @@ export async function bindRecordAttachmentSet(db:SqlDatabase,actor:WorkContext,s
   const set=await setRow(db,setId,actor.companyId),brandSource=isBrandPublicationTarget(set.target_type)&&set.component_kind==="publication";
   if(set.component_kind!=="record"&&!brandSource)throw new ApiError(422,"ACTION_EVIDENCE_DOMAIN_BIND_REQUIRED","Action, line and event evidence must bind inside its domain command.");
   if(Number(set.expected_target_version)!==expectedTargetVersion)throw new ApiError(409,"ATTACHMENT_SET_STALE","Create a record-document set for the current record version.");
-  const operation=brandSource?"attachment.publication-source.bind":"attachment.record.bind",nextVersion=brandSource?expectedTargetVersion:expectedTargetVersion+1,prior=await replayCommand(db,actor,commandId,operation,set.target_id,{setId,expectedTargetVersion});if(prior)return prior;
+  const operation=brandSource?"attachment.publication-source.bind":"attachment.record.bind",nextVersion=brandSource?expectedTargetVersion:expectedTargetVersion+1,prior=await replayCommand(db,actor,commandId,operation,set.target_id,{setId,expectedTargetVersion});if(prior){await authorizeAttachmentTarget(db,actor,attachmentPolicy(set.target_type,set.purpose_key,set.component_kind),set.target_id,'read');return prior;}
   const bindingType=brandSource?"publication_source":"record_document",prepared=await prepareAttachmentBinding(db,actor,{attachmentSetIds:[setId],bindingContract:{targetType:set.target_type,bindingType,contexts:[{purposeKey:set.purpose_key,componentKind:set.component_kind,componentRef:set.component_ref}]},targetId:set.target_id,expectedTargetVersion,commandId,bindingId:set.target_id},options);
   return executeCommand(db,actor,commandId,operation,{setId,expectedTargetVersion},set.target_id,nextVersion,{setId,version:nextVersion,manifest:prepared.manifest},[
     ...prepared.guards,...(brandSource?[]:[attachmentRecordVersionStep(db,set.target_type,set.target_id,expectedTargetVersion)]),...prepared.steps,
@@ -772,7 +782,7 @@ export async function bindCompatibilityAttachmentSet(db:SqlDatabase,actor:WorkCo
   requireAttachmentWrite(options);
   const set=await setRow(db,setId,actor.companyId),brandSource=isBrandPublicationTarget(set.target_type)&&set.component_kind==="publication";
   if(set.component_kind==="publication"&&!brandSource)throw new ApiError(422,"PUBLICATION_SOURCE_UNSUPPORTED","This publication source requires an explicit domain binding workflow.");
-  const operation=brandSource?"attachment.publication-source.compatibility-bind":"attachment.compatibility.bind",nextVersion=brandSource?expectedTargetVersion:expectedTargetVersion+1,prior=await replayCommand(db,actor,commandId,operation,set.target_id,{setId,expectedTargetVersion});if(prior)return prior;
+  const operation=brandSource?"attachment.publication-source.compatibility-bind":"attachment.compatibility.bind",nextVersion=brandSource?expectedTargetVersion:expectedTargetVersion+1,prior=await replayCommand(db,actor,commandId,operation,set.target_id,{setId,expectedTargetVersion});if(prior){await authorizeAttachmentTarget(db,actor,attachmentPolicy(set.target_type,set.purpose_key,set.component_kind),set.target_id,'read');return prior;}
   const bindingType=brandSource?"publication_source":"legacy_upload_adapter",prepared=await prepareAttachmentBinding(db,actor,{attachmentSetIds:[setId],bindingContract:{targetType:set.target_type,bindingType,contexts:[{purposeKey:set.purpose_key,componentKind:set.component_kind,componentRef:set.component_ref}]},targetId:set.target_id,expectedTargetVersion,commandId,bindingId:set.target_id},options);
   const result={id:prepared.manifest[0]!.sourceId,ownerVersion:nextVersion,attachmentSetId:setId,attachmentLinkId:prepared.manifest[0]!.linkId,state:"available" as const,publicationReviewRequired:brandSource};
   const compatibilityEvents=set.target_type==="support_ticket"?[(await import("../support-evidence")).supportEvidenceEvent(db,set.target_id,commandId,actor.userId,"attachment-add",{attachmentId:result.id,manifest:prepared.manifest},"Attached private support evidence")]:[];
@@ -1111,7 +1121,7 @@ export async function cleanupAttachmentDrafts(db:SqlDatabase,files:FileStore){
         if(!locked||locked.source_state!=="destroyed"||Number(locked.legal_hold)!==0||await activeAttachmentLegalPreservation(tx,source.id))return false;
         if(await tx.prepare("SELECT 1 FROM attachment_events WHERE attachment_id=? AND action='source.bytes_deleted'").bind(source.id).first())return false;
         const ledgerKeys=(await tx.prepare("SELECT object_key FROM attachment_storage_ledger WHERE attachment_id=?").bind(source.id).all<{object_key:string}>()).results.map(row=>row.object_key);
-        await files.delete([...new Set([locked.object_key,...(locked.preview_object_key?[locked.preview_object_key]:[]),...ledgerKeys])]);
+        await files.delete([...new Set([locked.object_key,...(locked.preview_object_key?[locked.preview_object_key]:[]),...ledgerKeys])],files.supportsTransactionDeletion?{database:tx}:undefined);
         const eventId=`attachment-bytes-deleted-${createHash("sha256").update(source.id).digest("hex").slice(0,32)}`;
         await tx.prepare("INSERT INTO attachment_events(id,company_id,attachment_id,actor_id,action,details_json,created_at) VALUES(?,?,?,'system:jobs','source.bytes_deleted','{}',?) ON CONFLICT(id) DO NOTHING")
           .bind(eventId,locked.company_id,source.id,Date.now()).run();

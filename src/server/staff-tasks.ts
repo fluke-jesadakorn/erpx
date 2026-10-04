@@ -148,6 +148,7 @@ export type ProjectRow = RecordScope & {
   title: string;
   description: string;
   owner_user_id: string;
+  lifecycle_status: 'active'|'handoff_pending'|'completed'|'cancelled';
   version: number;
   updated_at: number;
 };
@@ -203,6 +204,11 @@ export async function getTask(db: SqlDatabase, actor: StaffActor, id: string) {
   if (!row) throw new ApiError(404, "TASK_NOT_FOUND", "Task not found.");
   if(row.source_post_id)await readablePost(db,actor,row.source_post_id);
   return row;
+}
+/** Shared Source Record consumers retain the exact live task participant boundary. */
+export function taskSourceReadGuard(db:SqlDatabase,actor:StaffActor,id:string,version:number,key:string,step:string) {
+  return assertion(db,key,step,`EXISTS(${taskSelect} WHERE t.id=? AND t.version=? AND t.company_id=? AND ${taskAccess})`,
+    [id,version,actor.companyId,...Array.from({length:8},()=>actor.userId)]);
 }
 export function canConfigureTask(actor: StaffActor, task: TaskRow) {
   return (
@@ -357,6 +363,7 @@ export async function saveProject(
       "PROJECT_OWNER_REQUIRED",
       "Only the project owner manages this project and its membership.",
     );
+  if(current && current.lifecycle_status!=='active')throw new ApiError(409,'PROJECT_STRUCTURE_FROZEN','Reopen the project before changing its brief or membership.');
   const members = [...new Set(input.memberUserIds)];
   for (const user of members) await activeStaff(db, actor.companyId, user);
   const now = Date.now(),

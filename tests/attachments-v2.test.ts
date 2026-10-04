@@ -20,6 +20,12 @@ import { listBrandProfiles } from "../src/server/branding";
 import { backfillLegacyAttachments,backfillSpecializedAttachments,reconcileAttachmentStorage } from "../src/server/attachments/migration";
 import { sha256 } from "../src/server/crypto";
 import { legacyAttachmentPolicy } from "../src/server/attachments/legacy-policy";
+import { LocalFileStore } from "../src/server/runtime/filesystem";
+import { MinioFileStore } from "../src/server/runtime/minio";
+import { PostgresDatabase,transactionDatabase } from "../src/server/runtime/postgres";
+import type { SqlDatabase } from "../src/server/runtime/types";
+import { sealUnreferencedStoredObjects } from "../src/server/attachments/orphan-preservation";
+import { DeleteObjectCommand,S3Client } from "@aws-sdk/client-s3";
 
 const db=env.H001_DB,key=()=>crypto.randomUUID();
 let companyA:string,companyB:string,productA:string,productB:string,campaignA:string,actorA:WorkContext,peerA:WorkContext,actorB:WorkContext;
@@ -50,13 +56,25 @@ async function availableProductFile(setId:string,command=key()){
   return {...reserved,...uploaded};
 }
 
+async function cleanupFileFixture(){
+  const product=`product-${key()}`;
+  await db.prepare("INSERT INTO commerce_products(id,company_id,sku,name,price_minor) VALUES(?,?,?,?,100)").bind(product,companyA,`SKU-${key()}`,"Single-pool cleanup product").run();
+  const set=await createAttachmentSet(db,actorA,{targetType:"product",targetId:product,componentKind:"record",purposeKey:"specification",expectedTargetVersion:1},key()),file=await availableProductFile(set.id);
+  await withdrawAttachmentLink(db,actorA,file.attachmentLinkId,"Owning transaction cleanup fixture",key());
+  await db.prepare("UPDATE attachment_links SET expires_at=? WHERE id=?").bind(Date.now()-1,file.attachmentLinkId).run();
+  const keys=(await db.prepare("SELECT object_key FROM attachment_storage_ledger WHERE attachment_id=? ORDER BY object_key").bind(file.sourceId).all<{object_key:string}>()).results.map(row=>row.object_key);
+  return {...file,keys};
+}
+
+function singleCleanupDatabase(){return new PostgresDatabase({connectionString:db.pool.options.connectionString,max:1});}
+
 describe("canonical attachment lifecycle",()=>{
   it("keeps a closed exact policy inventory",()=>{
     const combinations=attachmentPolicyRegistry.flatMap(policy=>policy.componentKinds.map(kind=>`${policy.targetType}\0${policy.purposeKey}\0${kind}`));
     const exactInventoryHash=createHash("sha256").update([...combinations].sort().join("\n")).digest("hex");
-    expect(attachmentPolicyRegistry).toHaveLength(201);
-    expect(combinations).toHaveLength(216);
-    expect(exactInventoryHash).toBe("bf3ed07afb05911fb8a57061075a914f757feb0af1ab1f2fd124b97f017135b9");
+    expect(attachmentPolicyRegistry).toHaveLength(202);
+    expect(combinations).toHaveLength(217);
+    expect(exactInventoryHash).toBe("65cd89ee3db08feb4c8d2bdde1b21776541c663ec8338eb1cc78959cb9dfcafd");
     expect(new Set(combinations).size).toBe(combinations.length);
     expect(attachmentPolicyRegistry.every(policy=>policy.maxFiles>=1&&policy.maxFiles<=100)).toBe(true);
     expect(attachmentPolicy("product","product_image","record").componentKinds).toEqual(["record"]);
@@ -75,6 +93,7 @@ describe("canonical attachment lifecycle",()=>{
     expect(legacyAttachmentPolicy("leave_request","evidence")).toEqual({purposeKey:"leave_supporting_photo",componentKind:"record",componentRef:"leave-evidence:leave_supporting_photo",completion:"stage_for_domain"});
     expect(legacyAttachmentPolicy("leave_request","leave evidence")).toBeNull();
     expect(attachmentPolicy("staff_task","task_evidence","action").mediaTypes).not.toContain("text/csv");
+    expect(attachmentPolicy("finance_tax_identity","signer_signature","record")).toMatchObject({mediaTypes:["image/png","image/jpeg"],maxFiles:1,maxBytes:1024*1024,requiredCount:1,classification:"restricted",publication:false,portalUpload:false});
     expect(legacyAttachmentPolicy("expense_claim","merchant_receipt")).toMatchObject({componentKind:"record",completion:"stage_for_domain"});
     expect(legacyAttachmentPolicy("quality_hold","quality_inspection_evidence")).toEqual({purposeKey:"quality_inspection_evidence",componentKind:"action",componentRef:"inspection",completion:"stage_for_domain"});
     expect(legacyAttachmentPolicy("commerce_order_delivery","proof_of_delivery")).toEqual({purposeKey:"proof_of_delivery",componentKind:"action",componentRef:"delivery",completion:"stage_for_domain"});
@@ -120,6 +139,7 @@ describe("canonical attachment lifecycle",()=>{
 
   it("authorizes and versions a real marketing asset owner without cross-Company leakage",async()=>{
     const marketingActor={...actorA,modules:["marketing"]},foreignActor={...actorB,modules:["marketing"]},assetId=`marketing-asset-${key()}`,formId=`marketing-form-${key()}`;
+    await db.prepare("UPDATE assignments SET modules_json='[\"marketing\"]' WHERE id IN (?,?)").bind(actorA.assignmentId,actorB.assignmentId).run();
     await db.prepare("INSERT INTO marketing_assets(id,company_id,kind,name,configuration_json,preview_json,status,created_by,version,created_at,updated_at) VALUES(?,?,'content','Canonical campaign image','{}','{}','draft',?,1,?,?)").bind(assetId,companyA,marketingActor.userId,Date.now(),Date.now()).run();
     await db.prepare("INSERT INTO marketing_assets(id,company_id,kind,name,configuration_json,preview_json,status,created_by,version,created_at,updated_at) VALUES(?,?,'form','Lead form','{}','{}','draft',?,1,?,?)").bind(formId,companyA,marketingActor.userId,Date.now(),Date.now()).run();
     await expect(createAttachmentSet(db,actorA,{targetType:"marketing_asset",targetId:assetId,componentKind:"record",purposeKey:"source",expectedTargetVersion:1},key())).rejects.toMatchObject({status:403,code:"ATTACHMENT_FORBIDDEN"});
@@ -135,7 +155,8 @@ describe("canonical attachment lifecycle",()=>{
   });
 
   it("does not treat generic record permissions as CRM or Marketing file authority",async()=>{
-    const recordsOnly={...actorA,role:"custom",modules:[],permissions:["records.read","records.write"]} as WorkContext&{permissions:string[]};
+    const recordsOnly={...actorA,modules:[],permissions:["records.read","records.write"]} as WorkContext&{permissions:string[]};
+    await db.prepare("UPDATE assignments SET modules_json='[\"marketing\"]' WHERE id=?").bind(actorA.assignmentId).run();
     await expect(createAttachmentSet(db,recordsOnly,{targetType:"marketing_campaign",targetId:campaignA,componentKind:"record",purposeKey:"source",expectedTargetVersion:1},key()))
       .rejects.toMatchObject({status:403,code:"ATTACHMENT_FORBIDDEN"});
     await expect(createAttachmentSet(db,{...recordsOnly,modules:["marketing"]},{targetType:"marketing_campaign",targetId:campaignA,componentKind:"record",purposeKey:"source",expectedTargetVersion:1},key()))
@@ -216,6 +237,7 @@ describe("canonical attachment lifecycle",()=>{
 
   it("enforces the 10 MiB boundary, set count and concurrent Company quota",async()=>{
     const marketingActor={...actorA,modules:["marketing"]};
+    await db.prepare("UPDATE assignments SET modules_json='[\"marketing\"]' WHERE id=?").bind(actorA.assignmentId).run();
     const set=await createAttachmentSet(db,marketingActor,{targetType:"marketing_campaign",targetId:campaignA,componentKind:"record",purposeKey:"creative",expectedTargetVersion:1},key());
     await expect(reserveAttachmentFile(db,marketingActor,set.id,{filename:"boundary.png",mediaType:"image/png",bytes:10*1024*1024},key())).resolves.toMatchObject({attachmentLinkId:expect.any(String)});
     await expect(reserveAttachmentFile(db,marketingActor,set.id,{filename:"too-large.png",mediaType:"image/png",bytes:10*1024*1024+1},key())).rejects.toMatchObject({status:422,code:"ATTACHMENT_SIZE"});
@@ -225,7 +247,7 @@ describe("canonical attachment lifecycle",()=>{
     const quotaCompany=`attachment-quota-${key()}`,quotaCampaign=`campaign-${key()}`,quotaActor={...actor(quotaCompany,`quota-${key()}`),modules:["marketing"]};
     await db.batch([
       db.prepare("INSERT INTO beta_policy VALUES(?,20,5,100,15,1)").bind(quotaCompany),
-      db.prepare("INSERT INTO assignments(id,user_id,role,company_id,scope_kind,modules_json,valid_from,valid_until) VALUES(?,?,? ,?,'holding','[]',0,9999999999999)").bind(quotaActor.assignmentId,quotaActor.userId,quotaActor.role,quotaCompany),
+      db.prepare("INSERT INTO assignments(id,user_id,role,company_id,scope_kind,modules_json,valid_from,valid_until) VALUES(?,?,? ,?,'holding','[\"marketing\"]',0,9999999999999)").bind(quotaActor.assignmentId,quotaActor.userId,quotaActor.role,quotaCompany),
       db.prepare("INSERT INTO marketing_campaigns(id,company_id,code,name,created_by,created_at) VALUES(?,?,?,?,?,?)").bind(quotaCampaign,quotaCompany,`CAM-${key()}`,"Quota campaign",quotaActor.userId,Date.now()),
     ]);
     const [source,consent]=await Promise.all([
@@ -557,6 +579,103 @@ describe("canonical attachment lifecycle",()=>{
     await env.H001_FILES.delete([objectKey,...(storedKeys!.preview_object_key?[storedKeys!.preview_object_key]:[])]);
   });
 
+  it("deletes canonical expired bytes through the owning max-one pool and records a retry exactly once",async()=>{
+    const fixture=await cleanupFileFixture(),single=singleCleanupDatabase(),files=new LocalFileStore(env.H001_FILES.root,single);
+    const deletion=vi.spyOn(files,"delete");
+    deletion.mockImplementationOnce(async(_keys,authorization)=>{
+      expect(authorization).toBeDefined();single.assertActiveTransaction(authorization!.database);
+      expect(await authorization!.database.prepare("SELECT source_state FROM attachments WHERE id=?").bind(fixture.sourceId).first("source_state")).toBe("destroyed");
+      throw new Error("TEST_OBJECT_DELETE_FAILED_ONCE");
+    });
+    try{
+      expect((await cleanupAttachmentDrafts(single,files)).deletionFailures).toBeGreaterThanOrEqual(1);
+      expect(await single.prepare("SELECT COUNT(*)::int count FROM attachment_events WHERE attachment_id=? AND action='source.bytes_deleted'").bind(fixture.sourceId).first("count")).toBe(0);
+      for(const objectKey of fixture.keys)expect(await files.head(objectKey)).not.toBeNull();
+      const retry=await cleanupAttachmentDrafts(single,files);expect(retry.deletionFailures).toBe(0);expect(retry.bytesDeleted).toBeGreaterThanOrEqual(1);
+      for(const objectKey of fixture.keys)expect(await files.head(objectKey)).toBeNull();
+      expect(await single.prepare("SELECT source_state FROM attachments WHERE id=?").bind(fixture.sourceId).first("source_state")).toBe("destroyed");
+      expect(await single.prepare("SELECT COUNT(*)::int count FROM attachment_storage_ledger WHERE attachment_id=? AND state<>'destroyed'").bind(fixture.sourceId).first("count")).toBe(0);
+      expect((await cleanupAttachmentDrafts(single,files)).bytesDeleted).toBe(0);
+      expect(await single.prepare("SELECT COUNT(*)::int count FROM attachment_events WHERE attachment_id=? AND action='source.bytes_deleted'").bind(fixture.sourceId).first("count")).toBe(1);
+      expect(deletion.mock.calls.filter(([keys])=>(Array.isArray(keys)?keys:[keys]).includes(fixture.keys[0]))).toHaveLength(2);
+      expect(single.pool.options.max).toBe(1);expect(single.pool.totalCount).toBe(1);expect(single.pool.waitingCount).toBe(0);
+    }finally{deletion.mockRestore();await single.close();}
+  });
+
+  it("rejects foreign plain session and expired cleanup transactions without changing bytes or receipts",async()=>{
+    const fixture=await cleanupFileFixture(),single=singleCleanupDatabase(),files=new LocalFileStore(env.H001_FILES.root,single),snapshot=await single.prepare("SELECT source_state FROM attachments WHERE id=?").bind(fixture.sourceId).first("source_state");
+    const denied=async(database:SqlDatabase)=>{
+      await expect(files.delete(fixture.keys,{database})).rejects.toThrow("TRANSACTION_NOT_ACTIVE_OR_OWNED");
+      for(const objectKey of fixture.keys)expect(await files.head(objectKey)).not.toBeNull();
+      expect(await single.prepare("SELECT source_state FROM attachments WHERE id=?").bind(fixture.sourceId).first("source_state")).toBe(snapshot);
+    };
+    try{
+      await denied(single);
+      await db.transaction(denied); // Same Holding database, different owning pool.
+      await env.H002_DB.transaction(denied);
+      await single.withSession(async session=>{
+        await expect(files.delete(fixture.keys,{database:session})).rejects.toThrow("TRANSACTION_NOT_ACTIVE_OR_OWNED");
+      });
+      let completed!:SqlDatabase,failed!:SqlDatabase,retried!:SqlDatabase,attempt=0;
+      await single.transaction(async tx=>{completed=tx;await expect(new LocalFileStore(env.H001_FILES.root).delete(fixture.keys,{database:tx})).rejects.toThrow("TRANSACTION_NOT_ACTIVE_OR_OWNED");
+        await expect(files.delete(fixture.keys,{database:transactionDatabase((tx as SqlDatabase&{pool:Parameters<typeof transactionDatabase>[0]}).pool)})).rejects.toThrow("TRANSACTION_NOT_ACTIVE_OR_OWNED");});
+      await denied(completed);
+      await expect(single.transaction(async tx=>{failed=tx;throw new Error("TEST_ROLLBACK_TRANSACTION");})).rejects.toThrow("TEST_ROLLBACK_TRANSACTION");await denied(failed);
+      await single.transaction(async tx=>{if(attempt++===0){retried=tx;throw Object.assign(new Error("TEST_SERIALIZATION_RETRY"),{code:"40001"});}
+        await expect(files.delete(fixture.keys,{database:retried})).rejects.toThrow("TRANSACTION_NOT_ACTIVE_OR_OWNED");});
+      for(const objectKey of fixture.keys)expect(await files.head(objectKey)).not.toBeNull();
+      expect(await single.prepare("SELECT source_state FROM attachments WHERE id=?").bind(fixture.sourceId).first("source_state")).toBe(snapshot);
+      expect(await single.prepare("SELECT COUNT(*)::int count FROM attachment_events WHERE attachment_id=? AND action='source.bytes_deleted'").bind(fixture.sourceId).first("count")).toBe(0);
+      expect((await cleanupAttachmentDrafts(single,files)).deletionFailures).toBe(0);
+    }finally{await single.close();}
+  });
+
+  it("preserves active Legal and orphan guards inside an owning cleanup transaction",async()=>{
+    const fixture=await cleanupFileFixture(),single=singleCleanupDatabase(),files=new LocalFileStore(env.H001_FILES.root,single),legalItem=`legal-item-${key()}`,hold=`legal-hold-${key()}`,now=Date.now(),orphan=`unknown-owner/${key()}`;
+    try{
+      await db.batch([
+        db.prepare("INSERT INTO legal_items(id,company_id,kind,title,classification,country,jurisdiction,language,currency,timezone,priority,owner_id,created_by,state,created_at,updated_at) VALUES(?,?,'matter','Owning transaction hold','restricted','TH','TH','th','THB','Asia/Bangkok','normal',?,?,'archived',?,?)").bind(legalItem,companyA,actorA.userId,actorA.userId,now,now),
+        db.prepare("INSERT INTO legal_holds(id,item_id,reason,state,created_by,created_at) VALUES(?,?,'Preserve canonical byte variants','active',?,?)").bind(hold,legalItem,actorA.userId,now),
+        db.prepare("INSERT INTO legal_hold_targets(hold_id,item_id) VALUES(?,?)").bind(hold,legalItem),
+        db.prepare("INSERT INTO legal_file_preservations(object_key,item_id,source_type,source_id,checksum,created_by,created_at) VALUES(?,?,'attachment',?,'fixture',?,?)").bind(fixture.keys[0],legalItem,fixture.sourceId,actorA.userId,now),
+      ]);
+      for(const objectKey of fixture.keys)await single.transaction(async tx=>{await expect(files.delete(objectKey,{database:tx})).rejects.toThrow("LEGAL_HOLD_BLOCKS_FILE_MUTATION");});
+      expect((await cleanupAttachmentDrafts(single,files)).bytesDeleted).toBe(0);
+      for(const objectKey of fixture.keys)expect(await files.head(objectKey)).not.toBeNull();
+      expect(await single.prepare("SELECT source_state FROM attachments WHERE id=?").bind(fixture.sourceId).first("source_state")).toBe("available");
+      await files.put(orphan,"Original orphan bytes with unresolved owner");
+      await sealUnreferencedStoredObjects({db:single,files,objectKeys:[orphan],storeId:"h001",operatorId:"test-storage-operator",reason:"Preserve unresolved owner bytes during transaction cleanup",environment:{ERPX_ENVIRONMENT:"local",ERPX_ATTACHMENTS_V2:"false",ERPX_ATTACHMENT_UPLOAD_FREEZE:"true"}});
+      await single.transaction(async tx=>{await expect(files.delete(orphan,{database:tx})).rejects.toThrow("FILE_PRESERVED_PENDING_OWNER");});
+      expect(await (await files.get(orphan))!.text()).toBe("Original orphan bytes with unresolved owner");
+      expect(await single.prepare("SELECT COUNT(*)::int count FROM attachment_events WHERE attachment_id=? AND action='source.bytes_deleted'").bind(fixture.sourceId).first("count")).toBe(0);
+      await db.prepare("UPDATE legal_holds SET state='released',released_by=?,released_at=? WHERE id=?").bind(peerA.userId,Date.now(),hold).run();
+      expect((await cleanupAttachmentDrafts(single,files)).deletionFailures).toBe(0);
+    }finally{await single.close();}
+  });
+
+  it("keeps Minio fallback and remote deletion under one owning transaction with local-first retry",async()=>{
+    const fixture=await cleanupFileFixture(),single=singleCleanupDatabase(),local=new LocalFileStore(env.H001_FILES.root,single),prefix="environments/local/holdings/h001",remote=new Set(fixture.keys.map(objectKey=>`${prefix}/${createHash('sha256').update(objectKey).digest('hex')}`));
+    const files=new MinioFileStore("native-test-bucket",prefix,"http://127.0.0.1:9","synthetic","synthetic","us-east-1",single,local);let fail=true;
+    const send=vi.spyOn(S3Client.prototype,"send").mockImplementation((async(command:unknown)=>{
+      expect(command).toBeInstanceOf(DeleteObjectCommand);const request=(command as DeleteObjectCommand).input;
+      expect(request.Bucket).toBe("native-test-bucket");expect(request.Key).toMatch(/^environments\/local\/holdings\/h001\/[a-f0-9]{64}$/);
+      for(const objectKey of fixture.keys)expect(await local.head(objectKey)).toBeNull();
+      if(fail){fail=false;throw new Error("TEST_REMOTE_DELETE_FAILED_ONCE");}remote.delete(request.Key!);return {};
+    }) as never);
+    try{
+      expect((await cleanupAttachmentDrafts(single,files)).deletionFailures).toBeGreaterThanOrEqual(1);expect(remote.size).toBe(fixture.keys.length);
+      expect(await single.prepare("SELECT COUNT(*)::int count FROM attachment_events WHERE attachment_id=? AND action='source.bytes_deleted'").bind(fixture.sourceId).first("count")).toBe(0);
+      expect((await cleanupAttachmentDrafts(single,files)).deletionFailures).toBe(0);expect(remote.size).toBe(0);
+      expect(await single.prepare("SELECT COUNT(*)::int count FROM attachment_events WHERE attachment_id=? AND action='source.bytes_deleted'").bind(fixture.sourceId).first("count")).toBe(1);
+      const standalone=`standalone/${key()}`;await local.put(standalone,"Local fallback before remote deletion");
+      await files.delete(standalone);expect(await local.head(standalone)).toBeNull();
+      const guardedKey=`wrong-fallback-owner/${key()}`;await local.put(guardedKey,"Fallback bytes remain scoped");
+      const foreignFallback=new MinioFileStore("native-test-bucket",prefix,"http://127.0.0.1:9","synthetic","synthetic","us-east-1",single,new LocalFileStore(env.H001_FILES.root,db)),calls=send.mock.calls.length;
+      await expect(foreignFallback.delete(guardedKey)).rejects.toThrow("TRANSACTION_NOT_ACTIVE_OR_OWNED");expect(send.mock.calls).toHaveLength(calls);expect(await (await local.get(guardedKey))!.text()).toBe("Fallback bytes remain scoped");
+      await files.delete(guardedKey);expect((await cleanupAttachmentDrafts(single,files)).bytesDeleted).toBe(0);expect(single.pool.totalCount).toBe(1);expect(single.pool.waitingCount).toBe(0);
+    }finally{send.mockRestore();await single.close();}
+  });
+
   it.each(["scan_error","malware_rejected"])("blocks generic destruction of sealed %s sources",async sourceState=>{
     const intentId=`sealed-intent-${key()}`,sourceId=`sealed-source-${key()}`,now=Date.now();
     await expect(db.transaction(async tx=>{
@@ -629,5 +748,72 @@ describe("canonical attachment lifecycle",()=>{
     expect(reconciled.orphanObjects).toContain(orphanKey);
     expect(reconciled.orphanObjects).not.toEqual(expect.arrayContaining([derivativeKey,exportKey,archiveKey]));
     await env.H001_FILES.delete(orphanKey);
+  });
+
+  it("detects equal-length preview and publication corruption and verifies their declared sizes",async()=>{
+    const set=await createAttachmentSet(db,actorA,{targetType:"product",targetId:productA,componentKind:"record",purposeKey:"product_image",expectedTargetVersion:1},key()),source=await availableProductFile(set.id);
+    await bindRecordAttachmentSet(db,actorA,set.id,1,key());
+    const publication=await createAttachmentPublication(db,env.H001_FILES,actorA,{sourceLinkId:source.attachmentLinkId,targetType:"product",targetId:productA,altText:"Reconciliation image",ordinal:0},key());
+    await approveAttachmentPublication(db,peerA,String(publication?.id),key());
+    const previewKey=String(await db.prepare("SELECT preview_object_key FROM attachments WHERE id=?").bind(source.sourceId).first("preview_object_key"));
+    const objects=await Promise.all([
+      env.H001_FILES.get(previewKey),
+      env.H001_FILES.get(String(publication?.derivative_object_key)),
+    ]);
+    const saved=await Promise.all(objects.map(async(object,index)=>{
+      if(!object)throw new Error("RECONCILIATION_NATIVE_IMAGE_MISSING");
+      return {objectKey:object.key,bytes:Buffer.from(await object.arrayBuffer()),options:{httpMetadata:object.httpMetadata,customMetadata:object.customMetadata},marker:index===0?`${source.sourceId}:preview`:`${publication?.id}:publication`};
+    }));
+    try{
+      for(const object of saved){const corrupted=Buffer.from(object.bytes);corrupted[0]^=1;await env.H001_FILES.put(object.objectKey,corrupted,object.options);}
+      const equalLength=await reconcileAttachmentStorage(db,env.H001_FILES,{verifyChecksums:true});
+      for(const object of saved){expect(equalLength.checksumMismatches).toContain(object.marker);expect(equalLength.sizeMismatches).not.toContain(object.marker);}
+      for(const object of saved)await env.H001_FILES.put(object.objectKey,Buffer.concat([object.bytes,Buffer.from([0])]),object.options);
+      const wrongSizes=await reconcileAttachmentStorage(db,env.H001_FILES,{verifyChecksums:true});
+      for(const object of saved)expect(wrongSizes.sizeMismatches).toContain(object.marker);
+    }finally{for(const object of saved)await env.H001_FILES.put(object.objectKey,object.bytes,object.options);}
+    const restored=await reconcileAttachmentStorage(db,env.H001_FILES,{verifyChecksums:true});
+    for(const object of saved){expect(restored.checksumMismatches).not.toContain(object.marker);expect(restored.sizeMismatches).not.toContain(object.marker);}
+  });
+
+  it("rejects cancelling ledger byte deltas and foreign Company identities for every stored variant",async()=>{
+    const set=await createAttachmentSet(db,actorA,{targetType:"product",targetId:productA,componentKind:"record",purposeKey:"product_image",expectedTargetVersion:1},key()),source=await availableProductFile(set.id);
+    await bindRecordAttachmentSet(db,actorA,set.id,1,key());
+    const publication=await createAttachmentPublication(db,env.H001_FILES,actorA,{sourceLinkId:source.attachmentLinkId,targetType:"product",targetId:productA,altText:"Ledger reconciliation image",ordinal:0},key());
+    const originalChecksum=String(await db.prepare("SELECT checksum_sha256 FROM attachments WHERE id=?").bind(source.sourceId).first("checksum_sha256"));
+    const derivativeId=`ledger-derivative-${key()}`,derivativeKey=`test/reconciliation/${derivativeId}`,derivativeBytes=new TextEncoder().encode("Native document derivative"),derivativeChecksum=await sha256(derivativeBytes.buffer);
+    await env.H001_FILES.put(derivativeKey,derivativeBytes,{customMetadata:{sha256:derivativeChecksum}});
+    await db.batch([
+      db.prepare("INSERT INTO attachment_derivatives(id,attachment_id,company_id,page_number,object_key,checksum_sha256,original_checksum,bytes,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)")
+        .bind(derivativeId,source.sourceId,companyA,1,derivativeKey,derivativeChecksum,originalChecksum,derivativeBytes.byteLength,actorA.userId,Date.now()),
+      db.prepare("INSERT INTO attachment_storage_ledger(id,company_id,attachment_id,variant,object_key,bytes,state,created_at) VALUES(?,?,?,'derivative',?,?,'stored',?)")
+        .bind(`ledger-${derivativeId}`,companyA,source.sourceId,derivativeKey,derivativeBytes.byteLength,Date.now()),
+    ]);
+    const ledger=(await db.prepare("SELECT id,variant FROM attachment_storage_ledger WHERE attachment_id=? AND state='stored' ORDER BY variant").bind(source.sourceId).all<{id:string;variant:string}>()).results;
+    expect(ledger.map(row=>row.variant)).toEqual(["derivative","original","preview","publication"]);
+    const markers=[source.sourceId,`${source.sourceId}:preview`,`${publication?.id}:publication`,`${derivativeId}:attachment_derivative`],baseline=await reconcileAttachmentStorage(db,env.H001_FILES,{verifyChecksums:true});
+    for(const marker of markers)expect(baseline.missingLedger).not.toContain(marker);
+    // Deliberately corrupt only this disposable database transaction. The
+    // ordinary immutable ledger guard remains enabled before and after rollback.
+    await expect(db.prepare("UPDATE attachment_storage_ledger SET bytes=bytes+1 WHERE attachment_id=?").bind(source.sourceId).run()).rejects.toThrow(/ATTACHMENT_STORAGE_IMMUTABLE/);
+    await expect(db.transaction(async tx=>{
+      await tx.exec("ALTER TABLE attachment_storage_ledger DISABLE TRIGGER attachment_storage_immutable");
+      await tx.prepare("UPDATE attachment_storage_ledger SET bytes=bytes+CASE WHEN variant IN ('original','publication') THEN 1 ELSE -1 END WHERE attachment_id=? AND state='stored'").bind(source.sourceId).run();
+      const corrupted=await reconcileAttachmentStorage(tx,env.H001_FILES,{verifyChecksums:true});
+      expect(corrupted.quotaDeltaBytes).toBe(baseline.quotaDeltaBytes);
+      expect(corrupted.missingLedger).toEqual(expect.arrayContaining(markers));
+      throw new Error("ROLLBACK_OFFSET_LEDGER_CORRUPTION");
+    })).rejects.toThrow("ROLLBACK_OFFSET_LEDGER_CORRUPTION");
+    await expect(db.transaction(async tx=>{
+      await tx.exec("ALTER TABLE attachment_storage_ledger DISABLE TRIGGER attachment_storage_immutable");
+      await tx.prepare("UPDATE attachment_storage_ledger SET company_id=? WHERE attachment_id=? AND state='stored'").bind(companyB,source.sourceId).run();
+      const corrupted=await reconcileAttachmentStorage(tx,env.H001_FILES,{verifyChecksums:true});
+      expect(corrupted.missingLedger).toEqual(expect.arrayContaining(markers));
+      expect(corrupted.crossCompanyStorage).toEqual(expect.arrayContaining(ledger.map(row=>row.id)));
+      throw new Error("ROLLBACK_FOREIGN_LEDGER_CORRUPTION");
+    })).rejects.toThrow("ROLLBACK_FOREIGN_LEDGER_CORRUPTION");
+    const restored=await reconcileAttachmentStorage(db,env.H001_FILES,{verifyChecksums:true});
+    for(const marker of markers)expect(restored.missingLedger).not.toContain(marker);
+    await expect(db.prepare("UPDATE attachment_storage_ledger SET bytes=bytes+1 WHERE attachment_id=?").bind(source.sourceId).run()).rejects.toThrow(/ATTACHMENT_STORAGE_IMMUTABLE/);
   });
 });

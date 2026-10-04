@@ -1,4 +1,8 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
+
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
@@ -11,6 +15,7 @@ import {
   AttachmentFeatureSurface,
   useAttachmentFeatureMode,
 } from "@/components/attachments/attachment-feature-context";
+import { FormLayout, Card } from "@/components/ui/foundation";
 type Person = { id: string; name: string };
 export function SupportIncidentConsole({
   base,
@@ -54,9 +59,7 @@ export function SupportIncidentConsole({
         result = await response.json();
       if (!response.ok) {
         if (response.status < 500) last.current = null;
-        throw new Error(
-          result.error?.message ?? "Unable to record incident action.",
-        );
+        throw new Error(result.error?.message ?? "Unable to record incident action.");
       }
       last.current = null;
       router.push(`${base}/support/incidents/${result.data.id}`);
@@ -68,47 +71,42 @@ export function SupportIncidentConsole({
     }
   }
   const reason = (
-    <label>
+    <Field appearance="standard">
       Evidence and reason
-      <textarea name="reason" required minLength={3} maxLength={4000} />
-    </label>
+      <TextArea appearance="standard" name="reason" required minLength={3} maxLength={4000} />
+    </Field>
   );
   const owner = (people: Person[], value = "") => (
-    <label>
+    <Field appearance="standard">
       Incident owner
-      <select name="ownerId" defaultValue={value} required>
+      <Select appearance="standard" name="ownerId" defaultValue={value} required>
         <option value="">Choose eligible owner</option>
         {people.map((p) => (
           <option key={p.id} value={p.id}>
             {p.name}
           </option>
         ))}
-      </select>
-    </label>
+      </Select>
+    </Field>
   );
   const r = detail?.row,
     status = String(r?.status ?? "");
   const activeEvidence =
       attachmentMode === "enabled"
-        ? evidence.links.filter(
-            (link) => !["withdrawn", "expired"].includes(link.linkState),
-          )
+        ? evidence.links.filter((link) => !["withdrawn", "expired"].includes(link.linkState))
         : [],
     hasEvidence = activeEvidence.length > 0,
     evidencePending = hasEvidence && !evidence.bindable,
     evidenceActions = ["start", "update", "mitigate"];
   function attachmentSetIds(action: string) {
-    return hasEvidence &&
-      evidence.bindable &&
-      evidence.setId &&
-      evidenceActions.includes(action)
+    return hasEvidence && evidence.bindable && evidence.setId && evidenceActions.includes(action)
       ? [evidence.setId]
       : [];
   }
   function form(action: string, title: string, extra?: React.ReactNode) {
     return (
       <form
-        className="card business-form"
+        className="ui-panel ui-form-grid"
         onSubmit={(e) => {
           e.preventDefault();
           const f = new FormData(e.currentTarget),
@@ -122,8 +120,7 @@ export function SupportIncidentConsole({
             ...(action === "link"
               ? {
                   ticketVersion: Number(
-                    detail!.candidates.find((t) => t.id === f.get("ticketId"))
-                      ?.version,
+                    detail!.candidates.find((t) => t.id === f.get("ticketId"))?.version,
                   ),
                 }
               : {}),
@@ -133,25 +130,23 @@ export function SupportIncidentConsole({
         <h2>{title}</h2>
         {extra}
         {reason}
-        <button
-          className="button"
-          disabled={
-            busy ||
-            evidencePending ||
-            (hasEvidence && !evidenceActions.includes(action))
-          }
+        <Button appearance="standard"
+          clientManaged type="submit"
+          variant="primary"
+
+          disabled={busy || evidencePending || (hasEvidence && !evidenceActions.includes(action))}
         >
           {title}
-        </button>
+        </Button>
       </form>
     );
   }
   return (
     <>
-      {error && <p role="alert">{error}</p>}
+      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
       {source && (
-        <form
-          className="card business-form"
+        <FormLayout
+          className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
             const f = new FormData(e.currentTarget);
@@ -164,36 +159,36 @@ export function SupportIncidentConsole({
           }}
         >
           <h2>Declare shared incident</h2>
-          <label>
+          <Field appearance="standard">
             Incident title
-            <input name="title" minLength={3} maxLength={160} required />
-          </label>
-          <label>
+            <TextInput appearance="standard" name="title" minLength={3} maxLength={160} required />
+          </Field>
+          <Field appearance="standard">
             Customer impact
-            <textarea name="impact" minLength={3} maxLength={4000} required />
-          </label>
-          <label>
+            <TextArea appearance="standard" name="impact" minLength={3} maxLength={4000} required />
+          </Field>
+          <Field appearance="standard">
             Severity
-            <select name="severity">
+            <Select appearance="standard" name="severity">
               <option value="normal">Normal</option>
               <option value="high">High</option>
               <option value="critical">Critical</option>
-            </select>
-          </label>
+            </Select>
+          </Field>
           {owner(recipients)}
-          <label>
+          <Field appearance="standard">
             Next update due
-            <input name="dueDate" type="date" required />
-          </label>
-          <button className="button" disabled={busy}>
+            <TextInput appearance="standard" name="dueDate" type="date" required />
+          </Field>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Declare shared incident
-          </button>
-        </form>
+          </Button>
+        </FormLayout>
       )}
       {detail?.canWork && ["open", "investigating"].includes(status) && (
         <AttachmentFeatureSurface>
-          <section className="card">
-            <AttachmentPanel
+          <Card as="section" appearance="standard" className="ui-panel">
+            <AttachmentPanel appearance="standard"
               key={`${String(r!.id)}:${String(r!.version)}`}
               base={base}
               targetType="support_incident"
@@ -209,23 +204,20 @@ export function SupportIncidentConsole({
               onChange={setEvidence}
             />
             {evidencePending && (
-              <p className="notice" role="status">
-                Wait for every selected file to pass security scanning before
-                recording the incident action.
-              </p>
+              <InlineNotice tone="info" className="notice" role="status">
+                Wait for every selected file to pass security scanning before recording the incident
+                action.
+              </InlineNotice>
             )}
             {hasEvidence && evidence.bindable && (
-              <p className="notice" role="status">
-                The clean evidence will be locked to the next investigation
-                action.
-              </p>
+              <InlineNotice tone="info" className="notice" role="status">
+                The clean evidence will be locked to the next investigation action.
+              </InlineNotice>
             )}
-          </section>
+          </Card>
         </AttachmentFeatureSurface>
       )}
-      {detail?.canWork &&
-        status === "open" &&
-        form("start", "Start investigation")}
+      {detail?.canWork && status === "open" && form("start", "Start investigation")}
       {detail?.canWork &&
         ["open", "investigating"].includes(status) &&
         form("update", "Record investigation update")}
@@ -235,74 +227,54 @@ export function SupportIncidentConsole({
           "mitigate",
           "Propose mitigation",
           <>
-            <label>
+            <Field appearance="standard">
               Root cause
-              <textarea
-                name="rootCause"
-                required
-                minLength={3}
-                maxLength={4000}
-              />
-            </label>
-            <label>
+              <TextArea appearance="standard" name="rootCause" required minLength={3} maxLength={4000} />
+            </Field>
+            <Field appearance="standard">
               Mitigation evidence
-              <textarea
-                name="mitigation"
-                required
-                minLength={3}
-                maxLength={4000}
-              />
-            </label>
+              <TextArea appearance="standard" name="mitigation" required minLength={3} maxLength={4000} />
+            </Field>
           </>,
         )}
-      {detail?.canReview &&
-        status === "mitigated" &&
-        form("close", "Confirm incident mitigation")}
+      {detail?.canReview && status === "mitigated" && form("close", "Confirm incident mitigation")}
       {detail?.canManage &&
         status === "mitigated" &&
         form("reject", "Request further investigation")}
-      {detail?.canManage &&
-        status === "closed" &&
-        form("reopen", "Reopen incident")}
-      {detail?.canManage &&
-        ["open", "investigating", "mitigated"].includes(status) && (
-          <>
-            {form(
-              "reassign",
-              "Reassign incident",
-              <>
-                {owner(detail.recipients, String(r!.owner_id))}
-                <label>
-                  Next update due
-                  <input
-                    name="dueDate"
-                    type="date"
-                    defaultValue={String(r!.due_date)}
-                    required
-                  />
-                </label>
-              </>,
-            )}
-            {form("cancel", "Cancel incident with evidence")}
-          </>
-        )}
+      {detail?.canManage && status === "closed" && form("reopen", "Reopen incident")}
+      {detail?.canManage && ["open", "investigating", "mitigated"].includes(status) && (
+        <>
+          {form(
+            "reassign",
+            "Reassign incident",
+            <>
+              {owner(detail.recipients, String(r!.owner_id))}
+              <Field appearance="standard">
+                Next update due
+                <TextInput appearance="standard" name="dueDate" type="date" defaultValue={String(r!.due_date)} required />
+              </Field>
+            </>,
+          )}
+          {form("cancel", "Cancel incident with evidence")}
+        </>
+      )}
       {detail?.canManage &&
         ["open", "investigating"].includes(status) &&
         detail.links.length > 1 &&
         form(
           "unlink",
           "Correct an incorrectly linked case",
-          <label>
+          <Field appearance="standard">
             Case to unlink
-            <select name="ticketId" required>
+            <Select appearance="standard" name="ticketId" required>
               <option value="">Choose linked case</option>
               {detail.links.map((t) => (
                 <option key={String(t.id)} value={String(t.id)}>
                   {String(t.title)}
                 </option>
               ))}
-            </select>
-          </label>,
+            </Select>
+          </Field>,
         )}
       {detail?.canManage &&
         ["open", "investigating"].includes(status) &&
@@ -310,17 +282,17 @@ export function SupportIncidentConsole({
         form(
           "link",
           "Link affected customer case",
-          <label>
+          <Field appearance="standard">
             Customer case in the same scope
-            <select name="ticketId" required>
+            <Select appearance="standard" name="ticketId" required>
               <option value="">Choose customer case</option>
               {detail.candidates.map((t) => (
                 <option key={String(t.id)} value={String(t.id)}>
                   {String(t.title)}
                 </option>
               ))}
-            </select>
-          </label>,
+            </Select>
+          </Field>,
         )}
     </>
   );

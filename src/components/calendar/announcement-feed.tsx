@@ -1,4 +1,8 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { Button } from "@/components/ui/foundation";
+
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { CalendarItem } from "@/lib/calendar";
@@ -15,24 +19,17 @@ export function AnnouncementFeed({ base }: { base: string }) {
           { cache: "no-store" },
         ),
         j = await r.json();
-      if (
-        !r.ok ||
-        j.data.sources?.some((s: { status: string }) => s.status === "error")
-      )
+      if (!r.ok || j.data.sources?.some((s: { status: string }) => s.status === "error"))
         throw new Error("Announcements could not be loaded.");
       setItems(
         j.data.items.filter(
           (i: CalendarItem) =>
-            i.status === "published" &&
-            i.startDate! <= today() &&
-            i.endDate! > today(),
+            i.status === "published" && i.startDate! <= today() && i.endDate! > today(),
         ),
       );
       setError("");
     } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Announcements could not be loaded.",
-      );
+      setError(e instanceof Error ? e.message : "Announcements could not be loaded.");
     }
   }, [base]);
   useEffect(() => {
@@ -46,9 +43,12 @@ export function AnnouncementFeed({ base }: { base: string }) {
   return (
     <>
       {error && (
-        <p role="alert">
-          {error} <button onClick={() => void refresh()}>Retry</button>
-        </p>
+        <InlineNotice tone="danger" role="alert">
+          {error}{" "}
+          <Button appearance="standard" type="submit" variant="ghost" onClick={() => void refresh()}>
+            Retry
+          </Button>
+        </InlineNotice>
       )}
       {items.map((i) => (
         <article key={i.id} className={styles.feedNotice}>

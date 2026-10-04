@@ -1,4 +1,6 @@
 "use client";
+import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
+
 import { TimeText } from "@/components/time/time-preference-context";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -13,6 +15,7 @@ import type {
   accessComparison,
 } from "@/server/people-access";
 import styles from "./access-explorer.module.css";
+import { type UiAppearance } from "@/components/ui/foundation";
 type Meta = ReturnType<typeof accessMetadata>;
 type Detail = ReturnType<typeof accessDetail>;
 type Entries = ReturnType<typeof accessEntries>;
@@ -20,55 +23,55 @@ type Comparison = ReturnType<typeof accessComparison>;
 async function read<T>(url: string, signal?: AbortSignal): Promise<T> {
   const response = await workFetch(url, { signal, cache: "no-store" }),
     result = await response.json();
-  if (!response.ok)
-    throw Error(result.error?.message ?? "Unable to load access information.");
+  if (!response.ok) throw Error(result.error?.message ?? "Unable to load access information.");
   return result.data;
 }
-function Areas({
+function Areas({ appearance = "legacy",
   catalog,
   decisions,
   preview,
-}: {
+}: ({
   catalog: Detail["catalog"];
   decisions: Detail["decisions"][number]["decisions"];
   preview: boolean;
-}) {
+}) & { appearance?: UiAppearance }) {
   const visible = catalog.filter((p) => preview || p.availability === "live"),
     areas = [...new Set(visible.map((p) => p.module))];
   return (
     <>
       {areas.map((area) => {
         const permissions = visible.filter((p) => p.module === area),
-          rows = decisions.filter((d) =>
-            permissions.some((p) => p.id === d.permission),
-          );
+          rows = decisions.filter((d) => permissions.some((p) => p.id === d.permission));
         return (
-          <details className={styles.area} key={area}>
-            <summary>
+          <details data-ui-appearance={appearance} className={styles.area} key={area}>
+            <summary data-ui-appearance={appearance}>
               {area.replaceAll("_", " ")}{" "}
-              <small>
+              <small data-ui-appearance={appearance}>
                 {rows.filter((r) => r.result === "allowed").length} allowed ·{" "}
-                {rows.filter((r) => r.result === "conditional").length}{" "}
-                conditional · {permissions.length} actions
+                {rows.filter((r) => r.result === "conditional").length} conditional ·{" "}
+                {permissions.length} actions
               </small>
             </summary>
             {permissions.map((p) => {
               const decision = rows.find((d) => d.permission === p.id);
               return (
-                <details key={p.id}>
-                  <summary>
+                <details data-ui-appearance={appearance} key={p.id}>
+                  <summary data-ui-appearance={appearance}>
                     {p.label} · {decision?.result ?? "unavailable"}
                   </summary>
-                  <p>{decision?.reasons.join(" · ")}</p>
-                  <p>{decision?.conditions.join(" · ")}</p>
-                  <p>
-                    {decision?.source} · {decision?.scope} · revision{" "}
-                    {decision?.revision}
+                  <p data-ui-appearance={appearance}>{decision?.reasons.join(" · ")}</p>
+                  <p data-ui-appearance={appearance}>{decision?.conditions.join(" · ")}</p>
+                  <p data-ui-appearance={appearance}>
+                    {decision?.source} · {decision?.scope} · revision {decision?.revision}
                   </p>
-                  <p>
-                    {decision?.expiresAt
-                      ? <>Expires <TimeText value={decision.expiresAt} /></>
-                      : "No expiry evidence"}
+                  <p data-ui-appearance={appearance}>
+                    {decision?.expiresAt ? (
+                      <>
+                        Expires <TimeText appearance={appearance} value={decision.expiresAt} />
+                      </>
+                    ) : (
+                      "No expiry evidence"
+                    )}
                   </p>
                 </details>
               );
@@ -79,19 +82,19 @@ function Areas({
     </>
   );
 }
-export function PeopleAccessExplorer({
+export function PeopleAccessExplorer({ appearance = "legacy",
   meta,
   initialEntries,
   base,
   api,
   initialObjectId,
-}: {
+}: ({
   meta: Meta;
   initialEntries: Entries;
   base: string;
   api: string;
   initialObjectId?: string;
-}) {
+}) & { appearance?: UiAppearance }) {
   const router = useRouter(),
     [node, setNode] = useState(meta.root),
     [expanded, setExpanded] = useState([meta.root]),
@@ -118,10 +121,7 @@ export function PeopleAccessExplorer({
   useEffect(() => {
     if (!initialObjectId) return;
     const controller = new AbortController();
-    void read<Detail>(
-      `${api}/objects/${encodeURIComponent(initialObjectId)}`,
-      controller.signal,
-    )
+    void read<Detail>(`${api}/objects/${encodeURIComponent(initialObjectId)}`, controller.signal)
       .then((result) => {
         setDetail(result);
         setScreen("detail");
@@ -137,10 +137,7 @@ export function PeopleAccessExplorer({
     if (loadedQuery.current === query) return;
     const c = new AbortController();
     const timer = setTimeout(() => {
-      void read<Entries>(
-        `${api}/entries?${new URLSearchParams({ node, q })}`,
-        c.signal,
-      )
+      void read<Entries>(`${api}/entries?${new URLSearchParams({ node, q })}`, c.signal)
         .then((result) => {
           loadedQuery.current = query;
           setEntries(result);
@@ -159,8 +156,7 @@ export function PeopleAccessExplorer({
     .filter(Boolean)
     .join("|");
   const comparisonKey = JSON.stringify([api, compareIds, refresh]);
-  const comparison =
-    comparisonResult?.key === comparisonKey ? comparisonResult.data : null;
+  const comparison = comparisonResult?.key === comparisonKey ? comparisonResult.data : null;
   useEffect(() => {
     const c = new AbortController();
     if (compareIds) {
@@ -179,18 +175,14 @@ export function PeopleAccessExplorer({
     const request = ++detailRequest.current;
     setMessage("");
     try {
-      const result = await read<Detail>(
-        `${api}/objects/${encodeURIComponent(id)}`,
-      );
+      const result = await read<Detail>(`${api}/objects/${encodeURIComponent(id)}`);
       if (request !== detailRequest.current) return;
       setDetail(result);
       setAssignment("");
       setScreen("detail");
       requestAnimationFrame(() => detailHeading.current?.focus());
     } catch (e) {
-      setMessage(
-        e instanceof Error ? e.message : "Unable to load this object.",
-      );
+      setMessage(e instanceof Error ? e.message : "Unable to load this object.");
     }
   }
   async function send(path: string, input: unknown) {
@@ -209,16 +201,13 @@ export function PeopleAccessExplorer({
           body: JSON.stringify(input),
         }),
         result = await r.json();
-      if (!r.ok)
-        throw Error(result.error?.message ?? "Unable to update ERPX access.");
+      if (!r.ok) throw Error(result.error?.message ?? "Unable to update ERPX access.");
       attempt.current = null;
       setMessage(result.data?.message ?? "ERPX access updated.");
       setRefresh((v) => v + 1);
       router.refresh();
       if (detail) {
-        const updated = await read<Detail>(
-          `${api}/objects/${encodeURIComponent(detail.entry.id)}`,
-        );
+        const updated = await read<Detail>(`${api}/objects/${encodeURIComponent(detail.entry.id)}`);
         setDetail(updated);
       }
     } catch (e) {
@@ -227,61 +216,55 @@ export function PeopleAccessExplorer({
       setPending(false);
     }
   }
-  const selectedAssignment = detail?.assignments.find(
-      (a) => a.id === assignment,
-    ),
+  const selectedAssignment = detail?.assignments.find((a) => a.id === assignment),
     decision = detail?.decisions.find((d) => d.assignmentId === assignment);
-  const canManage =
-    meta.canManage && detail?.entry.userId !== meta.currentUserId;
+  const canManage = meta.canManage && detail?.entry.userId !== meta.currentUserId;
   function back(target: "tree" | "results") {
     setScreen(target);
     requestAnimationFrame(() =>
       target === "tree"
-        ? treePane.current
-            ?.querySelector<HTMLElement>('[aria-selected="true"]')
-            ?.focus()
+        ? treePane.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus()
         : resultsHeading.current?.focus(),
     );
   }
   return (
-    <div className={styles.explorer}>
-      <div className={styles.toolbar}>
-        <p>
+    <div data-ui-appearance={appearance} className={styles.explorer}>
+      <div data-ui-appearance={appearance} className={styles.toolbar}>
+        <p data-ui-appearance={appearance}>
           {meta.fullDirectory
             ? "Organization and connected directories · external objects are read-only"
             : "Your ERPX subtree and linked directory identities"}
         </p>
         <Link href={`${base}/iam/matrix`}>Advanced IAM console ↗</Link>
       </div>
-      <nav
-        className={`${styles.crumbs} ${styles.mobile}`}
-        aria-label="Explorer steps"
-      >
-        <button onClick={() => back("tree")}>Tree</button>
-        <span>›</span>
-        <button onClick={() => back("results")}>
+      <nav data-ui-appearance={appearance} className={`${styles.crumbs} ${styles.mobile}`} aria-label="Explorer steps">
+        <Button appearance={appearance} type="submit" variant="plain" onClick={() => back("tree")}>
+          Tree
+        </Button>
+        <span data-ui-appearance={appearance}>›</span>
+        <Button appearance={appearance} type="submit" variant="plain" onClick={() => back("results")}>
           {selectedNode?.label ?? "Results"}
-        </button>
+        </Button>
         {screen === "detail" && (
           <>
-            <span>›</span>
-            <span>Detail</span>
+            <span data-ui-appearance={appearance}>›</span>
+            <span data-ui-appearance={appearance}>Detail</span>
           </>
         )}
       </nav>
       {message && (
-        <p className={styles.message} role="status">
+        <p data-ui-appearance={appearance} className={styles.message} role="status">
           {message}
         </p>
       )}
-      <div className={styles.panes} data-screen={screen}>
-        <section
+      <div data-ui-appearance={appearance} className={styles.panes} data-screen={screen}>
+        <section data-ui-appearance={appearance}
           ref={treePane}
           className={`${styles.pane} ${styles.tree}`}
           aria-label="Directory tree"
         >
-          <h2>Browse your organization</h2>
-          <p>Choose a team, container, or group.</p>
+          <h2 data-ui-appearance={appearance}>Browse your organization</h2>
+          <p data-ui-appearance={appearance}>Choose a team, container, or group.</p>
           <HierarchyTree
             nodes={meta.tree}
             selectedId={node}
@@ -295,55 +278,56 @@ export function PeopleAccessExplorer({
             }}
           />
           {!meta.tree.some((n) => n.kind === "connection") && (
-            <p>
+            <p data-ui-appearance={appearance}>
               {meta.fullDirectory
                 ? "No connected directories yet. Successful synchronization will add their hierarchy here."
                 : "Full directory browsing requires a company context and directory-management permission."}
             </p>
           )}
         </section>
-        <section
-          className={`${styles.pane} ${styles.results}`}
-          aria-label="Directory results"
-        >
-          <h2 ref={resultsHeading} tabIndex={-1}>
+        <section data-ui-appearance={appearance} className={`${styles.pane} ${styles.results}`} aria-label="Directory results">
+          <h2 data-ui-appearance={appearance} ref={resultsHeading} tabIndex={-1}>
             {selectedNode?.label}
           </h2>
-          <label>
+          <Field appearance={appearance}>
             Search people and groups
-            <input
+            <TextInput appearance={appearance}
               className={styles.search}
               type="search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Name or email"
             />
-          </label>
-          <p aria-live="polite">{entries.total} results</p>
+          </Field>
+          <p data-ui-appearance={appearance} aria-live="polite">{entries.total} results</p>
           {entries.items.map((e) => (
-            <button
+            <Button appearance={appearance}
+              type="submit"
+              variant="plain"
               className={styles.entry}
               key={e.id}
               aria-pressed={detail?.entry.id === e.id}
               onClick={() => void open(e.id)}
             >
-              <strong>{e.label}</strong>
-              <small>{e.email ?? e.kind}</small>
-              <div className={styles.badges}>
+              <strong data-ui-appearance={appearance}>{e.label}</strong>
+              <small data-ui-appearance={appearance}>{e.email ?? e.kind}</small>
+              <div data-ui-appearance={appearance} className={styles.badges}>
                 {[e.source, e.account, e.status, e.sync, e.accessStatus]
                   .filter(Boolean)
                   .map((b, i) => (
-                    <span className={styles.badge} key={i}>
+                    <span data-ui-appearance={appearance} className={styles.badge} key={i}>
                       {b}
                     </span>
                   ))}
               </div>
-            </button>
+            </Button>
           ))}
-          {!entries.items.length && <p>No people or groups match this view.</p>}
+          {!entries.items.length && <p data-ui-appearance={appearance}>No people or groups match this view.</p>}
           {entries.nextCursor && (
-            <button
-              className="button secondary"
+            <Button appearance={appearance}
+              type="submit"
+              variant="secondary"
+
               onClick={async () => {
                 try {
                   const next = await read<Entries>(
@@ -354,35 +338,30 @@ export function PeopleAccessExplorer({
                     items: [...v.items, ...next.items],
                   }));
                 } catch (e) {
-                  setMessage(
-                    e instanceof Error ? e.message : "Unable to load more.",
-                  );
+                  setMessage(e instanceof Error ? e.message : "Unable to load more.");
                 }
               }}
             >
               Load more
-            </button>
+            </Button>
           )}
         </section>
-        <section
-          className={`${styles.pane} ${styles.detail}`}
-          aria-label="Access detail"
-        >
+        <section data-ui-appearance={appearance} className={`${styles.pane} ${styles.detail}`} aria-label="Access detail">
           {!detail ? (
-            <div className={styles.empty}>
-              <h2>Every person. One work context.</h2>
-              <p>
-                Select a person or group to understand their ERPX access,
-                directory evidence, and assignments.
+            <div data-ui-appearance={appearance} className={styles.empty}>
+              <h2 data-ui-appearance={appearance}>Every person. One work context.</h2>
+              <p data-ui-appearance={appearance}>
+                Select a person or group to understand their ERPX access, directory evidence, and
+                assignments.
               </p>
             </div>
           ) : (
             <>
-              <h2 ref={detailHeading} tabIndex={-1}>
+              <h2 data-ui-appearance={appearance} ref={detailHeading} tabIndex={-1}>
                 {detail.entry.label}
               </h2>
-              <p>{detail.entry.email}</p>
-              <div className={styles.badges}>
+              <p data-ui-appearance={appearance}>{detail.entry.email}</p>
+              <div data-ui-appearance={appearance} className={styles.badges}>
                 {[
                   detail.entry.account,
                   detail.entry.source,
@@ -392,106 +371,96 @@ export function PeopleAccessExplorer({
                 ]
                   .filter(Boolean)
                   .map((b, i) => (
-                    <span key={i} className={styles.badge}>
+                    <span data-ui-appearance={appearance} key={i} className={styles.badge}>
                       {b}
                     </span>
                   ))}
               </div>
               {detail.entry.kind !== "group" && (
                 <>
-                  <h3>Work context</h3>
-                  <label>
+                  <h3 data-ui-appearance={appearance}>Work context</h3>
+                  <Field appearance={appearance}>
                     Assignment to inspect
-                    <select
+                    <Select appearance={appearance}
                       className={styles.select}
                       value={assignment}
                       onChange={(e) => setAssignment(e.target.value)}
                     >
-                      <option value="">Choose one assignment</option>
+                      <option data-ui-appearance={appearance} value="">Choose one assignment</option>
                       {detail.assignments.map((a) => (
-                        <option key={String(a.id)} value={String(a.id)}>
-                          {meta.roles.find((r) => r.id === a.role)?.name ??
-                            String(a.role)}{" "}
-                          · {String(a.scope_kind)} ·{" "}
-                          {meta.tree.find((n) => n.id === a.scope_node_id)
-                            ?.label ?? "Company"}{" "}
-                          · {a.active ? "active" : "inactive"}
+                        <option data-ui-appearance={appearance} key={String(a.id)} value={String(a.id)}>
+                          {meta.roles.find((r) => r.id === a.role)?.name ?? String(a.role)} ·{" "}
+                          {String(a.scope_kind)} ·{" "}
+                          {meta.tree.find((n) => n.id === a.scope_node_id)?.label ?? "Company"} ·{" "}
+                          {a.active ? "active" : "inactive"}
                         </option>
                       ))}
-                    </select>
-                  </label>
-                  {!detail.assignments.length && (
-                    <p>No ERPX assignments in this work context.</p>
-                  )}
+                    </Select>
+                  </Field>
+                  {!detail.assignments.length && <p data-ui-appearance={appearance}>No ERPX assignments in this work context.</p>}
                   {decision ? (
                     <>
-                      <p>
-                        Only this assignment is evaluated. Permissions from
-                        other roles are not combined.
+                      <p data-ui-appearance={appearance}>
+                        Only this assignment is evaluated. Permissions from other roles are not
+                        combined.
                       </p>
-                      <label>
-                        <input
+                      <Field appearance={appearance} orientation="inline">
+                        <TextInput appearance={appearance}
                           type="checkbox"
                           checked={preview}
                           onChange={(e) => setPreview(e.target.checked)}
                         />{" "}
                         Include unavailable capabilities
-                      </label>
-                      <Areas
+                      </Field>
+                      <Areas appearance={appearance}
                         catalog={detail.catalog}
                         decisions={decision.decisions}
                         preview={preview}
                       />
                     </>
                   ) : (
-                    <p>Select an assignment to see access by business area.</p>
+                    <p data-ui-appearance={appearance}>Select an assignment to see access by business area.</p>
                   )}
                   {detail.entry.kind === "person" && (
-                    <button
-                      className="button secondary"
+                    <Button appearance={appearance}
+                      type="submit"
+                      variant="secondary"
+
                       disabled={
                         tray.length >= 4 ||
-                        tray.some(
-                          (t) => t.detail.entry.id === detail.entry.id,
-                        ) ||
+                        tray.some((t) => t.detail.entry.id === detail.entry.id) ||
                         !detail.assignments.length
                       }
-                      onClick={() =>
-                        setTray((v) => [...v, { detail, assignment }])
-                      }
+                      onClick={() => setTray((v) => [...v, { detail, assignment }])}
                     >
                       Compare person ({tray.length}/4)
-                    </button>
+                    </Button>
                   )}
                 </>
               )}
               {!!detail.linked.length && (
                 <>
-                  <h3>Linked directory evidence</h3>
+                  <h3 data-ui-appearance={appearance}>Linked directory evidence</h3>
                   {detail.linked.map((i) => (
-                    <p key={i.id}>
+                    <p data-ui-appearance={appearance} key={i.id}>
                       {i.label} · {i.source} · {i.status} · {i.sync}
                     </p>
                   ))}
                 </>
               )}
               {!!detail.memberships.length && (
-                <details className={styles.area}>
-                  <summary>
-                    Effective group memberships ({detail.memberships.length})
-                  </summary>
+                <details data-ui-appearance={appearance} className={styles.area}>
+                  <summary data-ui-appearance={appearance}>Effective group memberships ({detail.memberships.length})</summary>
                   {detail.memberships.map((m, i) => (
-                    <p key={i}>{m.label}</p>
+                    <p data-ui-appearance={appearance} key={i}>{m.label}</p>
                   ))}
                 </details>
               )}
               {!!detail.groups.length && (
-                <details className={styles.area}>
-                  <summary>
-                    Direct nested memberships ({detail.groups.length})
-                  </summary>
+                <details data-ui-appearance={appearance} className={styles.area}>
+                  <summary data-ui-appearance={appearance}>Direct nested memberships ({detail.groups.length})</summary>
                   {detail.groups.map((g, i) => (
-                    <p key={i}>
+                    <p data-ui-appearance={appearance} key={i}>
                       {g.parentId} → {g.childId}
                     </p>
                   ))}
@@ -499,23 +468,19 @@ export function PeopleAccessExplorer({
               )}
               {detail.entry.kind === "group" && (
                 <>
-                  <h3>Scoped ERPX role mappings</h3>
+                  <h3 data-ui-appearance={appearance}>Scoped ERPX role mappings</h3>
                   {!detail.mappings.length && (
-                    <p>
-                      No ERPX mappings. Group membership alone grants no ERPX
-                      role.
-                    </p>
+                    <p data-ui-appearance={appearance}>No ERPX mappings. Group membership alone grants no ERPX role.</p>
                   )}
                   {detail.mappings.map((m) => (
-                    <div className={styles.area} key={String(m.id)}>
-                      <strong>{String(m.role_id)}</strong>
-                      <p>
-                        {String(m.scope_kind)} ·{" "}
-                        {String(m.scope_node_id ?? "Company")} ·{" "}
+                    <div data-ui-appearance={appearance} className={styles.area} key={String(m.id)}>
+                      <strong data-ui-appearance={appearance}>{String(m.role_id)}</strong>
+                      <p data-ui-appearance={appearance}>
+                        {String(m.scope_kind)} · {String(m.scope_node_id ?? "Company")} ·{" "}
                         {String(m.status)}
                       </p>
                       {canManage && m.status === "active" && (
-                        <CommandReason
+                        <CommandReason appearance={appearance}
                           label="Revoke mapping"
                           pending={pending}
                           onSubmit={(reason) =>
@@ -531,15 +496,14 @@ export function PeopleAccessExplorer({
                 </>
               )}
               {canManage && detail.entry.kind !== "identity" && (
-                <details className={styles.area}>
-                  <summary>Manage ERPX access</summary>
-                  <p>
-                    Changes use the existing MFA, delegation, revision, and
-                    independent-review checks. External directory objects cannot
-                    be edited here.
+                <details data-ui-appearance={appearance} className={styles.area}>
+                  <summary data-ui-appearance={appearance}>Manage ERPX access</summary>
+                  <p data-ui-appearance={appearance}>
+                    Changes use the existing MFA, delegation, revision, and independent-review
+                    checks. External directory objects cannot be edited here.
                   </p>
                   {!detail.entry.userId && detail.entry.personId ? (
-                    <AccessEditor
+                    <AccessEditor appearance={appearance}
                       base={base}
                       personId={detail.entry.personId}
                       hasAccount={false}
@@ -547,52 +511,42 @@ export function PeopleAccessExplorer({
                       canManage
                     />
                   ) : (
-                    <GrantForm
+                    <GrantForm appearance={appearance}
                       meta={meta}
                       pending={pending}
                       group={detail.entry.kind === "group"}
                       onSubmit={(fields) =>
-                        void send(
-                          detail.entry.kind === "group"
-                            ? "mappings"
-                            : "assignments",
-                          {
-                            ...fields,
-                            ...(detail.entry.kind === "group"
-                              ? {
-                                  connectionId: detail.entry.connectionId,
-                                  groupId: detail.entry.externalId,
-                                }
-                              : { userId: detail.entry.userId }),
-                          },
-                        )
+                        void send(detail.entry.kind === "group" ? "mappings" : "assignments", {
+                          ...fields,
+                          ...(detail.entry.kind === "group"
+                            ? {
+                                connectionId: detail.entry.connectionId,
+                                groupId: detail.entry.externalId,
+                              }
+                            : { userId: detail.entry.userId }),
+                        })
                       }
                     />
                   )}
                   {selectedAssignment && !selectedAssignment.revoked_at && (
-                    <CommandReason
+                    <CommandReason appearance={appearance}
                       label="Revoke selected assignment"
                       pending={pending}
                       onSubmit={(reason) =>
-                        void send(
-                          `assignments/${selectedAssignment.id}/revoke`,
-                          {
-                            expectedVersion: Number(selectedAssignment.version),
-                            reason,
-                          },
-                        )
+                        void send(`assignments/${selectedAssignment.id}/revoke`, {
+                          expectedVersion: Number(selectedAssignment.version),
+                          reason,
+                        })
                       }
                     />
                   )}
                   {detail.entry.userId && meta.scopeKind === "holding" && (
-                    <CommandReason
+                    <CommandReason appearance={appearance}
                       label="Suspend ERPX account"
                       pending={pending}
                       onSubmit={(reason) =>
                         void send(`users/${detail.entry.userId}/suspend`, {
-                          expectedVersion: Number(
-                            detail.assignments[0]?.identity_version ?? 1,
-                          ),
+                          expectedVersion: Number(detail.assignments[0]?.identity_version ?? 1),
                           reason,
                         })
                       }
@@ -605,37 +559,33 @@ export function PeopleAccessExplorer({
         </section>
       </div>
       {!!tray.length && (
-        <section className={styles.comparison} aria-label="People comparison">
-          <h2>Compare work contexts</h2>
-          <p>
-            Up to four people. One role and scope per person; never combined.
-          </p>
-          <div
+        <section data-ui-appearance={appearance} className={styles.comparison} aria-label="People comparison">
+          <h2 data-ui-appearance={appearance}>Compare work contexts</h2>
+          <p data-ui-appearance={appearance}>Up to four people. One role and scope per person; never combined.</p>
+          <div data-ui-appearance={appearance}
             className={styles.compareScroll}
             tabIndex={0}
             role="region"
             aria-label="Scrollable comparison"
           >
-            <div className={styles.compareGrid}>
+            <div data-ui-appearance={appearance} className={styles.compareGrid}>
               {tray.map((t) => (
-                <article key={t.detail.entry.id} className={styles.compareCard}>
-                  <strong>{t.detail.entry.label}</strong>
-                  <button
+                <article data-ui-appearance={appearance} key={t.detail.entry.id} className={styles.compareCard}>
+                  <strong data-ui-appearance={appearance}>{t.detail.entry.label}</strong>
+                  <Button appearance={appearance}
+                    type="submit"
+                    variant="plain"
                     aria-label={`Remove ${t.detail.entry.label} from comparison`}
                     onClick={() =>
-                      setTray((v) =>
-                        v.filter(
-                          (p) => p.detail.entry.id !== t.detail.entry.id,
-                        ),
-                      )
+                      setTray((v) => v.filter((p) => p.detail.entry.id !== t.detail.entry.id))
                     }
                   >
                     {" "}
                     ×
-                  </button>
-                  <label>
+                  </Button>
+                  <Field appearance={appearance}>
                     Work assignment
-                    <select
+                    <Select appearance={appearance}
                       className={styles.select}
                       value={t.assignment}
                       onChange={(e) =>
@@ -648,31 +598,26 @@ export function PeopleAccessExplorer({
                         )
                       }
                     >
-                      <option value="">Choose one assignment</option>
+                      <option data-ui-appearance={appearance} value="">Choose one assignment</option>
                       {t.detail.assignments.map((a) => (
-                        <option key={String(a.id)} value={String(a.id)}>
+                        <option data-ui-appearance={appearance} key={String(a.id)} value={String(a.id)}>
                           {String(a.role)} · {String(a.scope_kind)} ·{" "}
-                          {meta.tree.find((n) => n.id === a.scope_node_id)
-                            ?.label ?? "Company"}
+                          {meta.tree.find((n) => n.id === a.scope_node_id)?.label ?? "Company"}
                         </option>
                       ))}
-                    </select>
-                  </label>
+                    </Select>
+                  </Field>
                   {t.assignment &&
-                  comparison?.decisions.find(
-                    (d) => d.assignmentId === t.assignment,
-                  ) ? (
-                    <Areas
+                  comparison?.decisions.find((d) => d.assignmentId === t.assignment) ? (
+                    <Areas appearance={appearance}
                       catalog={comparison.catalog}
                       decisions={
-                        comparison.decisions.find(
-                          (d) => d.assignmentId === t.assignment,
-                        )!.decisions
+                        comparison.decisions.find((d) => d.assignmentId === t.assignment)!.decisions
                       }
                       preview={preview}
                     />
                   ) : (
-                    <p>Choose one assignment to compare.</p>
+                    <p data-ui-appearance={appearance}>Choose one assignment to compare.</p>
                   )}
                 </article>
               ))}
@@ -683,46 +628,46 @@ export function PeopleAccessExplorer({
     </div>
   );
 }
-function CommandReason({
+function CommandReason({ appearance = "legacy",
   label,
   pending,
   onSubmit,
-}: {
+}: ({
   label: string;
   pending: boolean;
   onSubmit: (reason: string) => void;
-}) {
+}) & { appearance?: UiAppearance }) {
   return (
-    <form
+    <form data-ui-appearance={appearance}
       className={styles.form}
       onSubmit={(e) => {
         e.preventDefault();
         onSubmit(String(new FormData(e.currentTarget).get("reason")));
       }}
     >
-      <label>
+      <Field appearance={appearance}>
         {label} — reason
-        <input name="reason" required minLength={3} maxLength={1000} />
-      </label>
-      <button className="button secondary" disabled={pending}>
+        <TextInput appearance={appearance} name="reason" required minLength={3} maxLength={1000} />
+      </Field>
+      <Button appearance={appearance} clientManaged type="submit" variant="secondary" disabled={pending}>
         {label}
-      </button>
+      </Button>
     </form>
   );
 }
-function GrantForm({
+function GrantForm({ appearance = "legacy",
   meta,
   pending,
   group,
   onSubmit,
-}: {
+}: ({
   meta: Meta;
   pending: boolean;
   group: boolean;
   onSubmit: (input: Record<string, unknown>) => void;
-}) {
+}) & { appearance?: UiAppearance }) {
   return (
-    <form
+    <form data-ui-appearance={appearance}
       className={styles.form}
       onSubmit={(e) => {
         e.preventDefault();
@@ -740,48 +685,42 @@ function GrantForm({
         });
       }}
     >
-      <h3>{group ? "Propose role mapping" : "Grant / renew a role"}</h3>
-      <label>
+      <h3 data-ui-appearance={appearance}>{group ? "Propose role mapping" : "Grant / renew a role"}</h3>
+      <Field appearance={appearance}>
         Role
-        <select name="role" required>
-          <option value="">Choose a role</option>
+        <Select appearance={appearance} name="role" required>
+          <option data-ui-appearance={appearance} value="">Choose a role</option>
           {meta.roles.map((r) => (
-            <option key={r.id} value={r.id}>
+            <option data-ui-appearance={appearance} key={r.id} value={r.id}>
               {r.name} · revision {r.revision}
             </option>
           ))}
-        </select>
-      </label>
-      <label>
+        </Select>
+      </Field>
+      <Field appearance={appearance}>
         Scope
-        <select name="scope" required>
-          {meta.scopeKind === "holding" && (
-            <option value="holding">Company</option>
-          )}
+        <Select appearance={appearance} name="scope" required>
+          {meta.scopeKind === "holding" && <option data-ui-appearance={appearance} value="holding">Company</option>}
           {meta.tree
-            .filter(
-              (n) =>
-                n.source === "ERPX" &&
-                ["branch", "department"].includes(n.kind),
-            )
+            .filter((n) => n.source === "ERPX" && ["branch", "department"].includes(n.kind))
             .map((n) => (
-              <option key={n.id} value={n.id}>
+              <option data-ui-appearance={appearance} key={n.id} value={n.id}>
                 {n.label} · {n.kind}
               </option>
             ))}
-        </select>
-      </label>
-      <label>
+        </Select>
+      </Field>
+      <Field appearance={appearance}>
         Expires
-        <input type="date" name="expires" required />
-      </label>
-      <label>
+        <TextInput appearance={appearance} type="date" name="expires" required />
+      </Field>
+      <Field appearance={appearance}>
         Reason
-        <input name="reason" required minLength={3} maxLength={1000} />
-      </label>
-      <button className="button" disabled={pending || !meta.roles.length}>
+        <TextInput appearance={appearance} name="reason" required minLength={3} maxLength={1000} />
+      </Field>
+      <Button appearance={appearance} clientManaged type="submit" variant="primary" disabled={pending || !meta.roles.length}>
         {group ? "Propose mapping" : "Submit grant / renewal"}
-      </button>
+      </Button>
     </form>
   );
 }

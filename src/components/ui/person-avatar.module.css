@@ -5,12 +5,23 @@
   height: 38px;
   flex: 0 0 auto;
   border-radius: 13px;
-  background: var(--brand-soft);
-  color: var(--brand);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand);
   font-size: 12px;
   font-weight: 650;
   line-height: 1;
 }
-.avatar[data-tone="1"] { background: var(--card-2); color: var(--ink); }
-.avatar[data-tone="2"] { background: var(--blue-soft); color: var(--blue); }
-.small { width: 28px; height: 28px; border-radius: 9px; font-size: 11px; }
+.avatar[data-tone="1"] {
+  background: var(--ui-card-2);
+  color: var(--ui-ink);
+}
+.avatar[data-tone="2"] {
+  background: var(--ui-blue-soft);
+  color: var(--ui-blue);
+}
+.small {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  font-size: 11px;
+}

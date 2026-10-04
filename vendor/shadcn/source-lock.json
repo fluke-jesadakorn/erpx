@@ -1,0 +1,25 @@
+{
+  "style": "base-nova",
+  "capturedAt": "2026-10-02",
+  "upstreamCommitAtCapture": "d75a96ab781f3d659be1ad287347d5887ce9f2fc",
+  "license": "MIT",
+  "components": [
+    {
+      "component": "button",
+      "source": "https://ui.shadcn.com/r/styles/base-nova/button.json",
+      "file": "button.json",
+      "sha256": "9ba7e870178813f0552b818a913a2792fb500c779e36395740b4973e3025d427"
+    },
+    {
+      "component": "dialog",
+      "source": "https://ui.shadcn.com/r/styles/base-nova/dialog.json",
+      "file": "dialog.json",
+      "sha256": "40fc321d25eb9590d07db54b00d9bc1a74274a549aa06d5915a34ba302ed8b94"
+    }
+  ],
+  "adaptations": [
+    "ERPX semantic --ui-* tokens",
+    "44px default and 48px POS controls",
+    "preserved native form and controlled dialog contracts"
+  ]
+}

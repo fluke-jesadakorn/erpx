@@ -74,6 +74,7 @@ export async function calendarData(
     quality_holds: async () => (await import("./quality")).qualityCalendarItems(db,a,q,from,to,take),
     supplier_batches: async () => (await import("./supplier-batches")).supplierBatchCalendarItems(db,a,q,from,to,take),
     refunds: async () => (await import("./refunds")).refundCalendarItems(db,a,q,from,to,take),
+    maintenance: async () => (await import("./maintenance")).maintenanceCalendarItems(db,a,q,bounds!.from_ms,bounds!.to_ms,take),
     legal: async () => (await import("../legal/integrations")).legalCalendar(db,actor,q,from,to,take),
     roster: () => rosterItems(db, a, q, bounds!.from_ms, bounds!.to_ms, take),
     leave: () => leaveItems(db, a, q, from, to, take),

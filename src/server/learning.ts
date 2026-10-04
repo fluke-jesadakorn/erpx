@@ -43,6 +43,8 @@ const assignmentAction = z.discriminatedUnion("action", [
     evidence: reason,
     reason,
     attachmentSetIds: z.array(z.string().min(1)).max(20).default([]),
+    certificateValidFrom:z.string().date().optional(),
+    certificateExpiresOn:z.string().date().nullable().optional(),
   }),
   z.object({
     action: z.enum(["waive", "cancel"]),
@@ -78,7 +80,7 @@ function access(a: WorkContext, write = false) {
       "Your current role cannot access Learning.",
     );
 }
-export async function learningWorkspace(a: WorkContext) {
+export async function learningWorkspace(a: WorkContext, personal = false) {
   access(a);
   const { write } = await holdingResources(a.holdingId),
     courses = (
@@ -92,9 +94,9 @@ export async function learningWorkspace(a: WorkContext) {
     assignments = (
       await write
         .prepare(
-          `SELECT a.*,c.title course_title,c.required_for,(SELECT legal_name FROM hr_people WHERE company_id=a.company_id AND user_id=a.learner_id AND merged_into_id IS NULL LIMIT 1) learner_name,CASE WHEN ${learnerEligible} THEN 1 ELSE 0 END learner_eligible FROM learning_assignments a JOIN learning_courses c ON c.id=a.course_id WHERE ${scope} ORDER BY a.updated_at DESC`,
+          `SELECT a.*,c.title course_title,c.required_for,(SELECT legal_name FROM hr_people WHERE company_id=a.company_id AND user_id=a.learner_id AND merged_into_id IS NULL LIMIT 1) learner_name,CASE WHEN ${learnerEligible} THEN 1 ELSE 0 END learner_eligible FROM learning_assignments a JOIN learning_courses c ON c.id=a.course_id WHERE ${scope} AND (NOT ?::boolean OR a.learner_id=?) ORDER BY a.updated_at DESC`,
         )
-        .bind(...args(a))
+        .bind(...args(a),personal,a.userId)
         .all<Assignment>()
     ).results,
     people = (
@@ -338,6 +340,7 @@ export async function learningAssignmentDetail(a: WorkContext, id: string) {
       )
       .bind(id)
       .first<Row>(),
+    certificate:await write.prepare("SELECT c.*,r.id revocation_id FROM learning_certificates c LEFT JOIN learning_certificate_revocations r ON r.certificate_id=c.id WHERE c.assignment_id=?").bind(id).first<Row>(),
   };
 }
 export type LearningExecutiveEvidenceMetric = "learning-completions" | "overdue-required-learning";
@@ -383,6 +386,11 @@ export async function changeLearningAssignment(
   access(a, true);
   const input = assignmentAction.parse(raw),
     { write } = await holdingResources(a.holdingId),
+    op = `learning.assignment.${input.action}`,
+    prior = await replayCommand(write, a, key, op, id, input);
+  if (["waive", "cancel"].includes(input.action)) requirePermission(a, "records.review");
+  if (prior) return prior;
+  const
     row = await write
       .prepare(
         `SELECT a.*,c.required_for,CASE WHEN ${learnerEligible} THEN 1 ELSE 0 END learner_eligible FROM learning_assignments a JOIN learning_courses c ON c.id=a.course_id WHERE a.id=? AND ${scope}`,
@@ -428,10 +436,7 @@ export async function changeLearningAssignment(
           ? "completed"
           : input.action === "waive"
             ? "waived"
-            : "cancelled",
-    op = `learning.assignment.${input.action}`,
-    prior = await replayCommand(write, a, key, op, id, input);
-  if (prior) return prior;
+          : "cancelled";
   const attachmentBinding =
     input.action === "complete" && input.attachmentSetIds.length
       ? await prepareAttachmentBinding(write, a, {
@@ -486,6 +491,9 @@ export async function changeLearningAssignment(
         ),
       ...(attachmentBinding?.steps ?? []),
     ];
+  const certificateFrom=input.action==="complete"?input.certificateValidFrom??new Date().toISOString().slice(0,10):new Date().toISOString().slice(0,10);
+  const certificateEnd=input.action==="complete"?input.certificateExpiresOn??null:null;
+  if(certificateEnd&&certificateEnd<certificateFrom)throw new ApiError(422,"LEARNING_CERTIFICATE_DATES_INVALID","Certificate expiry must follow its valid-from date.");
   if (["complete", "waive"].includes(input.action) && row.required_for)
     steps.push(
       write
@@ -499,6 +507,8 @@ export async function changeLearningAssignment(
           now,
           id,
         ),
+      write.prepare("INSERT INTO learning_certificates(id,handoff_id,company_id,person_id,assignment_id,source_assignment_version,eligibility_code,valid_from,expires_on,completion_kind,evidence_ref,issued_by,created_at) SELECT ?,h.id,h.company_id,h.person_id,h.assignment_id,h.source_assignment_version,h.eligibility_code,?,?,?,?,?,? FROM learning_eligibility_handoffs h WHERE h.assignment_id=?")
+        .bind(`learning-certificate-${key}`,certificateFrom,certificateEnd,status,input.action==="complete"?input.evidence:input.reason,a.userId,now,id),
     );
   steps.push(
     write

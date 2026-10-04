@@ -1,7 +1,41 @@
-.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px;margin:20px 0 28px}
-.metric{min-width:0;padding:18px;border:1px solid var(--border-color,rgba(128,128,128,.22));border-radius:12px}
-.metric h3{font-size:.92rem;margin:0 0 10px}
-.metric strong{display:block;font-size:1.45rem;line-height:1.2;margin-bottom:12px}
-.metric details{font-size:.82rem;overflow-wrap:anywhere}
-.metric details p{line-height:1.4}
-@media(max-width:600px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.metric{padding:12px}.metric strong{font-size:1.15rem}}
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
+  gap: 12px;
+  margin: 20px 0 28px;
+}
+.metric {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--border-color, rgba(128, 128, 128, 0.22));
+  border-radius: 12px;
+}
+.metric h3 {
+  font-size: 0.92rem;
+  margin: 0 0 10px;
+}
+.metric strong {
+  display: block;
+  font-size: 1.45rem;
+  line-height: 1.2;
+  margin-bottom: 12px;
+}
+.metric details {
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+.metric details p {
+  line-height: 1.4;
+}
+@media (max-width: 600px) {
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .metric {
+    padding: 12px;
+  }
+  .metric strong {
+    font-size: 1.15rem;
+  }
+}

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import type { PurchaseRequestProgress as Progress } from "@/server/purchase-request-progress";
 import styles from "./purchase-request-progress.module.css";
+import { Card } from "@/components/ui/foundation";
 
 export function PurchaseRequestProgress({
   base,
@@ -11,7 +12,7 @@ export function PurchaseRequestProgress({
   progress: Progress;
 }) {
   return (
-    <section className="card">
+    <Card as="section" appearance="standard" className="ui-panel">
       <p className="eyebrow">
         {progress.completed} of {progress.total} stages complete
       </p>
@@ -32,6 +33,6 @@ export function PurchaseRequestProgress({
         source records and does not copy approvals, receipts, invoices, or
         payments into the request.
       </p>
-    </section>
+    </Card>
   );
 }

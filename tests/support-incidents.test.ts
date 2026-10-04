@@ -54,6 +54,7 @@ it('protects source scope, versions, duplicate links and recipient withdrawal',a
  const another=String((await createSupportIncident(f.owner,input(),key())).id);
  await db.prepare('UPDATE assignments SET revoked_at=? WHERE id=?').bind(Date.now(),f.head.assignmentId).run();
  expect((await incidentWork(f.manager)).find(x=>x.id===another)?.blocker).toContain('coverage');
- await expect(act(another,'start')).rejects.toMatchObject({code:'CONFLICT'});
+ await expect(act(another,'start')).rejects.toMatchObject({code:'SUPPORT_INCIDENT_NOT_FOUND',status:404});
+ expect(await db.prepare('SELECT version,status FROM support_incidents WHERE id=?').bind(another).first()).toEqual({version:1,status:'open'});
  await act(another,'reassign',f.manager,{ownerId:f.manager.userId,dueDate:'2026-09-25'});expect((await incidentWork(f.manager)).find(x=>x.id===another)?.canAct).toBe(true);
 });

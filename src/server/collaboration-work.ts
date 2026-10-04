@@ -10,12 +10,8 @@ import { hasPermission } from "@/lib/permissions";
 import { hasModuleAccess } from "@/data/module-access";
 import { assertion, executeCommand, replayCommand } from "./commands";
 import { ApiError } from "./http";
-const sourceType = z.enum([
-    "commerce_order",
-    "support_ticket",
-    "field_service_order",
-    "staff_task",
-  ]),
+import {readSourceRecord,sourceRecordKind,sourceRecordGuards,type AuthorizedSourceRecord} from "./source-record-policy";
+const sourceType = sourceRecordKind,
   reason = z.string().trim().min(3).max(3000),
   version = z.number().int().positive();
 const relationSchema = z.object({
@@ -54,7 +50,7 @@ const csvCell = (value: unknown) => {
   const text = String(value ?? "");
   return `"${/^[=+@\-\t\r]/.test(text) ? "'" : ""}${text.replaceAll('"', '""')}"`;
 };
-type Source = {
+type Source = AuthorizedSourceRecord & {
   type: z.infer<typeof sourceType>;
   id: string;
   version: number;
@@ -88,60 +84,8 @@ async function source(
   type: z.infer<typeof sourceType>,
   id: string,
 ): Promise<Source> {
-  if (type === "commerce_order") {
-    const r = await (await import("./commerce")).getOrder(a, id),
-      x = r.order;
-    return {
-      type,
-      id,
-      version: Number(x.version),
-      title: String(x.number),
-      companyId: String(x.company_id),
-      branchId: String(x.branch_id),
-      departmentId: x.department_id ? String(x.department_id) : null,
-      href: `/commerce/orders/${id}`,
-    };
-  }
-  if (type === "support_ticket") {
-    const x = await (await import("./support")).getSupportTicket(a, id);
-    return {
-      type,
-      id,
-      version: Number(x.version),
-      title: String(x.title),
-      companyId: String(x.company_id),
-      branchId: String(x.branch_id),
-      departmentId: x.department_id ? String(x.department_id) : null,
-      href: `/support/${id}`,
-    };
-  }
-  if (type === "field_service_order") {
-    const x = (
-      await (await import("./field-service")).fieldServiceDetail(a, id)
-    ).order;
-    return {
-      type,
-      id,
-      version: Number(x.version),
-      title: String(x.ticket_title),
-      companyId: String(x.company_id),
-      branchId: String(x.branch_id),
-      departmentId: x.department_id ? String(x.department_id) : null,
-      href: `/field-service/${id}`,
-    };
-  }
-  const { write } = await holdingResources(a.holdingId),
-    x = await (await import("./staff-tasks")).getTask(write, a, id);
-  return {
-    type,
-    id,
-    version: Number(x.version),
-    title: String(x.title),
-    companyId: String(x.company_id),
-    branchId: x.branch_id ? String(x.branch_id) : null,
-    departmentId: x.department_id ? String(x.department_id) : null,
-    href: `/staff-tasks/${id}`,
-  };
+  const record=await readSourceRecord(a,{kind:type,id});
+  return {...record,type,title:record.title};
 }
 async function visibleSource(
   a: WorkContext,
@@ -205,12 +149,11 @@ export async function collaborationWorkspace(a: WorkContext) {
       visible.push(r);
     }
   }
+  const visibleCards:Card[]=[];
+  for(const card of cards)if(await visibleSource(a,sourceType.parse(card.source_type),String(card.source_id)))visibleCards.push(card);
   return {
     relations: visible,
-    // Action cards are independently scoped records. Their assigned owner may
-    // need to complete the action even when the linked source requires a
-    // different department permission.
-    cards,
+    cards:visibleCards,
     people,
     sourceTypes: sourceType.options,
     canWrite: hasPermission(a, "records.write"),
@@ -378,6 +321,8 @@ export async function createRecordRelation(
     1,
     { id, version: 1, status: "active" },
     [
+      ...await sourceRecordGuards(write,a,key,from,"relation-source"),
+      ...await sourceRecordGuards(write,a,key,to,"relation-target"),
       write
         .prepare(
           "INSERT INTO collaboration_record_relations(id,company_id,branch_id,department_id,source_type,source_id,source_version,target_type,target_id,target_version,relation,reason,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -420,6 +365,10 @@ export async function removeRecordRelation(
     op = "collaboration.relation.remove",
     input = { expectedVersion, reason: why },
     prior = await replayCommand(write, a, key, op, id, input);
+  const relation=await write.prepare("SELECT * FROM collaboration_record_relations WHERE id=? AND company_id=?").bind(id,a.companyId).first<Row>();
+  if(!relation)throw new ApiError(404,"RECORD_RELATION_NOT_FOUND","The relation is unavailable in this work scope.");
+  const left=await visibleSource(a,sourceType.parse(relation.source_type),String(relation.source_id)),right=await visibleSource(a,sourceType.parse(relation.target_type),String(relation.target_id));
+  if(!left||!right)throw new ApiError(404,"RECORD_RELATION_NOT_FOUND","The relation's sources are unavailable in this work scope.");
   if (prior) return prior;
   const now = Date.now();
   return executeCommand(
@@ -432,6 +381,8 @@ export async function removeRecordRelation(
     expectedVersion + 1,
     { id, version: expectedVersion + 1, status: "removed" },
     [
+      ...await sourceRecordGuards(write,a,key,left,"relation-source"),
+      ...await sourceRecordGuards(write,a,key,right,"relation-target"),
       assertion(
         write,
         key,
@@ -483,6 +434,7 @@ export async function createActionCard(
     1,
     { id, version: 1, status: "open" },
     [
+      ...await sourceRecordGuards(write,a,key,s,"action-source"),
       write
         .prepare(
           "INSERT INTO collaboration_action_cards(id,company_id,branch_id,department_id,source_type,source_id,source_version,title,owner_id,due_at,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -539,14 +491,20 @@ export async function changeActionCard(
   access(a, true);
   const input = actionSchema.parse(raw),
     { write } = await holdingResources(a.holdingId),
+    op = `collaboration.action.${input.action}`,
+    prior = await replayCommand(write,a,key,op,id,input);
+  if(prior){await collaborationActionDetail(a,id);return prior;}
+  const
     row = await write
       .prepare(
-        `SELECT c.*,CASE WHEN ${eligible} THEN 1 ELSE 0 END owner_eligible FROM collaboration_action_cards c WHERE c.id=? AND c.company_id=?`,
+        `SELECT c.*,CASE WHEN ${eligible} THEN 1 ELSE 0 END owner_eligible FROM collaboration_action_cards c WHERE c.id=? AND c.company_id=? AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?)`,
       )
-      .bind(id, a.companyId)
+      .bind(id, a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId)
       .first<Card>();
   if (!row)
     throw new ApiError(404, "ACTION_CARD_NOT_FOUND", "Action card not found.");
+  const currentSource=await visibleSource(a,sourceType.parse(row.source_type),String(row.source_id));
+  if(!currentSource)throw new ApiError(404,"ACTION_CARD_NOT_FOUND","Action card source is unavailable in this scope.");
   const manage = hasPermission(a, "records.review"),
     own = row.owner_id === a.userId && Number(row.owner_eligible) > 0;
   if (input.action === "complete" && !own)
@@ -567,9 +525,6 @@ export async function changeActionCard(
       "ACTION_CARD_STATE_CHANGED",
       "Refresh the action card.",
     );
-  const op = `collaboration.action.${input.action}`,
-    prior = await replayCommand(write, a, key, op, id, input);
-  if (prior) return prior;
   const now = Date.now(),
     status =
       input.action === "complete"
@@ -590,6 +545,7 @@ export async function changeActionCard(
     input.expectedVersion + 1,
     { id, version: input.expectedVersion + 1, status },
     [
+      ...await sourceRecordGuards(write,a,key,currentSource,"action-source"),
       assertion(
         write,
         key,

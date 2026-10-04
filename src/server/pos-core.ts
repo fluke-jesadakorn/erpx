@@ -9,6 +9,7 @@ import { hasPermission } from '@/lib/permissions';
 import type { WorkContext } from './authorization';
 import type { SqlDatabase } from './runtime/types';
 import { PostgresDatabase } from './runtime/postgres';
+import { requirePosImageSource } from './pos-image-source';
 import { requirePermission } from './iam-permissions';
 import { workContextGuards } from './commands';
 import { iamMutationGuards } from './iam-store';
@@ -17,7 +18,7 @@ import { applyPosRoomCharge, reversePosRoomCharge } from './pms';
 import { assertProductionModuleEnabled } from './hospitality-rollout';
 import { posCommerceAccountDefaults, posGeneratedAccountSpecs } from '@/lib/pos-bootstrap';
 import { prepareAttachmentBinding } from './attachments/service';
-import { snapshotMoney } from './company-money';
+import { snapshotMoney, snapshotMoneyCarry, snapshotMoneyReversal } from './company-money';
 import { capturePosReceipt,createPosCustomer,posDayCommand,assertPosDayWritable } from './pos-daily';
 export type PosRow=Record<string,string|number|boolean|null>;
 export const id=()=>randomUUID();
@@ -86,6 +87,8 @@ export async function receivePayment(db:SqlDatabase,payment:PosRow,actorId:strin
  const account=payment.method==='cash'?a.cash:payment.method==='transfer'?a.bank:payment.method==='edc'?a.edc:a.stripe;
  const financeId=id();const journal=await posting(db,str(sale,'company_id'),str(sale,'branch_id'),a,when,str(sale,'currency'),`receipt:${payment.id}`,str(sale,'id'),actorId,pair(account,sale.invoice_id?a.receivable:a.advance,num(payment,'amount_minor')));
  await run(db,"INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,bank_account,status,journal_id,created_by,approved_by,created_at,updated_at) VALUES(?,?,?,'receipt',?,?,?,?,0,?,'settled',?,?,?,?,?)",financeId,sale.company_id,sale.party_id,`POS-R-${payment.id}`,when,sale.currency,payment.amount_minor,account,journal,actorId,actorId,Date.now(),Date.now());
+ const received=await snapshotMoneyCarry(db,{companyId:str(sale,'company_id')},{sourceType:'pos_payment',sourceId:str(payment,'id'),amountKind:'received',transactionDate:when,amountUnits:String(payment.amount_minor),original:{sourceType:'pos_payment',sourceId:str(payment,'id'),amountKind:'requested'}});
+ await received.statement.run();
  await run(db,"UPDATE pos_payments SET state='succeeded',finance_payment_id=?,updated_at=?,version=version+1 WHERE id=?",financeId,Date.now(),payment.id);
  await run(db,"UPDATE pos_sales SET state='payment_pending',version=version+1,updated_at=? WHERE id=?",Date.now(),sale.id);
 }
@@ -120,10 +123,12 @@ export async function completeSale(db:SqlDatabase,sale:PosRow,actorId:string,dat
  return {id:sale.id,state:'completed',invoiceId:invoice};
 }
 async function capturePosMoney(db:SqlDatabase,sale:PosRow,sourceType:string,sourceId:string,amountKind:string,transactionDate:string,amountUnits:string){
- try {
   const evidence=await snapshotMoney(db,{companyId:str(sale,'company_id')},{sourceType,sourceId,amountKind,transactionDate,currency:str(sale,'currency'),currencyScale:2,amountUnits});
   await evidence.statement.run();
- } catch(error){if(!(error instanceof ApiError&&error.code==='MANUAL_RATE_REQUIRED'))throw error;}
+}
+async function capturePosReversal(db:SqlDatabase,sale:PosRow,sourceType:string,sourceId:string,amountKind:string,transactionDate:string,amountUnits:string,original:{sourceType:string;sourceId:string;amountKind:string}){
+ const evidence=await snapshotMoneyReversal(db,{companyId:str(sale,'company_id')},{sourceType,sourceId,amountKind,transactionDate,amountUnits,original});
+ await evidence.statement.run();
 }
 const keySchema=z.string().regex(/^[a-zA-Z0-9:_.-]{8,180}$/);
 const base=z.object({id:z.string().min(1),expectedVersion:z.number().int().positive()});
@@ -154,7 +159,7 @@ export async function posCommand(db:PostgresDatabase,actor:WorkContext,operation
   }
   const attachmentBinding=attachmentSetIds.length?await prepareAttachmentBinding(tx,actor,{attachmentSetIds,bindingContract:{targetType:attachmentDescriptor!.targetType,bindingType:attachmentDescriptor!.bindingType,contexts:[{purposeKey:attachmentDescriptor!.purposeKey,componentKind:'action',componentRef:attachmentDescriptor!.componentRef}]},targetId:attachmentData!.id,expectedTargetVersion:attachmentData!.expectedVersion,commandId:key,bindingId:`${attachmentData!.id}:${operation}:${attachmentData!.expectedVersion+1}`}):null;
   if(attachmentBinding)await tx.batch(attachmentBinding.guards);
-  const result=await perform(tx,actor,operation,input);
+  const result=await perform(tx,actor,operation,input,key);
   if(attachmentBinding)await tx.batch(attachmentBinding.steps);
   await run(tx,'INSERT INTO pos_receipts VALUES(?,?,?,?,?)',key,actor.companyId,hash,JSON.stringify(result),Date.now());
   await audit(tx,actor.companyId,actor.branchId,actor.userId,operation,String(result.id??key),{input,result,assignmentId:actor.assignmentId});
@@ -236,7 +241,7 @@ async function bootstrapRetail(db:SqlDatabase,actor:WorkContext,input:unknown){
  if(!reuseRegister)await run(db,"INSERT INTO pos_registers(id,company_id,branch_id,warehouse_id,name,mode,active) VALUES(?,?,?,?,?,?,true)",registerId,company,branchId,warehouseId,registerName,p.mode);
  return {id:company,mode:p.mode,registerId,registerName,warehouseId,bankAccountId:accounts.bank,registerReused:reuseRegister,accountsCreated:createdAccounts};
 }
-async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown):Promise<Record<string,unknown>> {
+async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown,commandKey:string):Promise<Record<string,unknown>> {
  const company=actor.companyId,user=actor.userId;
  if(op.startsWith('day.'))return posDayCommand(db,actor,op,input);
  if(op==='customer.create')return createPosCustomer(db,actor,input);
@@ -278,7 +283,7 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
   const c=await one(db,'SELECT * FROM pos_catalog WHERE product_id=? AND company_id=? FOR UPDATE',p.productId,company);
   if(!c)fail('POS_PRODUCT_INVALID','Catalog not found',404);version(c,p);
   if(actor.branchId&&!await one(db,'SELECT rc.product_id FROM pos_register_catalog rc JOIN pos_registers r ON r.id=rc.register_id WHERE rc.product_id=? AND r.branch_id=? AND r.company_id=?',p.productId,actor.branchId,company))fail('POS_PRODUCT_INVALID','Catalog is outside this Branch',404);
-  if(!await one(db,'SELECT id FROM pos_product_images WHERE id=? AND company_id=? AND product_id=?',p.imageId,company,p.productId))fail('POS_IMAGE_INVALID','Image does not belong to this product',422);
+  await requirePosImageSource(db,actor,p.imageId,p.productId,commandKey);
   await run(db,'UPDATE pos_catalog SET image_id=?,version=version+1 WHERE product_id=?',p.imageId,p.productId);return {id:p.productId,imageId:p.imageId};
  }
  if(op==='catalog.save'){
@@ -288,7 +293,7 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
   if(new Set(p.modifiers.map(m=>m.id)).size!==p.modifiers.length)fail('POS_MODIFIER_DUPLICATE','Duplicate modifier ID',422);
   for(const part of [...p.recipe,...p.modifiers.flatMap(m=>m.ingredients)])if(!await one(db,"SELECT id FROM commerce_products WHERE id=? AND company_id=? AND status='active'",part.productId,company))fail('POS_INGREDIENT_INVALID','Ingredients must be company products',422);
   const old=await one(db,'SELECT * FROM pos_catalog WHERE product_id=? FOR UPDATE',p.productId);if((old?num(old,'version'):0)!==p.expectedVersion)fail('POS_VERSION_CONFLICT','Product data changed');
-  if(p.imageId&&!await one(db,'SELECT id FROM pos_product_images WHERE id=? AND company_id=? AND product_id=?',p.imageId,company,p.productId))fail('POS_IMAGE_INVALID','Choose an image owned by this product',422);
+  if(p.imageId)await requirePosImageSource(db,actor,p.imageId,p.productId,commandKey);
   const registerIds=p.registerIds??(old?undefined:(await all(db,"SELECT id FROM pos_registers WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND (?<>'recipe' OR mode='restaurant')",company,actor.branchId,actor.branchId,p.kind)).map(r=>str(r,'id')));
   if(registerIds){for(const rid of registerIds){const register=scopeRow(actor,await one(db,'SELECT * FROM pos_registers WHERE id=?',rid));if(p.kind==='recipe'&&register.mode!=='restaurant')fail('POS_RESTAURANT_REQUIRED','Recipes require restaurant registers',422);}}
   await run(db,'INSERT INTO pos_catalog(product_id,company_id,barcode,category,kind,station,recipe_json,modifiers_json,tax_inclusive,enabled,image_id) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(product_id) DO UPDATE SET barcode=excluded.barcode,category=excluded.category,kind=excluded.kind,station=excluded.station,recipe_json=excluded.recipe_json,modifiers_json=excluded.modifiers_json,tax_inclusive=excluded.tax_inclusive,enabled=excluded.enabled,image_id=excluded.image_id,version=pos_catalog.version+1',p.productId,company,p.barcode||null,p.category,p.kind,p.station,JSON.stringify(p.recipe),JSON.stringify(p.modifiers),p.taxInclusive,p.enabled,p.imageId===undefined?old?.image_id??null:p.imageId);
@@ -379,6 +384,7 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
    }
    await posting(db,company,str(sale,'branch_id'),accounts,date,str(sale,'currency'),`room-reversal:${sale.id}`,str(sale,'id'),user,[...pair(accounts.inventory,accounts.cogs,restored),...pair(accounts.waste,accounts.cogs,wasted)]);
    await run(db,'INSERT INTO pos_room_charge_reversals(sale_id,company_id,property_id,original_entry_id,reversal_entry_id,reason,restocked_lines_json,restored_cost_minor,wasted_cost_minor,reversed_by,reversed_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',sale.id,company,q.propertyId,reversal.entryId,reversal.reversalEntryId,q.reason,JSON.stringify(q.restockLineIds),restored,wasted,user,Date.now());
+   await capturePosReversal(db,sale,'pos_room_charge_reversal',str(sale,'id'),'total',date,String(sale.total_minor),{sourceType:'pos_sale',sourceId:str(sale,'id'),amountKind:'total'});
    await run(db,'UPDATE pos_sales SET version=version+1,updated_at=? WHERE id=?',Date.now(),sale.id);
    return {id:sale.id,state:'room_charge_reversed',reversalEntryId:reversal.reversalEntryId,restoredCostMinor:restored,wastedCostMinor:wasted};
   }
@@ -414,6 +420,7 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
     description:`Restaurant bill ${str(sale,'number')}`,net:num(sale,'subtotal_minor'),
     service:0,tax:num(sale,'tax_minor'),total:num(sale,'total_minor'),
    },p.expectedPropertyVersion);
+   await capturePosMoney(db,sale,'pos_sale',str(sale,'id'),'total',str(sale,'business_date'),String(sale.total_minor));
    await run(db,"UPDATE pos_sales SET state='completed',table_id=NULL,version=version+1,updated_at=? WHERE id=?",Date.now(),sale.id);
    await capturePosReceipt(db,str(sale,'id'));
    return {id:sale.id,state:'completed',tender:'room_charge',propertyId:p.propertyId,stayId:p.stayId,folioEntryId:result.entryId};
@@ -537,6 +544,7 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
   }
   let connection:PosRow|null=null;if(p.method.startsWith('stripe_')){if(sale.currency!=='THB')fail('POS_STRIPE_CURRENCY','This Stripe POS version accepts THB only');connection=await one(db,"SELECT * FROM pos_connections WHERE company_id=? AND state='ready'",company);if(connection?.livemode&&process.env.POS_STRIPE_LIVE_ENABLED!=='true')fail('POS_LIVE_NOT_ENABLED','Complete sandbox testing before accepting live payments');if(!connection?.charges_enabled||!connection.payouts_enabled||!(p.method==='stripe_card'?connection.card_enabled:connection.promptpay_enabled))fail('POS_STRIPE_NOT_READY','The Stripe account is not ready for this payment method');}
   const pid=id();await run(db,"INSERT INTO pos_payments(id,sale_id,company_id,method,amount_minor,tendered_minor,reference,state,stripe_account,livemode,created_by,created_at,updated_at,payer_email) VALUES(?,?,?,?,?,?,?,'requested',?,?,?,?,?,?)",pid,sale.id,company,p.method,p.amountMinor,p.tenderedMinor,p.reference,connection?.account_id??null,connection?.livemode??false,user,Date.now(),Date.now(),p.payerEmail||null);
+  await capturePosMoney(db,sale,'pos_payment',pid,'requested',str(sale,'business_date'),String(p.amountMinor));
   if(connection)await enqueue(db,company,'checkout',pid);
   else if(p.method==='transfer')await run(db,"UPDATE pos_payments SET state='pending',version=version+1,updated_at=? WHERE id=?",Date.now(),pid);
   else await receivePayment(db,(await one(db,'SELECT * FROM pos_payments WHERE id=?',pid))!,user);
@@ -690,7 +698,7 @@ async function refundCommand(db:SqlDatabase,actor:WorkContext,op:string,input:un
   await run(db,'UPDATE pos_lines SET returned_milli=returned_milli+?,refunded_minor=refunded_minor+?,refunded_tax_minor=refunded_tax_minor+?,returned_cost_minor=returned_cost_minor+? WHERE id=?',part.quantityMilli,part.subtotalMinor+part.taxMinor,part.taxMinor,restoredCost,line.id);
  }
  await posting(db,str(sale,'company_id'),str(sale,'branch_id'),a,date,str(sale,'currency'),`refund:${refund.id}`,str(refund,'id'),user,[{account:refund.kind==='advance'?a.advance:a.revenue,debit:num(refund,'amount_minor')-num(refund,'tax_minor'),credit:0},{account:a.outputTax,debit:num(refund,'tax_minor'),credit:0},{account:a.refund,debit:0,credit:num(refund,'amount_minor')}]);
- await capturePosMoney(db,sale,'pos_refund',str(refund,'id'),'total',date,String(refund.amount_minor));
+ if(refund.kind==='sale')await capturePosReversal(db,sale,'pos_refund',str(refund,'id'),'total',date,String(refund.amount_minor),{sourceType:'pos_sale',sourceId:str(sale,'id'),amountKind:'total'});
  let remaining=num(refund,'amount_minor');
  for(const payment of payments){const amount=Math.min(remaining,num(payment,'amount_minor')-num(payment,'refunded_minor'));if(!amount)continue;
   const manualPromptPay=payment.method==='stripe_promptpay'&&!payment.payer_email;
@@ -717,7 +725,7 @@ export async function completeRefundPayment(db:SqlDatabase,refundPaymentId:strin
  const account=rp.manual_method==='cash'?a.cash:rp.manual_method==='transfer'?a.bank:p.method==='cash'?a.cash:p.method==='transfer'?a.bank:p.method==='edc'?a.edc:a.stripe;
  const journal=await posting(db,str(sale,'company_id'),str(sale,'branch_id'),a,date??str(refund,'accounting_date'),str(sale,'currency'),`refund-payment:${rp.id}`,str(refund,'id'),actorId,pair(a.refund,account,num(rp,'amount_minor')));
  await run(db,"INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,bank_account,status,journal_id,created_by,approved_by,created_at,updated_at) VALUES(?,?,?,'refund',?,?,?,?,0,?,'settled',?,?,?,?,?)",id(),sale.company_id,sale.party_id,`POS-REF-${rp.id}`,date??refund.accounting_date,sale.currency,rp.amount_minor,account,journal,actorId,actorId,Date.now(),Date.now());
- await capturePosMoney(db,sale,'pos_refund_payment',str(rp,'id'),'settled',date??str(refund,'accounting_date'),String(rp.amount_minor));
+ await capturePosReversal(db,sale,'pos_refund_payment',str(rp,'id'),'settled',date??str(refund,'accounting_date'),String(rp.amount_minor),{sourceType:'pos_payment',sourceId:str(p,'id'),amountKind:'received'});
  await run(db,"UPDATE pos_refund_payments SET state='succeeded' WHERE id=?",rp.id);
  await run(db,"UPDATE pos_refunds SET state=CASE WHEN EXISTS(SELECT 1 FROM pos_refund_payments WHERE refund_id=? AND state<>'succeeded') THEN 'processing' ELSE 'completed' END,version=version+1 WHERE id=?",refund.id,refund.id);
 }

@@ -1,5 +1,7 @@
 # Customer contact notes — simulation implementation
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 บันทึกการติดต่อภายในจาก Sales order/quotation ที่มีอยู่: เปิดเอกสาร → Customer contact notes → ระบุช่องทาง เวลา และสรุปการติดต่อ. ไม่มีการส่ง Email หรือเผยแพร่ Portal จากการบันทึกนี้ และไม่เปลี่ยนราคา/กำหนดส่ง/ข้อตกลงบนเอกสารธุรกิจ.
 
 ผู้มี `commerce.read` อ่านได้เฉพาะ source order ใน Company/Branch/Department ที่มีสิทธิ์; ผู้มี `commerce.sales` เพิ่มได้. ผู้บันทึกเดิมหรือ Sales manager ที่มี `commerce.approve` แก้ไข/เก็บเข้า archive พร้อมเหตุผล. ทุก version มี body และ actor ใน history ที่แก้ทับหรือลบไม่ได้. Archived note ยังอ่านประวัติได้และแก้ทับไม่ได้.

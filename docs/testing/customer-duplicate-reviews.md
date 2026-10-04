@@ -1,5 +1,7 @@
 # Customer identity — duplicate review
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 The duplicate-review queue compares two active customer masters in one Company. It orders the pair so the same records cannot be submitted twice in reverse order, and it requires a different, currently eligible Company sales manager to make the decision.
 
 - `distinct` records that both masters remain valid separate customers.

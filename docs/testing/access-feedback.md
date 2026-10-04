@@ -1,5 +1,7 @@
 # Access and error feedback — 2026-09-14
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 Workspace layout failures no longer become blanket 404s. `/access` checks the signed-in account against the requested scope and shows a reason, next step, current account and recovery actions. Existing API authorization remains unchanged.
 
 ## Cases

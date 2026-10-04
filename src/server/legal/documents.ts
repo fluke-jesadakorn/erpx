@@ -289,6 +289,8 @@ export async function documentAccess(
       "LEGAL_DOCUMENT_DISPOSED",
       410,
     );
+  if(await db.prepare("SELECT 1 FROM legal_destructions WHERE item_id=? AND state='executing'").bind(d.item_id).first())
+    fail("Document retention is in progress. Review or resume the preserved manifest before reading content.","LEGAL_RETENTION_FROZEN",409);
   return d;
 }
 export async function documentBytes(files: FileStore, d: DocumentVersion) {

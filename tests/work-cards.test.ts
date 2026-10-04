@@ -6,7 +6,7 @@ import {
   type WorkCapabilities,
 } from "../src/lib/work-cards";
 import { workCardPreferenceSchema } from "../src/server/work-card-preferences";
-import { filterWork, workTypes, type WorkItem } from "../src/lib/work-item";
+import { filterWork, workInView, workTypes, type WorkItem } from "../src/lib/work-item";
 import { workCardTone, workTypeTone } from "../src/lib/work-category-tone";
 import { betaDestinationAllowed } from "../src/server/beta-access";
 
@@ -106,9 +106,9 @@ it("counts deduplicated records and matches each card's canonical destination fi
   expect(cards.find((c) => c.id === "tasks")?.create).toBeNull();
   for (const card of cards) {
     const url = new URL(card.href, "http://localhost:3100");
-    expect(url.hash).toBe("#work-results");
+    expect(url.hash).toBe(card.id==="approvals"?"":"#work-results");
     expect(url.searchParams.has("q")).toBe(false);
-    const matched = filterWork(
+    const matched = card.id === "approvals" ? workInView([items[1],items[2],items[3]],"approvals") : filterWork(
       [items[1], items[2], items[3]],
       url.searchParams.get("queue")!,
       url.searchParams.get("type") ?? "all",

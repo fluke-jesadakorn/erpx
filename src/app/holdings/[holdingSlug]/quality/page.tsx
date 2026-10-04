@@ -1,3 +1,4 @@
+import { Table } from "@/components/ui/foundation";
 import { notFound } from "next/navigation";
 import { accessPage } from "@/server/page-error";
 import { ApiError } from "@/server/http";
@@ -9,12 +10,9 @@ import { qualityAlerts } from "@/server/quality-alerts";
 import { QualityConsole } from "@/components/modules/quality-console";
 import { RecordDocumentDrawer } from "@/components/attachments/record-document-drawer";
 import { AttachmentFeatureSurface } from "@/components/attachments/attachment-feature-context";
+import { PageContent, Card, TableFrame } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
-export default async function Page({
-  params,
-}: {
-  params: Promise<{ holdingSlug: string }>;
-}) {
+export default async function Page({ params }: { params: Promise<{ holdingSlug: string }> }) {
   const actor = await requireWorkContext((await params).holdingSlug),
     base = workspaceBase(publicScope(actor));
   let data: Awaited<ReturnType<typeof qualityWorkspace>>,
@@ -29,26 +27,23 @@ export default async function Page({
     throw error;
   }
   return (
-    <div className="content-stack">
+    <PageContent as="div" className="ui-page-content">
       <h1>Quality holds</h1>
       <p>
-        A hold can quarantine a specific lot or serial, or the entire product at
-        one warehouse. Existing reservations remain visible but cannot be
-        delivered while their stock is held. Passing stock requires independent
-        release; failed stock requires reviewed disposition.
+        A hold can quarantine a specific lot or serial, or the entire product at one warehouse.
+        Existing reservations remain visible but cannot be delivered while their stock is held.
+        Passing stock requires independent release; failed stock requires reviewed disposition.
       </p>
       <QualityConsole base={base} data={data} alerts={alerts} />
       {data.specifications.map((spec) => (
         <AttachmentFeatureSurface key={`files-${String(spec.id)}`}>
-          <section className="card">
-            <div className="section-head">
+          <Card as="section" appearance="standard" className="ui-panel">
+            <div className="ui-section-header">
               <div>
                 <h2>
                   {String(spec.product_name)} · {String(spec.name)}
                 </h2>
-                <p className="muted">
-                  Controlled specification · version {String(spec.version)}
-                </p>
+                <p className="muted">Controlled specification · version {String(spec.version)}</p>
               </div>
               <RecordDocumentDrawer
                 base={base}
@@ -70,13 +65,13 @@ export default async function Page({
                 ]}
               />
             </div>
-          </section>
+          </Card>
         </AttachmentFeatureSurface>
       ))}
-      <section className="card">
+      <Card as="section" appearance="standard" className="ui-panel">
         <h2>Review queue</h2>
         {data.holds.length ? (
-          <table className="business-table">
+          <TableFrame appearance="standard" label="Records"><Table className="business-table">
             <thead>
               <tr>
                 <th>Product / warehouse</th>
@@ -90,9 +85,7 @@ export default async function Page({
             <tbody>
               {data.holds.map((h) => {
                 const status = String(h.status),
-                  terminal = ["released", "cancelled", "disposed"].includes(
-                    status,
-                  ),
+                  terminal = ["released", "cancelled", "disposed"].includes(status),
                   next = terminal
                     ? "Completed"
                     : status === "disposition_pending"
@@ -126,11 +119,11 @@ export default async function Page({
                 );
               })}
             </tbody>
-          </table>
+          </Table></TableFrame>
         ) : (
           <p>No quality holds in your scope.</p>
         )}
-      </section>
-    </div>
+      </Card>
+    </PageContent>
   );
 }

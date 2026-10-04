@@ -1,9 +1,12 @@
+
+import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import Link from "next/link";
 import { requireWorkContext, publicScope } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { pageError } from "@/server/page-error";
 import { ecommerceDetail } from "@/server/ecommerce";
 import { EcommerceCheckoutControls } from "@/components/modules/ecommerce-checkout-controls";
+import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Page({
   params,
@@ -17,38 +20,38 @@ export default async function Page({
     pageError(error, holdingSlug),
   );
   return (
-    <div className="content-stack">
+    <PageContent as="div" className="ui-page-content">
       <Link href={`${base}/ecommerce`}>E-commerce</Link>
       <h1>{String(data.order.order.number)}</h1>
-      <section className="card">
+      <Card as="section" appearance="standard" className="ui-panel">
         <h2>Checkout</h2>
         <p>Status: {String(data.checkout.status)}</p>
         <p>Sales owner status: {String(data.order.order.state)}</p>
         <p>Checkout version: {String(data.checkout.version)}</p>
-      </section>
+      </Card>
       <EcommerceCheckoutControls base={base} data={data} />
-      <section className="card">
+      <Card as="section" appearance="standard" className="ui-panel">
         <h2>Fulfillment links</h2>
         {data.fulfillmentLinks.map((x) => (
           <p key={String(x.id)}>
             {String(x.fulfillment_id)} · {String(x.status)}
           </p>
         ))}
-      </section>
-      <section className="card">
+      </Card>
+      <Card as="section" appearance="standard" className="ui-panel">
         <h2>Return links</h2>
         {data.returnLinks.map((x) => (
           <p key={String(x.id)}>
-            {String(x.commerce_return_id)} · {String(x.status)}
+            {String(x.commerce_return_id)} · {String(x.current_return_status)}
           </p>
         ))}
-      </section>
-      <Link
-        className="button"
+      </Card>
+      <UiActionLink appearance="standard" variant="primary"
+
         href={`${base}/commerce/orders/${data.checkout.sales_order_id}`}
       >
         Open Sales order
-      </Link>
-    </div>
+      </UiActionLink>
+    </PageContent>
   );
 }

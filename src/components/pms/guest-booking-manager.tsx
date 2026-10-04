@@ -1,4 +1,6 @@
 "use client";
+import { Button, Field, TextInput } from "@/components/ui/foundation";
+
 import { useEffect, useState } from "react";
 import { money } from "@/lib/pms-model";
 import type { manageBooking } from "@/server/pms-booking";
@@ -32,8 +34,7 @@ export function GuestBookingManager({ slug }: { slug: string }) {
       })
         .then(async (r) => {
           const j = await r.json();
-          if (!r.ok)
-            throw new Error(j.error?.message ?? "Unable to load booking");
+          if (!r.ok) throw new Error(j.error?.message ?? "Unable to load booking");
           if (active) {
             setToken(value);
             setBooking(j.data);
@@ -61,12 +62,10 @@ export function GuestBookingManager({ slug }: { slug: string }) {
       )}
       {booking && (
         <section className={styles.surface}>
-          <span className={styles.eyebrow}>
-            {booking.state.replaceAll("_", " ")}
-          </span>
+          <span className={styles.eyebrow}>{booking.state.replaceAll("_", " ")}</span>
           <h2>{booking.hotel.name}</h2>
           <p>Confirmation {booking.number}</p>
-          {booking.refundState&&<p>Refund status: {booking.refundState.replaceAll('_',' ')}</p>}
+          {booking.refundState && <p>Refund status: {booking.refundState.replaceAll("_", " ")}</p>}
           <p>{booking.guest.name}</p>
           {booking.rooms.map((r, i) => (
             <div key={i} className={styles.offer}>
@@ -88,14 +87,10 @@ export function GuestBookingManager({ slug }: { slug: string }) {
               </strong>
             </div>
           ))}
-          <p>
-            {booking.policy?.text ?? "Contact the hotel for booking terms."}
-          </p>
+          <p>{booking.policy?.text ?? "Contact the hotel for booking terms."}</p>
           <p>
             {booking.hotel.address} · {booking.hotel.contactPhone} ·{" "}
-            <a href={`mailto:${booking.hotel.contactEmail}`}>
-              {booking.hotel.contactEmail}
-            </a>
+            <a href={`mailto:${booking.hotel.contactEmail}`}>{booking.hotel.contactEmail}</a>
           </p>
           <p>{booking.cancellation.reason}</p>
           {booking.cancellation.allowed &&
@@ -115,48 +110,51 @@ export function GuestBookingManager({ slug }: { slug: string }) {
                       body: "{}",
                     });
                     const j = await r.json();
-                    if (!r.ok)
-                      throw new Error(
-                        j.error?.message ?? "Cancellation failed",
-                      );
+                    if (!r.ok) throw new Error(j.error?.message ?? "Cancellation failed");
                     setBooking(j.data);
                     setNotice(
                       "All rooms have been cancelled without a fee. Finance will approve the refund, and Stripe will confirm it. A cancellation email is on its way.",
                     );
                     setConfirmCancel(false);
                   } catch (e) {
-                    setError(
-                      e instanceof Error ? e.message : "Please try again",
-                    );
+                    setError(e instanceof Error ? e.message : "Please try again");
                   } finally {
                     setBusy(false);
                   }
                 }}
               >
-                <label className={styles.check}>
-                  <input type="checkbox" required />
+                <Field orientation="inline" className={styles.check}>
+                  <TextInput type="checkbox" required />
                   Cancel every room in this reservation
-                </label>
+                </Field>
                 <div className={styles.actions}>
-                  <button className={styles.primary} disabled={busy}>
+                  <Button
+                    clientManaged type="submit"
+                    variant="primary"
+                    className={styles.primary}
+                    disabled={busy}
+                  >
                     Confirm cancellation
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="secondary"
                     className={styles.secondary}
                     type="button"
                     onClick={() => setConfirmCancel(false)}
                   >
                     Keep booking
-                  </button>
+                  </Button>
                 </div>
               </form>
             ) : (
-              <button
+              <Button
+                type="submit"
+                variant="secondary"
                 className={styles.secondary}
                 onClick={() => setConfirmCancel(true)}
               >
                 Cancel booking
-              </button>
+              </Button>
             ))}
         </section>
       )}
@@ -188,23 +186,22 @@ export function GuestBookingManager({ slug }: { slug: string }) {
       >
         <h2>Request a booking access link</h2>
         <p className={styles.small}>
-          Use the confirmation number and email from your reservation. No
-          account is needed.
+          Use the confirmation number and email from your reservation. No account is needed.
         </p>
         <div className={styles.grid}>
-          <label>
+          <Field>
             Confirmation number
-            <input name="number" required maxLength={100} />
-          </label>
-          <label>
+            <TextInput name="number" required maxLength={100} />
+          </Field>
+          <Field>
             Booking email
-            <input name="email" type="email" required />
-          </label>
+            <TextInput name="email" type="email" required />
+          </Field>
         </div>
         <div className={styles.actions}>
-          <button className={styles.primary} disabled={busy}>
+          <Button clientManaged type="submit" variant="primary" className={styles.primary} disabled={busy}>
             Email a private link
-          </button>
+          </Button>
         </div>
       </form>
     </div>

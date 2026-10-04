@@ -1,5 +1,7 @@
 # Support ticket: Sales → Support → customer confirmation review
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 ชุด D / S04,S10,S15: owner implementation สำหรับ ticket ที่ผูก quotation/sales order. เพิ่ม migration0216 (350 tables), support_agent/support_manager และสิทธิ์ support.read/create/work/manage; Sales อ่าน/เปิดเคสได้ แต่ทำงานแทนเจ้าของไม่ได้. API/UI/Work/Inbox/Calendar ใช้สถานะต้นทางเดียวกัน. ยังไม่ใช่ Support ทั้ง capability หรือ production sign-off.
 
 ## การใช้งาน

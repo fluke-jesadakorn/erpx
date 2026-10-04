@@ -11,8 +11,8 @@
   display: flex;
   flex-direction: column;
   padding: 28px 18px 18px;
-  border-right: 1px solid var(--line);
-  background: var(--card);
+  border-right: 1px solid var(--ui-line);
+  background: var(--ui-card);
   z-index: 30;
 }
 .brand {
@@ -21,14 +21,24 @@
   align-items: center;
   padding: 0 10px 30px;
 }
-.productBrand { display:flex; align-items:center; min-width:0; }
-.productBrand > svg { display:block; width:110px; height:auto; }
-.productBrandSymbol { display:none; }
+.productBrand {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.productBrand > svg {
+  display: block;
+  width: 110px;
+  height: auto;
+}
+.productBrandSymbol {
+  display: none;
+}
 .brand small {
   font-size: 9px;
   margin-left: auto;
-  color: var(--muted);
-  border: 1px solid var(--line);
+  color: var(--ui-muted);
+  border: 1px solid var(--ui-line);
   padding: 2px 5px;
   border-radius: 4px;
 }
@@ -45,7 +55,7 @@
   font-weight: 700;
   letter-spacing: 1.2px;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--ui-muted);
   padding: 12px 12px 9px;
 }
 .nav a,
@@ -58,11 +68,11 @@
   font-size: 12px;
   font-weight: 500;
   border-radius: 7px;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .nav a:hover {
-  background: var(--card-2);
-  color: var(--ink);
+  background: var(--ui-card-2);
+  color: var(--ui-ink);
 }
 .navBadge {
   display: inline-flex;
@@ -72,16 +82,16 @@
   padding: 2px 7px;
   margin-left: auto;
   border-radius: 999px;
-  background: var(--brand-soft);
-  color: var(--brand);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand);
   font-size: 11px;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
   line-height: 18px;
 }
 .nav a[aria-current="page"] {
-  background: var(--brand-soft);
-  color: var(--brand);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand);
   font-weight: 600;
 }
 .navGroup {
@@ -95,13 +105,13 @@
   border-radius: 10px;
 }
 .navGroup[data-active="true"] > .navGroupHead {
-  background: color-mix(in srgb, var(--brand) 14%, var(--card));
-  color: var(--brand);
+  background: color-mix(in srgb, var(--ui-brand) 14%, var(--ui-card));
+  color: var(--ui-brand);
 }
 .navGroup[data-active="true"] > .navGroupHead .navGroupLanding,
 .navGroup[data-active="true"] > .navGroupHead .navGroupLabel,
 .navGroup[data-active="true"] > .navGroupHead .navGroupToggle {
-  color: var(--brand);
+  color: var(--ui-brand);
   font-weight: 650;
 }
 .nav .navGroupLanding {
@@ -123,16 +133,16 @@
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: var(--muted);
+  color: var(--ui-muted);
   cursor: pointer;
 }
 .navGroupToggle:hover,
 .navGroupToggle:focus-visible {
-  background: color-mix(in srgb, var(--brand-soft) 75%, transparent);
-  color: var(--ink);
+  background: color-mix(in srgb, var(--ui-brand-soft) 75%, transparent);
+  color: var(--ui-ink);
 }
 .navGroupToggle:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--ui-brand);
   outline-offset: 2px;
 }
 .navGroupToggle[aria-expanded="false"] .navGroupChevron {
@@ -147,7 +157,7 @@
   padding: 10px 4px 10px 12px;
   border: 0;
   background: transparent;
-  color: var(--muted);
+  color: var(--ui-muted);
   font: inherit;
   font-weight: 550;
   text-align: left;
@@ -170,21 +180,21 @@
 }
 .navGroupLabel:hover {
   background: transparent;
-  color: var(--ink);
+  color: var(--ui-ink);
 }
 .navGroup[data-active="true"] > .navGroupHead svg:first-child {
-  color: var(--brand);
+  color: var(--ui-brand);
 }
 .navChildren {
   display: grid;
   gap: 2px;
   margin: 2px 0 5px 21px;
   padding-left: 12px;
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--ui-line);
 }
 .nav .navChildLink,
 .mobileTree .navChildLink {
-  min-height: var(--control-height);
+  min-height: var(--ui-control-height);
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr);
   align-items: center;
@@ -202,7 +212,7 @@
   height: 16px;
   display: grid;
   place-items: center;
-  color: color-mix(in srgb, var(--muted) 82%, transparent);
+  color: color-mix(in srgb, var(--ui-muted) 82%, transparent);
   transition: color 140ms ease;
 }
 .navChildIcon svg {
@@ -212,17 +222,17 @@
 .nav .navChildLink:focus-visible .navChildIcon,
 .mobileTree .navChildLink:hover .navChildIcon,
 .mobileTree .navChildLink:focus-visible .navChildIcon {
-  color: var(--ink);
+  color: var(--ui-ink);
 }
 .nav .navChildLink[aria-current="page"],
 .mobileTree .navChildLink[aria-current="page"] {
-  background: var(--brand-soft);
-  color: var(--brand);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand);
   font-weight: 650;
 }
 .nav .navChildLink[aria-current="page"] .navChildIcon,
 .mobileTree .navChildLink[aria-current="page"] .navChildIcon {
-  color: color-mix(in srgb, var(--brand) 78%, var(--muted));
+  color: color-mix(in srgb, var(--ui-brand) 78%, var(--ui-muted));
 }
 .sidebarBottom {
   margin-top: auto;
@@ -233,13 +243,13 @@
   gap: 9px;
   align-items: center;
   font-size: 11px;
-  color: var(--muted);
+  color: var(--ui-muted);
   padding-bottom: 18px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-line);
   margin-bottom: 18px;
 }
 .sidebarBottom strong {
-  color: var(--ink);
+  color: var(--ui-ink);
   font-size: 12px;
 }
 .sidebarBottom small {
@@ -265,12 +275,24 @@
   padding: 32px 40px 24px 0;
 }
 @media (max-width: 1199px) {
-  .workspaceBody { display: flex; flex-direction: column; }
-  .quickRail { order: 0; width: 100%; padding: 16px 40px 0; }
-  .workspacePage { order: 1; width: 100%; }
+  .workspaceBody {
+    display: flex;
+    flex-direction: column;
+  }
+  .quickRail {
+    order: 0;
+    width: 100%;
+    padding: 16px 40px 0;
+  }
+  .workspacePage {
+    order: 1;
+    width: 100%;
+  }
 }
 @media (max-width: 650px) {
-  .quickRail { padding: 12px 16px 0; }
+  .quickRail {
+    padding: 12px 16px 0;
+  }
 }
 .topbar {
   position: sticky;
@@ -284,8 +306,8 @@
   justify-content: space-between;
   gap: 28px;
   padding: 0 40px;
-  border-bottom: 1px solid var(--line);
-  background: var(--card);
+  border-bottom: 1px solid var(--ui-line);
+  background: var(--ui-card);
 }
 .workspace {
   display: flex;
@@ -300,8 +322,8 @@
   width: 29px;
   height: 29px;
   border-radius: 7px;
-  border: 1px solid var(--line);
-  background: var(--card-2);
+  border: 1px solid var(--ui-line);
+  background: var(--ui-card-2);
   font-size: 11px;
   font-weight: 600;
 }
@@ -346,21 +368,21 @@
 .breadcrumbOverflowButton {
   display: grid;
   width: 44px;
-  min-height: var(--control-height);
+  min-height: var(--ui-control-height);
   place-items: center;
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--muted);
+  color: var(--ui-muted);
   cursor: pointer;
 }
 .breadcrumbOverflowButton:hover,
 .breadcrumbOverflowButton[aria-expanded="true"] {
-  background: var(--brand-soft);
-  color: var(--brand);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand);
 }
 .breadcrumbOverflowButton:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--ui-brand);
   outline-offset: 3px;
 }
 .breadcrumbOverflowMenu {
@@ -372,10 +394,10 @@
   min-width: 180px;
   max-width: min(320px, calc(100vw - 32px));
   padding: 6px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 10px;
-  background: var(--card);
-  box-shadow: var(--shadow-md);
+  background: var(--ui-card);
+  box-shadow: var(--ui-shadow-md);
 }
 .breadcrumbOverflowMenu a,
 .breadcrumbOverflowMenu span {
@@ -383,7 +405,7 @@
   padding: 10px;
   overflow: hidden;
   border-radius: 6px;
-  color: var(--ink);
+  color: var(--ui-ink);
   font-size: 13px;
   line-height: 20px;
   text-decoration: none;
@@ -392,49 +414,49 @@
 }
 .breadcrumbOverflowMenu a:hover,
 .breadcrumbOverflowMenu a:focus-visible {
-  background: var(--brand-soft);
-  color: var(--brand);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand);
 }
 .breadcrumb a,
 .breadcrumbItem > span {
   display: inline-flex;
   align-items: center;
-  min-height: var(--control-height);
+  min-height: var(--ui-control-height);
   padding: 0 7px;
-  color: var(--muted);
+  color: var(--ui-muted);
   border-radius: 6px;
   text-decoration: none;
 }
 .breadcrumb li:first-child a {
-  color: var(--ink);
+  color: var(--ui-ink);
   font-weight: 550;
 }
 .breadcrumb a:hover {
-  color: var(--brand);
-  background: var(--brand-soft);
+  color: var(--ui-brand);
+  background: var(--ui-brand-soft);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 .breadcrumb a:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--ui-brand);
   outline-offset: 3px;
 }
 .breadcrumbItem > [aria-current="page"] {
-  color: var(--ink);
+  color: var(--ui-ink);
   font-weight: 550;
 }
 .breadcrumbFallback {
   font-size: 13px;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .breadcrumbSeparator {
   flex: 0 0 auto;
-  color: var(--muted);
+  color: var(--ui-muted);
   pointer-events: none;
 }
 .workspaceScope {
   overflow: hidden;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 9px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -448,9 +470,9 @@
 .role {
   font-size: 10px;
   padding: 4px 8px;
-  background: var(--card-2);
-  color: var(--muted);
-  border: 1px solid var(--line);
+  background: var(--ui-card-2);
+  color: var(--ui-muted);
+  border: 1px solid var(--ui-line);
   border-radius: 5px;
   text-transform: capitalize;
   white-space: nowrap;
@@ -460,17 +482,17 @@
   align-items: center;
   gap: 8px;
   font-size: 11px;
-  border: 1px solid var(--line);
-  background: var(--card);
-  color: var(--muted);
+  border: 1px solid var(--ui-line);
+  background: var(--ui-card);
+  color: var(--ui-muted);
   border-radius: 7px;
   padding: 7px 10px;
-  min-height: var(--control-height);
+  min-height: var(--ui-control-height);
 }
 .searchButton kbd {
   font-family: inherit;
   font-size: 9px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   padding: 1px 4px;
   border-radius: 3px;
   margin-left: 35px;
@@ -493,14 +515,14 @@
   padding: 7px 5px;
   background: transparent;
   font-size: 10px;
-  color: var(--muted);
+  color: var(--ui-muted);
   border-radius: 6px;
-  min-height: var(--control-height);
+  min-height: var(--ui-control-height);
 }
 .appearance button[aria-pressed="true"] {
-  background: var(--card-2);
-  color: var(--ink);
-  border-color: var(--line);
+  background: var(--ui-card-2);
+  color: var(--ui-ink);
+  border-color: var(--ui-line);
 }
 .menuLinks {
   display: grid;
@@ -515,7 +537,7 @@
   border-radius: 8px;
 }
 .menuLinks a:hover {
-  background: var(--brand-soft);
+  background: var(--ui-brand-soft);
 }
 .commandSearch {
   position: relative;
@@ -524,7 +546,7 @@
   position: absolute;
   top: 13px;
   left: 12px;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .commandSearch input {
   padding-left: 38px;
@@ -545,7 +567,7 @@
   border-radius: 8px;
 }
 .commandResults a:hover {
-  background: var(--card-2);
+  background: var(--ui-card-2);
 }
 .commandResults a > span,
 .commandResults > div > span {
@@ -557,17 +579,17 @@
   font-weight: 550;
 }
 .commandResults small {
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 10px;
 }
 .commandResults a > svg:last-child {
   margin-left: auto;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .commandResultDisabled {
   cursor: not-allowed;
-  color: color-mix(in srgb, var(--ink) 68%, var(--muted));
-  background: color-mix(in srgb, var(--card) 82%, var(--card-2));
+  color: color-mix(in srgb, var(--ui-ink) 68%, var(--ui-muted));
+  background: color-mix(in srgb, var(--ui-card) 82%, var(--ui-card-2));
 }
 .commandResultDisabled > svg:first-child {
   opacity: 0.65;
@@ -712,8 +734,8 @@
     left: 0;
     right: 0;
     padding: 7px 12px max(7px, env(safe-area-inset-bottom));
-    background: var(--card);
-    border-top: 1px solid var(--line);
+    background: var(--ui-card);
+    border-top: 1px solid var(--ui-line);
     z-index: 40;
   }
   .mobileNav a,
@@ -727,15 +749,17 @@
     flex: 1;
     min-height: 49px;
     padding: 5px;
-    color: var(--muted);
+    color: var(--ui-muted);
     font-size: 10px;
   }
   .mobileNav a[aria-current="page"] {
-    color: var(--brand);
-    background: var(--brand-soft);
+    color: var(--ui-brand);
+    background: var(--ui-brand-soft);
     border-radius: 8px;
   }
-  .mobileNav a { position: relative; }
+  .mobileNav a {
+    position: relative;
+  }
   .mobileNav .navBadge {
     position: absolute;
     top: 0;
@@ -763,11 +787,11 @@
   min-height: 44px;
 }
 .moreButton:hover {
-  background: var(--card-2);
+  background: var(--ui-card-2);
 }
 .moreButton[aria-current="page"] {
-  background: var(--brand-soft);
-  color: var(--brand);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand);
 }
 .secondaryNav {
   display: grid;
@@ -784,7 +808,7 @@
   padding-bottom: env(safe-area-inset-bottom);
 }
 .mobileTree .navGroupHead {
-  background: var(--card-2);
+  background: var(--ui-card-2);
 }
 .mobileTree .navGroupLabel {
   display: flex;
@@ -792,7 +816,7 @@
   gap: 11px;
   min-height: 48px;
   padding: 11px 8px 11px 14px;
-  color: var(--ink);
+  color: var(--ui-ink);
 }
 .mobileTree .navChildren {
   margin-left: 24px;
@@ -804,12 +828,12 @@
   min-height: 48px;
   padding: 11px 14px;
   border-radius: 10px;
-  background: var(--card-2);
-  color: var(--ink);
+  background: var(--ui-card-2);
+  color: var(--ui-ink);
 }
 .workspaceTrigger {
   display: flex;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   justify-content: center;
   align-items: center;
   gap: 7px;
@@ -818,22 +842,25 @@
   max-width: min(320px, 36vw);
   border: 1px solid transparent;
   background: transparent;
-  color: var(--ink);
+  color: var(--ui-ink);
   padding: 4px 10px;
   border-radius: 10px;
   font: inherit;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
 }
 .workspaceTrigger:hover,
 .workspaceTrigger[aria-expanded="true"] {
-  color: var(--brand);
-  background: var(--brand-soft);
-  border-color: color-mix(in srgb, var(--brand) 18%, transparent);
+  color: var(--ui-brand);
+  background: var(--ui-brand-soft);
+  border-color: color-mix(in srgb, var(--ui-brand) 18%, transparent);
 }
 .workspaceTrigger:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--ui-brand);
   outline-offset: 2px;
 }
 .workspaceTrigger:disabled {
@@ -847,8 +874,10 @@
 }
 .workspaceTriggerChevron {
   flex: 0 0 auto;
-  color: var(--muted);
-  transition: transform 140ms ease, color 140ms ease;
+  color: var(--ui-muted);
+  transition:
+    transform 140ms ease,
+    color 140ms ease;
 }
 .workspaceTrigger:hover .workspaceTriggerChevron,
 .workspaceTrigger[aria-expanded="true"] .workspaceTriggerChevron {
@@ -863,7 +892,7 @@
 .workspaceSection h3 {
   margin: 0 0 10px;
   font-size: 13px;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .workspaceTree {
   display: grid;
@@ -873,13 +902,13 @@
   display: grid;
   gap: 7px;
   padding: 12px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 12px;
-  background: color-mix(in srgb, var(--card-2) 55%, transparent);
+  background: color-mix(in srgb, var(--ui-card-2) 55%, transparent);
 }
 .workspaceHolding h4 {
   margin: 0 4px 2px;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.04em;
@@ -900,7 +929,7 @@
   border: 0;
   border-radius: 9px;
   background: transparent;
-  color: var(--ink);
+  color: var(--ui-ink);
   font: inherit;
   font-size: 13px;
   line-height: 20px;
@@ -913,16 +942,16 @@ a.workspaceChoice {
 }
 button.workspaceChoice:hover,
 a.workspaceChoice:hover {
-  background: var(--brand-soft);
-  color: var(--brand);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand);
 }
 .workspaceChoice:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--ui-brand);
   outline-offset: 2px;
 }
 .workspaceChoice[aria-current="location"] {
-  background: var(--brand-soft);
-  color: var(--brand);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand);
   font-weight: 650;
 }
 .workspaceChoice:disabled {
@@ -934,40 +963,62 @@ a.workspaceChoice:hover {
 }
 .workspaceCompanyLabel,
 .workspaceBranchLabel {
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .workspaceLocations {
   display: grid;
   gap: 2px;
   margin-left: 20px;
   padding-left: 13px;
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--ui-line);
 }
 .workspaceDepartments {
   display: grid;
   gap: 2px;
   margin-left: 20px;
   padding-left: 13px;
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--ui-line);
 }
 .workspaceDepartmentChoice {
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .workspaceCurrent {
   padding: 2px 7px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--brand) 12%, var(--card));
-  color: var(--brand);
+  background: color-mix(in srgb, var(--ui-brand) 12%, var(--ui-card));
+  color: var(--ui-brand);
   font-size: 10px;
   font-weight: 650;
   white-space: nowrap;
 }
-.workspaceHolding h4 { display:flex; align-items:center; gap:8px; }
-.choiceBrand { display:grid; place-items:center; flex:0 0 auto; width:24px; height:24px; overflow:hidden; border:1px solid var(--line); border-radius:6px; background:#fff; color:#0B1F3A; font-size:8px; font-weight:750; }
-.choiceBrand img { width:100%; height:100%; padding:2px; object-fit:contain; }
+.workspaceHolding h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.choiceBrand {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  overflow: hidden;
+  border: 1px solid var(--ui-line);
+  border-radius: 6px;
+  background: #fff;
+  color: #0b1f3a;
+  font-size: 8px;
+  font-weight: 750;
+}
+.choiceBrand img {
+  width: 100%;
+  height: 100%;
+  padding: 2px;
+  object-fit: contain;
+}
 .workspaceError {
   margin: 10px 0 0;
-  color: var(--red);
+  color: var(--ui-red);
   font-size: 12px;
 }
 .workspaceRole {
@@ -981,15 +1032,15 @@ a.workspaceChoice:hover {
   border-radius: 8px;
   padding: 10px;
   background: transparent;
-  color: var(--ink);
+  color: var(--ui-ink);
   text-transform: capitalize;
 }
 .workspaceRole small {
   display: block;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .workspaceRole[aria-pressed="true"] {
-  background: var(--brand-soft);
+  background: var(--ui-brand-soft);
 }
 .searchButton,
 .appearance button,
@@ -1042,11 +1093,11 @@ a.workspaceChoice:hover {
 .main :global(.action-menu) a {
   padding: 14px;
   border-radius: 8px;
-  background: var(--card-2);
+  background: var(--ui-card-2);
 }
 .main :global(.approval-admin-item) {
   padding: 20px 0;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--ui-line);
 }
 .main :global(.row-main) {
   min-width: 0;
@@ -1097,23 +1148,72 @@ a.workspaceChoice:hover {
 }
 
 /* A quiet frame leaves the work as the strongest surface. */
-.sidebar { background: color-mix(in srgb, var(--paper) 78%, var(--card)); border-right-color: var(--line); }
-.topbar { background: var(--card); }
-.brandMark { border-radius: 10px; }
-.nav a, .moreButton { font-size: 14px; border-radius: 10px; }
-.nav a[aria-current="page"] { background: var(--card); color: var(--ink-strong); box-shadow: var(--shadow-sm); }
-.nav a[aria-current="page"] svg { color: var(--brand); }
-.searchButton { background: var(--card-2); font-size: 13px; border-radius: var(--radius-md); }
-.sidebarBottom strong, .sidebarBottom small { font-size: 13px; }
-.main :global(.work-filters) { margin: 12px 0 16px; }
-.main :global(.work-filters) > select { flex-basis: 190px; }
-@media (max-width: 650px) {
-  .main :global(.work-filters) > select { flex-basis: 100%; }
+.sidebar {
+  background: color-mix(in srgb, var(--ui-paper) 78%, var(--ui-card));
+  border-right-color: var(--ui-line);
 }
-.appearanceCompact { flex: 0 0 auto; gap: 0; }
-.appearanceCompact button { flex: 0 0 44px; width: 44px; height: 44px; min-height: 44px; padding: 0; border: 0; background: transparent; }
-.appearanceCompact button[aria-pressed="true"] { background: transparent; color: var(--brand); box-shadow: inset 0 -2px var(--brand); border-radius: 0; }
-.appearanceCompact button svg { width: 16px; height: 16px; }
+.topbar {
+  background: var(--ui-card);
+}
+.brandMark {
+  border-radius: 10px;
+}
+.nav a,
+.moreButton {
+  font-size: 14px;
+  border-radius: 10px;
+}
+.nav a[aria-current="page"] {
+  background: var(--ui-card);
+  color: var(--ui-ink-strong);
+  box-shadow: var(--ui-shadow-sm);
+}
+.nav a[aria-current="page"] svg {
+  color: var(--ui-brand);
+}
+.searchButton {
+  background: var(--ui-card-2);
+  font-size: 13px;
+  border-radius: var(--ui-radius-md);
+}
+.sidebarBottom strong,
+.sidebarBottom small {
+  font-size: 13px;
+}
+.main :global(.work-filters) {
+  margin: 12px 0 16px;
+}
+.main :global(.work-filters) > select {
+  flex-basis: 190px;
+}
+@media (max-width: 650px) {
+  .main :global(.work-filters) > select {
+    flex-basis: 100%;
+  }
+}
+.appearanceCompact {
+  flex: 0 0 auto;
+  gap: 0;
+}
+.appearanceCompact button {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.appearanceCompact button[aria-pressed="true"] {
+  background: transparent;
+  color: var(--ui-brand);
+  box-shadow: inset 0 -2px var(--ui-brand);
+  border-radius: 0;
+}
+.appearanceCompact button svg {
+  width: 16px;
+  height: 16px;
+}
 
 /* Keep both the current work role and page path readable in narrow workspaces. */
 @media (max-width: 1000px) {
@@ -1186,111 +1286,174 @@ a.workspaceChoice:hover {
 }
 
 /* Task-oriented business navigation. Categories are presentation only. */
-.shell { grid-template-columns: 260px minmax(0, 1fr); }
-.sidebar { width:260px; }
-.navCategory { display:grid; min-width:0; }
+@container workplace-topbar (max-width: 580px) {
+  .breadcrumb,
+  .breadcrumbFallback {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: stretch;
+    justify-content: flex-end;
+  }
+}
+
+.shell {
+  grid-template-columns: 260px minmax(0, 1fr);
+}
+.sidebar {
+  width: 260px;
+}
+.navCategory {
+  display: grid;
+  min-width: 0;
+}
 .navCategoryButton {
-  display:flex;
-  width:100%;
-  min-height:44px;
-  align-items:center;
-  gap:11px;
-  padding:10px 12px;
-  border:0;
-  border-radius:10px;
-  background:transparent;
-  color:var(--muted);
-  cursor:pointer;
-  font:inherit;
-  font-size:14px;
-  font-weight:650;
-  text-align:left;
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ui-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  text-align: left;
 }
 .navCategoryButton:hover,
 .navCategory[data-active="true"] > .navCategoryButton {
-  background:var(--card);
-  color:var(--ink-strong);
-  box-shadow:var(--shadow-sm);
+  background: var(--ui-card);
+  color: var(--ui-ink-strong);
+  box-shadow: var(--ui-shadow-sm);
 }
-.navCategory[data-active="true"] > .navCategoryButton > svg:first-child { color:var(--brand); }
+.navCategory[data-active="true"] > .navCategoryButton > svg:first-child {
+  color: var(--ui-brand);
+}
 .navCategoryButton:focus-visible,
-.navAppLink:focus-visible { outline:2px solid var(--brand); outline-offset:2px; }
-.navCategoryButton[aria-expanded="false"] .navGroupChevron { transform:rotate(-90deg); }
+.navAppLink:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: 2px;
+}
+.navCategoryButton[aria-expanded="false"] .navGroupChevron {
+  transform: rotate(-90deg);
+}
 .navApps {
-  display:grid;
-  gap:2px;
-  margin:3px 0 7px 21px;
-  padding-left:12px;
-  border-left:1px solid var(--line);
+  display: grid;
+  gap: 2px;
+  margin: 3px 0 7px 21px;
+  padding-left: 12px;
+  border-left: 1px solid var(--ui-line);
 }
-.navApps[hidden] { display:none; }
+.navApps[hidden] {
+  display: none;
+}
 .nav .navAppLink {
-  min-height:44px;
-  display:grid;
-  grid-template-columns:18px minmax(0,1fr);
-  align-items:center;
-  gap:9px;
-  padding:8px 10px;
-  border-radius:9px;
-  color:var(--muted);
-  font-size:13px;
+  min-height: 44px;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  color: var(--ui-muted);
+  font-size: 13px;
 }
-.nav .navAppLink:hover { background:var(--card); color:var(--ink); }
+.nav .navAppLink:hover {
+  background: var(--ui-card);
+  color: var(--ui-ink);
+}
 .nav .navAppLink[aria-current="page"],
 .nav .navAppLink[data-active="true"] {
-  background:var(--brand-soft);
-  color:var(--brand);
-  font-weight:650;
-  box-shadow:none;
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand);
+  font-weight: 650;
+  box-shadow: none;
 }
 .nav .navAppLink[data-active="true"]:not([aria-current="page"]) {
-  background:transparent;
+  background: transparent;
 }
-@media (min-width:651px) {
-  .main :global([data-feature-tabs]) { display:none; }
+@media (min-width: 651px) {
+  .main :global([data-feature-tabs]) {
+    display: none;
+  }
 }
-.shell:has(.nav[data-rail="true"]) { grid-template-columns:72px minmax(0,1fr); }
+.shell:has(.nav[data-rail="true"]) {
+  grid-template-columns: 72px minmax(0, 1fr);
+}
 .sidebar:has(.nav[data-rail="true"]) {
-  width:72px;
-  padding:20px 12px 14px;
-  overflow:visible;
+  width: 72px;
+  padding: 20px 12px 14px;
+  overflow: visible;
 }
-.sidebar:has(.nav[data-rail="true"]) .brand { justify-content:center; padding:0 0 22px; }
+.sidebar:has(.nav[data-rail="true"]) .brand {
+  justify-content: center;
+  padding: 0 0 22px;
+}
 .sidebar:has(.nav[data-rail="true"]) .productBrandWordmark,
 .sidebar:has(.nav[data-rail="true"]) .brand small,
-.sidebar:has(.nav[data-rail="true"]) .sidebarBottom { display:none; }
-.sidebar:has(.nav[data-rail="true"]) .productBrandSymbol { display:flex; }
-.sidebar:has(.nav[data-rail="true"]) .productBrandSymbol > svg { width:36px; height:36px; }
+.sidebar:has(.nav[data-rail="true"]) .sidebarBottom {
+  display: none;
+}
+.sidebar:has(.nav[data-rail="true"]) .productBrandSymbol {
+  display: flex;
+}
+.sidebar:has(.nav[data-rail="true"]) .productBrandSymbol > svg {
+  width: 36px;
+  height: 36px;
+}
 .nav[data-rail="true"] {
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  overflow:visible;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: visible;
 }
 .nav[data-rail="true"] > a {
-  position:relative;
-  width:48px;
-  min-height:48px;
-  justify-content:center;
-  padding:10px;
+  position: relative;
+  width: 48px;
+  min-height: 48px;
+  justify-content: center;
+  padding: 10px;
 }
 .nav[data-rail="true"] > a > span:not(.navBadge),
-.nav[data-rail="true"] > .navLabel { display:none; }
+.nav[data-rail="true"] > .navLabel {
+  display: none;
+}
 .nav[data-rail="true"] .navBadge {
-  position:absolute;
-  top:1px;
-  right:0;
-  min-width:18px;
-  padding:0 5px;
-  line-height:18px;
+  position: absolute;
+  top: 1px;
+  right: 0;
+  min-width: 18px;
+  padding: 0 5px;
+  line-height: 18px;
 }
-@media (max-width:1100px) and (min-width:651px) {
-  .shell { grid-template-columns:260px minmax(0,1fr); }
-  .sidebar { width:260px; padding:24px 18px 18px; }
-  .shell:has(.nav[data-rail="true"]) { grid-template-columns:72px minmax(0,1fr); }
-  .sidebar:has(.nav[data-rail="true"]) { width:72px; padding:20px 12px 14px; }
+@media (max-width: 1100px) and (min-width: 651px) {
+  .shell {
+    grid-template-columns: 260px minmax(0, 1fr);
+  }
+  .sidebar {
+    width: 260px;
+    padding: 24px 18px 18px;
+  }
+  .shell:has(.nav[data-rail="true"]) {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+  .sidebar:has(.nav[data-rail="true"]) {
+    width: 72px;
+    padding: 20px 12px 14px;
+  }
 }
-@media (max-width:650px) {
-  .shell { display:block; }
-  .sidebar { display:none; }
+@media (max-width: 650px) {
+  .shell {
+    display: block;
+  }
+  .sidebar {
+    display: none;
+  }
 }

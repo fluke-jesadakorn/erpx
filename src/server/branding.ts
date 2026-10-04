@@ -9,6 +9,7 @@ import { ApiError } from "./http";
 import { companyAuthority } from "./staff-policy";
 import type { FileStore, SqlDatabase } from "./runtime/types";
 import { attachmentsV2Readable, attachmentsV2ReadOnly } from "./attachments/feature";
+import {publishedBrandIdentity} from "./brand-identity";
 
 export const documentBrandModes = ["holding", "branch", "both"] as const;
 export type DocumentBrandMode = (typeof documentBrandModes)[number];
@@ -44,6 +45,7 @@ export type StorefrontAppBrand = {
   shortName: string;
   accentColor: string;
   logoUrl: string | null;
+  identityRevision?: number;
 };
 
 export type DocumentBrand = {
@@ -186,14 +188,16 @@ export async function readStorefrontAppBrand(db: SqlDatabase, actor: WorkContext
      WHERE c.id=? AND c.kind='company' AND c.status='active'`,
   ).bind(actor.companyId).first<{ slug: string; display_name: string; short_name: string | null; accent_color: string | null; logo_attachment_id: string | null; logo_publication_id:string|null }>();
   if (!row) throw new ApiError(409, "COMPANY_REQUIRED", "The Company storefront is unavailable.");
+  const published=await publishedBrandIdentity(db,actor.companyId),logoId=published?.identity.visual.logoPublicationId??row.logo_publication_id;
   return {
     companyId: actor.companyId,
     holdingSlug: actor.holdingSlug,
     companySlug: row.slug,
     companyName: row.display_name,
-    shortName: row.short_name?.trim() || Array.from(row.display_name.trim()).slice(0, 40).join(""),
-    accentColor: row.accent_color ?? "#3659c9",
-    logoUrl: publicationUrl(actor,row.logo_publication_id) ?? (attachmentsV2Readable() ? null : attachmentUrl(actor,row.logo_attachment_id)),
+    shortName: published?published.identity.identity.shortName:row.short_name?.trim() || Array.from(row.display_name.trim()).slice(0, 40).join(""),
+    accentColor: published?.identity.visual.accentColor??row.accent_color ?? "#3659c9",
+    logoUrl: publicationUrl(actor,published?published.identity.visual.logoPublicationId:logoId) ?? (published||attachmentsV2Readable() ? null : attachmentUrl(actor,row.logo_attachment_id)),
+    ...(published?{identityRevision:published.revision}:{}),
   };
 }
 
@@ -311,6 +315,7 @@ export async function updateStorefrontAppBrand(db: SqlDatabase, actor: WorkConte
   commandId: string;
 }) {
   await requireBrandManagement(db, actor, "company_storefront_brand", actor.companyId);
+  if(await publishedBrandIdentity(db,actor.companyId))throw new ApiError(409,"BRAND_PUBLISHED_IDENTITY_CONTROLLED","Save and independently publish a Brand identity draft to change the current storefront identity.");
   if (input.removeLogo) requireBrandAttachmentWrite();
   const shortName = input.shortName?.trim();
   if (shortName !== undefined && (Array.from(shortName).length < 1 || Array.from(shortName).length > 40))

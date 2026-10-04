@@ -3,6 +3,7 @@ import {currentPersonPrincipals,personIdentityIds} from "./iam-person";
 import { hasWorkflowPermission } from "@/lib/permissions";
 import type { PermissionActor } from "@/lib/iam";
 import type { SqlDatabase, SqlStatement } from "./runtime/types";
+import { isTransactionalSqlDatabase } from "./runtime/types";
 import type { FlowKind, FlowPerson, FlowStep, FlowView } from "@/lib/flow";
 import { assertion, executeCommand, replayCommand } from "./commands";
 import { activeStaffSelect, companyAuthority, authorityGuard, notification, type StaffActor, type RecordScope } from "./staff-policy";
@@ -55,7 +56,12 @@ async function definitions(db: SqlDatabase, kind: FlowKind, row: Row, actor:Staf
   const excluded = new Set([owner, str(row.created_by), str(row.prepared_by)]);
   const candidateRoles = new WeakMap<string[], string[]>();
   const roles = async (names: string[], independent = false, target = scope) => {
-    const ids = [...new Set((await Promise.all(names.map(role => expenseRoleUsers(db, target, role)))).flat())].filter(id => !independent || !excluded.has(id));
+    // A transaction database holds one client; only the pooled database may
+    // expand role sources concurrently. Keep command reads ordered on that client.
+    const sources:string[][]=[];
+    if(isTransactionalSqlDatabase(db))sources.push(...await Promise.all(names.map(role=>expenseRoleUsers(db,target,role))));
+    else for(const role of names)sources.push(await expenseRoleUsers(db,target,role));
+    const ids = [...new Set(sources.flat())].filter(id => !independent || !excluded.has(id));
     candidateRoles.set(ids,names); return ids;
   };
   const steps: Definition[] = [];
@@ -262,10 +268,12 @@ type FlowHistoryRow = { kind: string; record_id: string; action: string; actor_n
 // their original per-document queries and do not reuse authorization decisions.
 function sharedFlowReferences(db: SqlDatabase, companyId: string) {
   return policyRead(db, JSON.stringify(["flow-references", companyId]), async () => {
+    let readQueue:Promise<unknown>=Promise.resolve();
+    const read=<T>(query:()=>Promise<T>):Promise<T>=>{if(isTransactionalSqlDatabase(db))return query();const result=readQueue.then(query);readQueue=result;return result;};
     const [routes, defaults, events] = await Promise.all([
-      db.prepare("SELECT * FROM flow_routes WHERE company_id=?").bind(companyId).all<Route & { kind: string; record_id: string }>(),
-      db.prepare("SELECT * FROM flow_defaults WHERE company_id=? ORDER BY CASE WHEN department_id IS NOT NULL THEN 3 WHEN branch_id IS NOT NULL THEN 2 ELSE 1 END DESC,revision DESC").bind(companyId).all<DefaultRow & { kind: string; branch_id: string | null; department_id: string | null }>(),
-      db.prepare("SELECT kind,record_id,action,actor_name,created_at,reason,step_key FROM flow_events WHERE company_id=? ORDER BY created_at,id").bind(companyId).all<FlowHistoryRow>(),
+      read(()=>db.prepare("SELECT * FROM flow_routes WHERE company_id=?").bind(companyId).all<Route & { kind: string; record_id: string }>()),
+      read(()=>db.prepare("SELECT * FROM flow_defaults WHERE company_id=? ORDER BY CASE WHEN department_id IS NOT NULL THEN 3 WHEN branch_id IS NOT NULL THEN 2 ELSE 1 END DESC,revision DESC").bind(companyId).all<DefaultRow & { kind: string; branch_id: string | null; department_id: string | null }>()),
+      read(()=>db.prepare("SELECT kind,record_id,action,actor_name,created_at,reason,step_key FROM flow_events WHERE company_id=? ORDER BY created_at,id").bind(companyId).all<FlowHistoryRow>()),
     ]);
     const histories = new Map<string, FlowHistoryRow[]>();
     for (const event of events.results) {
@@ -311,7 +319,7 @@ async function readFlow(db: SqlDatabase, actor: StaffActor, kind: FlowKind, id: 
   const current = steps.find(s => s.status === "current") ?? null;
   const next = kind === "request" && current?.key === "in_progress" ? steps.find(s => s.key === "confirm") ?? null : kind === "request" && current?.key === "waiting_requester" ? steps.find(s => s.key === "in_progress") ?? null : current ? steps[steps.indexOf(current)+1] ?? null : null;
   const blocker = d.terminal ? null : str(row.blocked_reason) || current?.blocker || (!current ? "This document requires routing repair before proceeding." : null);
-  return {kind,recordId:id,recordVersion:Number(row.version),version:route?.version ?? 0,defaultsRevision,state:str(row.workflow_stage || row.state || row.status),steps,current,next,canAct:!blocker && current?.primary?.userId === actor.userId && flowRoleAllowed(actor,current),canManage:await companyAuthority(db,actor),blocker,history};
+  return {kind,recordId:id,recordVersion:Number(row.version),version:route?.version ?? 0,defaultsRevision,state:str(kind === "expense" ? row.status : row.state || row.status),steps,current,next,canAct:!blocker && current?.primary?.userId === actor.userId && flowRoleAllowed(actor,current),canManage:await companyAuthority(db,actor),blocker,history};
 }
 
 async function routeStatements(db: SqlDatabase, actor: StaffActor, key: string, view: FlowView) {
@@ -364,14 +372,16 @@ export async function prepareFlowCommand(db: SqlDatabase, actor: StaffActor, key
 }
 
 export async function assignFlowPrimary(db: SqlDatabase, actor: StaffActor, kind: FlowKind, id: string, input: {stepKey:string;userId:string;expectedVersion:number;recordVersion:number;reason:string;saveDefault:boolean}, key:string) {
+  let featureGuards:SqlStatement[]=[];
   if (process.env.NODE_ENV === 'production') {
-    const { assertProductionModuleEnabled } = await import("./hospitality-rollout");
-    if (kind === 'payroll' || kind === 'record')
+    const { assertProductionModuleEnabled,productionFeatureGuard } = await import("./hospitality-rollout");
+    if (kind === 'record')
       throw new ApiError(403,'FEATURE_COMING_SOON','This workflow needs a separate pilot release');
     const owner = kind === 'order'
       ? (await flowRecord(db,actor.companyId,kind,id)).kind === 'purchase' ? 'procurement' : 'sales'
-      : ({expense:'people_payroll',leave:'people_payroll',staff_task:'operations',request:'operations',stock_count:'inventory',transfer:'inventory',invoice:'finance',journal:'finance'} as Record<string,string>)[kind];
+      : ({expense:'people_payroll',leave:'people_payroll',payroll:'people_payroll',staff_task:'operations',request:'operations',stock_count:'inventory',transfer:'inventory',invoice:'finance',journal:'finance'} as Record<string,string>)[kind];
     await assertProductionModuleEnabled(db,actor.companyId,owner);
+    featureGuards=productionFeatureGuard(db,key,actor.companyId,owner);
   }
   const prior = await replayCommand(db,actor,key,"flow.assign",id,{kind,...input}); if (prior) return prior;
   if (!await companyAuthority(db,actor)) throw new ApiError(403,"FLOW_ADMIN_REQUIRED","A company administrator must assign workflow responsibilities.");
@@ -396,7 +406,7 @@ export async function assignFlowPrimary(db: SqlDatabase, actor: StaffActor, kind
   const administrator=await db.prepare("SELECT legal_name FROM hr_people WHERE company_id=? AND user_id=? AND merged_into_id IS NULL").bind(actor.companyId,actor.userId).first<{legal_name:string}>();
   saved[step.key] = {...saved[step.key],primaryUserId:person.userId,teamName:step.teamName};
   return executeCommand(db,actor,key,"flow.assign",{kind,...input},id,view.recordVersion,{id,version:(view.version || 1)+1},[
-    authorityGuard(db,key,actor),snap.guard(key,"flow-authority"),...await routeStatements(db,actor,key,view),...linked,
+    ...featureGuards,authorityGuard(db,key,actor),snap.guard(key,"flow-authority"),...await routeStatements(db,actor,key,view),...linked,
     assertion(db,key,"flow-document-version",`EXISTS(SELECT 1 FROM ${tables[kind]} WHERE company_id=? AND id=? AND version=?)`,[actor.companyId,id,view.recordVersion]),
     db.prepare("UPDATE flow_routes SET steps_json=?,version=version+1 WHERE company_id=? AND kind=? AND record_id=?").bind(JSON.stringify(saved),actor.companyId,kind,id),
     ...(input.saveDefault ? [db.prepare("INSERT INTO flow_defaults(company_id,kind,step_key,branch_id,department_id,primary_user_id,created_by,reason,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(actor.companyId,kind,step.key,scope.branch_id,scope.department_id,person.userId,actor.userId,input.reason,Date.now())] : []),
@@ -413,6 +423,6 @@ export function flowCommandTarget(operation: string, id: string, input: unknown)
   if (!rule) return null;
   let action = operation.slice(rule[0].endsWith(".") ? rule[0].length : operation.lastIndexOf(".")+1);
   if (action === "transition" && input && typeof input === "object") action = String((input as Record<string,unknown>).action ?? "");
-  if (["create","update","revise","attachment.remove","ai","post.reverse","recalculate","review-export","schedule","delegate","delegate-revoke"].includes(action) || action.startsWith("ai.") || action.startsWith("payment.") || action.startsWith("mapping.") || action.startsWith("correction.") || action.startsWith("final-pay.") || action.startsWith("advance.") || action.startsWith("accrual.") || action === "reverse") return null;
+  if (["create","update","revise","attachment.remove","ai","post.reverse","recalculate","review-export","schedule","delegate","delegate-revoke"].includes(action) || action.startsWith("ai.") || action.startsWith("payment.") || action.startsWith("mapping.") || action.startsWith("correction.") || action.startsWith("adjustment.") || action.startsWith("final-pay.") || action.startsWith("advance.") || action.startsWith("accrual.") || action === "reverse") return null;
   return {kind:rule[1],id,action};
 }

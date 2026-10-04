@@ -23,6 +23,7 @@ import { projectPmsSocialEvent } from "../src/server/pms/social-events";
 import type { EventMessage } from "../src/server/job-projector";
 import { createJournal,postJournal,previewOpeningTrialBalance,importOpeningTrialBalance,openingTrialBalanceSchema } from "../src/server/finance";
 import { assignFlowPrimary,resolveFlow } from "../src/server/flow-routing";
+import { confirmManualRate } from "../src/server/company-money";
 import type { WorkContext } from "../src/server/authorization";
 import {
   attachmentBindingState,
@@ -77,8 +78,8 @@ async function projectCommittedEvent(eventType:string) {
   await projectPmsSocialEvent(db,message);
   return message;
 }
-beforeEach(async () => {
-  f = await seedExpenseCompany(db, env.H001_FILES);
+beforeEach(async context => {
+  f = await seedExpenseCompany(db, env.H001_FILES, !context.task.name.startsWith("blocks a new booking"));
   owner = f.owner;
   reviewer = await f.member("hotel-reviewer", "finance_approver");
   propertyId = (
@@ -131,7 +132,13 @@ beforeEach(async () => {
     })
   ).id;
   roomId = (await cmd("room.save", { number: "101", typeId, active: true })).id;
-  rateId = (
+  if (context.task.name.startsWith("blocks a new booking")) {
+    // An explicitly declared pre-ADR price fixture lets the new booking guard
+    // prove that legacy prices cannot invent an absent historical FX quote.
+    rateId = `legacy-pms-rate-${key()}`;
+    await db.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,'rate',?,1,1)")
+      .bind(rateId, propertyId, JSON.stringify({name:"Legacy Flexible",typeId,from:"2026-09-01",to:"2026-12-31",price:10000,extraAdult:0,includedGuests:2,minNights:1,maxNights:365,stopSell:false,closedArrival:false,closedDeparture:false,market:"public",partyId:"",package:"",active:true})).run();
+  } else rateId = (
     await cmd("rate.save", {
       name: "Flexible",
       typeId,
@@ -159,6 +166,8 @@ async function book(
   return { reservationId: r.id, stayId: stay.id, folioId: stay.data.folioId };
 }
 it("blocks a new booking when the selected currency lacks the hotel's account setup or manual rate", async () => {
+  await expect(cmd("rate.save", { name: "Unquoted price", typeId, from: "2026-09-01", to: "2026-12-31", price: 10000 })).rejects.toMatchObject({ code: "MANUAL_RATE_REQUIRED" });
+  expect(await db.prepare("SELECT COUNT(*)::int n FROM pms_records WHERE property_id=? AND kind='rate'").bind(propertyId).first("n")).toBe(1);
   await expect(book("2026-09-01", "2026-09-02", { currency: "USD" })).rejects.toMatchObject({ code: "PMS_CURRENCY_SETUP_REQUIRED" });
   await expect(book("2026-09-01", "2026-09-02", { currency: "THB" })).rejects.toMatchObject({ code: "MANUAL_RATE_REQUIRED" });
   const rateId=`pms-rate-${key()}`;
@@ -167,6 +176,43 @@ it("blocks a new booking when the selected currency lacks the hotel's account se
   const booked=await book("2026-09-01", "2026-09-02", { currency: "THB" });
   expect(await db.prepare("SELECT currency,amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE company_id=? AND source_type='pms_reservation' AND source_id=?")
     .bind(f.company,booked.reservationId).first()).toMatchObject({currency:"THB",amount_units:"10700",usd_units:"297",fx_rate_id:rateId});
+});
+it("preserves reviewed night prices and original deposit FX through concurrent partial refunds and reload", async () => {
+  const booked = await book();
+  await checkIn(booked.stayId);
+  const shift = (await cmd("shift.open", { name: "Original-rate cash desk", opening: 0 })).id;
+  const receipt = await cmd("payment.deposit", { folioId: booked.folioId, amount: 32100, method: "cash", shiftId: shift });
+  const original = await db.prepare("SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE company_id=? AND source_type='pms_entry' AND source_id=? AND amount_kind='total'").bind(f.company, receipt.id).first<{ amount_units:string;usd_units:string;fx_rate_id:string }>();
+  expect(original).toMatchObject({ amount_units: "32100", usd_units: "892" });
+  await confirmManualRate(reviewer, { currency: "THB", effectiveDate: "2026-09-01", currencyPerUsd: "40", note: "Later rate must not replace settled deposit or booked room evidence" }, key());
+  for (let i = 0; i < 3; i++) {
+    const refund = await cmd("refund.request", { folioId: booked.folioId, pocket: "deposit", amount: 10700, reason: `Reviewed original payment return ${i + 1}` });
+    await expect(cmd("refund.approve", { id: refund.id })).rejects.toMatchObject({ code: "PMS_INDEPENDENT_APPROVER" });
+    await cmd("refund.approve", { id: refund.id }, reviewer);
+    const current = await snapshot(), input = { propertyId, expectedVersion: current.property.version, operation: "refund.pay", input: { id: refund.id, method: "cash", shiftId: shift } };
+    const commandIds = [key(), key()];
+    const attempts = await Promise.allSettled(commandIds.map(commandId => pmsCommand(db, owner, input, commandId)));
+    const committed = attempts.findIndex(result => result.status === "fulfilled");
+    expect(attempts.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    expect(attempts.filter(result => result.status === "rejected")).toHaveLength(1);
+    expect(await pmsCommand(db, owner, input, commandIds[committed])).toEqual((attempts[committed] as PromiseFulfilledResult<unknown>).value);
+  }
+  const reversals = (await db.prepare("SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE company_id=? AND original_source_type='pms_entry' AND original_source_id=? ORDER BY captured_at,source_id").bind(f.company, receipt.id).all<{amount_units:string;usd_units:string;fx_rate_id:string}>()).results;
+  expect(reversals.map(value => value.amount_units)).toEqual(["-10700", "-10700", "-10700"]);
+  expect(reversals.map(value => value.usd_units)).toEqual(["-297", "-298", "-297"]);
+  expect(reversals.every(value => value.fx_rate_id === original!.fx_rate_id)).toBe(true);
+  expect(record(await snapshot(), "folio", booked.folioId).data.deposit).toBe(0);
+  expect(record(await snapshot(), "shift", shift).data.cash).toBe(0);
+  expect(await db.prepare("SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE company_id=? AND source_type='pms_entry' AND source_id=? AND amount_kind='total'").bind(f.company, receipt.id).first()).toEqual(original);
+  const paid = await cmd("payment.receive", { folioId: booked.folioId, amount: 10700, method: "cash", shiftId: shift });
+  expect(await db.prepare("SELECT usd_units::text FROM money_transaction_snapshots WHERE company_id=? AND source_type='pms_entry' AND source_id=? AND amount_kind='total'").bind(f.company, paid.id).first("usd_units")).toBe("268");
+  await cmd("stay.check_out", { id: booked.stayId });
+  const charged = records(await snapshot(), "entry").find(row => row.data.sourceKey === `night:${booked.stayId}:2026-09-01`)!;
+  expect(await db.prepare("SELECT amount_units::text,usd_units::text,fx_rate_id,carried_source_type FROM money_transaction_snapshots WHERE company_id=? AND source_type='pms_entry' AND source_id=? AND amount_kind='total'").bind(f.company, charged.id).first())
+    .toEqual({amount_units:"10700",usd_units:"297",fx_rate_id:original!.fx_rate_id,carried_source_type:"pms_stay_price"});
+  expect(record(await snapshot(), "stay", booked.stayId).data.state).toBe("checked_out");
+  expect(record(await snapshot(), "folio", booked.folioId).data).toMatchObject({due:0,advance:0,deposit:0});
+  expect(await db.prepare("SELECT COALESCE(SUM(l.debit_minor-l.credit_minor),0)::text difference FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id=? AND j.status='posted'").bind(f.company).first("difference")).toBe("0");
 });
 async function clean() {
   const t = (

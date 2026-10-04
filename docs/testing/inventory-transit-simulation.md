@@ -1,5 +1,7 @@
 # Dispatch / in-transit / partial receiving — ชุด C
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 ## ขอบเขตที่เพิ่ม
 
 เอกสารโอนเดิมเป็น `delivery_mode=direct` และทำงานเดิมทุกประการ ข้อมูลเก่าไม่ถูกแปลงเป็นประวัติขนส่ง ยอดและ GL เดิมไม่ถูก repost

@@ -1,6 +1,6 @@
 # ADR-011: Customer-hosted data plane and outbound agent
 
-> **Next.js era: Reconfirmed (2026-09-02) — still authoritative**
+> **Architectural target, not current runtime acceptance.** The current deployment is managed local Node/PostgreSQL per [ADR-024](ADR-024-local-postgresql-runtime.md) and [ADR-032](ADR-032-shared-local-postgresql-cluster.md). This branch has no accepted customer-hosted outbound mTLS agent runtime. The original single-directory restriction below is amended by [ADR-025](ADR-025-multiple-identity-providers-and-scoped-replacement.md). Retain the rationale for a separately reviewed future activation.
 > See `CUTOVER.md` (2026-09-02) and `ADR-020-nextjs-stack.md`.
 
 

@@ -8,6 +8,7 @@ import type { WorkContext } from "./authorization";
 import type { RecordScope, ApprovalRoute } from "./staff-policy";
 import { activeStaff, notification } from "./staff-policy";
 import { assertion, executeCommand, replayCommand } from "./commands";
+import {prepareAttachmentBinding} from "./attachments/service";
 import { ApiError } from "./http";
 import { resourceRequestRoute, expenseRoute, spendingStepCandidates, expenseAuthoritySnapshot } from "./expense-routing";
 import { departmentRoute, departmentStepEligible } from "./department-authority";
@@ -89,6 +90,7 @@ export const requestActionSchema = z.object({
   approverUserId: z.string().max(160).nullable().default(null),
   purchaseOrderId: z.string().max(180).nullable().default(null),
   assetReference: z.string().trim().max(180).default(""),
+  attachmentSetIds:z.array(z.string().min(1)).max(20).optional(),
 });
 export type EmployeeRequest = RecordScope & {
   engagement_id?:string|null;
@@ -695,6 +697,14 @@ export async function actOnEmployeeRequest(
     requestVersionGuard(db, key, current),
     spendingSnapshot.guard(key,"purchase-approval-authority"),
   ];
+  const attachmentSetIds=input.attachmentSetIds??[];
+  if(attachmentSetIds.length){
+    if(!["submit","resolve"].includes(input.action))throw new ApiError(422,"REQUEST_ATTACHMENT_ACTION","Bind request evidence when submitting or recording fulfillment.");
+    const purposes=input.action==="submit"?["request_evidence","it_request_evidence"]:["fulfillment"];
+    const binding=await prepareAttachmentBinding(db,actor,{attachmentSetIds,bindingContract:{targetType:"employee_request",bindingType:input.action==="submit"?"request_submission":"request_fulfillment",contexts:purposes.map(purposeKey=>({purposeKey,componentKind:"action" as const,componentRef:`request:${input.action}`}))},targetId:id,expectedTargetVersion:current.version,commandId:key,bindingId:`${id}:${input.action}:${row.version}`});
+    statements.push(...binding.guards,...binding.steps);
+    evidence.attachmentSetIds=attachmentSetIds;
+  }
   if(input.override){
     const saved=JSON.parse(current.approval_json) as SavedApproval,step=saved.route?.steps[saved.currentStep??0];
     if(!step || step.stage!=="department_approval")throw new ApiError(409,"OVERRIDE_STEP_CHANGED","The department step changed. Reload before deciding.");
@@ -1104,6 +1114,8 @@ export async function employeeRequestWork(
       href: `/requests/${row.id}`,
       status: row.state,
       updatedAt: row.updated_at,
+      canAct: actionable,
+      actionKind: detail.actions.includes("approve") && detail.responsibleQueue !== "Accounting preparation" ? "approval" : "work",
       queue: terminal.includes(row.state)
         ? "completed"
         : actionable
@@ -1145,7 +1157,8 @@ export async function employeeRequestUpload(
       "Files can be added while preparing the request or carrying out the assigned work.",
     );
   const allowedPurpose = canEdit ? "request_evidence" : "fulfillment";
-  if (purpose && purpose !== allowedPurpose)
+  const allowedPurposes=canEdit&&row.category==="it"?["request_evidence","it_request_evidence"]:[allowedPurpose];
+  if (purpose && !allowedPurposes.includes(purpose))
     throw new ApiError(
       422,
       "EVIDENCE_PURPOSE_INVALID",
@@ -1250,4 +1263,25 @@ export async function requestQuotationSource(db:SqlDatabase,actor:WorkContext,id
   const byOrdinal=new Map(allocated.map(x=>[Number(x.ordinal),Number(x.allocated_milli)]));
   const items=detail.items.map((item,index)=>{const requestedMilli=quantityMilli(item.quantity),allocatedMilli=byOrdinal.get(index)??0;return {...item,unit:item.unit||"each",requestedMilli,allocatedMilli,remainingMilli:Math.max(0,requestedMilli-allocatedMilli)};});
   return {request:row,items,fullyAllocated:items.every(item=>item.remainingMilli===0)};
+}
+
+/** Read-only preflight; submission still resolves and snapshots its own route. */
+export async function previewEmployeeRequest(db:SqlDatabase,actor:WorkContext,input:z.infer<typeof employeeRequestSchema>,id?:string){
+  const { namedRoute }=await import("./request-preview");
+  if(!(await companyMember(db,actor.companyId,actor.userId)))throw new ApiError(403,"MEMBERSHIP_REQUIRED","Current company membership is required.");
+  const current=id?await getEmployeeRequest(db,actor,id):null;
+  if(current&&(!requestOwn(actor,current)||!editable.includes(current.state)))throw new ApiError(403,"REQUEST_LOCKED","Only an unsubmitted request can be previewed.");
+  if(current&&(current.kind!==input.kind||(current.parent_request_id??null)!==(input.parentRequestId??null)))throw new ApiError(422,"REQUEST_IDENTITY","Request kind and original service job cannot change.");
+  let requester=current?.requester_user_id??actor.userId;
+  if(input.parentRequestId){const parent=await getEmployeeRequest(db,actor,input.parentRequestId),access=await requestAccess(db,actor,parent);if(parent.kind!=="service"||input.kind==="service"||(!access.member&&!access.own)||terminal.includes(parent.state))throw new ApiError(403,"RESOURCE_LINK_FORBIDDEN","Open an active service job you handle or requested.");requester=parent.requester_user_id;}
+  const scope={company_id:actor.companyId,branch_id:input.branchId??actor.branchId,department_id:input.departmentId??actor.departmentId};
+  await validateServiceScope(db,actor,scope);
+  if(!(await serviceMember(db,scope,requester)))throw new ApiError(403,"REQUEST_SCOPE_FORBIDDEN","Requester is outside this workspace.");
+  const row={...scope,kind:input.kind,title:input.title,description:input.description,location:input.location,needed_date:input.neededDate||null,items_json:JSON.stringify(input.items),currency:input.currency,requester_user_id:requester,created_by:current?.created_by??actor.userId} as EmployeeRequest;
+  try{
+    const route=input.kind==="service"?null:await submittedRoute(db,row);
+    if(route)return namedRoute(db,actor,route);
+    const resolved=await resolveServiceTeam(db,scope,input.category);
+    return resolved?{team:resolved.team.name,steps:[{label:"Receive and assign",person:resolved.team.name},{label:"Resolve and request confirmation",person:resolved.team.name},{label:"Confirm outcome",person:"Requester"}],blockers:[]}:{steps:[],setupPath:"/settings?section=approvals&tab=templates#service-teams",blockers:[`Configure ${categoryLabel(input.category)} coverage for this location in Administration. Contact the Company service administrator.`]};
+  }catch(error){if(error instanceof ApiError&&[409,422].includes(error.status))return {steps:[],blockers:[error.message]};throw error;}
 }

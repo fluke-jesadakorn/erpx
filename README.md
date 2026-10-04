@@ -1,8 +1,8 @@
 # ERPX — Next.js (rebuilt 2026-09-02)
 
-Start with the [current production plan](docs/production-plan.md): one Thai hotel and restaurant, purchasing, HR, Thai payroll and AI. The ten-working-day checkpoint is a readiness review, not a launch date. [Documentation index](docs/TOC.md).
+Start with the [current production plan](docs/production-plan.md): engineering completion of the current 33 modules and 187 capabilities, with a fixed 12-task closure checklist. The completed engineering run dated 2026-10-03 verified all 187 capabilities on its recorded source/candidate; later revisions are not automatically reverified. [Documentation index](docs/TOC.md).
 
-Active deployment: [Node.js/PostgreSQL on this Mac through Cloudflare Tunnel](ops/macos/README.md), per [ADR-024](docs/adr/ADR-024-local-postgresql-runtime.md). Cloudflare Workers configuration is historical. Use `bun run deploy:build` for production.
+Active deployment: [Node.js/PostgreSQL on this Mac through Cloudflare Tunnel](ops/macos/README.md), per [ADR-024](docs/adr/ADR-024-local-postgresql-runtime.md). Cloudflare Workers configuration is historical. Use `bun run deploy:build` for an isolated release build; building does not authorize deployment.
 
 Rust/Dioxus/Tonic/SQLx 137 crates (`:3004/:50051`) hard-cut to **Next.js 16** on `development` (`d15909bb`). Docs preserved, code not migrated. Recovery:
 
@@ -19,6 +19,9 @@ Next.js 16 App Router + React 19 + TypeScript + Tailwind 4, built as a standalon
 
 ```bash
 bun install --frozen-lockfile
+# On a fresh checkout/source archive, generate Next's ignored type declarations.
+# Use the pinned Node 24.20.0 executable on PATH.
+node node_modules/next/dist/bin/next typegen
 # Configure absolute data/manifest paths and a separate development PostgreSQL URL first.
 bun run seed:local           # development data only; never production
 bun run seed:verify:local   # read-only seed checks
@@ -35,7 +38,7 @@ The rich local dataset and demo personas are documented in [docs/local-seed.md](
 
 ## Business context
 
-[Production plan](docs/production-plan.md) → [current contracts](docs/contracts/next/README.md), [glossary](CONTEXT.md), and [architecture decisions](docs/adr/README.md). The capability inventory and historical domain maps are references, not additional launch scope.
+[Production plan](docs/production-plan.md) → [current contracts](docs/contracts/next/README.md), [glossary](CONTEXT.md), and [architecture decisions](docs/adr/README.md). The generated catalogue defines workflow ownership; the verification inventory separates dated engineering evidence, provider scope and Company release acceptance.
 
 ## Verification
 

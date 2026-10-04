@@ -5,6 +5,7 @@ import { workspaceBase } from "@/lib/workspace";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import { benefitDetail } from "@/server/benefits";
 import { pageError } from "@/server/page-error";
+import { PageContent, Card } from "@/components/ui/foundation";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,7 @@ export default async function Page({
     (data.isOwner && ["acknowledged", "released"].includes(String(election.status)));
 
   return (
-    <div className="content-stack">
+    <PageContent as="div" className="ui-page-content">
       <Link href={`${base}/benefits`}>Benefits</Link>
       <h1>{String(election.plan_name)}</h1>
       <p>
@@ -35,7 +36,7 @@ export default async function Page({
         {String(election.version)}
       </p>
       <BenefitsConsole base={base} detail={data} />
-      <RecordDocumentPanel
+      <RecordDocumentPanel appearance="standard"
         base={base}
         targetType="benefit_plan"
         targetId={String(election.plan_id)}
@@ -53,7 +54,7 @@ export default async function Page({
           },
         ]}
       />
-      <RecordDocumentPanel
+      <RecordDocumentPanel appearance="standard"
         base={base}
         targetType="benefit_election"
         targetId={String(election.id)}
@@ -72,7 +73,7 @@ export default async function Page({
         ]}
       />
       {providerVisible && (
-        <RecordDocumentPanel
+        <RecordDocumentPanel appearance="standard"
           base={base}
           targetType="benefit_election"
           targetId={String(election.id)}
@@ -91,7 +92,7 @@ export default async function Page({
           ]}
         />
       )}
-      <section className="card">
+      <Card as="section" appearance="standard" className="ui-panel">
         <h2>History</h2>
         {data.history.map((event) => (
           <p key={String(event.id)}>
@@ -99,9 +100,9 @@ export default async function Page({
             {String(event.reason)}
           </p>
         ))}
-      </section>
+      </Card>
       {data.payroll && (
-        <section className="card">
+        <Card as="section" appearance="standard" className="ui-panel">
           <h2>Payroll input</h2>
           <p>
             Released from election version{" "}
@@ -110,8 +111,8 @@ export default async function Page({
             {String(data.payroll.employee_deduction_minor)} minor units employee
             deduction
           </p>
-        </section>
+        </Card>
       )}
-    </div>
+    </PageContent>
   );
 }

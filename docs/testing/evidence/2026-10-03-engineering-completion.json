@@ -1,0 +1,1201 @@
+{
+  "version": 1,
+  "scope": "catalogue-engineering-completion-v1",
+  "assessedAt": "2026-10-03T11:38:02.850Z",
+  "environment": "isolated local PostgreSQL; provider sandboxes/fixtures; engineering only",
+  "sourceFingerprint": "275ba4a6ae6f13a2fd72690969b7e307133afa1cfeebcd769f10b2aac474c097",
+  "verificationFingerprint": "fbd63eb72f0ac4206f18ff42b2b4f8a7508d20156d19f4d2afaa4e78e354d20e",
+  "complete": true,
+  "moduleCount": 33,
+  "capabilityCount": 187,
+  "passedModules": 33,
+  "passedCapabilities": 187,
+  "issues": [],
+  "capabilities": [
+    {
+      "id": "brand/feature-draft-workspace",
+      "moduleId": "brand",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "brand/feature-category-locks",
+      "moduleId": "brand",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "brand/feature-published-identity",
+      "moduleId": "brand",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "commercial/invoices",
+      "moduleId": "commercial",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "commercial/entitlements",
+      "moduleId": "commercial",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "commercial/feature-catalog-plans",
+      "moduleId": "commercial",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "commercial/feature-subscriptions",
+      "moduleId": "commercial",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "commercial/feature-grace-recovery",
+      "moduleId": "commercial",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "identity_access/assignments",
+      "moduleId": "identity_access",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "identity_access/access-reviews",
+      "moduleId": "identity_access",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "identity_access/feature-people-principals",
+      "moduleId": "identity_access",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "identity_access/feature-roles-permissions",
+      "moduleId": "identity_access",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "identity_access/feature-directory-connectors",
+      "moduleId": "identity_access",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "identity_access/feature-identity-conflicts",
+      "moduleId": "identity_access",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "organization/organization-tree",
+      "moduleId": "organization",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "organization/sharing",
+      "moduleId": "organization",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "organization/feature-node-lifecycle",
+      "moduleId": "organization",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "organization/feature-business-units",
+      "moduleId": "organization",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "platform_administration/provisioning",
+      "moduleId": "platform_administration",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "platform_administration/feature-holdings",
+      "moduleId": "platform_administration",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "platform_administration/feature-connectors",
+      "moduleId": "platform_administration",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "platform_administration/feature-infrastructure",
+      "moduleId": "platform_administration",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "platform_administration/feature-backup-recovery",
+      "moduleId": "platform_administration",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "platform_administration/feature-projections-events",
+      "moduleId": "platform_administration",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "platform_administration/feature-migration-runs",
+      "moduleId": "platform_administration",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "platform_administration/feature-temporary-access",
+      "moduleId": "platform_administration",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "platform_administration/feature-platform-audit",
+      "moduleId": "platform_administration",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "customer_360/sales-summary",
+      "moduleId": "customer_360",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "customer_360/service-timeline",
+      "moduleId": "customer_360",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "customer_360/feature-customer-profile",
+      "moduleId": "customer_360",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "customer_360/feature-customer-notes",
+      "moduleId": "customer_360",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "customer_authority/duplicate-review",
+      "moduleId": "customer_authority",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "customer_authority/access-history",
+      "moduleId": "customer_authority",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "customer_authority/feature-authority-bindings",
+      "moduleId": "customer_authority",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "customer_authority/feature-identity-changes",
+      "moduleId": "customer_authority",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "support/tickets",
+      "moduleId": "support",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "support/sla-watch",
+      "moduleId": "support",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "support/incidents",
+      "moduleId": "support",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "support/feature-support-sessions",
+      "moduleId": "support",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "support/feature-capabilities",
+      "moduleId": "support",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "support/feature-attachments",
+      "moduleId": "support",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "finance/journals",
+      "moduleId": "finance",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "finance/payables",
+      "moduleId": "finance",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "finance/feature-chart-of-accounts",
+      "moduleId": "finance",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "finance/feature-payments",
+      "moduleId": "finance",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "finance/feature-receivables-aging",
+      "moduleId": "finance",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "finance/feature-bank-reconciliation",
+      "moduleId": "finance",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "finance/feature-reports",
+      "moduleId": "finance",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "finance/feature-period-close",
+      "moduleId": "finance",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "finance/feature-opening-balances",
+      "moduleId": "finance",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "pos/refunds",
+      "moduleId": "pos",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "pos/feature-register-session",
+      "moduleId": "pos",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "pos/feature-sales-baskets",
+      "moduleId": "pos",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "pos/feature-payments-receipts",
+      "moduleId": "pos",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "pos/feature-voids",
+      "moduleId": "pos",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "sales/quotes",
+      "moduleId": "sales",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "sales/orders",
+      "moduleId": "sales",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "sales/fulfillment",
+      "moduleId": "sales",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "sales/feature-cancellations",
+      "moduleId": "sales",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "sales/feature-revenue-handoff",
+      "moduleId": "sales",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "assets/asset-register",
+      "moduleId": "assets",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "assets/condition",
+      "moduleId": "assets",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "assets/feature-placement",
+      "moduleId": "assets",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "assets/feature-maintenance-lifecycle",
+      "moduleId": "assets",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "assets/feature-retirement",
+      "moduleId": "assets",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "inventory/availability",
+      "moduleId": "inventory",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "inventory/reservations",
+      "moduleId": "inventory",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "inventory/feature-stock-register",
+      "moduleId": "inventory",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "inventory/feature-receipts",
+      "moduleId": "inventory",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "inventory/feature-issues-movements",
+      "moduleId": "inventory",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "maintenance/work-orders",
+      "moduleId": "maintenance",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "maintenance/downtime",
+      "moduleId": "maintenance",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "maintenance/feature-blocked-work",
+      "moduleId": "maintenance",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "maintenance/feature-completion",
+      "moduleId": "maintenance",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "maintenance/feature-maintenance-history",
+      "moduleId": "maintenance",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "operations/feature-exception-queue",
+      "moduleId": "operations",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "operations/feature-escalations",
+      "moduleId": "operations",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "operations/feature-approval-decisions",
+      "moduleId": "operations",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "operations/feature-resolution",
+      "moduleId": "operations",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "operations/feature-queue-policies",
+      "moduleId": "operations",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "operations/feature-operations-summary",
+      "moduleId": "operations",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "procurement/requisitions",
+      "moduleId": "procurement",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "procurement/purchase-orders",
+      "moduleId": "procurement",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "procurement/goods-receipts",
+      "moduleId": "procurement",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "procurement/feature-invoice-match",
+      "moduleId": "procurement",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "procurement/feature-supplier-history",
+      "moduleId": "procurement",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "quality/inspections",
+      "moduleId": "quality",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "quality/results",
+      "moduleId": "quality",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "quality/release-gates",
+      "moduleId": "quality",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "quality/feature-cancellation",
+      "moduleId": "quality",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "legal/contracts",
+      "moduleId": "legal",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "legal/feature-documents",
+      "moduleId": "legal",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "legal/feature-legal-holds",
+      "moduleId": "legal",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "legal/feature-document-access",
+      "moduleId": "legal",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "legal/feature-archive",
+      "moduleId": "legal",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "people_payroll/employees",
+      "moduleId": "people_payroll",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "people_payroll/payroll-summaries",
+      "moduleId": "people_payroll",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "people_payroll/feature-leave-requests",
+      "moduleId": "people_payroll",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "people_payroll/feature-expenses",
+      "moduleId": "people_payroll",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "people_payroll/feature-payroll-runs",
+      "moduleId": "people_payroll",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "crm/accounts",
+      "moduleId": "crm",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "crm/activities",
+      "moduleId": "crm",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "crm/feature-leads",
+      "moduleId": "crm",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "crm/feature-opportunities",
+      "moduleId": "crm",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "crm/feature-sales-handoff",
+      "moduleId": "crm",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "marketing/feature-forms-profiles",
+      "moduleId": "marketing",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "marketing/feature-content-previews",
+      "moduleId": "marketing",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "marketing/feature-domains",
+      "moduleId": "marketing",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "marketing/feature-provider-readiness",
+      "moduleId": "marketing",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "marketing/feature-lead-candidates",
+      "moduleId": "marketing",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "marketing/feature-engagement",
+      "moduleId": "marketing",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "manufacturing/orders",
+      "moduleId": "manufacturing",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "manufacturing/material-readiness",
+      "moduleId": "manufacturing",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "manufacturing/quality-disposition",
+      "moduleId": "manufacturing",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "manufacturing/feature-specifications",
+      "moduleId": "manufacturing",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "manufacturing/feature-labor-output",
+      "moduleId": "manufacturing",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "manufacturing/feature-costs-genealogy",
+      "moduleId": "manufacturing",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "planning/scenarios",
+      "moduleId": "planning",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "planning/shortages",
+      "moduleId": "planning",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "planning/recommendations",
+      "moduleId": "planning",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "planning/feature-capacity",
+      "moduleId": "planning",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "planning/feature-plan-comparison",
+      "moduleId": "planning",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "projects/dependencies",
+      "moduleId": "projects",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "projects/feature-projects-wbs",
+      "moduleId": "projects",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "projects/feature-handoffs",
+      "moduleId": "projects",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "projects/feature-time-costs",
+      "moduleId": "projects",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "projects/feature-attachments",
+      "moduleId": "projects",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "projects/feature-project-graph",
+      "moduleId": "projects",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "ecommerce/channels",
+      "moduleId": "ecommerce",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "ecommerce/listings",
+      "moduleId": "ecommerce",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "ecommerce/returns",
+      "moduleId": "ecommerce",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "ecommerce/feature-carts",
+      "moduleId": "ecommerce",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "ecommerce/feature-checkout",
+      "moduleId": "ecommerce",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "ecommerce/feature-fulfillment",
+      "moduleId": "ecommerce",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "benefits/dependents",
+      "moduleId": "benefits",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "benefits/coverage",
+      "moduleId": "benefits",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "benefits/feature-plans",
+      "moduleId": "benefits",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "benefits/feature-enrollment-windows",
+      "moduleId": "benefits",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "benefits/feature-provider-payroll",
+      "moduleId": "benefits",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "learning/course-catalog",
+      "moduleId": "learning",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "learning/feature-assignments",
+      "moduleId": "learning",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "learning/feature-attendance-results",
+      "moduleId": "learning",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "learning/feature-completion",
+      "moduleId": "learning",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "learning/feature-eligibility-handoff",
+      "moduleId": "learning",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "talent/requisitions",
+      "moduleId": "talent",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "talent/applications",
+      "moduleId": "talent",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "talent/offers",
+      "moduleId": "talent",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "talent/feature-candidates-privacy",
+      "moduleId": "talent",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "talent/feature-hire-handoffs",
+      "moduleId": "talent",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "talent/feature-proposals",
+      "moduleId": "talent",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "field_service/service-orders",
+      "moduleId": "field_service",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "field_service/feature-agreements",
+      "moduleId": "field_service",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "field_service/feature-dispatch",
+      "moduleId": "field_service",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "field_service/feature-visits",
+      "moduleId": "field_service",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "field_service/feature-exceptions",
+      "moduleId": "field_service",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "field_service/feature-billing-release",
+      "moduleId": "field_service",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "agent/agent-catalog",
+      "moduleId": "agent",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "agent/versions",
+      "moduleId": "agent",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "agent/assignments",
+      "moduleId": "agent",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "agent/feature-pools-routing",
+      "moduleId": "agent",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "agent/feature-private-sessions",
+      "moduleId": "agent",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "agent/feature-field-suggestions",
+      "moduleId": "agent",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "agent/feature-invocation-evidence",
+      "moduleId": "agent",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "collaboration/threads",
+      "moduleId": "collaboration",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "collaboration/mentions",
+      "moduleId": "collaboration",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "collaboration/feature-comments-moderation",
+      "moduleId": "collaboration",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "collaboration/feature-following-reactions",
+      "moduleId": "collaboration",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "collaboration/feature-topics-feed",
+      "moduleId": "collaboration",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "collaboration/feature-attachments",
+      "moduleId": "collaboration",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "collaboration/feature-action-cards",
+      "moduleId": "collaboration",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "collaboration/feature-record-relations",
+      "moduleId": "collaboration",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "pms/dashboard",
+      "moduleId": "pms",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "pms/reservations",
+      "moduleId": "pms",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "pms/front-desk",
+      "moduleId": "pms",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "pms/rooms",
+      "moduleId": "pms",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "pms/housekeeping",
+      "moduleId": "pms",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "pms/folios",
+      "moduleId": "pms",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "pms/cashier",
+      "moduleId": "pms",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "pms/inventory",
+      "moduleId": "pms",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "pms/guests",
+      "moduleId": "pms",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "pms/reports",
+      "moduleId": "pms",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "pms/night-audit",
+      "moduleId": "pms",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "pms/settings",
+      "moduleId": "pms",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "manage_erpx/overview",
+      "moduleId": "manage_erpx",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "manage_erpx/billing",
+      "moduleId": "manage_erpx",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "manage_erpx/iam",
+      "moduleId": "manage_erpx",
+      "state": "passed",
+      "errors": []
+    },
+    {
+      "id": "manage_erpx/executive",
+      "moduleId": "manage_erpx",
+      "state": "passed",
+      "errors": []
+    }
+  ],
+  "gates": [
+    {
+      "id": "typecheck",
+      "state": "passed"
+    },
+    {
+      "id": "lint",
+      "state": "passed"
+    },
+    {
+      "id": "integration",
+      "state": "passed"
+    },
+    {
+      "id": "browser",
+      "state": "passed"
+    },
+    {
+      "id": "release-build",
+      "state": "passed"
+    },
+    {
+      "id": "migration-upgrade",
+      "state": "passed"
+    },
+    {
+      "id": "recovery",
+      "state": "passed"
+    },
+    {
+      "id": "attachments",
+      "state": "passed"
+    },
+    {
+      "id": "legal-uat",
+      "state": "passed"
+    },
+    {
+      "id": "financial-continuity",
+      "state": "passed"
+    },
+    {
+      "id": "calendar-delivery",
+      "state": "passed"
+    },
+    {
+      "id": "performance",
+      "state": "passed"
+    }
+  ],
+  "provenance": {
+    "runId": "2026-10-03T10-45-58-035Z",
+    "completionSha256": "d5d4336cc405681e2a64ee779a55ecd9f791c26c47b808701537d3656b02f779",
+    "compiledCandidateSha256": "d72a565597fb016c8d0b6f7e4c3a8a380d25da961164f699aff05c5205942f4a",
+    "registrySha256": "c70bbc3fed09c5f959a570880783ab5e7830a82fa67a0ee2c157139e219e4831",
+    "scenarioRegisterSha256": "3fd76f738fd9fb5124fbd091d195baf4ddc1974eedc7de0cd913c4e6f4da708d",
+    "integrationResultsSha256": "4e125f2c760179493bdc5501a5da313c0bed55dde8804365b587204600eac411",
+    "desktopResultsSha256": "8fadda9fa83819878b98f953844f5f6a6ca83c58715f9e626d3a7330875be4ed",
+    "mobileResultsSha256": "46e6915c46ba2e06e58af58d61c0482a8caeb089e2a14bc6eef765ff31d6012a",
+    "candidateId": "2026-10-03T10-46-43-224Z",
+    "candidateSoftwareVersion": "release-275ba4a6ae6f13a2fd72690969b7e307133afa1cfeebcd769f10b2aac474c097",
+    "candidateFileManifestSha256": "48b9912ffc2b34a0ee4c82ba48033ffaf46c738562206885fce84586cb96b74c"
+  }
+}

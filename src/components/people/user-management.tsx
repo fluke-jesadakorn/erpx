@@ -1,4 +1,8 @@
 "use client";
+import { ActionLink as UiActionLink } from "@/components/ui/foundation";
+
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
+
 import { TimeText } from "@/components/time/time-preference-context";
 import {
   useRef,
@@ -61,13 +65,8 @@ type Editor =
       targetId?: string;
     }
   | { kind: "membership"; groupId?: string; personIds: string[] };
-type Drag =
-  { kind: "people"; ids: string[] } | { kind: "group" | "policy"; id: string };
-async function request<T>(
-  url: string,
-  body?: unknown,
-  key?: string,
-): Promise<T> {
+type Drag = { kind: "people"; ids: string[] } | { kind: "group" | "policy"; id: string };
+async function request<T>(url: string, body?: unknown, key?: string): Promise<T> {
   const r = await workFetch(
       url,
       body
@@ -88,16 +87,16 @@ async function request<T>(
 const str = (f: FormData, k: string) => String(f.get(k) ?? "");
 function Reason() {
   return (
-    <label>
+    <Field>
       Reason
-      <input
+      <TextInput
         name="reason"
         required
         minLength={3}
         maxLength={1000}
         placeholder="Why are you making this change?"
       />
-    </label>
+    </Field>
   );
 }
 
@@ -120,12 +119,9 @@ export function UserManagement({
   roles: RoleRevision[];
   base: string;
   api: string;
-  accounts: Pick<
-    ComponentProps<typeof PeopleAccessExplorer>,
-    "meta" | "initialEntries"
-  >;
+  accounts: Pick<ComponentProps<typeof PeopleAccessExplorer>, "meta" | "initialEntries">;
 }) {
-  const [movePerson,setMovePerson] = useState<string|null>(null);
+  const [movePerson, setMovePerson] = useState<string | null>(null);
   const [data, setData] = useState(initial),
     [view, setView] = useState<View>(initialView),
     [selection, setSelection] = useState<Selection | null>(null),
@@ -149,7 +145,7 @@ export function UserManagement({
     [reviewIds, setReviewIds] = useState<string[]>([]);
   const drag = useRef<Drag | null>(null),
     heading = useRef<HTMLHeadingElement>(null);
-  const canManageGroups=!!data.canManageGroups || data.canManage;
+  const canManageGroups = !!data.canManageGroups || data.canManage;
   const iamApi = api.replace(/\/people\/access$/, "/iam");
   const select = (s: Selection) => {
     setSelection(s);
@@ -195,9 +191,7 @@ export function UserManagement({
       await refresh();
       setPreview(null);
       setEditor(null);
-      setMessage(
-        "Saved. New access remains pending until independently reviewed.",
-      );
+      setMessage("Saved. New access remains pending until independently reviewed.");
     } catch (e) {
       setMessage((e as Error).message);
     } finally {
@@ -207,19 +201,21 @@ export function UserManagement({
   function startDrag(e: DragEvent, value: Drag) {
     drag.current = value;
     e.dataTransfer.effectAllowed = "copyMove";
-    if(value.kind === "people" && value.ids.length===1)e.dataTransfer.setData("application/erpx-person",value.ids[0]);
-    e.dataTransfer.setData(
-      "application/x-erpx-management",
-      JSON.stringify(value),
-    );
+    if (value.kind === "people" && value.ids.length === 1)
+      e.dataTransfer.setData("application/erpx-person", value.ids[0]);
+    e.dataTransfer.setData("application/x-erpx-management", JSON.stringify(value));
   }
   function drop(e: DragEvent, target: "group" | "unit", id: string) {
     e.preventDefault();
     const value = drag.current;
     drag.current = null;
-    if(value?.kind === "people" && target === "unit" && lifecycle?.canManage) {
-      if(value.ids.length!==1){setMessage("Move one person at a time so their access can be reviewed.");return;}
-      setMovePerson(value.ids[0]);return;
+    if (value?.kind === "people" && target === "unit" && lifecycle?.canManage) {
+      if (value.ids.length !== 1) {
+        setMessage("Move one person at a time so their access can be reviewed.");
+        return;
+      }
+      setMovePerson(value.ids[0]);
+      return;
     }
     if (!value || !(value.kind === "policy" ? data.canManage : canManageGroups)) return;
     if (
@@ -246,8 +242,7 @@ export function UserManagement({
     else if (value.kind === "group" && target === "group") {
       const g = data.groups.find((g) => g.id === value.id);
       if (g) setEditor({ kind: "group", item: { ...g, parentId: id } });
-    } else
-      setMessage("Use the HR profile form to change department placement.");
+    } else setMessage("Use the HR profile form to change department placement.");
   }
   async function review(decision: "approve" | "reject") {
     setBusy(true);
@@ -275,10 +270,7 @@ export function UserManagement({
       setBusy(false);
     }
   }
-  const treeUnits = (
-    parent: string | null,
-    visited: string[] = [],
-  ): ReactNode =>
+  const treeUnits = (parent: string | null, visited: string[] = []): ReactNode =>
     data.nodes
       .filter(
         (n) =>
@@ -290,7 +282,8 @@ export function UserManagement({
         <details key={n.id} open className={styles.branch}>
           <summary>
             <Building2 size={15} />
-            <button
+            <Button
+              variant="plain"
               type="button"
               onClick={() => {
                 setUnit(n.id);
@@ -301,15 +294,12 @@ export function UserManagement({
               onDrop={(e) => drop(e, "unit", n.id)}
             >
               {n.label}
-            </button>
+            </Button>
           </summary>
           {treeUnits(n.id, [...visited, n.id])}
         </details>
       ));
-  const treeGroups = (
-    parent: string | null,
-    visited: string[] = [],
-  ): ReactNode =>
+  const treeGroups = (parent: string | null, visited: string[] = []): ReactNode =>
     data.groups
       .filter(
         (g) =>
@@ -322,7 +312,8 @@ export function UserManagement({
         <details key={g.id} open className={styles.branch}>
           <summary>
             <Users size={15} />
-            <button
+            <Button
+              variant="plain"
               type="button"
               draggable={canManageGroups}
               onDragStart={(e) => startDrag(e, { kind: "group", id: g.id })}
@@ -338,7 +329,7 @@ export function UserManagement({
             >
               {g.name}
               <small>{g.members.length}</small>
-            </button>
+            </Button>
           </summary>
           {treeGroups(g.id, [...visited, g.id])}
         </details>
@@ -359,31 +350,25 @@ export function UserManagement({
         p.nodes.some((n) => nodeIds.has(n))) &&
       p.name.toLowerCase().includes(filter.toLowerCase()),
   );
-  const group =
-      selection?.kind === "group"
-        ? data.groups.find((g) => g.id === selection.id)
-        : null,
-    person =
-      selection?.kind === "person"
-        ? data.people.find((p) => p.id === selection.id)
-        : null,
-    policy =
-      selection?.kind === "policy"
-        ? data.policies.find((p) => p.id === selection.id)
-        : null,
+  const group = selection?.kind === "group" ? data.groups.find((g) => g.id === selection.id) : null,
+    person = selection?.kind === "person" ? data.people.find((p) => p.id === selection.id) : null,
+    policy = selection?.kind === "policy" ? data.policies.find((p) => p.id === selection.id) : null,
     attribute =
-      selection?.kind === "attribute"
-        ? data.attributes.find((a) => a.id === selection.id)
-        : null;
+      selection?.kind === "attribute" ? data.attributes.find((a) => a.id === selection.id) : null;
   const title =
     person?.name ??
     group?.name ??
     policy?.name ??
     attribute?.label ??
-    data.nodes.find((n) => selection?.kind === "unit" && n.id === selection.id)
-      ?.label ??
+    data.nodes.find((n) => selection?.kind === "unit" && n.id === selection.id)?.label ??
     (compactConsole
-      ? view === "attributes" ? "Select a field" : view === "policies" ? "Select a policy" : view === "groups" ? "Select a group" : "Select a person"
+      ? view === "attributes"
+        ? "Select a field"
+        : view === "policies"
+          ? "Select a policy"
+          : view === "groups"
+            ? "Select a group"
+            : "Select a person"
       : "Select an item");
   const ancestors = new Set<string>();
   if (selection && ["group", "unit"].includes(selection.kind)) {
@@ -399,9 +384,7 @@ export function UserManagement({
       !a.archived &&
       (policy
         ? a.policyId === policy.id
-        : selection &&
-          a.target === selection.kind &&
-          ancestors.has(a.targetId)),
+        : selection && a.target === selection.kind && ancestors.has(a.targetId)),
   );
   const fieldTarget =
     selection && ["person", "group", "unit"].includes(selection.kind)
@@ -415,47 +398,88 @@ export function UserManagement({
     .filter((policy) => policy.name.toLowerCase().includes(filter.toLowerCase()));
   const visibleAttributes = data.attributes
     .filter((attribute) => showArchived || !attribute.archived)
-    .filter((attribute) => !compactConsole || targetFilter === "all" || attribute.target === targetFilter)
+    .filter(
+      (attribute) => !compactConsole || targetFilter === "all" || attribute.target === targetFilter,
+    )
     .filter((attribute) => attribute.label.toLowerCase().includes(filter.toLowerCase()));
-  const visibleItems = view === "groups" ? visibleGroups : view === "policies" ? visiblePolicies : visibleAttributes;
-  const canCreateInView = view === "groups" ? canManageGroups : view === "policies" ? data.canManage : data.canDefine;
-  const emptyName = view === "groups" ? "groups" : view === "policies" ? "policies" : "custom attributes";
-  const explorerMenu = <details className={styles.advanced}>
-    <summary><Settings2 size={15} /> Directory explorer</summary>
-    <button onClick={() => { setAdvanced(true); setScreen("tree"); }}>Accounts & connected directories</button>
-    <Link href={base + "/people/settings"}>People settings</Link>
-    <Link href="/security">Verify MFA</Link>
-  </details>;
+  const visibleItems =
+    view === "groups" ? visibleGroups : view === "policies" ? visiblePolicies : visibleAttributes;
+  const canCreateInView =
+    view === "groups" ? canManageGroups : view === "policies" ? data.canManage : data.canDefine;
+  const emptyName =
+    view === "groups" ? "groups" : view === "policies" ? "policies" : "custom attributes";
+  const explorerMenu = (
+    <details className={styles.advanced}>
+      <summary>
+        <Settings2 size={15} /> Directory explorer
+      </summary>
+      <Button
+        type="submit"
+        variant="plain"
+        onClick={() => {
+          setAdvanced(true);
+          setScreen("tree");
+        }}
+      >
+        Accounts & connected directories
+      </Button>
+      <Link href={base + "/people/settings"}>People settings</Link>
+      <Link href="/security">Verify MFA</Link>
+    </details>
+  );
   return (
     <div className={styles.workspace} data-compact-console={compactConsole || undefined}>
-      {lifecycle&&movePerson&&<Dialog open onClose={()=>setMovePerson(null)} title="Assign or transfer person" presentation="responsive-panel">{(()=>{const person=lifecycle.roster.find(p=>p.id===movePerson);return person?<LifecyclePanel base={base} data={lifecycle} person={person} initialKind="transfer"/>:<p>Complete an engagement in this workspace before moving this person.</p>;})()}</Dialog>}
-      {(!compactConsole || !views || views.length > 1) && <div className={styles.topbar}>
-        {(!views || views.length > 1) && <nav aria-label="User management views">
-          {(
-            [
-              { id: "people", label: "People", Icon: UserRound },
-              { id: "groups", label: "Groups", Icon: Users },
-              { id: "policies", label: "Access policies", Icon: ShieldCheck },
-              {
-                id: "attributes",
-                label: "Custom attributes",
-                Icon: SlidersHorizontal,
-              },
-            ] as const
-          ).filter(({id}) => !views || views.includes(id)).map(({ id, label, Icon }) => (
-            <button
-              key={id}
-              type="button"
-              aria-current={!advanced && view === id ? "page" : undefined}
-              onClick={() => changeView(id)}
-            >
-              <Icon size={16} aria-hidden="true" />
-              {label}
-            </button>
-          ))}
-        </nav>}
-        {!compactConsole && explorerMenu}
-      </div>}
+      {lifecycle && movePerson && (
+        <Dialog
+          open
+          onClose={() => setMovePerson(null)}
+          title="Assign or transfer person"
+          presentation="responsive-panel"
+        >
+          {(() => {
+            const person = lifecycle.roster.find((p) => p.id === movePerson);
+            return person ? (
+              <LifecyclePanel base={base} data={lifecycle} person={person} initialKind="transfer" />
+            ) : (
+              <p>Complete an engagement in this workspace before moving this person.</p>
+            );
+          })()}
+        </Dialog>
+      )}
+      {(!compactConsole || !views || views.length > 1) && (
+        <div className={styles.topbar}>
+          {(!views || views.length > 1) && (
+            <nav aria-label="User management views">
+              {(
+                [
+                  { id: "people", label: "People", Icon: UserRound },
+                  { id: "groups", label: "Groups", Icon: Users },
+                  { id: "policies", label: "Access policies", Icon: ShieldCheck },
+                  {
+                    id: "attributes",
+                    label: "Custom attributes",
+                    Icon: SlidersHorizontal,
+                  },
+                ] as const
+              )
+                .filter(({ id }) => !views || views.includes(id))
+                .map(({ id, label, Icon }) => (
+                  <Button
+                    variant="plain"
+                    key={id}
+                    type="button"
+                    aria-current={!advanced && view === id ? "page" : undefined}
+                    onClick={() => changeView(id)}
+                  >
+                    <Icon size={16} aria-hidden="true" />
+                    {label}
+                  </Button>
+                ))}
+            </nav>
+          )}
+          {!compactConsole && explorerMenu}
+        </div>
+      )}
       {message && (
         <p role="status" className={styles.notice}>
           {message}
@@ -463,13 +487,15 @@ export function UserManagement({
       )}
       {advanced ? (
         <>
-          <button
-            className="button secondary"
+          <Button
+            type="submit"
+            variant="secondary"
+
             onClick={() => setAdvanced(false)}
           >
             <ArrowLeft size={16} />
             Back to user management
-          </button>
+          </Button>
           <PeopleAccessExplorer
             {...accounts}
             base={base}
@@ -501,153 +527,172 @@ export function UserManagement({
               </p>
             </div>
             {view === "people" ? (
-              <Link className="button secondary" href={base + "/people"}>
+              <UiActionLink variant="secondary" href={base + "/people"}>
                 Add or edit a person
-              </Link>
+              </UiActionLink>
             ) : (
-              (view === "attributes" ? data.canDefine : view === "groups" ? canManageGroups : data.canManage) && (
-                <button
-                  className="button"
+              (view === "attributes"
+                ? data.canDefine
+                : view === "groups"
+                  ? canManageGroups
+                  : data.canManage) && (
+                <Button
+                  type="submit"
+                  variant="primary"
+
                   onClick={() =>
                     setEditor({
                       kind:
-                        view === "groups"
-                          ? "group"
-                          : view === "policies"
-                            ? "policy"
-                            : "attribute",
+                        view === "groups" ? "group" : view === "policies" ? "policy" : "attribute",
                     })
                   }
                 >
                   <Plus size={16} />
-                  New{" "}
-                  {view === "groups"
-                    ? "group"
-                    : view === "policies"
-                      ? "policy"
-                      : "attribute"}
-                </button>
+                  New {view === "groups" ? "group" : view === "policies" ? "policy" : "attribute"}
+                </Button>
               )
             )}
             {compactConsole && explorerMenu}
           </div>
-          {compactConsole ? <nav aria-label="Management navigation" className={styles.mobileSteps}>
-            {screen === "detail" && <button type="button" onClick={() => setScreen("results")}><ArrowLeft size={14} aria-hidden="true" /> Back to list</button>}
-          </nav> : <nav aria-label="Directory steps" className={styles.mobileSteps}>
-            {screen !== "tree" && (
-              <button
-                onClick={() =>
-                  setScreen(screen === "detail" ? "results" : "tree")
-                }
-              >
-                <ArrowLeft size={14} aria-hidden="true" /> Back to{" "}
-                {screen === "detail" ? "results" : "hierarchy"}
-              </button>
-            )}
-            <button onClick={() => setScreen("tree")}>Hierarchy</button>
-            <ChevronRight size={14} />
-            <button onClick={() => setScreen("results")}>Results</button>
-            {selection && (
-              <>
-                <ChevronRight size={14} />
-                <button onClick={() => setScreen("detail")}>Details</button>
-              </>
-            )}
-          </nav>}
-          <div className={styles.panes} data-screen={screen}>
-            {!compactConsole && <aside className={styles.tree} aria-label="Management hierarchy">
-              <button
-                className={styles.all}
-                onClick={() => {
-                  setUnit(null);
-                  changeView("people");
-                }}
-              >
-                <Users size={16} />
-                All people
-              </button>
-              <h3>Organization</h3>
-              {treeUnits(null)}
-              <h3>Local groups</h3>
-              {treeGroups(null)}
-              {!data.groups.some((g) => !g.archived) && (
-                <p>Create your first group to organize access.</p>
+          {compactConsole ? (
+            <nav aria-label="Management navigation" className={styles.mobileSteps}>
+              {screen === "detail" && (
+                <Button variant="plain" type="button" onClick={() => setScreen("results")}>
+                  <ArrowLeft size={14} aria-hidden="true" /> Back to list
+                </Button>
               )}
-              <h3>Connected directories</h3>
-              <button className={styles.all} onClick={() => setAdvanced(true)}>
-                <GitBranch size={16} />
-                Browse read-only directories
-              </button>
-              <p>Changes here affect ERPX only.</p>
-            </aside>}
+            </nav>
+          ) : (
+            <nav aria-label="Directory steps" className={styles.mobileSteps}>
+              {screen !== "tree" && (
+                <Button
+                  type="submit"
+                  variant="plain"
+                  onClick={() => setScreen(screen === "detail" ? "results" : "tree")}
+                >
+                  <ArrowLeft size={14} aria-hidden="true" /> Back to{" "}
+                  {screen === "detail" ? "results" : "hierarchy"}
+                </Button>
+              )}
+              <Button type="submit" variant="plain" onClick={() => setScreen("tree")}>
+                Hierarchy
+              </Button>
+              <ChevronRight size={14} />
+              <Button type="submit" variant="plain" onClick={() => setScreen("results")}>
+                Results
+              </Button>
+              {selection && (
+                <>
+                  <ChevronRight size={14} />
+                  <Button type="submit" variant="plain" onClick={() => setScreen("detail")}>
+                    Details
+                  </Button>
+                </>
+              )}
+            </nav>
+          )}
+          <div className={styles.panes} data-screen={screen}>
+            {!compactConsole && (
+              <aside className={styles.tree} aria-label="Management hierarchy">
+                <Button
+                  type="submit"
+                  variant="plain"
+                  className={styles.all}
+                  onClick={() => {
+                    setUnit(null);
+                    changeView("people");
+                  }}
+                >
+                  <Users size={16} />
+                  All people
+                </Button>
+                <h3>Organization</h3>
+                {treeUnits(null)}
+                <h3>Local groups</h3>
+                {treeGroups(null)}
+                {!data.groups.some((g) => !g.archived) && (
+                  <p>Create your first group to organize access.</p>
+                )}
+                <h3>Connected directories</h3>
+                <Button
+                  type="submit"
+                  variant="plain"
+                  className={styles.all}
+                  onClick={() => setAdvanced(true)}
+                >
+                  <GitBranch size={16} />
+                  Browse read-only directories
+                </Button>
+                <p>Changes here affect ERPX only.</p>
+              </aside>
+            )}
             <section className={styles.results} aria-label="Management results">
-              <label className={styles.search}>
+              <Field className={styles.search}>
                 <Search size={16} aria-hidden="true" />
-                <input
+                <TextInput
                   aria-label={"Search " + view}
                   placeholder={"Search " + view}
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
                 />
-              </label>
+              </Field>
               {view !== "people" && (
-                <label>
-                  <input
+                <Field orientation="inline">
+                  <TextInput
                     type="checkbox"
                     checked={showArchived}
                     onChange={(e) => setShowArchived(e.target.checked)}
                   />{" "}
                   Include archived
-                </label>
+                </Field>
               )}
-              {compactConsole && view === "attributes" && <label className={styles.targetFilter}>
-                Target
-                <select value={targetFilter} onChange={(event) => setTargetFilter(event.target.value as typeof targetFilter)}>
-                  <option value="all">All targets</option>
-                  <option value="person">People</option>
-                  <option value="group">Groups</option>
-                  <option value="unit">Organizational units</option>
-                </select>
-              </label>}
+              {compactConsole && view === "attributes" && (
+                <Field className={styles.targetFilter}>
+                  Target
+                  <Select
+                    value={targetFilter}
+                    onChange={(event) => setTargetFilter(event.target.value as typeof targetFilter)}
+                  >
+                    <option value="all">All targets</option>
+                    <option value="person">People</option>
+                    <option value="group">Groups</option>
+                    <option value="unit">Organizational units</option>
+                  </Select>
+                </Field>
+              )}
               {unit && view === "people" && (
-                <button onClick={() => setUnit(null)}>
-                  Clear unit filter:{" "}
-                  {data.nodes.find((n) => n.id === unit)?.label}
-                </button>
+                <Button type="submit" variant="plain" onClick={() => setUnit(null)}>
+                  Clear unit filter: {data.nodes.find((n) => n.id === unit)?.label}
+                </Button>
               )}
               {view === "people" && (
                 <>
                   <div className={styles.bulk}>
-                    <label>
-                      <input
+                    <Field orientation="inline">
+                      <TextInput
                         type="checkbox"
                         aria-label="Select visible people"
-                        checked={
-                          people.length > 0 &&
-                          people.every((p) => selected.includes(p.id))
-                        }
+                        checked={people.length > 0 && people.every((p) => selected.includes(p.id))}
                         onChange={(e) =>
-                          setSelected(
-                            e.target.checked ? people.map((p) => p.id) : [],
-                          )
+                          setSelected(e.target.checked ? people.map((p) => p.id) : [])
                         }
                       />
                       Select visible
-                    </label>
+                    </Field>
                     {canManageGroups && (
-                      <button
+                      <Button
+                        type="submit"
+                        variant="plain"
                         disabled={!selected.length}
-                        onClick={() =>
-                          setEditor({ kind: "membership", personIds: selected })
-                        }
+                        onClick={() => setEditor({ kind: "membership", personIds: selected })}
                       >
                         Groups ({selected.length})
-                      </button>
+                      </Button>
                     )}
                   </div>
                   {people.map((p) => (
                     <div className={styles.personRow} key={p.id}>
-                      <input
+                      <TextInput
                         type="checkbox"
                         aria-label={"Select " + p.name}
                         checked={selected.includes(p.id)}
@@ -659,7 +704,9 @@ export function UserManagement({
                           )
                         }
                       />
-                      <button
+                      <Button
+                        type="submit"
+                        variant="plain"
                         draggable={canManageGroups}
                         onDragStart={(e) =>
                           startDrag(e, {
@@ -676,11 +723,9 @@ export function UserManagement({
                         <UserRound size={17} />
                         <span>
                           {p.name}
-                          <small>
-                            {p.userId ? "Linked account" : "No linked account"}
-                          </small>
+                          <small>{p.userId ? "Linked account" : "No linked account"}</small>
                         </span>
-                      </button>
+                      </Button>
                     </div>
                   ))}
                   {!people.length && <p>No people match this view.</p>}
@@ -688,88 +733,85 @@ export function UserManagement({
               )}
               {view === "groups" &&
                 visibleGroups.map((g) => (
-                    <button
-                      className={styles.item}
-                      key={g.id}
-                      aria-pressed={selection?.id === g.id}
-                      onClick={() => select({ kind: "group", id: g.id })}
-                      draggable={canManageGroups && !g.archived}
-                      onDragStart={(e) =>
-                        startDrag(e, { kind: "group", id: g.id })
-                      }
-                    >
-                      <Users size={18} />
-                      <span>
-                        {g.name}
-                        <small>
-                          {g.archived
-                            ? "Archived"
-                            : g.members.length +
-                              " members · " +
-                              (g.kind === "automatic"
-                                ? "Automatic rule"
-                                : "Manual group")}
-                        </small>
-                      </span>
-                    </button>
-                  ))}
+                  <Button
+                    type="submit"
+                    variant="plain"
+                    className={styles.item}
+                    key={g.id}
+                    aria-pressed={selection?.id === g.id}
+                    onClick={() => select({ kind: "group", id: g.id })}
+                    draggable={canManageGroups && !g.archived}
+                    onDragStart={(e) => startDrag(e, { kind: "group", id: g.id })}
+                  >
+                    <Users size={18} />
+                    <span>
+                      {g.name}
+                      <small>
+                        {g.archived
+                          ? "Archived"
+                          : g.members.length +
+                            " members · " +
+                            (g.kind === "automatic" ? "Automatic rule" : "Manual group")}
+                      </small>
+                    </span>
+                  </Button>
+                ))}
               {view === "policies" &&
                 visiblePolicies.map((p) => (
-                    <button
-                      className={styles.item}
-                      key={p.id}
-                      aria-pressed={selection?.id === p.id}
-                      draggable={data.canManage && !p.archived}
-                      onDragStart={(e) =>
-                        startDrag(e, { kind: "policy", id: p.id })
-                      }
-                      onClick={() => select({ kind: "policy", id: p.id })}
-                    >
-                      <ShieldCheck size={18} />
-                      <span>
-                        {p.name}
-                        <small>
-                          {p.archived
-                            ? "Archived"
-                            : p.grants.length +
-                              " roles · revision " +
-                              p.version}
-                        </small>
-                      </span>
-                    </button>
-                  ))}
+                  <Button
+                    type="submit"
+                    variant="plain"
+                    className={styles.item}
+                    key={p.id}
+                    aria-pressed={selection?.id === p.id}
+                    draggable={data.canManage && !p.archived}
+                    onDragStart={(e) => startDrag(e, { kind: "policy", id: p.id })}
+                    onClick={() => select({ kind: "policy", id: p.id })}
+                  >
+                    <ShieldCheck size={18} />
+                    <span>
+                      {p.name}
+                      <small>
+                        {p.archived
+                          ? "Archived"
+                          : p.grants.length + " roles · revision " + p.version}
+                      </small>
+                    </span>
+                  </Button>
+                ))}
               {view === "attributes" &&
                 visibleAttributes.map((a) => (
-                    <button
-                      className={styles.item}
-                      key={a.id}
-                      aria-pressed={selection?.id === a.id}
-                      onClick={() => select({ kind: "attribute", id: a.id })}
-                    >
-                      <SlidersHorizontal size={18} />
-                      <span>
-                        {a.label}
-                        <small>
-                          {a.archived
-                            ? "Archived"
-                            : a.target +
-                              " · " +
-                              a.type +
-                              (a.required ? " · Required" : "")}
-                        </small>
-                      </span>
-                    </button>
-                  ))}
+                  <Button
+                    type="submit"
+                    variant="plain"
+                    className={styles.item}
+                    key={a.id}
+                    aria-pressed={selection?.id === a.id}
+                    onClick={() => select({ kind: "attribute", id: a.id })}
+                  >
+                    <SlidersHorizontal size={18} />
+                    <span>
+                      {a.label}
+                      <small>
+                        {a.archived
+                          ? "Archived"
+                          : a.target + " · " + a.type + (a.required ? " · Required" : "")}
+                      </small>
+                    </span>
+                  </Button>
+                ))}
               {view !== "people" && !visibleItems.length && (
-                  <div className={styles.empty}>
-                    <CircleHelp size={24} />
-                    <p>{filter || (view === "attributes" && targetFilter !== "all")
+                <div className={styles.empty}>
+                  <CircleHelp size={24} />
+                  <p>
+                    {filter || (view === "attributes" && targetFilter !== "all")
                       ? `No ${emptyName} match these filters.`
                       : canCreateInView
                         ? `No ${emptyName} yet. Use New to create one.`
-                        : `No ${emptyName} are available.`}</p>
-                  </div>
-                )}
+                        : `No ${emptyName} are available.`}
+                  </p>
+                </div>
+              )}
             </section>
             <section className={styles.detail} aria-label="Management details">
               <h2 tabIndex={-1} ref={heading}>
@@ -778,8 +820,20 @@ export function UserManagement({
               {!selection && (
                 <div className={styles.empty}>
                   <Users size={32} />
-                  <p>Choose {view === "attributes" ? "a field" : view === "policies" ? "a policy" : view === "groups" ? "a group" : "a person"} to see its details.</p>
-                  {view === "people" && <p>Drag people into a manual group, or use the Groups button.</p>}
+                  <p>
+                    Choose{" "}
+                    {view === "attributes"
+                      ? "a field"
+                      : view === "policies"
+                        ? "a policy"
+                        : view === "groups"
+                          ? "a group"
+                          : "a person"}{" "}
+                    to see its details.
+                  </p>
+                  {view === "people" && (
+                    <p>Drag people into a manual group, or use the Groups button.</p>
+                  )}
                 </div>
               )}
               {person && (
@@ -789,26 +843,27 @@ export function UserManagement({
                       ? "ERPX account linked"
                       : "Create or link an account before granting access."}
                   </p>
-                  <Link
-                    href={base + "/people/" + person.id}
-                    className="button secondary"
-                  >
+                  <UiActionLink variant="secondary" href={base + "/people/" + person.id}>
                     Profile & account
-                  </Link>
+                  </UiActionLink>
                   <h3>Group membership</h3>
-                  <button
-                    className="button secondary"
+                  <Button
+                    type="submit"
+                    variant="secondary"
+
                     onClick={() => {
                       setAccountObjectId("person:" + person.id);
                       setAdvanced(true);
                     }}
                   >
                     Account & direct access
-                  </button>
+                  </Button>
                   {data.groups
                     .filter((g) => g.members.includes(person.id))
                     .map((g) => (
-                      <button
+                      <Button
+                        type="submit"
+                        variant="plain"
                         key={g.id}
                         className={styles.item}
                         onClick={() => {
@@ -822,11 +877,13 @@ export function UserManagement({
                             ? "Matched by rule"
                             : "Direct or nested membership"}
                         </small>
-                      </button>
+                      </Button>
                     ))}
                   {canManageGroups && (
-                    <button
-                      className="button secondary"
+                    <Button
+                      type="submit"
+                      variant="secondary"
+
                       onClick={() =>
                         setEditor({
                           kind: "membership",
@@ -835,7 +892,7 @@ export function UserManagement({
                       }
                     >
                       Change groups
-                    </button>
+                    </Button>
                   )}
                 </>
               )}
@@ -851,11 +908,8 @@ export function UserManagement({
                       <strong>Match {group.rule.mode} conditions</strong>
                       {group.rule.conditions.map((c, i) => (
                         <p key={i}>
-                          {data.attributes.find(
-                            (a) => "custom:" + a.id === c.field,
-                          )?.label ??
-                            personRuleFields.find((f) => f.id === c.field)
-                              ?.label}{" "}
+                          {data.attributes.find((a) => "custom:" + a.id === c.field)?.label ??
+                            personRuleFields.find((f) => f.id === c.field)?.label}{" "}
                           {c.op} {String(c.value ?? "")}
                         </p>
                       ))}
@@ -866,15 +920,14 @@ export function UserManagement({
                     {group.members.map((id) => (
                       <li key={id}>
                         {data.people.find((p) => p.id === id)?.name}
-                        <small> · {(group.memberSources?.[id]??[]).join(" · ")}</small>
+                        <small> · {(group.memberSources?.[id] ?? []).join(" · ")}</small>
                         {group.rule && (
                           <small>
                             {group.rule.conditions
                               .filter((condition) =>
                                 ruleMatches(
                                   { mode: "all", conditions: [condition] },
-                                  data.people.find((p) => p.id === id)?.facts ??
-                                    {},
+                                  data.people.find((p) => p.id === id)?.facts ?? {},
                                 ),
                               )
                               .map(
@@ -888,56 +941,54 @@ export function UserManagement({
                     ))}
                   </ul>
                   {canManageGroups && (
-                    <button
-                      className="button secondary"
+                    <Button
+                      type="submit"
+                      variant="secondary"
+
                       onClick={() => setEditor({ kind: "group", item: group })}
                     >
                       Edit group & parent
-                    </button>
+                    </Button>
                   )}
                 </>
               )}
               {policy && (
                 <>
                   <p>
-                    Revision {policy.version}. Each role becomes a separately
-                    reviewed work assignment.
+                    Revision {policy.version}. Each role becomes a separately reviewed work
+                    assignment.
                   </p>
                   {policy.grants.map((g, i) => (
                     <div key={i} className={styles.ruleSummary}>
-                      <strong>
-                        {roles.find((r) => r.id === g.roleId)?.name ?? g.roleId}
-                      </strong>
+                      <strong>{roles.find((r) => r.id === g.roleId)?.name ?? g.roleId}</strong>
                       <p>
                         {g.scopeKind} ·{" "}
-                        {data.nodes.find((n) => n.id === g.scopeNodeId)
-                          ?.label ?? "Company"}
+                        {data.nodes.find((n) => n.id === g.scopeNodeId)?.label ?? "Company"}
                       </p>
                       <small>
-                        Expires{" "}
-                        <TimeText value={g.validUntil} />
+                        Expires <TimeText value={g.validUntil} />
                       </small>
                     </div>
                   ))}
                   {data.canManage && (
                     <div className={styles.actions}>
-                      <button
-                        className="button secondary"
-                        onClick={() =>
-                          setEditor({ kind: "policy", item: policy })
-                        }
+                      <Button
+                        type="submit"
+                        variant="secondary"
+
+                        onClick={() => setEditor({ kind: "policy", item: policy })}
                       >
                         Edit policy
-                      </button>
-                      <button
-                        className="button"
+                      </Button>
+                      <Button
+                        type="submit"
+                        variant="primary"
+
                         disabled={policy.archived}
-                        onClick={() =>
-                          setEditor({ kind: "attachment", policyId: policy.id })
-                        }
+                        onClick={() => setEditor({ kind: "attachment", policyId: policy.id })}
                       >
                         Attach policy
-                      </button>
+                      </Button>
                     </div>
                   )}
                 </>
@@ -949,72 +1000,67 @@ export function UserManagement({
                     {attribute.target} · {attribute.type} ·{" "}
                     {attribute.required ? "Required" : "Optional"}
                   </p>
-                  {attribute.options.length > 0 && (
-                    <p>Choices: {attribute.options.join(", ")}</p>
-                  )}
+                  {attribute.options.length > 0 && <p>Choices: {attribute.options.join(", ")}</p>}
                   {data.canDefine && (
-                    <button
-                      className="button secondary"
-                      onClick={() =>
-                        setEditor({ kind: "attribute", item: attribute })
-                      }
+                    <Button
+                      type="submit"
+                      variant="secondary"
+
+                      onClick={() => setEditor({ kind: "attribute", item: attribute })}
                     >
                       Edit attribute
-                    </button>
+                    </Button>
                   )}
                 </>
               )}
-              {selection &&
-                ["group", "unit", "policy"].includes(selection.kind) && (
-                  <>
-                    <h3>Attached access policies</h3>
-                    {attachments.map((a) => (
-                      <div className={styles.ruleSummary} key={a.id}>
-                        <strong>
-                          {data.policies.find((p) => p.id === a.policyId)?.name}
-                        </strong>
-                        <p>
-                          {selection.kind !== "policy" &&
-                            (a.exclusions.some((id) => ancestors.has(id))
-                              ? "Excluded from this subtree · "
-                              : a.targetId === selection.id
-                                ? "Direct · "
-                                : "Inherited · ")}
-                          {a.target} ·{" "}
-                          {data.groups.find((g) => g.id === a.targetId)?.name ??
-                            data.nodes.find((n) => n.id === a.targetId)?.label}
-                        </p>
-                        <small>{a.exclusions.length} subtree exclusions</small>
-                        {data.canManage && (
-                          <button
-                            onClick={() =>
-                              setEditor({ kind: "attachment", item: a })
-                            }
-                          >
-                            Edit attachment
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                    {!attachments.length && (
-                      <p>No applicable policy attachments.</p>
-                    )}
-                    {selection.kind !== "policy" && data.canManage && (
-                      <button
-                        className="button secondary"
-                        onClick={() =>
-                          setEditor({
-                            kind: "attachment",
-                            target: selection.kind as "group" | "unit",
-                            targetId: selection.id,
-                          })
-                        }
-                      >
-                        Attach policy
-                      </button>
-                    )}
-                  </>
-                )}
+              {selection && ["group", "unit", "policy"].includes(selection.kind) && (
+                <>
+                  <h3>Attached access policies</h3>
+                  {attachments.map((a) => (
+                    <div className={styles.ruleSummary} key={a.id}>
+                      <strong>{data.policies.find((p) => p.id === a.policyId)?.name}</strong>
+                      <p>
+                        {selection.kind !== "policy" &&
+                          (a.exclusions.some((id) => ancestors.has(id))
+                            ? "Excluded from this subtree · "
+                            : a.targetId === selection.id
+                              ? "Direct · "
+                              : "Inherited · ")}
+                        {a.target} ·{" "}
+                        {data.groups.find((g) => g.id === a.targetId)?.name ??
+                          data.nodes.find((n) => n.id === a.targetId)?.label}
+                      </p>
+                      <small>{a.exclusions.length} subtree exclusions</small>
+                      {data.canManage && (
+                        <Button
+                          type="submit"
+                          variant="plain"
+                          onClick={() => setEditor({ kind: "attachment", item: a })}
+                        >
+                          Edit attachment
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  {!attachments.length && <p>No applicable policy attachments.</p>}
+                  {selection.kind !== "policy" && data.canManage && (
+                    <Button
+                      type="submit"
+                      variant="secondary"
+
+                      onClick={() =>
+                        setEditor({
+                          kind: "attachment",
+                          target: selection.kind as "group" | "unit",
+                          targetId: selection.id,
+                        })
+                      }
+                    >
+                      Attach policy
+                    </Button>
+                  )}
+                </>
+              )}
               {fieldTarget && selection && (
                 <AttributeValueForm
                   key={
@@ -1023,8 +1069,7 @@ export function UserManagement({
                     selection.id +
                     ":" +
                     (data.values.find(
-                      (v) =>
-                        v.target === fieldTarget && v.objectId === selection.id,
+                      (v) => v.target === fieldTarget && v.objectId === selection.id,
                     )?.version ?? 0)
                   }
                   target={fieldTarget}
@@ -1036,92 +1081,92 @@ export function UserManagement({
               )}
             </section>
           </div>
-          {(!compactConsole || view === "policies") && <section className={styles.reviewPanel}>
-            <div className={styles.intro}>
-              <div>
-                <h2>Policy access & reviews</h2>
-                <p>
-                  Membership alone does not grant access. Review each new
-                  beneficiary independently.
-                </p>
-              </div>
-              <Link href={base + "/iam/reviews"}>All reviews & audit</Link>
-            </div>
-            {data.canReview && (
-              <div className={styles.actions}>
-                <button
-                  className="button"
-                  disabled={busy || !reviewIds.length}
-                  onClick={() => void review("approve")}
-                >
-                  Approve selected ({reviewIds.length})
-                </button>
-                <button
-                  className="button secondary"
-                  disabled={busy || !reviewIds.length}
-                  onClick={() => void review("reject")}
-                >
-                  Reject selected
-                </button>
-                <Link href="/security">Verify MFA</Link>
-              </div>
-            )}
-            {!data.candidates.length && (
-              <p>
-                No policy-derived access yet. Attach a policy to a group or unit
-                to preview its effect.
-              </p>
-            )}
-            {data.candidates
-              .filter((c) => !person || c.personId === person.id)
-              .map((c) => (
-                <div key={c.id} className={styles.candidate}>
-                  {data.canReview && c.status === "pending" && c.reviewId && (
-                    <input
-                      type="checkbox"
-                      aria-label={
-                        "Review " +
-                        data.people.find((p) => p.id === c.personId)?.name +
-                        " " +
-                        c.roleId
-                      }
-                      checked={reviewIds.includes(c.reviewId)}
-                      onChange={(e) =>
-                        setReviewIds(
-                          e.target.checked
-                            ? [...reviewIds, c.reviewId!]
-                            : reviewIds.filter((id) => id !== c.reviewId),
-                        )
-                      }
-                    />
-                  )}
-                  <span>
-                    <strong>
-                      {data.people.find((p) => p.id === c.personId)?.name}
-                    </strong>
-                    <small>
-                      {c.policyName} ·{" "}
-                      {roles.find((r) => r.id === c.roleId)?.name ?? c.roleId}
-                    </small>
-                    <small>{c.explanation}</small>
-                  </span>
-                  <span className={styles.status} data-status={c.status}>
-                    {c.status}
-                  </span>
+          {(!compactConsole || view === "policies") && (
+            <section className={styles.reviewPanel}>
+              <div className={styles.intro}>
+                <div>
+                  <h2>Policy access & reviews</h2>
+                  <p>
+                    Membership alone does not grant access. Review each new beneficiary
+                    independently.
+                  </p>
                 </div>
-              ))}
-          </section>}
+                <Link href={base + "/iam/reviews"}>All reviews & audit</Link>
+              </div>
+              {data.canReview && (
+                <div className={styles.actions}>
+                  <Button
+                    type="submit"
+                    variant="primary"
+
+                    disabled={busy || !reviewIds.length}
+                    onClick={() => void review("approve")}
+                  >
+                    Approve selected ({reviewIds.length})
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="secondary"
+
+                    disabled={busy || !reviewIds.length}
+                    onClick={() => void review("reject")}
+                  >
+                    Reject selected
+                  </Button>
+                  <Link href="/security">Verify MFA</Link>
+                </div>
+              )}
+              {!data.candidates.length && (
+                <p>
+                  No policy-derived access yet. Attach a policy to a group or unit to preview its
+                  effect.
+                </p>
+              )}
+              {data.candidates
+                .filter((c) => !person || c.personId === person.id)
+                .map((c) => (
+                  <div key={c.id} className={styles.candidate}>
+                    {data.canReview && c.status === "pending" && c.reviewId && (
+                      <TextInput
+                        type="checkbox"
+                        aria-label={
+                          "Review " +
+                          data.people.find((p) => p.id === c.personId)?.name +
+                          " " +
+                          c.roleId
+                        }
+                        checked={reviewIds.includes(c.reviewId)}
+                        onChange={(e) =>
+                          setReviewIds(
+                            e.target.checked
+                              ? [...reviewIds, c.reviewId!]
+                              : reviewIds.filter((id) => id !== c.reviewId),
+                          )
+                        }
+                      />
+                    )}
+                    <span>
+                      <strong>{data.people.find((p) => p.id === c.personId)?.name}</strong>
+                      <small>
+                        {c.policyName} · {roles.find((r) => r.id === c.roleId)?.name ?? c.roleId}
+                      </small>
+                      <small>{c.explanation}</small>
+                    </span>
+                    <span className={styles.status} data-status={c.status}>
+                      {c.status}
+                    </span>
+                  </div>
+                ))}
+            </section>
+          )}
         </>
       )}
       <Dialog
         open={!!editor}
         title={
-          editor
-            ? ("item" in editor && editor.item ? "Edit " : "Set up ") +
-              editor.kind
-            : "Edit"
+          editor ? ("item" in editor && editor.item ? "Edit " : "Set up ") + editor.kind : "Edit"
         }
-        presentation="responsive-panel"
+        presentation="form-drawer"
         onClose={() => {
           if (!busy) setEditor(null);
         }}
@@ -1149,8 +1194,7 @@ export function UserManagement({
           <div className={styles.form}>
             <p>Nothing is saved yet. Review the changes below.</p>
             <p>
-              <strong>{preview.change.operation}</strong> ·{" "}
-              {preview.change.input.reason}
+              <strong>{preview.change.operation}</strong> · {preview.change.input.reason}
             </p>
             {Object.entries(preview.impact).map(([key, items]) => (
               <section key={key}>
@@ -1178,25 +1222,29 @@ export function UserManagement({
               </section>
             ))}
             <p>
-              New access requires a different authorized reviewer. Ownership and
-              recovery access use direct assignments.
+              New access requires a different authorized reviewer. Ownership and recovery access use
+              direct assignments.
             </p>
             {message && <p role="alert">{message}</p>}
             <div className={styles.actions}>
-              <button
-                className="button"
+              <Button
+                type="submit"
+                variant="primary"
+
                 disabled={busy}
                 onClick={() => void commit()}
               >
                 {busy ? "Saving…" : "Confirm changes"}
-              </button>
-              <button
-                className="button secondary"
+              </Button>
+              <Button
+                type="submit"
+                variant="secondary"
+
                 disabled={busy}
                 onClick={() => setPreview(null)}
               >
                 Back to editing
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -1221,9 +1269,7 @@ function AttributeValueForm({
   const fields = data.attributes.filter(
       (a) => a.target === target && !a.archived && a.canView !== false,
     ),
-    record = data.values.find(
-      (v) => v.target === target && v.objectId === objectId,
-    ),
+    record = data.values.find((v) => v.target === target && v.objectId === objectId),
     canEdit =
       target === "person"
         ? data.canManagePersonAttributes
@@ -1267,23 +1313,22 @@ function AttributeValueForm({
     >
       <h3>Custom attributes</h3>
       {fields.map((a) => (
-        <label key={a.id}>
+        <Field orientation="inline" key={a.id}>
           {a.label}
           {a.required ? " *" : ""}
           {a.type === "checkbox" ? (
-            <input
+            <TextInput
               type="checkbox"
               name={a.id}
               defaultChecked={record?.values[a.id] === true}
               disabled={!canEdit || a.canEdit === false}
             />
           ) : a.type.endsWith("select") ? (
-            <select
+            <Select
               name={a.id}
               multiple={a.type === "multi-select"}
               defaultValue={
-                (record?.values[a.id] ??
-                  (a.type === "multi-select" ? [] : "")) as string | string[]
+                (record?.values[a.id] ?? (a.type === "multi-select" ? [] : "")) as string | string[]
               }
               required={a.required}
               disabled={!canEdit || a.canEdit === false}
@@ -1292,17 +1337,11 @@ function AttributeValueForm({
               {a.options.map((o) => (
                 <option key={o}>{o}</option>
               ))}
-            </select>
+            </Select>
           ) : (
-            <input
+            <TextInput
               name={a.id}
-              type={
-                a.type === "number"
-                  ? "number"
-                  : a.type === "date"
-                    ? "date"
-                    : "text"
-              }
+              type={a.type === "number" ? "number" : a.type === "date" ? "date" : "text"}
               step="any"
               maxLength={2000}
               required={a.required}
@@ -1310,16 +1349,31 @@ function AttributeValueForm({
               disabled={!canEdit || a.canEdit === false}
             />
           )}
-          <small>{a.help}{record?.inheritedFrom?.[a.id] ? " · Inherited from "+(data.nodes.find(n=>n.id===record.inheritedFrom![a.id])?.label??"parent organization") : ""}</small>
-          {target==="unit"&&canEdit&&a.canEdit!==false&&!record?.inheritedFrom?.[a.id]&&<span><input type="checkbox" name="inherit" value={a.id}/>Use inherited value</span>}
-        </label>
+          <small>
+            {a.help}
+            {record?.inheritedFrom?.[a.id]
+              ? " · Inherited from " +
+                (data.nodes.find((n) => n.id === record.inheritedFrom![a.id])?.label ??
+                  "parent organization")
+              : ""}
+          </small>
+          {target === "unit" &&
+            canEdit &&
+            a.canEdit !== false &&
+            !record?.inheritedFrom?.[a.id] && (
+              <span>
+                <TextInput type="checkbox" name="inherit" value={a.id} />
+                Use inherited value
+              </span>
+            )}
+        </Field>
       ))}
       {canEdit && (
         <>
           <Reason />
-          <button className="button secondary" disabled={busy}>
+          <Button clientManaged type="submit" variant="secondary" disabled={busy}>
             Preview attribute changes
-          </button>
+          </Button>
         </>
       )}
     </form>
@@ -1358,8 +1412,7 @@ function ManagementEditor({
         ? (editor.item?.grants ?? [
             {
               roleId: "employee",
-              expectedRoleRevision:
-                roles.find((r) => r.id === "employee")?.revision ?? 1,
+              expectedRoleRevision: roles.find((r) => r.id === "employee")?.revision ?? 1,
               scopeKind: "holding",
               scopeNodeId: null,
               validUntil: Date.now() + 30 * 86400000,
@@ -1368,9 +1421,7 @@ function ManagementEditor({
         : [],
     ),
     [target, setTarget] = useState<"group" | "unit">(
-      editor.kind === "attachment"
-        ? (editor.item?.target ?? editor.target ?? "group")
-        : "group",
+      editor.kind === "attachment" ? (editor.item?.target ?? editor.target ?? "group") : "group",
     );
   const item = "item" in editor ? editor.item : undefined;
   const ruleFields = [
@@ -1460,52 +1511,42 @@ function ManagementEditor({
     <form className={styles.form} onSubmit={submit}>
       {editor.kind === "group" && (
         <>
-          <label>
+          <Field>
             Group name
-            <input
+            <TextInput
               name="name"
               defaultValue={editor.item?.name}
               required
               minLength={2}
               maxLength={100}
             />
-          </label>
-          <label>
+          </Field>
+          <Field>
             Membership
-            <select
+            <Select
               value={groupKind}
-              onChange={(e) =>
-                setGroupKind(e.target.value as "manual" | "automatic")
-              }
+              onChange={(e) => setGroupKind(e.target.value as "manual" | "automatic")}
             >
               <option value="manual">Choose members manually</option>
               <option value="automatic">Automatically match a rule</option>
-            </select>
-          </label>
-          <label>
+            </Select>
+          </Field>
+          <Field>
             Parent group
-            <select name="parentId" defaultValue={editor.item?.parentId ?? ""}>
+            <Select name="parentId" defaultValue={editor.item?.parentId ?? ""}>
               <option value="">No parent</option>
               {data.groups
-                .filter(
-                  (g) =>
-                    g.kind === "manual" &&
-                    !g.archived &&
-                    g.id !== editor.item?.id,
-                )
+                .filter((g) => g.kind === "manual" && !g.archived && g.id !== editor.item?.id)
                 .map((g) => (
                   <option key={g.id} value={g.id}>
                     {g.name}
                   </option>
                 ))}
-            </select>
-          </label>
-          <label>
+            </Select>
+          </Field>
+          <Field>
             Workspace boundary
-            <select
-              name="scopeNodeId"
-              defaultValue={editor.item?.scopeNodeId ?? ""}
-            >
+            <Select name="scopeNodeId" defaultValue={editor.item?.scopeNodeId ?? ""}>
               <option value="">Company</option>
               {data.nodes
                 .filter((n) => n.kind !== "company")
@@ -1514,28 +1555,24 @@ function ManagementEditor({
                     {n.label}
                   </option>
                 ))}
-            </select>
-          </label>
+            </Select>
+          </Field>
           {groupKind === "automatic" && (
             <fieldset>
               <legend>Membership rule</legend>
-              <label>
+              <Field>
                 Match
-                <select
+                <Select
                   value={rule.mode}
-                  onChange={(e) =>
-                    setRule({ ...rule, mode: e.target.value as "all" | "any" })
-                  }
+                  onChange={(e) => setRule({ ...rule, mode: e.target.value as "all" | "any" })}
                 >
                   <option value="all">All conditions</option>
                   <option value="any">Any condition</option>
-                </select>
-              </label>
+                </Select>
+              </Field>
               {rule.conditions.map((c, i) => {
                 const field = ruleFields.find((f) => f.id === c.field),
-                  custom = data.attributes.find(
-                    (a) => "custom:" + a.id === c.field,
-                  ),
+                  custom = data.attributes.find((a) => "custom:" + a.id === c.field),
                   update = (changes: Partial<typeof c>) =>
                     setRule({
                       ...rule,
@@ -1545,18 +1582,15 @@ function ManagementEditor({
                     });
                 return (
                   <div className={styles.condition} key={i}>
-                    <label>
+                    <Field>
                       Field
-                      <select
+                      <Select
                         value={c.field}
                         onChange={(e) => {
-                          const next = ruleFields.find(
-                            (f) => f.id === e.target.value,
-                          );
+                          const next = ruleFields.find((f) => f.id === e.target.value);
                           update({
                             field: e.target.value,
-                            op:
-                              next?.type === "multi-select" ? "contains" : "eq",
+                            op: next?.type === "multi-select" ? "contains" : "eq",
                             value: next?.type === "checkbox" ? false : "",
                           });
                         }}
@@ -1566,36 +1600,22 @@ function ManagementEditor({
                             {f.label}
                           </option>
                         ))}
-                      </select>
-                    </label>
-                    <label>
+                      </Select>
+                    </Field>
+                    <Field>
                       Condition
-                      <select
+                      <Select
                         value={c.op}
-                        onChange={(e) =>
-                          update({ op: e.target.value as typeof c.op })
-                        }
+                        onChange={(e) => update({ op: e.target.value as typeof c.op })}
                       >
-                        {[
-                          "eq",
-                          "neq",
-                          "contains",
-                          "gt",
-                          "gte",
-                          "lt",
-                          "lte",
-                          "empty",
-                          "not-empty",
-                        ]
+                        {["eq", "neq", "contains", "gt", "gte", "lt", "lte", "empty", "not-empty"]
                           .filter(
                             (o) =>
                               ["empty", "not-empty"].includes(o) ||
                               (field?.type === "multi-select"
                                 ? o === "contains"
                                 : ["eq", "neq"].includes(o) ||
-                                  (["number", "date"].includes(
-                                    field?.type ?? "",
-                                  ) &&
+                                  (["number", "date"].includes(field?.type ?? "") &&
                                     ["gt", "gte", "lt", "lte"].includes(o))),
                           )
                           .map((o) => (
@@ -1615,13 +1635,13 @@ function ManagementEditor({
                               }
                             </option>
                           ))}
-                      </select>
-                    </label>
+                      </Select>
+                    </Field>
                     {!["empty", "not-empty"].includes(c.op) && (
-                      <label>
+                      <Field>
                         Value
                         {["branch_id", "department_id"].includes(c.field) ? (
-                          <select
+                          <Select
                             value={String(c.value ?? "")}
                             onChange={(e) => update({ value: e.target.value })}
                             required
@@ -1630,19 +1650,16 @@ function ManagementEditor({
                             {data.nodes
                               .filter(
                                 (n) =>
-                                  n.kind ===
-                                  (c.field === "branch_id"
-                                    ? "branch"
-                                    : "department"),
+                                  n.kind === (c.field === "branch_id" ? "branch" : "department"),
                               )
                               .map((n) => (
                                 <option key={n.id} value={n.id}>
                                   {n.label}
                                 </option>
                               ))}
-                          </select>
+                          </Select>
                         ) : custom?.type.endsWith("select") ? (
-                          <select
+                          <Select
                             value={String(c.value ?? "")}
                             onChange={(e) => update({ value: e.target.value })}
                           >
@@ -1650,19 +1667,17 @@ function ManagementEditor({
                             {custom.options.map((o) => (
                               <option key={o}>{o}</option>
                             ))}
-                          </select>
+                          </Select>
                         ) : field?.type === "checkbox" ? (
-                          <select
+                          <Select
                             value={String(c.value ?? false)}
-                            onChange={(e) =>
-                              update({ value: e.target.value === "true" })
-                            }
+                            onChange={(e) => update({ value: e.target.value === "true" })}
                           >
                             <option value="true">Yes</option>
                             <option value="false">No</option>
-                          </select>
+                          </Select>
                         ) : (
-                          <input
+                          <TextInput
                             type={
                               field?.type === "number"
                                 ? "number"
@@ -1682,9 +1697,10 @@ function ManagementEditor({
                             }
                           />
                         )}
-                      </label>
+                      </Field>
                     )}
-                    <button
+                    <Button
+                      variant="plain"
                       type="button"
                       disabled={rule.conditions.length === 1}
                       onClick={() =>
@@ -1695,28 +1711,25 @@ function ManagementEditor({
                       }
                     >
                       Remove condition
-                    </button>
+                    </Button>
                   </div>
                 );
               })}
-              <button
+              <Button
+                variant="plain"
                 type="button"
                 disabled={rule.conditions.length >= 20}
                 onClick={() =>
                   setRule({
                     ...rule,
-                    conditions: [
-                      ...rule.conditions,
-                      { field: "job_title", op: "eq", value: "" },
-                    ],
+                    conditions: [...rule.conditions, { field: "job_title", op: "eq", value: "" }],
                   })
                 }
               >
                 Add condition
-              </button>
+              </Button>
               <p>
-                The preview shows everyone matching this rule. New access still
-                requires review.
+                The preview shows everyone matching this rule. New access still requires review.
               </p>
             </fieldset>
           )}
@@ -1724,32 +1737,54 @@ function ManagementEditor({
       )}
       {editor.kind === "attribute" && (
         <>
-          <label>Data owner role<select name="ownerRole" defaultValue={editor.item?.ownerRole ?? ""}>
-            <option value="">Company administration</option>
-            {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-          </select></label>
-          <label>Roles allowed to view<select multiple name="readRoles" defaultValue={editor.item?.readRoles ?? []}>
-            {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-          </select><small>Leave empty to retain the existing object view permissions.</small></label>
-          <label>Roles allowed to edit<select multiple name="writeRoles" defaultValue={editor.item?.writeRoles ?? []}>
-            {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-          </select><small>Editors also need permission to manage this person, group, or unit.</small></label>
-          <label><input type="checkbox" name="branchOverride" defaultChecked={editor.item?.branchOverride !== false} />Allow Branch overrides</label>
-          <label>
-            Label
-            <input
-              name="label"
-              defaultValue={editor.item?.label}
-              required
-              minLength={2}
+          <Field>
+            Data owner role
+            <Select name="ownerRole" defaultValue={editor.item?.ownerRole ?? ""}>
+              <option value="">Company administration</option>
+              {roles.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field>
+            Roles allowed to view
+            <Select multiple name="readRoles" defaultValue={editor.item?.readRoles ?? []}>
+              {roles.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </Select>
+            <small>Leave empty to retain the existing object view permissions.</small>
+          </Field>
+          <Field>
+            Roles allowed to edit
+            <Select multiple name="writeRoles" defaultValue={editor.item?.writeRoles ?? []}>
+              {roles.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </Select>
+            <small>Editors also need permission to manage this person, group, or unit.</small>
+          </Field>
+          <Field orientation="inline">
+            <TextInput
+              type="checkbox"
+              name="branchOverride"
+              defaultChecked={editor.item?.branchOverride !== false}
             />
-          </label>
-          <label>
+            Allow Branch overrides
+          </Field>
+          <Field>
+            Label
+            <TextInput name="label" defaultValue={editor.item?.label} required minLength={2} />
+          </Field>
+          <Field>
             Applies to
-            <select
-              name="target"
-              defaultValue={editor.item?.target ?? "person"}
-            >
+            <Select name="target" defaultValue={editor.item?.target ?? "person"}>
               {["person", "group", "unit"].map((t) => (
                 <option key={t} value={t}>
                   {
@@ -1761,69 +1796,47 @@ function ManagementEditor({
                   }
                 </option>
               ))}
-            </select>
-          </label>
-          <label>
+            </Select>
+          </Field>
+          <Field>
             Field type
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value as typeof type)}
-            >
+            <Select value={type} onChange={(e) => setType(e.target.value as typeof type)}>
               {attributeTypes.map((t) => (
                 <option key={t}>{t}</option>
               ))}
-            </select>
-          </label>
-          <label>
+            </Select>
+          </Field>
+          <Field>
             Help text
-            <input
-              name="help"
-              defaultValue={editor.item?.help}
-              maxLength={500}
-            />
-          </label>
+            <TextInput name="help" defaultValue={editor.item?.help} maxLength={500} />
+          </Field>
           {type.endsWith("select") && (
-            <label>
+            <Field>
               Choices, one per line
-              <textarea
-                name="options"
-                required
-                defaultValue={editor.item?.options.join("\n")}
-              />
-            </label>
+              <TextArea name="options" required defaultValue={editor.item?.options.join("\n")} />
+            </Field>
           )}
-          <label>
-            <input
-              type="checkbox"
-              name="required"
-              defaultChecked={editor.item?.required}
-            />
+          <Field orientation="inline">
+            <TextInput type="checkbox" name="required" defaultChecked={editor.item?.required} />
             Required when editing attributes
-          </label>
+          </Field>
         </>
       )}
       {editor.kind === "policy" && (
         <>
-          <label>
+          <Field>
             Policy name
-            <input
-              name="name"
-              defaultValue={editor.item?.name}
-              required
-              minLength={2}
-            />
-          </label>
+            <TextInput name="name" defaultValue={editor.item?.name} required minLength={2} />
+          </Field>
           {grants.map((g, i) => {
             const update = (v: Partial<typeof g>) =>
-              setGrants(
-                grants.map((old, j) => (j === i ? { ...old, ...v } : old)),
-              );
+              setGrants(grants.map((old, j) => (j === i ? { ...old, ...v } : old)));
             return (
               <fieldset key={i}>
                 <legend>Role {i + 1}</legend>
-                <label>
+                <Field>
                   Role
-                  <select
+                  <Select
                     value={g.roleId}
                     onChange={(e) => {
                       const role = roles.find((r) => r.id === e.target.value)!;
@@ -1844,19 +1857,17 @@ function ManagementEditor({
                           {r.name}
                         </option>
                       ))}
-                  </select>
-                </label>
-                <label>
+                  </Select>
+                </Field>
+                <Field>
                   Access scope
-                  <select
+                  <Select
                     value={g.scopeNodeId ?? ""}
                     onChange={(e) => {
                       const n = data.nodes.find((n) => n.id === e.target.value);
                       update({
                         scopeNodeId: n?.id ?? null,
-                        scopeKind:
-                          (n?.kind as "branch" | "department" | undefined) ??
-                          "holding",
+                        scopeKind: (n?.kind as "branch" | "department" | undefined) ?? "holding",
                       });
                     }}
                   >
@@ -1868,11 +1879,11 @@ function ManagementEditor({
                           {n.label} ({n.kind})
                         </option>
                       ))}
-                  </select>
-                </label>
-                <label>
+                  </Select>
+                </Field>
+                <Field>
                   Expires on (UTC)
-                  <input
+                  <TextInput
                     type="date"
                     required
                     value={new Date(g.validUntil).toISOString().slice(0, 10)}
@@ -1883,31 +1894,33 @@ function ManagementEditor({
                         });
                     }}
                   />
-                </label>
-                <button
+                </Field>
+                <Button
+                  variant="plain"
                   type="button"
                   disabled={grants.length === 1}
                   onClick={() => setGrants(grants.filter((_, j) => j !== i))}
                 >
                   Remove role
-                </button>
+                </Button>
               </fieldset>
             );
           })}
-          <button
+          <Button
+            variant="plain"
             type="button"
             disabled={grants.length >= 20}
             onClick={() => setGrants([...grants, { ...grants[0] }])}
           >
             Add another role
-          </button>
+          </Button>
         </>
       )}
       {editor.kind === "attachment" && (
         <>
-          <label>
+          <Field>
             Policy
-            <select
+            <Select
               name="policyId"
               required
               defaultValue={editor.item?.policyId ?? editor.policyId ?? ""}
@@ -1920,21 +1933,18 @@ function ManagementEditor({
                     {p.name}
                   </option>
                 ))}
-            </select>
-          </label>
-          <label>
+            </Select>
+          </Field>
+          <Field>
             Attach to
-            <select
-              value={target}
-              onChange={(e) => setTarget(e.target.value as "group" | "unit")}
-            >
+            <Select value={target} onChange={(e) => setTarget(e.target.value as "group" | "unit")}>
               <option value="group">Local group</option>
               <option value="unit">Organizational unit</option>
-            </select>
-          </label>
-          <label>
+            </Select>
+          </Field>
+          <Field>
             Target
-            <select
+            <Select
               name="targetId"
               key={target}
               required
@@ -1942,48 +1952,37 @@ function ManagementEditor({
             >
               <option value="">Choose…</option>
               {(target === "group"
-                ? data.groups
-                    .filter((g) => !g.archived)
-                    .map((g) => ({ id: g.id, label: g.name }))
+                ? data.groups.filter((g) => !g.archived).map((g) => ({ id: g.id, label: g.name }))
                 : data.nodes
               ).map((n) => (
                 <option key={n.id} value={n.id}>
                   {n.label}
                 </option>
               ))}
-            </select>
-          </label>
-          <label>
+            </Select>
+          </Field>
+          <Field>
             Exclude subtrees (optional)
-            <select
-              name="exclusions"
-              multiple
-              defaultValue={editor.item?.exclusions ?? []}
-            >
+            <Select name="exclusions" multiple defaultValue={editor.item?.exclusions ?? []}>
               {(target === "group"
-                ? data.groups
-                    .filter((g) => !g.archived)
-                    .map((g) => ({ id: g.id, label: g.name }))
+                ? data.groups.filter((g) => !g.archived).map((g) => ({ id: g.id, label: g.name }))
                 : data.nodes
               ).map((n) => (
                 <option key={n.id} value={n.id}>
                   {n.label}
                 </option>
               ))}
-            </select>
-          </label>
-          <p>
-            The policy reaches descendants, but its access scopes and expiry do
-            not expand.
-          </p>
+            </Select>
+          </Field>
+          <p>The policy reaches descendants, but its access scopes and expiry do not expand.</p>
         </>
       )}
       {editor.kind === "membership" && (
         <>
           <p>{editor.personIds.length} selected people</p>
-          <label>
+          <Field>
             Manual group
-            <select name="groupId" required defaultValue={editor.groupId ?? ""}>
+            <Select name="groupId" required defaultValue={editor.groupId ?? ""}>
               <option value="">Choose…</option>
               {data.groups
                 .filter((g) => g.kind === "manual" && !g.archived)
@@ -1992,35 +1991,28 @@ function ManagementEditor({
                     {g.name}
                   </option>
                 ))}
-            </select>
-          </label>
-          <label>
+            </Select>
+          </Field>
+          <Field>
             Action
-            <select name="action">
+            <Select name="action">
               <option value="add">Add membership (keep other groups)</option>
               <option value="remove">Remove direct membership</option>
-            </select>
-          </label>
-          <p>
-            Inherited membership remains while a person belongs to a child
-            group.
-          </p>
+            </Select>
+          </Field>
+          <p>Inherited membership remains while a person belongs to a child group.</p>
         </>
       )}
       {item && (
-        <label>
-          <input
-            type="checkbox"
-            name="archived"
-            defaultChecked={item.archived}
-          />
+        <Field orientation="inline">
+          <TextInput type="checkbox" name="archived" defaultChecked={item.archived} />
           Archive this {editor.kind}
-        </label>
+        </Field>
       )}
       <Reason />
-      <button className="button" disabled={busy}>
+      <Button clientManaged type="submit" variant="primary" disabled={busy}>
         {busy ? "Preparing preview…" : "Preview changes"}
-      </button>
+      </Button>
     </form>
   );
 }

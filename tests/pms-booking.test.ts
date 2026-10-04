@@ -23,6 +23,7 @@ import { pmsCommand, loadPms } from "../src/server/pms";
 import { records, record, pmsAccountKeys, type Config } from "../src/lib/pms";
 import { availability } from "../src/lib/pms-engine";
 import type { WorkContext } from "../src/server/authorization";
+import { confirmManualRate } from "../src/server/company-money";
 
 vi.mock("../src/server/runtime", async () => {
   const { env } = await import("./runtime-env");
@@ -602,10 +603,19 @@ it('holds two rooms, then confirms and allocates each folio only after Stripe ve
   expect(pending.state).toBe('payment_pending');expect(pending.checkoutUrl).toContain('checkout.stripe.com');
   attemptId=pending.attemptToken!.split('.')[0];amount=Number((await db.prepare('SELECT amount_minor FROM pms_booking_payments WHERE id=?').bind(attemptId).first<{amount_minor:number}>())!.amount_minor);
   expect(records(await snapshot(),'entry')).toHaveLength(0);
+  const requestedMoney=await db.prepare("SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE company_id=? AND source_type='pms_booking_payment' AND source_id=? AND amount_kind='requested'").bind(f.company,attemptId).first<{amount_units:string;usd_units:string;fx_rate_id:string}>();
+  expect(requestedMoney!.amount_units).toBe(String(amount));
+  await confirmManualRate(reviewer,{currency:'THB',effectiveDate:'2026-09-01',currencyPerUsd:'40',note:'Delayed provider confirmation must retain the requested quote'},key());
   paid=true;
   const confirmed=await bookingPaymentStatus(db,pending.attemptToken!,delivery,now+1000);
   expect(confirmed.state).toBe('confirmed');
   const s=await snapshot();expect(records(s,'folio')).toHaveLength(2);expect(records(s,'entry').filter(e=>e.data.method==='stripe')).toHaveLength(2);
+  const receivedMoney=(await db.prepare("SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE company_id=? AND source_type='pms_entry' AND carried_source_type='pms_booking_payment' AND carried_source_id=?").bind(f.company,attemptId).all<{amount_units:string;usd_units:string;fx_rate_id:string}>()).results;
+  expect(receivedMoney).toHaveLength(2);expect(receivedMoney.every(row=>row.fx_rate_id===requestedMoney!.fx_rate_id)).toBe(true);
+  expect(receivedMoney.reduce((n,row)=>n+BigInt(row.amount_units),BigInt(0))).toBe(BigInt(requestedMoney!.amount_units));
+  expect(receivedMoney.reduce((n,row)=>n+BigInt(row.usd_units),BigInt(0))).toBe(BigInt(requestedMoney!.usd_units));
+  expect((await bookingPaymentStatus(db,pending.attemptToken!,delivery,now+1001)).state).toBe('confirmed');
+  expect(await db.prepare("SELECT COUNT(*)::int n FROM money_transaction_snapshots WHERE company_id=? AND carried_source_type='pms_booking_payment' AND carried_source_id=?").bind(f.company,attemptId).first('n')).toBe(2);
   expect((await db.prepare('SELECT COUNT(*) n FROM pms_booking_emails WHERE reservation_id=?').bind(pending.id).first<{n:number}>())!.n).toBe(1);
 });
 it('releases an unpaid hold and sends a payment that arrives later to refund review',async()=>{
@@ -690,6 +700,8 @@ it('requires an independent Finance approval and Stripe confirmation for a count
     return new Response(JSON.stringify({id:'pi_counter',status:'requires_action',next_action:{promptpay_display_qr_code:{data:'000201010212'}}}));
   }));
   const payment=await createPmsStripePayment(db,owner,{propertyId,folioId:folio.id,kind:'receipt',amountMinor:5000,payerEmail:'payer@example.com'},key(),now);
+  const sourceMoney=await db.prepare("SELECT fx_rate_id,usd_units::text FROM money_transaction_snapshots WHERE company_id=? AND source_type='pms_stripe_payment' AND source_id=? AND amount_kind='requested'").bind(f.company,payment.id).first<{fx_rate_id:string;usd_units:string}>();
+  await confirmManualRate(reviewer,{currency:'THB',effectiveDate:'2026-09-01',currencyPerUsd:'40',note:'Provider receipt and refund must retain requested FX'},key());
   await pmsStripePaymentStatus(db,owner,payment.id,now+1000);
   await requestPmsStripeRefund(db,owner,payment.id,5000,'Guest cancellation');
   await expect(approvePmsStripeRefund(db,owner,payment.id)).rejects.toThrow();
@@ -700,4 +712,7 @@ it('requires an independent Finance approval and Stripe confirmation for a count
   refundState='succeeded';await processPmsStripeRefund(db,payment.id,now+3000);
   expect((await db.prepare('SELECT refund_state FROM pms_stripe_payments WHERE id=?').bind(payment.id).first<{refund_state:string}>())!.refund_state).toBe('succeeded');
   expect(record(await snapshot(),'folio',folio.id).data.advance).toBe(0);
+  const received=await db.prepare('SELECT entry_id FROM pms_stripe_payments WHERE id=?').bind(payment.id).first<{entry_id:string}>();
+  expect(await db.prepare("SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE company_id=? AND source_type='pms_entry' AND source_id=? AND amount_kind='total'").bind(f.company,received!.entry_id).first()).toEqual({amount_units:'5000',usd_units:sourceMoney!.usd_units,fx_rate_id:sourceMoney!.fx_rate_id});
+  expect(await db.prepare("SELECT SUM(amount_units)::text amount,SUM(usd_units)::text usd FROM money_transaction_snapshots WHERE company_id=? AND source_type='pms_entry' AND (source_id=? OR original_source_id=?)").bind(f.company,received!.entry_id,received!.entry_id).first()).toEqual({amount:'0',usd:'0'});
 });

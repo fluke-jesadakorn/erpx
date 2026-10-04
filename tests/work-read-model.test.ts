@@ -57,7 +57,7 @@ function originalWorkRow(task: TaskRow, detail: TaskDetail): WorkItem {
       : detail.approval.currentApprover ? `Awaiting ${detail.approval.currentApprover.approver_name}`
         : `${task.assignee_name} · ${task.project_title ?? "Operational task"}`,
     href: `/staff-tasks/${task.id}`, status: task.state, updatedAt: task.updated_at,
-    canAct: actionable, category: "operational",
+    canAct: actionable, category: "operational", actionKind: detail.permittedActions.includes("approve") ? "approval" : "work",
     queue: actionable ? "todo" : ["completed", "cancelled"].includes(task.state) ? "completed" : "waiting",
   };
 }

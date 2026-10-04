@@ -1,3 +1,4 @@
+import {createEngineeringBrowserContext} from './helpers/engineering-browser-evidence';
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -36,7 +37,7 @@ test("isolated demo routes due-soon and overdue Quality escalations with durable
   const overdue = state.fixture?.qualityOverdueHoldId;
   expect(dueSoon).toBeTruthy();
   expect(overdue).toBeTruthy();
-  const context = await browser.newContext(testInfo.project.use);
+  const context = await createEngineeringBrowserContext(browser,testInfo);
   const page = await context.newPage();
   try {
     await openRole(page, context, credentials, "quality_inspector", `/holdings/simulation/work?type=quality_alert&refresh=${Date.now()}`);

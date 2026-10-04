@@ -11,8 +11,8 @@ import {
 import { saveExpenseAccounting } from "../../src/server/expense-workflow";
 export const expenseDb = env.H001_DB,
   key = () => crypto.randomUUID();
-export async function expenseFixture(mapped = true) {
-  const f = await seedExpenseCompany(expenseDb, env.H001_FILES);
+export async function expenseFixture(mapped = true, withMoneyQuote = true) {
+  const f = await seedExpenseCompany(expenseDb, env.H001_FILES, withMoneyQuote);
   if(mapped)await mapSpendingOrganization(f);
   const {
     db,

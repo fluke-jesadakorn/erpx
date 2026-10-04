@@ -1,9 +1,16 @@
+import {createEngineeringBrowserContext} from './helpers/engineering-browser-evidence';
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 type DemoUser = { email: string; role: string; roles?: string[]; label: string; userId: string };
 type Credentials = { password: string; users: DemoUser[] };
+type ReceiptDetail = {
+  fulfillments: Array<{ id: string; journal_id: string; stock_journal_status: string }>;
+  fulfillmentLines: Array<{ quantity_milli: number; value_minor: number }>;
+  lotAllocations: Array<{ lot_code: string; serial_number: string; quantity_milli: number; disposition: string }>;
+  lots: unknown[];
+};
 
 async function signInRole(
   context: BrowserContext,
@@ -63,37 +70,42 @@ test("isolated demo receives lot and serial stock with independent approval and 
   const approver = credentials.users.find((user) => user.label === "Support manager");
   const warehouse = credentials.users.find((user) => user.role === "warehouse_manager");
   const quality = credentials.users.find((user) => user.roles?.includes("quality_inspector"));
+  const finance = credentials.users.find((user) => user.role === "finance_approver");
   expect(buyer).toBeTruthy();
   expect(approver).toBeTruthy();
   expect(warehouse).toBeTruthy();
   expect(quality).toBeTruthy();
+  expect(finance).toBeTruthy();
+  expect(finance!.userId).not.toBe(buyer!.userId);
+  expect(finance!.userId).not.toBe(warehouse!.userId);
 
-  const buyerContext = await browser.newContext(testInfo.project.use);
-  const approverContext = await browser.newContext(testInfo.project.use);
-  const warehouseContext = await browser.newContext(testInfo.project.use);
-  const qualityContext = await browser.newContext(testInfo.project.use);
+  const buyerContext = await createEngineeringBrowserContext(browser,testInfo);
+  const approverContext = await createEngineeringBrowserContext(browser,testInfo);
+  const warehouseContext = await createEngineeringBrowserContext(browser,testInfo);
+  const qualityContext = await createEngineeringBrowserContext(browser,testInfo);
+  const financeContext = await createEngineeringBrowserContext(browser,testInfo);
   try {
     const buyerPage = await buyerContext.newPage();
     buyerPage.setDefaultTimeout(30_000);
     await signInRole(buyerContext, buyerPage, credentials, "purchasing_operator", buyer!, "/holdings/simulation/commerce?view=purchase&new=1");
-    await expect(buyerPage.getByRole("heading", { name: "Business operations", exact: true })).toBeVisible();
+    await expect(buyerPage.getByRole("heading", { name: "Purchase orders", level: 1, exact: true })).toBeVisible();
 
     const createPurchaseOrder = async (sku: string, quantity: string, price: string, note: string) => {
       await buyerPage.goto("/holdings/simulation/commerce?view=purchase&new=1", { waitUntil: "domcontentloaded" });
       await buyerPage.waitForTimeout(750);
-      const supplier = buyerPage.locator("label").filter({ hasText: "Supplier" }).locator("select");
-      const warehouse = buyerPage.locator("label").filter({ hasText: "Warehouse" }).locator("select");
+      const supplier = buyerPage.locator("#workspace-content").locator("label").filter({ hasText: "Supplier" }).locator("select");
+      const warehouse = buyerPage.locator("#workspace-content").locator("label").filter({ hasText: "Warehouse" }).locator("select");
       await supplier.selectOption({ label: "Demo supplier A" });
       await warehouse.selectOption({ label: "Simulation receiving warehouse" });
       await buyerPage.getByRole("button", { name: "Add product", exact: true }).click();
-      const product = buyerPage.locator("label").filter({ hasText: "Product 1" }).locator("select");
+      const product = buyerPage.locator("#workspace-content").locator("label").filter({ hasText: "Product 1" }).locator("select");
       const productValue = await product.locator("option").filter({ hasText: sku }).getAttribute("value");
       expect(productValue, `${sku} product option`).toBeTruthy();
       await product.selectOption(productValue!);
-      await buyerPage.locator("label").filter({ hasText: "Quantity 1" }).locator("input").fill(quantity);
-      await buyerPage.locator("label").filter({ hasText: "Unit price 1" }).locator("input").fill(price);
-      await buyerPage.locator("label").filter({ hasText: "Tax rate 1" }).locator("input").fill("0");
-      await buyerPage.locator("label").filter({ hasText: "Order notes" }).locator("input").fill(note);
+      await buyerPage.locator("#workspace-content").locator("label").filter({ hasText: "Quantity 1" }).locator("input").fill(quantity);
+      await buyerPage.locator("#workspace-content").locator("label").filter({ hasText: "Unit price 1" }).locator("input").fill(price);
+      await buyerPage.locator("#workspace-content").locator("label").filter({ hasText: "Tax rate 1" }).locator("input").fill("0");
+      await buyerPage.locator("#workspace-content").locator("label").filter({ hasText: "Order notes" }).locator("input").fill(note);
       await Promise.all([
         buyerPage.waitForURL(/\/holdings\/simulation\/commerce\/orders\/order-/),
         buyerPage.getByRole("button", { name: "Save draft", exact: true }).click(),
@@ -101,7 +113,7 @@ test("isolated demo receives lot and serial stock with independent approval and 
       const orderId = new URL(buyerPage.url()).pathname.split("/").at(-1)!;
       await expect(buyerPage.getByRole("heading", { name: "Receive goods", exact: true })).toHaveCount(0);
       await submitOrder(buyerPage, orderId);
-      await expect(buyerPage.getByText("submitted", { exact: true }).first()).toBeVisible();
+      await expect(buyerPage.locator("#workspace-content").getByText("submitted", { exact: true }).first()).toBeVisible();
       return orderId;
     };
 
@@ -118,18 +130,18 @@ test("isolated demo receives lot and serial stock with independent approval and 
     await signInRole(warehouseContext, warehousePage, credentials, "warehouse_manager", warehouse!, `/holdings/simulation/commerce/orders/${lotOrderId}`);
     await expect(warehousePage.getByRole("heading", { name: "Receive goods", exact: true }).first()).toBeVisible();
     await warehousePage.getByRole("button", { name: "Add lot", exact: true }).click();
-    await warehousePage.locator("label").filter({ hasText: "Lot code" }).locator("input").fill("DEMO-LOT-2026-01");
-    await warehousePage.locator("label").filter({ hasText: "Quantity" }).locator("input").fill("2");
-    await warehousePage.locator("label").filter({ hasText: "Receipt disposition" }).locator("select").selectOption("quarantine");
-    await warehousePage.locator("label").filter({ hasText: "Quarantine reason" }).locator("input").fill("Medical supply lot requires independent Quality inspection before use.");
-    await warehousePage.locator("label").filter({ hasText: "Review due date" }).locator("input").fill("2026-10-15");
+    await warehousePage.locator("#workspace-content").locator("label").filter({ hasText: "Lot code" }).locator("input").fill("DEMO-LOT-2026-01");
+    await warehousePage.locator("#workspace-content").locator("label").filter({ hasText: "Quantity" }).locator("input").fill("2");
+    await warehousePage.locator("#workspace-content").locator("label").filter({ hasText: "Receipt disposition" }).locator("select").selectOption("quarantine");
+    await warehousePage.locator("#workspace-content").locator("label").filter({ hasText: "Quarantine reason" }).locator("input").fill("Medical supply lot requires independent Quality inspection before use.");
+    await warehousePage.locator("#workspace-content").locator("label").filter({ hasText: "Review due date" }).locator("input").fill("2026-10-15");
     const lotReceipt = warehousePage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith(`/commerce/orders/${lotOrderId}/fulfill`));
     await warehousePage.getByRole("button", { name: "Record receipt", exact: true }).click();
     expect((await lotReceipt).ok()).toBe(true);
     await warehousePage.goto(`/holdings/simulation/commerce/orders/${lotOrderId}?refresh=${Date.now()}`, { waitUntil: "commit" });
     const lotDetail = await warehouseContext.request.get(`/api/v1/holdings/simulation/commerce/orders/${lotOrderId}`);
     expect(lotDetail.ok(), await lotDetail.text()).toBe(true);
-    const lotData = (await lotDetail.json()).data as { lotAllocations: Array<{ lot_code: string; quantity_milli: number; disposition: string }> };
+    const lotData = (await lotDetail.json()).data as ReceiptDetail;
     expect(lotData.lotAllocations).toEqual(expect.arrayContaining([expect.objectContaining({ lot_code: "DEMO-LOT-2026-01", quantity_milli: 2000, disposition: "quarantine" })]));
 
     const serialBefore = await warehouseContext.request.get(`/api/v1/holdings/simulation/commerce/orders/${serialOrderId}`);
@@ -138,8 +150,8 @@ test("isolated demo receives lot and serial stock with independent approval and 
     await warehousePage.waitForTimeout(1_000);
     const addSerial = warehousePage.getByRole("button", { name: "Add serial", exact: true });
     await addSerial.first().click();
-    const serialNumberInput = warehousePage.locator("label").filter({ hasText: "Serial number" }).locator("input");
-    const serialQuantityInput = warehousePage.locator("label").filter({ hasText: "Quantity" }).locator("input");
+    const serialNumberInput = warehousePage.locator("#workspace-content").locator("label").filter({ hasText: "Serial number" }).locator("input");
+    const serialQuantityInput = warehousePage.locator("#workspace-content").locator("label").filter({ hasText: "Quantity" }).locator("input");
     await serialNumberInput.fill("DEMO-SERIAL-2026-01");
     await expect(serialQuantityInput).toHaveValue("1");
     const serialReceipt = warehousePage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith(`/commerce/orders/${serialOrderId}/fulfill`));
@@ -148,7 +160,7 @@ test("isolated demo receives lot and serial stock with independent approval and 
     await warehousePage.goto(`/holdings/simulation/commerce/orders/${serialOrderId}?refresh=${Date.now()}`, { waitUntil: "commit" });
     const serialDetail = await warehouseContext.request.get(`/api/v1/holdings/simulation/commerce/orders/${serialOrderId}`);
     expect(serialDetail.ok(), await serialDetail.text()).toBe(true);
-    const serialData = (await serialDetail.json()).data as { lotAllocations: Array<{ serial_number: string; quantity_milli: number; disposition: string }> };
+    const serialData = (await serialDetail.json()).data as ReceiptDetail;
     expect(serialData.lotAllocations).toEqual(expect.arrayContaining([expect.objectContaining({ serial_number: "DEMO-SERIAL-2026-01", quantity_milli: 1000, disposition: "available" })]));
 
     await warehousePage.goto("/holdings/simulation/commerce?view=stock", { waitUntil: "domcontentloaded" });
@@ -166,11 +178,77 @@ test("isolated demo receives lot and serial stock with independent approval and 
     expect(qualityResponse.ok(), await qualityResponse.text()).toBe(true);
     const qualityData = (await qualityResponse.json()).data as { holds: Array<{ lot_code: string; held_quantity_milli: number; status: string }> };
     expect(qualityData.holds).toEqual(expect.arrayContaining([expect.objectContaining({ lot_code: "DEMO-LOT-2026-01", held_quantity_milli: 2000, status: "held" })]));
+
+    const financePage = await financeContext.newPage();
+    await signInRole(financeContext, financePage, credentials, "finance_approver", finance!, `/holdings/simulation/commerce/orders/${lotOrderId}`);
+    const postedReceipts: Array<{ orderId: string; fulfillmentId: string; journalId: string; valueMinor: number }> = [];
+    for (const { orderId, before, quantityMilli, valueMinor, amount } of [
+      { orderId: lotOrderId, before: lotData, quantityMilli: 2000, valueMinor: 240000, amount: "2400.00" },
+      { orderId: serialOrderId, before: serialData, quantityMilli: 1000, valueMinor: 3500000, amount: "35000.00" },
+    ]) {
+      expect(before.fulfillments).toHaveLength(1);
+      expect(before.fulfillmentLines).toHaveLength(1);
+      expect(before.fulfillmentLines[0]).toMatchObject({ quantity_milli: quantityMilli, value_minor: valueMinor });
+      const receipt = before.fulfillments[0];
+      expect(receipt.stock_journal_status).toBe("draft");
+      await financePage.goto(`/holdings/simulation/commerce/orders/${orderId}`, { waitUntil: "domcontentloaded" });
+      const journalLink = financePage.getByRole("main").getByRole("link", { name: "Review goods movement GL", exact: true });
+      await expect(journalLink).toHaveCount(1);
+      await expect(journalLink).toHaveAttribute("href", `/holdings/simulation/finance/journals/${receipt.journal_id}`);
+      await journalLink.click();
+      await expect(financePage).toHaveURL(new RegExp(`/finance/journals/${receipt.journal_id}$`));
+      const main = financePage.getByRole("main");
+      const expectJournalAmounts = async () => {
+        for (const [account, debit, credit] of [
+          ["INV · Simulation inventory", amount, "0.00"],
+          ["GRNI · Simulation goods received clearing", "0.00", amount],
+        ]) {
+          const row = main.getByRole("cell", { name: account, exact: true }).locator("xpath=ancestor::tr[1]");
+          await expect(row).toHaveCount(1);
+          await expect(row.getByRole("cell")).toHaveCount(3);
+          await expect(row.getByRole("cell").nth(1)).toHaveText(debit);
+          await expect(row.getByRole("cell").nth(2)).toHaveText(credit);
+        }
+      };
+      await expectJournalAmounts();
+      const postButton = main.getByRole("button", { name: "Approve and post journal", exact: true });
+      await expect(postButton).toHaveCount(1);
+      const posted = financePage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith(`/finance/journals/${receipt.journal_id}/post`));
+      await postButton.click();
+      expect((await posted).ok()).toBe(true);
+      await financePage.reload({ waitUntil: "domcontentloaded" });
+      await expect(postButton).toHaveCount(0);
+      await expectJournalAmounts();
+      const journalsResponse = await financeContext.request.get("/api/v1/holdings/simulation/finance/journals?status=posted");
+      expect(journalsResponse.ok(), await journalsResponse.text()).toBe(true);
+      const journals = (await journalsResponse.json()).data as Array<{ id: string; status: string; source_type: string; source_id: string; created_by: string; posted_by: string }>;
+      const journal = journals.filter((item) => item.id === receipt.journal_id);
+      expect(journal).toHaveLength(1);
+      expect(journal[0]).toMatchObject({ status: "posted", source_type: "goods_receipt", source_id: receipt.id, created_by: warehouse!.userId, posted_by: finance!.userId });
+      const afterResponse = await warehouseContext.request.get(`/api/v1/holdings/simulation/commerce/orders/${orderId}`);
+      expect(afterResponse.ok(), await afterResponse.text()).toBe(true);
+      const after = (await afterResponse.json()).data as ReceiptDetail;
+      expect(after.fulfillments).toHaveLength(1);
+      expect(after.fulfillments[0]).toMatchObject({ id: receipt.id, journal_id: receipt.journal_id, stock_journal_status: "posted" });
+      expect(after.fulfillmentLines).toEqual(before.fulfillmentLines);
+      expect(after.lotAllocations).toEqual(before.lotAllocations);
+      expect(after.lots).toEqual(before.lots);
+      postedReceipts.push({ orderId, fulfillmentId: receipt.id, journalId: receipt.journal_id, valueMinor });
+    }
+    await warehousePage.reload({ waitUntil: "domcontentloaded" });
+    await expect(lotRow).toContainText("lot");
+    await expect(lotRow).toContainText("2");
+    await expect(serialRow).toContainText("serial");
+    await expect(serialRow).toContainText("1");
+    await qualityPage.reload({ waitUntil: "domcontentloaded" });
+    const qualityAfterResponse = await qualityContext.request.get("/api/v1/holdings/simulation/quality");
+    expect(qualityAfterResponse.ok(), await qualityAfterResponse.text()).toBe(true);
+    expect((await qualityAfterResponse.json()).data.holds).toEqual(qualityData.holds);
     await testInfo.attach("inventory-lot-serial-result", {
       contentType: "application/json",
-      body: JSON.stringify({ run, lotOrderId, serialOrderId, lotCode: "DEMO-LOT-2026-01", serialNumber: "DEMO-SERIAL-2026-01", lotDisposition: "quarantine", serialDisposition: "available" }, null, 2),
+      body: JSON.stringify({ run, lotOrderId, serialOrderId, lotCode: "DEMO-LOT-2026-01", serialNumber: "DEMO-SERIAL-2026-01", lotDisposition: "quarantine", serialDisposition: "available", postedReceipts }, null, 2),
     });
   } finally {
-    await Promise.all([buyerContext.close(), approverContext.close(), warehouseContext.close(), qualityContext.close()]);
+    await Promise.all([buyerContext.close(), approverContext.close(), warehouseContext.close(), qualityContext.close(), financeContext.close()]);
   }
 });

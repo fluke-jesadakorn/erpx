@@ -31,6 +31,8 @@ The launcher can clone the original source on an initial setup by passing its di
 
 ## Verification
 
+> Recorded observations apply to their stated date/environment. Current coverage and remaining acceptance are in the [verification inventory](../../status/capability-delivery-matrix.md); old gaps do not override current owner behavior.
+
 ```sh
 ERPX_VERIFY_UCS_LAB=1 bun --env-file=.env.local run test:integration tests/directory-provider-live.test.ts
 ```
@@ -39,6 +41,6 @@ This opt-in test makes real changes only in the lab OU: disabled account creatio
 
 Run real writes after package installation has finished. Registering UCS schema extensions temporarily restarts UDM and invalidates availability measurements. The durable application's worker retries transport errors using the same operation ID, verifies results, and stops on a version/identity conflict.
 
-Public UI verification uses the authenticated session at [People connections](https://erpx.jesadakorn.com/holdings/acme/people/settings?section=connections) and [Access & devices](https://erpx.jesadakorn.com/holdings/acme/people/access?view=devices). A health endpoint alone is insufficient. No real employee access is granted by the lab setup.
+Public UI verification uses the authenticated session at [People connections](https://console-dev-erpx.jesadakorn.com/holdings/acme/people/settings?section=connections) and [Access & devices](https://console-dev-erpx.jesadakorn.com/holdings/acme/people/access?view=devices). A health endpoint alone is insufficient. No real employee access is granted by the lab setup.
 
 API reference: [Univention UDM REST](https://docs.software-univention.de/nubus-customization/1.x/en/api/udm-rest.html). Deferred Windows checks: [Windows runner](../../../ops/windows/README.md).

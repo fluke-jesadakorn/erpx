@@ -1,5 +1,7 @@
 # Customer 360: scoped source timeline
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 ชุด D / S01,S02,S04,S09: เพิ่ม projection แบบ read-only จาก owner tables เดิม ไม่สร้างสถานะธุรกิจอีกชุด. หน้า `/customers` แสดงเฉพาะ customer ที่มี quotation/sales, qualified CRM lead, Field Service agreement (เมื่อมีโมดูล) หรือ Finance invoice (เมื่อมี finance.read) ใน Company/Branch/Department ปัจจุบัน. ลูกค้าที่มีอยู่แต่ไม่มี source ที่อ่านได้ไม่ปรากฏใน directory และ detail ตอบ404; ต้องมี commerce.read.
 
 Timeline รวม latest quotation/order, fulfillment, customer return, note correction/archive history, follow-up history, qualified CRM lead/opportunity history, Field Service agreement events, Finance invoice state และ Legal records ที่ผูกกับ order ผ่าน native reference. ทุกแถวมี source link/version/time; event ที่เป็น notes ไม่ส่ง body/reason, CRM ไม่ส่ง contact details/brief/event payload, Legal ส่งเฉพาะสถานะ/ชื่อ/เหตุการณ์เมื่อผู้ดูมี legal.read และ membership ตาม classification, ไม่มีต้นทุน HR payment beneficiary หรือไฟล์แนบ. Field Service ใช้โมดูลของผู้ดูและ Finance/Legal ใช้ permission ก่อนเปิดข้อมูล. Source details ยังตรวจสิทธิ์เอง. API ใช้ private no-store.

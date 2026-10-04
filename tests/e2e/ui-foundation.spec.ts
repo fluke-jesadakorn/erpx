@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 
 test("canonical UI controls remain accessible across themes and widths", async ({ page, context, baseURL }) => {
-  test.skip(!["localhost", "127.0.0.1"].includes(new URL(baseURL!).hostname), "The component gallery is development-only.");
+  test.skip(!["localhost", "127.0.0.1", "console-dev-erpx.jesadakorn.com"].includes(new URL(baseURL!).hostname), "The component gallery is development-only.");
   test.setTimeout(120_000);
   mkdirSync(".scratch/ui-foundation", { recursive: true });
   for (const theme of ["light", "dark"])
@@ -29,7 +29,7 @@ test("canonical UI controls remain accessible across themes and widths", async (
 });
 
 test("foundation supports keyboard focus and reduced motion", async ({ page, baseURL }) => {
-  test.skip(!["localhost", "127.0.0.1"].includes(new URL(baseURL!).hostname), "The component gallery is development-only.");
+  test.skip(!["localhost", "127.0.0.1", "console-dev-erpx.jesadakorn.com"].includes(new URL(baseURL!).hostname), "The component gallery is development-only.");
   await page.emulateMedia({ reducedMotion: "reduce", colorScheme: "dark" });
   await page.goto("/dev/ui");
   await page.keyboard.press("Tab");

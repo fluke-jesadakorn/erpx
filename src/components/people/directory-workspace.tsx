@@ -1,4 +1,6 @@
 "use client";
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
+
 import { TimeText } from "@/components/time/time-preference-context";
 import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
@@ -18,6 +20,7 @@ import type { AttributeDefinition } from "@/lib/user-management";
 import styles from "./lifecycle.module.css";
 import { DirectoryConsole } from "@/components/technology/directory-console";
 import compactStyles from "@/components/technology/directory-workspace.module.css";
+import { type UiAppearance } from "@/components/ui/foundation";
 
 const labels: Record<DirectoryAction["kind"], string> = {
   "account.create": "Create account",
@@ -35,7 +38,7 @@ const labels: Record<DirectoryAction["kind"], string> = {
   "gpo.publish": "Publish Windows policy",
   "gpo.link": "Link GPO to OU",
 };
-export function DirectoryWorkspace({
+export function DirectoryWorkspace({ appearance = "legacy",
   base,
   initial,
   mode = "inventory",
@@ -43,7 +46,7 @@ export function DirectoryWorkspace({
   people = [],
   initialConnectionId,
   initialObjectId,
-}: {
+}: ({
   base: string;
   initialConnectionId?: string;
   initialObjectId?: string;
@@ -51,7 +54,7 @@ export function DirectoryWorkspace({
   mode?: "inventory" | "gpo" | "settings" | "groups";
   attributes?: AttributeDefinition[];
   people?: { id: string; name: string }[];
-}) {
+}) & { appearance?: UiAppearance }) {
   const router = useRouter(),
     receipt = useRef<{ body: string; key: string } | null>(null);
   const actionMenu = useRef<HTMLDetailsElement>(null);
@@ -82,8 +85,8 @@ export function DirectoryWorkspace({
     objects = connection?.inventory?.objects ?? [],
     ous = objects.filter((o) => o.kind === "ou"),
     groups = objects.filter((o) => o.kind === "group");
-  const existingLinks = (objects.find((o) => o.id === edit?.parentId)
-    ?.properties.gpoLinks ?? []) as {
+  const existingLinks = (objects.find((o) => o.id === edit?.parentId)?.properties.gpoLinks ??
+    []) as {
     gpoId: string;
     enabled: boolean;
     enforced: boolean;
@@ -112,20 +115,16 @@ export function DirectoryWorkspace({
     if (receipt.current?.body !== fingerprint)
       receipt.current = { body: fingerprint, key: crypto.randomUUID() };
     try {
-      const r = await workFetch(
-        "/api/v1" + base + "/people/directory-operations/" + path,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Idempotency-Key": receipt.current.key,
-          },
-          body,
+      const r = await workFetch("/api/v1" + base + "/people/directory-operations/" + path, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": receipt.current.key,
         },
-      );
+        body,
+      });
       const result = await r.json();
-      if (!r.ok)
-        throw Error(result.error?.message ?? "The directory operation failed.");
+      if (!r.ok) throw Error(result.error?.message ?? "The directory operation failed.");
       receipt.current = null;
       if (path !== "preview") router.refresh();
       return result.data;
@@ -143,9 +142,7 @@ export function DirectoryWorkspace({
       setPolicy(
         windowsPolicyDefinition.parse(
           saved ?? {
-            name:
-              objects.find((o) => o.id === value.objectId)?.name ??
-              "Windows policy",
+            name: objects.find((o) => o.id === value.objectId)?.name ?? "Windows policy",
             scope: "user",
             targetOuId: "unselected",
             filterGroupId: "unselected",
@@ -164,10 +161,7 @@ export function DirectoryWorkspace({
         source = objects.find((o) => o.id === value.id);
       if (value.connectionId !== connectionId || !source)
         throw Error("Choose objects from the same directory connection.");
-      if (
-        targetKind === "group" &&
-        ["account", "computer", "group"].includes(source.kind)
-      )
+      if (targetKind === "group" && ["account", "computer", "group"].includes(source.kind))
         open({ kind: "group.members", objectId: target, memberId: source.id });
       else if (
         targetKind === "ou" &&
@@ -178,10 +172,7 @@ export function DirectoryWorkspace({
           objectId: source.id,
           parentId: target,
         });
-      else
-        throw Error(
-          "This drop is not supported. Choose an action from the object.",
-        );
+      else throw Error("This drop is not supported. Choose an action from the object.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Choose a supported drop.");
     }
@@ -291,7 +282,7 @@ export function DirectoryWorkspace({
   }
   const options = (items: typeof objects) =>
     items.map((o) => (
-      <option key={o.id} value={o.id}>
+      <option data-ui-appearance={appearance} key={o.id} value={o.id}>
         {o.name} · {o.kind}
       </option>
     ));
@@ -300,106 +291,139 @@ export function DirectoryWorkspace({
       ? ["gpo.publish"]
       : mode === "groups"
         ? ["group.create"]
-        : ["account.create", "group.create", "ou.create", "gpo.publish", "object.move", "group.members"];
+        : [
+            "account.create",
+            "group.create",
+            "ou.create",
+            "gpo.publish",
+            "object.move",
+            "group.members",
+          ];
   const primaryActions = mode === "inventory" ? actionKinds.slice(0, 2) : actionKinds;
   const moreActions = mode === "inventory" ? actionKinds.slice(2) : [];
   return (
-    <section className={"card " + styles.stack + (mode === "settings" ? "" : " " + compactStyles.workspace)}>
-      {mode !== "inventory" && <h2>
-        {mode === "gpo"
-          ? "Windows policies"
-          : mode === "settings"
-            ? "Directory write-back & field mapping"
-            : mode === "groups"
-              ? "Directory groups"
-              : "Directory accounts, computers & OUs"}
-      </h2>}
+    <section data-ui-appearance={appearance}
+      className={
+        "card " + styles.stack + (mode === "settings" ? "" : " " + compactStyles.workspace)
+      }
+    >
+      {mode !== "inventory" && (
+        <h2 data-ui-appearance={appearance}>
+          {mode === "gpo"
+            ? "Windows policies"
+            : mode === "settings"
+              ? "Directory write-back & field mapping"
+              : mode === "groups"
+                ? "Directory groups"
+                : "Directory accounts, computers & OUs"}
+        </h2>
+      )}
       {!connection ? (
-        <p>
+        <p data-ui-appearance={appearance}>
           No active UCS or AD connection.{" "}
-          <Link href={base + "/people/settings?section=connections"}>
-            Configure a connection
-          </Link>
-          .
+          <Link href={base + "/people/settings?section=connections"}>Configure a connection</Link>.
         </p>
       ) : (
         <>
-          <div className={mode === "settings" ? styles.stack : compactStyles.workspaceHeader}>
-          <label>
-            {mode === "settings" ? "Directory connection" : "Connection"}
-            <select
-              value={connectionId}
-              onChange={(e) => {
-                setConnectionId(e.target.value);
-                setFieldPreview(null);
-                setPreview(null);
-                setEdit(null);
-                setMappings(
-                  initial.connections.find((c) => c.id === e.target.value)
-                    ?.mappings ?? [],
-                );
-              }}
-            >
-              {initial.connections.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} · {c.provider}
-                </option>
-              ))}
-            </select>
-          </label>
-          <p>
-            {connection.writeEnabled ? "Write-back enabled" : "Read-only"} ·{" "}
-            {connection.inventory?.providerVersion ?? "Not tested"} ·{" "}
-            {connection.inventory
-              ? <TimeText value={connection.inventory.observedAt} />
-              : "Read the inventory to begin"}
-          </p>
-          {initial.canManage && (
-            <button
-              className="button secondary"
-              disabled={busy}
-              onClick={() =>
-                void send("refresh", {
-                  connectionId,
-                  expectedVersion: connection.version,
-                })
-              }
-            >
-              Read inventory
-            </button>
-          )}
-          {mode !== "settings" && initial.canManage && (
-            <div className={compactStyles.quickActions} aria-label="Directory actions">
-              {primaryActions.map((kind) => (
-                <button key={kind} type="button" className="button secondary" onClick={() => open({ kind })}>
-                  {labels[kind]}
-                </button>
-              ))}
-              {moreActions.length > 0 && <details ref={actionMenu} className={compactStyles.moreActions} onKeyDown={(event) => {
-                if (event.key === "Escape") actionMenu.current?.removeAttribute("open");
-              }}>
-                <summary>More actions</summary>
-                <div className={compactStyles.moreMenu}>
-                  {moreActions.map((kind) => <button key={kind} type="button" onClick={() => {
-                    actionMenu.current?.removeAttribute("open");
-                    open({ kind });
-                  }}>{labels[kind]}</button>)}
-                </div>
-              </details>}
-            </div>
-          )}
+          <div data-ui-appearance={appearance} className={mode === "settings" ? styles.stack : compactStyles.workspaceHeader}>
+            <Field appearance={appearance}>
+              {mode === "settings" ? "Directory connection" : "Connection"}
+              <Select appearance={appearance}
+                value={connectionId}
+                onChange={(e) => {
+                  setConnectionId(e.target.value);
+                  setFieldPreview(null);
+                  setPreview(null);
+                  setEdit(null);
+                  setMappings(
+                    initial.connections.find((c) => c.id === e.target.value)?.mappings ?? [],
+                  );
+                }}
+              >
+                {initial.connections.map((c) => (
+                  <option data-ui-appearance={appearance} key={c.id} value={c.id}>
+                    {c.name} · {c.provider}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <p data-ui-appearance={appearance}>
+              {connection.writeEnabled ? "Write-back enabled" : "Read-only"} ·{" "}
+              {connection.inventory?.providerVersion ?? "Not tested"} ·{" "}
+              {connection.inventory ? (
+                <TimeText appearance={appearance} value={connection.inventory.observedAt} />
+              ) : (
+                "Read the inventory to begin"
+              )}
+            </p>
+            {initial.canManage && (
+              <Button appearance={appearance}
+                type="submit"
+                variant="secondary"
+
+                disabled={busy}
+                onClick={() =>
+                  void send("refresh", {
+                    connectionId,
+                    expectedVersion: connection.version,
+                  })
+                }
+              >
+                Read inventory
+              </Button>
+            )}
+            {mode !== "settings" && initial.canManage && (
+              <div data-ui-appearance={appearance} className={compactStyles.quickActions} aria-label="Directory actions">
+                {primaryActions.map((kind) => (
+                  <Button appearance={appearance}
+                    variant="secondary"
+                    key={kind}
+                    type="button"
+                    onClick={() => open({ kind })}
+                  >
+                    {labels[kind]}
+                  </Button>
+                ))}
+                {moreActions.length > 0 && (
+                  <details data-ui-appearance={appearance}
+                    ref={actionMenu}
+                    className={compactStyles.moreActions}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") actionMenu.current?.removeAttribute("open");
+                    }}
+                  >
+                    <summary data-ui-appearance={appearance}>More actions</summary>
+                    <div data-ui-appearance={appearance} className={compactStyles.moreMenu}>
+                      {moreActions.map((kind) => (
+                        <Button appearance={appearance}
+                          variant="plain"
+                          key={kind}
+                          type="button"
+                          onClick={() => {
+                            actionMenu.current?.removeAttribute("open");
+                            open({ kind });
+                          }}
+                        >
+                          {labels[kind]}
+                        </Button>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </div>
+            )}
           </div>
           {mode === "settings" ? (
             <>
-              <p>
-                Only fields supported by the current connector schema are
-                available. Each mapping has one direction.
+              <p data-ui-appearance={appearance}>
+                Only fields supported by the current connector schema are available. Each mapping
+                has one direction.
               </p>
               {mappings.map((m, i) => (
-                <fieldset key={i}>
-                  <label>
+                <fieldset data-ui-appearance={appearance} key={i}>
+                  <Field appearance={appearance}>
                     Person attribute
-                    <select
+                    <Select appearance={appearance}
                       value={m.attributeId}
                       onChange={(e) =>
                         setMappings(
@@ -409,39 +433,37 @@ export function DirectoryWorkspace({
                         )
                       }
                     >
-                      <option value="">Choose a field</option>
+                      <option data-ui-appearance={appearance} value="">Choose a field</option>
                       {attributes
                         .filter((a) => a.target === "person" && !a.archived)
                         .map((a) => (
-                          <option key={a.id} value={a.id}>
+                          <option data-ui-appearance={appearance} key={a.id} value={a.id}>
                             {a.label}
                           </option>
                         ))}
-                    </select>
-                  </label>
-                  <label>
+                    </Select>
+                  </Field>
+                  <Field appearance={appearance}>
                     Directory field
-                    <select
+                    <Select appearance={appearance}
                       value={m.field}
                       onChange={(e) =>
                         setMappings(
-                          mappings.map((v, n) =>
-                            n === i ? { ...v, field: e.target.value } : v,
-                          ),
+                          mappings.map((v, n) => (n === i ? { ...v, field: e.target.value } : v)),
                         )
                       }
                     >
-                      <option value="">Choose a supported field</option>
+                      <option data-ui-appearance={appearance} value="">Choose a supported field</option>
                       {connection.inventory?.fields.map((f) => (
-                        <option key={f.name} value={f.name}>
+                        <option data-ui-appearance={appearance} key={f.name} value={f.name}>
                           {f.name}
                         </option>
                       ))}
-                    </select>
-                  </label>
-                  <label>
+                    </Select>
+                  </Field>
+                  <Field appearance={appearance}>
                     Direction
-                    <select
+                    <Select appearance={appearance}
                       value={m.direction}
                       onChange={(e) =>
                         setMappings(
@@ -456,35 +478,36 @@ export function DirectoryWorkspace({
                         )
                       }
                     >
-                      <option value="read">Directory → ERPX</option>
-                      <option value="write">ERPX → Directory</option>
-                    </select>
-                  </label>
-                  <button
-                    className="button secondary"
-                    onClick={() =>
-                      setMappings(mappings.filter((_, n) => n !== i))
-                    }
+                      <option data-ui-appearance={appearance} value="read">Directory → ERPX</option>
+                      <option data-ui-appearance={appearance} value="write">ERPX → Directory</option>
+                    </Select>
+                  </Field>
+                  <Button appearance={appearance}
+                    type="submit"
+                    variant="secondary"
+
+                    onClick={() => setMappings(mappings.filter((_, n) => n !== i))}
                   >
                     Remove mapping
-                  </button>
+                  </Button>
                 </fieldset>
               ))}
               {initial.canManage && (
                 <>
-                  <button
-                    className="button secondary"
+                  <Button appearance={appearance}
+                    type="submit"
+                    variant="secondary"
+
                     onClick={() =>
-                      setMappings([
-                        ...mappings,
-                        { attributeId: "", field: "", direction: "read" },
-                      ])
+                      setMappings([...mappings, { attributeId: "", field: "", direction: "read" }])
                     }
                   >
                     Add field mapping
-                  </button>
-                  <button
-                    className="button secondary"
+                  </Button>
+                  <Button appearance={appearance}
+                    type="submit"
+                    variant="secondary"
+
                     disabled={busy || !connection.inventory}
                     onClick={() =>
                       void send("configure", {
@@ -496,9 +519,11 @@ export function DirectoryWorkspace({
                     }
                   >
                     Save mappings
-                  </button>
-                  <button
-                    className="button primary"
+                  </Button>
+                  <Button appearance={appearance}
+                    type="submit"
+                    variant="primary"
+                    className="primary"
                     disabled={busy || !connection.inventory}
                     onClick={() =>
                       void send("configure", {
@@ -508,14 +533,12 @@ export function DirectoryWorkspace({
                       })
                     }
                   >
-                    {connection.writeEnabled
-                      ? "Return to read-only"
-                      : "Enable tested write-back"}
-                  </button>
+                    {connection.writeEnabled ? "Return to read-only" : "Enable tested write-back"}
+                  </Button>
                 </>
               )}
               {initial.canManage && (
-                <form
+                <form data-ui-appearance={appearance}
                   className={styles.stack}
                   onChange={() => setFieldPreview(null)}
                   onSubmit={async (e) => {
@@ -531,47 +554,47 @@ export function DirectoryWorkspace({
                     if (result) setFieldPreview({ ...result, input });
                   }}
                 >
-                  <h3>Synchronize fields for a verified person</h3>
-                  <label>
+                  <h3 data-ui-appearance={appearance}>Synchronize fields for a verified person</h3>
+                  <Field appearance={appearance}>
                     Person
-                    <select name="personId" required>
-                      <option value="">Choose a person</option>
+                    <Select appearance={appearance} name="personId" required>
+                      <option data-ui-appearance={appearance} value="">Choose a person</option>
                       {people.map((p) => (
-                        <option key={p.id} value={p.id}>
+                        <option data-ui-appearance={appearance} key={p.id} value={p.id}>
                           {p.name}
                         </option>
                       ))}
-                    </select>
-                  </label>
-                  <label>
+                    </Select>
+                  </Field>
+                  <Field appearance={appearance}>
                     Direction
-                    <select name="direction">
-                      <option value="read">Directory → ERPX</option>
-                      <option value="write">
-                        ERPX → Directory, with independent review
-                      </option>
-                    </select>
-                  </label>
-                  <label>
+                    <Select appearance={appearance} name="direction">
+                      <option data-ui-appearance={appearance} value="read">Directory → ERPX</option>
+                      <option data-ui-appearance={appearance} value="write">ERPX → Directory, with independent review</option>
+                    </Select>
+                  </Field>
+                  <Field appearance={appearance}>
                     Reason
-                    <input name="reason" minLength={3} required />
-                  </label>
-                  <button className="button secondary" disabled={busy}>
+                    <TextInput appearance={appearance} name="reason" minLength={3} required />
+                  </Field>
+                  <Button appearance={appearance} clientManaged type="submit" variant="secondary" disabled={busy}>
                     Preview mapped fields
-                  </button>
+                  </Button>
                 </form>
               )}
               {fieldPreview && (
-                <div className={styles.preview}>
-                  <h3>{fieldPreview.personName}</h3>
+                <div data-ui-appearance={appearance} className={styles.preview}>
+                  <h3 data-ui-appearance={appearance}>{fieldPreview.personName}</h3>
                   {fieldPreview.changes.map((change) => (
-                    <p key={change.label}>
+                    <p data-ui-appearance={appearance} key={change.label}>
                       {change.label}: {String(change.from ?? "Empty")} →{" "}
                       {String(change.to ?? "Empty")}
                     </p>
                   ))}
-                  <button
-                    className="button primary"
+                  <Button appearance={appearance}
+                    type="submit"
+                    variant="primary"
+                    className="primary"
                     disabled={busy}
                     onClick={async () => {
                       const result = await send("fields/sync", {
@@ -589,7 +612,7 @@ export function DirectoryWorkspace({
                     }}
                   >
                     Confirm reviewed field changes
-                  </button>
+                  </Button>
                 </div>
               )}
             </>
@@ -608,24 +631,25 @@ export function DirectoryWorkspace({
               />
             </>
           )}
-          <details>
-            <summary>Directory work & verification</summary>
-            <div className={styles.stack}>
+          <details data-ui-appearance={appearance}>
+            <summary data-ui-appearance={appearance}>Directory work & verification</summary>
+            <div data-ui-appearance={appearance} className={styles.stack}>
               {initial.jobs
                 .filter((j) => j.connection_id === connectionId)
                 .map((j) => (
-                  <article key={j.id}>
-                    <strong>{labels[j.definition.action.kind]}</strong> ·{" "}
+                  <article data-ui-appearance={appearance} key={j.id}>
+                    <strong data-ui-appearance={appearance}>{labels[j.definition.action.kind]}</strong> ·{" "}
                     {j.status.replaceAll("_", " ")}
-                    <p>{j.definition.reason}</p>
-                    {j.last_error && <p role="status">{j.last_error}</p>}
+                    <p data-ui-appearance={appearance}>{j.definition.reason}</p>
+                    {j.last_error && <p data-ui-appearance={appearance} role="status">{j.last_error}</p>}
                     {initial.canApply &&
                       j.approval_mode === "direct" &&
                       (j.status === "retry" ||
-                        (j.status === "blocked" &&
-                          j.last_error === "FRESH_MFA_REQUIRED")) && (
-                        <button
-                          className="button secondary"
+                        (j.status === "blocked" && j.last_error === "FRESH_MFA_REQUIRED")) && (
+                        <Button appearance={appearance}
+                          type="submit"
+                          variant="secondary"
+
                           disabled={busy}
                           onClick={() =>
                             void send("retry", {
@@ -635,15 +659,15 @@ export function DirectoryWorkspace({
                           }
                         >
                           Retry unfinished steps
-                        </button>
+                        </Button>
                       )}
                     {j.steps?.map((step) => (
-                      <p key={step.index}>
+                      <p data-ui-appearance={appearance} key={step.index}>
                         Step {step.index + 1}: {step.status}
                       </p>
                     ))}
                     {j.status === "completed" && (
-                      <p>
+                      <p data-ui-appearance={appearance}>
                         Directory read-back verified ·{" "}
                         {j.definition.action.kind.startsWith("gpo.")
                           ? "Endpoint confirmation is tracked separately."
@@ -656,11 +680,11 @@ export function DirectoryWorkspace({
                       </Link>
                     )}
                     {initial.canManage &&
-                      ["pending_review", "queued", "blocked"].includes(
-                        j.status,
-                      ) && (
-                        <button
-                          className="button secondary"
+                      ["pending_review", "queued", "blocked"].includes(j.status) && (
+                        <Button appearance={appearance}
+                          type="submit"
+                          variant="secondary"
+
                           disabled={busy}
                           onClick={() =>
                             void send("cancel", {
@@ -670,7 +694,7 @@ export function DirectoryWorkspace({
                           }
                         >
                           Cancel before execution
-                        </button>
+                        </Button>
                       )}
                   </article>
                 ))}
@@ -678,16 +702,16 @@ export function DirectoryWorkspace({
           </details>
         </>
       )}
-      {error && <p role="alert">{error}</p>}
-      {notice && <p role="status">{notice}</p>}
-      <Dialog
+      {error && <p data-ui-appearance={appearance} role="alert">{error}</p>}
+      {notice && <p data-ui-appearance={appearance} role="status">{notice}</p>}
+      <Dialog appearance={appearance}
         open={!!edit}
         onClose={() => setEdit(null)}
         title={edit ? labels[edit.kind] : "Directory change"}
-        presentation="responsive-panel"
+        presentation="form-drawer"
       >
         {edit && connection && (
-          <form
+          <form data-ui-appearance={appearance}
             className={styles.stack}
             onSubmit={review}
             onChange={() => {
@@ -696,14 +720,12 @@ export function DirectoryWorkspace({
             }}
           >
             {!edit.action &&
-              !["account.create", "group.create", "ou.create"].includes(
-                edit.kind,
-              ) && (
-                <label>
+              !["account.create", "group.create", "ou.create"].includes(edit.kind) && (
+                <Field appearance={appearance}>
                   {edit.kind === "gpo.publish"
                     ? "Existing GPO, or create a new one"
                     : "Directory object"}
-                  <select
+                  <Select appearance={appearance}
                     name="objectId"
                     defaultValue={edit.objectId ?? ""}
                     onChange={(e) => {
@@ -711,108 +733,88 @@ export function DirectoryWorkspace({
                     }}
                     required={edit.kind !== "gpo.publish"}
                   >
-                    <option value="">
+                    <option data-ui-appearance={appearance} value="">
                       {edit.kind === "gpo.publish"
                         ? "Create a new managed GPO"
                         : "Choose an object"}
                     </option>
                     {options(
                       objects.filter((o) =>
-                        ["ou.update", "gpo.order", "gpo.inheritance"].includes(
-                          edit.kind,
-                        )
+                        ["ou.update", "gpo.order", "gpo.inheritance"].includes(edit.kind)
                           ? o.kind === "ou"
                           : edit.kind.startsWith("gpo.")
                             ? o.kind === "gpo"
                             : edit.kind === "group.members"
                               ? o.kind === "group"
                               : edit.kind === "object.move"
-                                ? [
-                                    "account",
-                                    "computer",
-                                    "group",
-                                    "ou",
-                                  ].includes(o.kind)
+                                ? ["account", "computer", "group", "ou"].includes(o.kind)
                                 : o.kind === "account",
                       ),
                     )}
-                  </select>
-                </label>
+                  </Select>
+                </Field>
               )}
-            {[
-              "account.create",
-              "group.create",
-              "ou.create",
-              "object.move",
-              "gpo.link",
-            ].includes(edit.kind) && (
-              <label>
+            {["account.create", "group.create", "ou.create", "object.move", "gpo.link"].includes(
+              edit.kind,
+            ) && (
+              <Field appearance={appearance}>
                 Target OU / container
-                <select
-                  name="parentId"
-                  required
-                  defaultValue={edit.parentId ?? ""}
-                >
-                  <option value="">Choose an OU</option>
+                <Select appearance={appearance} name="parentId" required defaultValue={edit.parentId ?? ""}>
+                  <option data-ui-appearance={appearance} value="">Choose an OU</option>
                   {options(ous)}
-                </select>
-              </label>
+                </Select>
+              </Field>
             )}
             {edit.kind === "account.create" && (
               <>
-                <label>
+                <Field appearance={appearance}>
                   Username
-                  <input
-                    name="username"
-                    required
-                    pattern="[a-zA-Z][a-zA-Z0-9._-]{1,63}"
-                  />
-                </label>
-                <label>
+                  <TextInput appearance={appearance} name="username" required pattern="[a-zA-Z][a-zA-Z0-9._-]{1,63}" />
+                </Field>
+                <Field appearance={appearance}>
                   First name
-                  <input name="firstName" required />
-                </label>
-                <label>
+                  <TextInput appearance={appearance} name="firstName" required />
+                </Field>
+                <Field appearance={appearance}>
                   Last name
-                  <input name="lastName" required />
-                </label>
-                <p>
-                  The account is created disabled. Linking a person and
-                  activating access require independent identity and lifecycle
-                  review.
+                  <TextInput appearance={appearance} name="lastName" required />
+                </Field>
+                <p data-ui-appearance={appearance}>
+                  The account is created disabled. Linking a person and activating access require
+                  independent identity and lifecycle review.
                 </p>
               </>
             )}
             {["group.create", "ou.create"].includes(edit.kind) && (
-              <label>
+              <Field appearance={appearance}>
                 Name
-                <input name="name" required />
-              </label>
+                <TextInput appearance={appearance} name="name" required />
+              </Field>
             )}
             {edit.kind === "account.update" && (
               <>
-                <label>
+                <Field appearance={appearance}>
                   Supported field
-                  <select name="field">
+                  <Select appearance={appearance} name="field">
                     {connection.inventory?.fields
                       .filter((f) => f.write)
                       .map((f) => (
-                        <option key={f.name}>{f.name}</option>
+                        <option data-ui-appearance={appearance} key={f.name}>{f.name}</option>
                       ))}
-                  </select>
-                </label>
-                <label>
+                  </Select>
+                </Field>
+                <Field appearance={appearance}>
                   New value
-                  <input name="value" maxLength={2000} />
-                </label>
+                  <TextInput appearance={appearance} name="value" maxLength={2000} />
+                </Field>
               </>
             )}
             {edit.kind === "account.disable" && (
               <>
-                <label>
+                <Field appearance={appearance}>
                   Related departure (optional)
-                  <select name="caseId">
-                    <option value="">Independent IT action</option>
+                  <Select appearance={appearance} name="caseId">
+                    <option data-ui-appearance={appearance} value="">Independent IT action</option>
                     {initial.cases
                       .filter(
                         (c) =>
@@ -820,48 +822,44 @@ export function DirectoryWorkspace({
                           c.accountIds.includes(edit.objectId ?? ""),
                       )
                       .map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} · {c.kind} ·{" "}
-                          <TimeText value={c.effectiveAt} />
+                        <option data-ui-appearance={appearance} key={c.id} value={c.id}>
+                          {c.name} · {c.kind} · <TimeText appearance={appearance} value={c.effectiveAt} />
                         </option>
                       ))}
-                  </select>
-                </label>
-                <p>
-                  ERPX departure cutoffs continue to apply independently of this
-                  directory operation. This disables the whole directory
-                  account.
+                  </Select>
+                </Field>
+                <p data-ui-appearance={appearance}>
+                  ERPX departure cutoffs continue to apply independently of this directory
+                  operation. This disables the whole directory account.
                 </p>
               </>
             )}
             {edit.kind === "group.members" && (
               <>
-                <label>
+                <Field appearance={appearance}>
                   Members
-                  <select
+                  <Select appearance={appearance}
                     name="memberIds"
                     multiple
                     required
                     defaultValue={edit.memberId ? [edit.memberId] : []}
                   >
                     {options(
-                      objects.filter((o) =>
-                        ["account", "group", "computer"].includes(o.kind),
-                      ),
+                      objects.filter((o) => ["account", "group", "computer"].includes(o.kind)),
                     )}
-                  </select>
-                </label>
-                <label>
+                  </Select>
+                </Field>
+                <Field appearance={appearance}>
                   Action
-                  <select name="action">
-                    <option value="add">Add membership</option>
-                    <option value="remove">Remove membership</option>
-                  </select>
-                </label>
+                  <Select appearance={appearance} name="action">
+                    <option data-ui-appearance={appearance} value="add">Add membership</option>
+                    <option data-ui-appearance={appearance} value="remove">Remove membership</option>
+                  </Select>
+                </Field>
               </>
             )}
             {edit.action && (
-              <p>
+              <p data-ui-appearance={appearance}>
                 New link order:{" "}
                 {edit.action.kind === "gpo.order"
                   ? edit.action.gpoIds
@@ -871,35 +869,33 @@ export function DirectoryWorkspace({
               </p>
             )}
             {edit.kind === "ou.update" && (
-              <label>
+              <Field appearance={appearance}>
                 Description
-                <input
+                <TextInput appearance={appearance}
                   name="description"
                   maxLength={500}
                   defaultValue={String(
-                    objects.find((o) => o.id === edit.objectId)?.properties
-                      .description ?? "",
+                    objects.find((o) => o.id === edit.objectId)?.properties.description ?? "",
                   )}
                 />
-              </label>
+              </Field>
             )}
             {edit.kind === "gpo.inheritance" && (
-              <label>
-                <input
+              <Field appearance={appearance} orientation="inline">
+                <TextInput appearance={appearance}
                   type="checkbox"
                   name="blocked"
                   defaultChecked={
-                    !!objects.find((o) => o.id === edit.objectId)?.properties
-                      .blockInheritance
+                    !!objects.find((o) => o.id === edit.objectId)?.properties.blockInheritance
                   }
                 />{" "}
                 Block inheritance (enforced links still apply)
-              </label>
+              </Field>
             )}
             {edit.kind === "gpo.filter" && (
-              <label>
+              <Field appearance={appearance}>
                 Security filter groups
-                <select
+                <Select appearance={appearance}
                   name="groupIds"
                   multiple
                   required
@@ -909,60 +905,53 @@ export function DirectoryWorkspace({
                   }
                 >
                   {options(groups)}
-                </select>
-                <span>
-                  Read permissions for authenticated computers are preserved.
-                </span>
-              </label>
+                </Select>
+                <span data-ui-appearance={appearance}>Read permissions for authenticated computers are preserved.</span>
+              </Field>
             )}
             {edit.kind === "gpo.link" && (
               <>
-                <label>
-                  <input
+                <Field appearance={appearance} orientation="inline">
+                  <TextInput appearance={appearance}
                     type="checkbox"
                     name="enabled"
                     defaultChecked={existingLink?.enabled ?? true}
                   />{" "}
                   Link enabled
-                </label>
-                <label>
-                  <input
+                </Field>
+                <Field appearance={appearance} orientation="inline">
+                  <TextInput appearance={appearance}
                     type="checkbox"
                     name="enforced"
                     defaultChecked={existingLink?.enforced ?? false}
                   />{" "}
                   Enforced
-                </label>
-                <label>
+                </Field>
+                <Field appearance={appearance}>
                   Order (1 is highest precedence)
-                  <input
+                  <TextInput appearance={appearance}
                     type="number"
                     min={1}
                     max={1000}
                     name="order"
                     defaultValue={
-                      existingLink
-                        ? existingLinks.indexOf(existingLink) + 1
-                        : undefined
+                      existingLink ? existingLinks.indexOf(existingLink) + 1 : undefined
                     }
                   />
-                </label>
-                <label>
-                  <input type="checkbox" name="remove" /> Remove this link
-                </label>
-                <p>
-                  Security filtering is shared by every link of this GPO. Edit
-                  it in GPO properties.
+                </Field>
+                <Field appearance={appearance} orientation="inline">
+                  <TextInput appearance={appearance} type="checkbox" name="remove" /> Remove this link
+                </Field>
+                <p data-ui-appearance={appearance}>
+                  Security filtering is shared by every link of this GPO. Edit it in GPO properties.
                 </p>
               </>
             )}
             {edit.kind === "account.enable" && (
-              <label>
+              <Field appearance={appearance}>
                 Reviewed onboarding / transfer
-                <select name="caseId" required>
-                  <option value="">
-                    Choose the employee start or transfer
-                  </option>
+                <Select appearance={appearance} name="caseId" required>
+                  <option data-ui-appearance={appearance} value="">Choose the employee start or transfer</option>
                   {initial.cases
                     .filter(
                       (c) =>
@@ -970,20 +959,18 @@ export function DirectoryWorkspace({
                         c.accountIds.includes(edit.objectId ?? ""),
                     )
                     .map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} · {c.kind} ·{" "}
-                        <TimeText value={c.effectiveAt} />
+                      <option data-ui-appearance={appearance} key={c.id} value={c.id}>
+                        {c.name} · {c.kind} · <TimeText appearance={appearance} value={c.effectiveAt} />
                       </option>
                     ))}
-                </select>
-                <span>
-                  Activation runs only after personal review and the effective
-                  start time.
+                </Select>
+                <span data-ui-appearance={appearance}>
+                  Activation runs only after personal review and the effective start time.
                 </span>
-              </label>
+              </Field>
             )}
             {edit.kind === "gpo.publish" && (
-              <WindowsPolicyFields
+              <WindowsPolicyFields appearance={appearance}
                 value={policy}
                 settingsOnly={!!edit.objectId}
                 onChange={(v) => {
@@ -993,45 +980,33 @@ export function DirectoryWorkspace({
                 }}
                 objects={objects}
                 definitions={
-                  objects.find((o) => o.id === edit.objectId)?.properties
-                    .definitions as
-                    | Partial<
-                        Record<"user" | "computer", WindowsPolicyDefinition>
-                      >
-                    | undefined
+                  objects.find((o) => o.id === edit.objectId)?.properties.definitions as
+                    Partial<Record<"user" | "computer", WindowsPolicyDefinition>> | undefined
                 }
               />
             )}
-            <label>
+            <Field appearance={appearance}>
               Reason
-              <textarea name="reason" required minLength={3} maxLength={1000} />
-            </label>
-            <button className="button secondary" disabled={busy}>
+              <TextArea appearance={appearance} name="reason" required minLength={3} maxLength={1000} />
+            </Field>
+            <Button appearance={appearance} clientManaged type="submit" variant="secondary" disabled={busy}>
               Preview impact
-            </button>
+            </Button>
             {preview && request && (
-              <div className={styles.preview}>
-                <h3>Review the directory impact</h3>
-                <p>
-                  Objects:{" "}
-                  {preview.objects.join(", ") || "New directory object"}
-                </p>
-                <p>Positions: {preview.positions.join(", ") || "None"}</p>
-                <p>People: {preview.people.join(", ") || "None linked"}</p>
-                <p>
-                  Computers:{" "}
-                  {preview.computers.join(", ") ||
-                    "None in the observed inventory"}
-                </p>
-                <p>
-                  Companies: {preview.companies.map((c) => c.name).join(", ")}
-                </p>
+              <div data-ui-appearance={appearance} className={styles.preview}>
+                <h3 data-ui-appearance={appearance}>Review the directory impact</h3>
+                <p data-ui-appearance={appearance}>Objects: {preview.objects.join(", ") || "New directory object"}</p>
+                <p data-ui-appearance={appearance}>Positions: {preview.positions.join(", ") || "None"}</p>
+                <p data-ui-appearance={appearance}>People: {preview.people.join(", ") || "None linked"}</p>
+                <p data-ui-appearance={appearance}>Computers: {preview.computers.join(", ") || "None in the observed inventory"}</p>
+                <p data-ui-appearance={appearance}>Companies: {preview.companies.map((c) => c.name).join(", ")}</p>
                 {preview.warnings.map((w) => (
-                  <p key={w}>{w}</p>
+                  <p data-ui-appearance={appearance} key={w}>{w}</p>
                 ))}
-                <button
+                <Button appearance={appearance}
+                  variant="primary"
                   type="button"
-                  className="button primary"
+                  className="primary"
                   disabled={busy || !connection.writeEnabled}
                   onClick={async () => {
                     const confirmed = {
@@ -1049,13 +1024,10 @@ export function DirectoryWorkspace({
                       setPreview(latest);
                       return;
                     }
-                    const r = await send(
-                      initial.canApply ? "apply" : "submit",
-                      {
-                        ...confirmed,
-                        previewToken: latest.token,
-                      },
-                    );
+                    const r = await send(initial.canApply ? "apply" : "submit", {
+                      ...confirmed,
+                      previewToken: latest.token,
+                    });
                     if (r) {
                       setEdit(null);
                       setNotice(
@@ -1066,13 +1038,11 @@ export function DirectoryWorkspace({
                     }
                   }}
                 >
-                  {initial.canApply
-                    ? "Apply changes"
-                    : "Submit for independent review"}
-                </button>
+                  {initial.canApply ? "Apply changes" : "Submit for independent review"}
+                </Button>
               </div>
             )}
-            {error && <p role="alert">{error}</p>}
+            {error && <p data-ui-appearance={appearance} role="alert">{error}</p>}
           </form>
         )}
       </Dialog>
@@ -1080,48 +1050,42 @@ export function DirectoryWorkspace({
   );
 }
 
-function WindowsPolicyFields({
+function WindowsPolicyFields({ appearance = "legacy",
   value: p,
   onChange: set,
   objects,
   definitions,
   settingsOnly = false,
-}: {
+}: ({
   settingsOnly?: boolean;
   definitions?: Partial<Record<"user" | "computer", WindowsPolicyDefinition>>;
   value: WindowsPolicyDefinition;
   onChange: (v: WindowsPolicyDefinition) => void;
-  objects: NonNullable<
-    DirectoryAutomationData["connections"][number]["inventory"]
-  >["objects"];
-}) {
+  objects: NonNullable<DirectoryAutomationData["connections"][number]["inventory"]>["objects"];
+}) & { appearance?: UiAppearance }) {
   const choice = (kind: "ou" | "group") =>
     objects
       .filter((o) => o.kind === kind)
       .map((o) => (
-        <option key={o.id} value={o.id}>
+        <option data-ui-appearance={appearance} key={o.id} value={o.id}>
           {o.name}
         </option>
       ));
   return (
     <>
       {settingsOnly && (
-        <p>
-          Editing settings preserves this GPO’s links and security filtering.
-          Use the Properties actions to change them. Shared targets are included
-          in the preview.
+        <p data-ui-appearance={appearance}>
+          Editing settings preserves this GPO’s links and security filtering. Use the Properties
+          actions to change them. Shared targets are included in the preview.
         </p>
       )}
-      <label>
+      <Field appearance={appearance}>
         Policy name
-        <input
-          value={p.name}
-          onChange={(e) => set({ ...p, name: e.target.value })}
-        />
-      </label>
-      <label>
+        <TextInput appearance={appearance} value={p.name} onChange={(e) => set({ ...p, name: e.target.value })} />
+      </Field>
+      <Field appearance={appearance}>
         Applies to
-        <select
+        <Select appearance={appearance}
           value={p.scope}
           onChange={(e) =>
             set(
@@ -1137,65 +1101,63 @@ function WindowsPolicyFields({
             )
           }
         >
-          <option value="user">Users</option>
-          <option value="computer">Computers</option>
-        </select>
-      </label>
+          <option data-ui-appearance={appearance} value="user">Users</option>
+          <option data-ui-appearance={appearance} value="computer">Computers</option>
+        </Select>
+      </Field>
       {!settingsOnly && (
         <>
-          <label>
+          <Field appearance={appearance}>
             Linked OU
-            <select
+            <Select appearance={appearance}
               value={p.targetOuId}
               onChange={(e) => set({ ...p, targetOuId: e.target.value })}
             >
-              <option value="unselected">Choose an OU</option>
+              <option data-ui-appearance={appearance} value="unselected">Choose an OU</option>
               {choice("ou")}
-            </select>
-          </label>
-          <label>
+            </Select>
+          </Field>
+          <Field appearance={appearance}>
             Security filter group
-            <select
+            <Select appearance={appearance}
               value={p.filterGroupId}
               onChange={(e) => set({ ...p, filterGroupId: e.target.value })}
             >
-              <option value="unselected">Choose a group</option>
+              <option data-ui-appearance={appearance} value="unselected">Choose a group</option>
               {choice("group")}
-            </select>
-          </label>
+            </Select>
+          </Field>
         </>
       )}
       {p.scope === "computer" && (
-        <label>
+        <Field appearance={appearance}>
           Computer OU or group
-          <select
+          <Select appearance={appearance}
             value={p.computerTargetId ?? ""}
-            onChange={(e) =>
-              set({ ...p, computerTargetId: e.target.value || null })
-            }
+            onChange={(e) => set({ ...p, computerTargetId: e.target.value || null })}
           >
-            <option value="">Choose an explicit computer target</option>
+            <option data-ui-appearance={appearance} value="">Choose an explicit computer target</option>
             {choice("ou")}
             {choice("group")}
-          </select>
-        </label>
+          </Select>
+        </Field>
       )}
-      <fieldset>
-        <legend>Windows administrative policies</legend>
-        <label>
+      <fieldset data-ui-appearance={appearance}>
+        <legend data-ui-appearance={appearance}>Windows administrative policies</legend>
+        <Field appearance={appearance}>
           USB / removable storage
-          <select
+          <Select appearance={appearance}
             value={p.usb}
             onChange={(e) => set({ ...p, usb: e.target.value as typeof p.usb })}
           >
-            <option value="unchanged">Leave unchanged</option>
-            <option value="deny">Deny all removable storage access</option>
-            <option value="allow">Allow removable storage access</option>
-          </select>
-        </label>
-        <label>
+            <option data-ui-appearance={appearance} value="unchanged">Leave unchanged</option>
+            <option data-ui-appearance={appearance} value="deny">Deny all removable storage access</option>
+            <option data-ui-appearance={appearance} value="allow">Allow removable storage access</option>
+          </Select>
+        </Field>
+        <Field appearance={appearance}>
           Lock after inactivity (seconds)
-          <input
+          <TextInput appearance={appearance}
             type="number"
             min={60}
             max={86400}
@@ -1207,22 +1169,20 @@ function WindowsPolicyFields({
               })
             }
           />
-        </label>
+        </Field>
         {p.scope === "user" && (
           <>
-            <label>
+            <Field appearance={appearance}>
               Desktop wallpaper path
-              <input
+              <TextInput appearance={appearance}
                 value={p.wallpaper ?? ""}
                 placeholder="\\server\share\wallpaper.jpg"
-                onChange={(e) =>
-                  set({ ...p, wallpaper: e.target.value || null })
-                }
+                onChange={(e) => set({ ...p, wallpaper: e.target.value || null })}
               />
-            </label>
-            <label>
+            </Field>
+            <Field appearance={appearance}>
               Wallpaper layout
-              <select
+              <Select appearance={appearance}
                 value={p.wallpaperStyle}
                 onChange={(e) =>
                   set({
@@ -1231,41 +1191,39 @@ function WindowsPolicyFields({
                   })
                 }
               >
-                <option value="0">Center</option>
-                <option value="2">Stretch</option>
-                <option value="6">Fit</option>
-                <option value="10">Fill</option>
-              </select>
-            </label>
+                <option data-ui-appearance={appearance} value="0">Center</option>
+                <option data-ui-appearance={appearance} value="2">Stretch</option>
+                <option data-ui-appearance={appearance} value="6">Fit</option>
+                <option data-ui-appearance={appearance} value="10">Fill</option>
+              </Select>
+            </Field>
           </>
         )}
       </fieldset>
       {p.scope === "user" && (
-        <fieldset>
-          <legend>Drive & Printer preferences</legend>
+        <fieldset data-ui-appearance={appearance}>
+          <legend data-ui-appearance={appearance}>Drive & Printer preferences</legend>
           {p.drives.map((d, i) => (
-            <fieldset key={d.id}>
-              <legend>Drive {i + 1}</legend>
-              <label>
+            <fieldset data-ui-appearance={appearance} key={d.id}>
+              <legend data-ui-appearance={appearance}>Drive {i + 1}</legend>
+              <Field appearance={appearance}>
                 Letter
-                <input
+                <TextInput appearance={appearance}
                   maxLength={1}
                   value={d.letter}
                   onChange={(e) =>
                     set({
                       ...p,
                       drives: p.drives.map((v, n) =>
-                        n === i
-                          ? { ...v, letter: e.target.value.toUpperCase() }
-                          : v,
+                        n === i ? { ...v, letter: e.target.value.toUpperCase() } : v,
                       ),
                     })
                   }
                 />
-              </label>
-              <label>
+              </Field>
+              <Field appearance={appearance}>
                 Share path
-                <input
+                <TextInput appearance={appearance}
                   value={d.path}
                   onChange={(e) =>
                     set({
@@ -1276,10 +1234,10 @@ function WindowsPolicyFields({
                     })
                   }
                 />
-              </label>
-              <label>
+              </Field>
+              <Field appearance={appearance}>
                 Label
-                <input
+                <TextInput appearance={appearance}
                   value={d.label}
                   onChange={(e) =>
                     set({
@@ -1290,9 +1248,9 @@ function WindowsPolicyFields({
                     })
                   }
                 />
-              </label>
-              <label>
-                <input
+              </Field>
+              <Field appearance={appearance} orientation="inline">
+                <TextInput appearance={appearance}
                   type="checkbox"
                   checked={d.remove}
                   onChange={(e) =>
@@ -1305,21 +1263,21 @@ function WindowsPolicyFields({
                   }
                 />
                 Remove this mapping from targeted users
-              </label>
-              <button
+              </Field>
+              <Button appearance={appearance}
+                variant="secondary"
                 type="button"
-                className="button secondary"
-                onClick={() =>
-                  set({ ...p, drives: p.drives.filter((_, n) => n !== i) })
-                }
+
+                onClick={() => set({ ...p, drives: p.drives.filter((_, n) => n !== i) })}
               >
                 Remove from recipe
-              </button>
+              </Button>
             </fieldset>
           ))}
-          <button
+          <Button appearance={appearance}
+            variant="secondary"
             type="button"
-            className="button secondary"
+
             onClick={() =>
               set({
                 ...p,
@@ -1337,13 +1295,13 @@ function WindowsPolicyFields({
             }
           >
             Add Drive preference
-          </button>
+          </Button>
           {p.printers.map((d, i) => (
-            <fieldset key={d.id}>
-              <legend>Printer {i + 1}</legend>
-              <label>
+            <fieldset data-ui-appearance={appearance} key={d.id}>
+              <legend data-ui-appearance={appearance}>Printer {i + 1}</legend>
+              <Field appearance={appearance}>
                 Printer share path
-                <input
+                <TextInput appearance={appearance}
                   value={d.path}
                   onChange={(e) =>
                     set({
@@ -1354,9 +1312,9 @@ function WindowsPolicyFields({
                     })
                   }
                 />
-              </label>
-              <label>
-                <input
+              </Field>
+              <Field appearance={appearance} orientation="inline">
+                <TextInput appearance={appearance}
                   type="checkbox"
                   checked={d.isDefault}
                   onChange={(e) =>
@@ -1369,9 +1327,9 @@ function WindowsPolicyFields({
                   }
                 />
                 Default printer
-              </label>
-              <label>
-                <input
+              </Field>
+              <Field appearance={appearance} orientation="inline">
+                <TextInput appearance={appearance}
                   type="checkbox"
                   checked={d.remove}
                   onChange={(e) =>
@@ -1384,21 +1342,21 @@ function WindowsPolicyFields({
                   }
                 />
                 Remove this printer connection
-              </label>
-              <button
+              </Field>
+              <Button appearance={appearance}
+                variant="secondary"
                 type="button"
-                className="button secondary"
-                onClick={() =>
-                  set({ ...p, printers: p.printers.filter((_, n) => n !== i) })
-                }
+
+                onClick={() => set({ ...p, printers: p.printers.filter((_, n) => n !== i) })}
               >
                 Remove from recipe
-              </button>
+              </Button>
             </fieldset>
           ))}
-          <button
+          <Button appearance={appearance}
+            variant="secondary"
             type="button"
-            className="button secondary"
+
             onClick={() =>
               set({
                 ...p,
@@ -1415,12 +1373,12 @@ function WindowsPolicyFields({
             }
           >
             Add Printer preference
-          </button>
+          </Button>
         </fieldset>
       )}
-      <p>
-        Publishing verifies directory configuration. Endpoint results require a
-        separate Windows verification run.
+      <p data-ui-appearance={appearance}>
+        Publishing verifies directory configuration. Endpoint results require a separate Windows
+        verification run.
       </p>
     </>
   );

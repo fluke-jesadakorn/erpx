@@ -1,8 +1,8 @@
 import { beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { env,applyMigrations } from "./runtime-env";
 import { expenseFixture,expenseDb as db,key } from "./helpers/expense-fixture";
-import { appointmentOverview,changeAppointment,departmentFlowInput,departmentRoute,publishDepartmentFlow } from "../src/server/department-authority";
-import { approvalView } from "../src/server/approvals";
+import { appointmentOverview,changeAppointment,departmentFlowInput,departmentRoute,peopleRequestRoute,publishDepartmentFlow } from "../src/server/department-authority";
+import { approvalView,openApproval } from "../src/server/approvals";
 import { getExpense } from "../src/server/expenses";
 import { loadIamAuthority } from "../src/server/iam-store";
 import { decideDepartmentOverride,departmentOverrideDetail,departmentOverrideWork } from "../src/server/department-decisions";
@@ -144,4 +144,18 @@ it("records a rejected equipment override with both identities and prevents a se
   expect(after.state).toBe("rejected");
   expect(saved.decisions.at(-1)).toMatchObject({override:true,originalApproverUserId:f.head.userId,actualApproverUserId:f.owner.userId});
   await expect(decideDepartmentOverride(f.owner,{kind:"request",id:request.id,expectedVersion:after.version,outcome:"approve",reason:"Late duplicate"},key())).rejects.toMatchObject({code:"OVERRIDE_UNAVAILABLE"});
+});
+
+
+it("opens leave routes for the appointed HR person and rejects a withdrawn appointment snapshot",async()=>{
+  const input={kind:"hr" as const,departmentId:null,positionId:null,personId:`person-${f.owner.userId}`,expectedVersion:0,reason:"Independent appointed HR"};
+  await changeAppointment(db,f.owner,input,key());
+  const route=await peopleRequestRoute(db,f.company,f.claimant.userId);
+  expect(route.blockedReason).toBeNull();
+  expect(route.steps.at(-1)?.snapshot).toMatchObject({appointmentKind:"hr",appointedPersonId:input.personId});
+  const current=await openApproval(db,key(),"leave",key(),"request",f.claimant.userId,null,route,1);
+  await db.batch(current.statements);
+  const stale=await openApproval(db,key(),"leave",key(),"request",f.claimant.userId,null,route,1);
+  await changeAppointment(db,f.owner,{...input,personId:`person-${f.tie.userId}`,expectedVersion:1,reason:"Replace isolated HR reviewer"},key());
+  await expect(db.batch(stale.statements)).rejects.toMatchObject({code:"23514"});
 });

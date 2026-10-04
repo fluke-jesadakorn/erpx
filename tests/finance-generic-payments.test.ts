@@ -89,6 +89,7 @@ describe("generic controlled payments",()=>{
  });
 
  it("posts a foreign supplier invoice, settles it at the bank-date rate, and clears AP through realized FX",async()=>{
+  f=await expenseFixture(true,false);
   const ids={expense:`usd-expense-${key()}`,payable:`usd-payable-${key()}`,bank:`usd-bank-${key()}`,gain:`fx-gain-${key()}`,loss:`fx-loss-${key()}`};
   await db.batch([
    db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,is_control,control_kind,created_at,updated_at) VALUES(?,?,?,?,?,'expense','USD',0,'none',1,1)").bind(ids.expense,f.chart,f.company,`USD-EXP-${key()}`,"USD purchasing expense"),

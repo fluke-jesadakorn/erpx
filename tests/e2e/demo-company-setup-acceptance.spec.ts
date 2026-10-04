@@ -1,3 +1,4 @@
+import {createEngineeringBrowserContext} from './helpers/engineering-browser-evidence';
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -32,8 +33,8 @@ test("Company setup is submitted, independently returned and accepted, then revo
   test.skip(!run, "Set ERPX_DEMO_RUN to an exact prepared browser-simulation run.");
   test.setTimeout(120_000);
   const credentials = JSON.parse(await readFile(resolve(`.runtime/browser/${run}/credentials.json`), "utf8")) as Credentials;
-  const ownerContext = await browser.newContext(testInfo.project.use);
-  const reviewerContext = await browser.newContext(testInfo.project.use);
+  const ownerContext = await createEngineeringBrowserContext(browser,testInfo);
+  const reviewerContext = await createEngineeringBrowserContext(browser,testInfo);
   try {
     const ownerPage = await ownerContext.newPage(), reviewerPage = await reviewerContext.newPage();
     const owner = await signIn(ownerContext, ownerPage, credentials, "holding_owner");

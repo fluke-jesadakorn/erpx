@@ -1,5 +1,7 @@
 # Organization & Access verification — 2026-09-26
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 The implementation combines the former Positions, Employees and Directory & GPO destinations at `/holdings/:slug/technology?view=organization`. Existing record links remain valid. See [the behavior contract](../contracts/next/hr-it-technology.md) and [ADR-034](../adr/ADR-034-inherited-gpo-and-atomic-position-moves.md).
 
 ## Backend coverage

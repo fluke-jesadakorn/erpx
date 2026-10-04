@@ -1,20 +1,17 @@
 .console {
   display: grid;
-  grid-template-columns: minmax(170px, 220px) minmax(280px, 1fr) minmax(
-      220px,
-      300px
-    );
-  border: 1px solid var(--line);
+  grid-template-columns: minmax(170px, 220px) minmax(280px, 1fr) minmax(220px, 300px);
+  border: 1px solid var(--ui-line);
   border-radius: 9px;
   overflow: hidden;
   height: clamp(440px, 65vh, 760px);
   min-height: 440px;
-  background: var(--card);
+  background: var(--ui-card);
 }
 .tree {
   padding: 14px 8px;
-  background: var(--card-2);
-  border-right: 1px solid var(--line);
+  background: var(--ui-card-2);
+  border-right: 1px solid var(--ui-line);
   overflow: auto;
 }
 .tree h3 {
@@ -38,18 +35,18 @@
   cursor: pointer;
 }
 .tree button[aria-current="true"] {
-  background: var(--brand-soft);
-  color: var(--brand);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand);
 }
 .tree p {
   font-size: 11px;
-  color: var(--muted, #6b7280);
+  color: var(--ui-muted, #6b7280);
   padding: 12px;
   line-height: 1.6;
 }
 .tree hr {
   border: 0;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--ui-line);
   margin: 16px 4px;
 }
 .objectList {
@@ -64,14 +61,14 @@
   font-size: 12px;
 }
 .objectList th {
-  background: var(--card-2);
+  background: var(--ui-card-2);
   text-align: left;
   font-weight: 600;
 }
 .objectList th,
 .objectList td {
   padding: 10px 12px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-line);
 }
 .objectList td button {
   border: 0;
@@ -84,21 +81,21 @@
   color: inherit;
 }
 .objectList tr[data-selected="true"] {
-  background: var(--brand-soft);
+  background: var(--ui-brand-soft);
 }
 .objectList tr:hover {
-  background: var(--card-2);
+  background: var(--ui-card-2);
 }
 .status {
   padding: 10px 14px;
   font-size: 11px;
-  color: var(--muted, #6b7280);
-  border-top: 1px solid var(--line);
+  color: var(--ui-muted, #6b7280);
+  border-top: 1px solid var(--ui-line);
 }
 .properties {
   overflow: auto;
   padding: 20px;
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--ui-line);
   min-width: 0;
   overflow-wrap: anywhere;
   font-size: 12px;
@@ -113,7 +110,7 @@
 }
 .properties dt {
   margin-top: 15px;
-  color: var(--muted, #6b7280);
+  color: var(--ui-muted, #6b7280);
   font-size: 11px;
 }
 .properties dd {
@@ -133,7 +130,7 @@
 .properties li small {
   display: block;
   margin: 5px 0;
-  color: var(--muted, #6b7280);
+  color: var(--ui-muted, #6b7280);
 }
 .propertyActions {
   display: grid;
@@ -146,12 +143,12 @@
 }
 .empty {
   padding: 30px 18px;
-  color: var(--muted, #6b7280);
+  color: var(--ui-muted, #6b7280);
   font-size: 13px;
   line-height: 1.7;
 }
 .tag {
-  background: var(--card-2);
+  background: var(--ui-card-2);
   font-size: 11px;
   padding: 4px 8px;
   border-radius: 4px;
@@ -162,10 +159,12 @@
   flex-wrap: nowrap;
   overflow-x: auto;
   scrollbar-width: none;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-line);
   padding-bottom: 10px;
 }
-.tabs::-webkit-scrollbar { display: none; }
+.tabs::-webkit-scrollbar {
+  display: none;
+}
 .tabs a {
   flex: 0 0 auto;
   padding: 10px 17px;
@@ -175,8 +174,8 @@
   font-size: 13px;
 }
 .tabs a[aria-current="page"] {
-  background: var(--brand-soft);
-  color: var(--brand);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand);
   font-weight: 600;
 }
 .consolePage {
@@ -188,15 +187,15 @@
   gap: 4px;
   overflow-x: auto;
   padding: 4px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 10px;
-  background: var(--card);
+  background: var(--ui-card);
 }
 .sectionTabs a {
   flex: 0 0 auto;
   padding: 9px 13px;
   border-radius: 7px;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 12px;
   font-weight: 600;
   text-decoration: none;
@@ -204,11 +203,11 @@
 }
 .sectionTabs a:hover,
 .sectionTabs a[aria-current="page"] {
-  background: var(--brand-soft);
-  color: var(--brand);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand);
 }
 .sectionTabs a:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--ui-brand);
   outline-offset: 2px;
 }
 .toolbar {
@@ -228,7 +227,7 @@
 .employeeTable th,
 .employeeTable td {
   padding: 13px 10px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-line);
   text-align: left;
 }
 .form {
@@ -245,9 +244,9 @@
 .form textarea {
   width: 100%;
   padding: 9px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 6px;
-  background: var(--card);
+  background: var(--ui-card);
   color: inherit;
 }
 .form label:has(input[type="checkbox"]) {
@@ -258,7 +257,7 @@
   width: auto;
 }
 .preview {
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 8px;
   padding: 18px;
   font-size: 13px;
@@ -268,7 +267,7 @@
   font-size: 11px;
   border-radius: 5px;
   padding: 4px 7px;
-  background: var(--card-2);
+  background: var(--ui-card-2);
 }
 .stack {
   display: grid;
@@ -281,7 +280,7 @@
 }
 .overview > div {
   padding: 16px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 8px;
 }
 .overview strong {
@@ -290,7 +289,7 @@
 }
 .overview span {
   font-size: 12px;
-  color: var(--muted, #6b7280);
+  color: var(--ui-muted, #6b7280);
 }
 @media (max-width: 1100px) {
   .console {
@@ -306,7 +305,7 @@
     max-height: 440px;
     grid-column: 1/-1;
     border-left: 0;
-    border-top: 1px solid var(--line);
+    border-top: 1px solid var(--ui-line);
   }
   .propertyActions {
     display: flex;
@@ -315,16 +314,22 @@
 }
 @media (max-width: 650px) {
   .consolePage :global(.eyebrow),
-  .consolePage :global(.lede) { display: none; }
-  .consolePage { gap: 10px; }
-  .tabs { padding-bottom: 4px; }
+  .consolePage :global(.lede) {
+    display: none;
+  }
+  .consolePage {
+    gap: 10px;
+  }
+  .tabs {
+    padding-bottom: 4px;
+  }
   .console {
     grid-template-columns: 1fr;
   }
   .tree {
     max-height: 220px;
     border-right: 0;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--ui-line);
   }
   .objectList {
     max-height: 420px;

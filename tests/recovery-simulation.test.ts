@@ -48,7 +48,7 @@ it('restores an isolated source-linked business snapshot without reposting its t
   const archiveSha256=hash(await readFile(archive));
   const started=performance.now();
   await admin.query(`CREATE DATABASE "${target}" TEMPLATE template0`);created=true;
-  await run('pg_restore',['--exit-on-error','--single-transaction','--no-owner','--no-privileges','--dbname',target,archive],{env:{...cliEnv,PGDATABASE:target},timeout:120000});
+  await run('pg_restore',['--exit-on-error','--transaction-size=64','--no-owner','--no-privileges','--dbname',target,archive],{env:{...cliEnv,PGDATABASE:target},timeout:120000});
   const targetUrl=new URL(adminUrl);targetUrl.pathname=target;restored=new PostgresDatabase({connectionString:targetUrl.href});
   expect(await tableDigests(restored)).toEqual(expected);
   expect(await restored.prepare('SELECT state,version FROM commerce_orders WHERE id=?').bind(orderId).first()).toEqual({state:'partially_fulfilled',version:5});

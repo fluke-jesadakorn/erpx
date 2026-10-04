@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, type ReactNode } from "react";
+import { type UiAppearance } from "@/components/ui/foundation";
 
 export type AttachmentFeatureMode = "enabled" | "read-only" | "disabled";
 
@@ -12,10 +13,10 @@ const AttachmentFeatureContext =
 export function AttachmentFeatureProvider({
   mode,
   children,
-}: {
+}: ({
   mode: AttachmentFeatureMode;
   children: ReactNode;
-}) {
+}) & { appearance?: UiAppearance }) {
   return (
     <AttachmentFeatureContext.Provider value={mode}>
       {children}

@@ -1,0 +1,74 @@
+.review {
+  display: grid;
+  gap: 20px;
+}
+.review h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+.review p {
+  margin: 6px 0;
+  color: var(--ui-muted);
+}
+.review small {
+  color: var(--ui-muted);
+}
+.description {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.facts {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+.facts > div {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) minmax(0, 2fr);
+  gap: 12px;
+}
+.facts dt {
+  color: var(--ui-muted);
+}
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.review li {
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+.blocker {
+  padding: 12px;
+  border: 1px solid var(--ui-amber);
+  border-radius: 8px;
+}
+.decision {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+.decision label {
+  display: grid;
+  gap: 8px;
+}
+.decision textarea {
+  min-height: 90px;
+}
+.decision .confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.confirm input {
+  margin-top: 3px;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.drawer[data-slot="dialog"] { width:min(960px,100%); }
+.preview { width:100%; max-height:65dvh; object-fit:contain; margin-top:12px; }
+.evidence details { padding:12px; border:1px solid var(--ui-border); border-radius:8px; }
+.evidence summary { cursor:pointer; font-weight:600; }
+@media(min-width:768px){ .review { grid-template-columns:minmax(0,1fr) minmax(0,1fr); } .review > :is(div,dl,section) { min-width:0; } .review > section:has(.evidence){grid-column:2;grid-row:2 / span 3;} .review > section[aria-label="Your decision"] { grid-column:1 / -1; } }

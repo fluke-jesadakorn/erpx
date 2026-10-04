@@ -1,0 +1,46 @@
+{
+  "financial-continuity": [
+    {
+      "runner": "vitest",
+      "file": "tests/finance-reporting.test.ts",
+      "title": "NPAEs statement and fiscal closing lifecycle closes consecutive months and a reviewed fiscal year while retaining complete comparative statement editions",
+      "review": "reviewed",
+      "proof": "Closes January and February, independently reviews and posts year closing journals, reconciles real receivable/payable sources to GL at zero difference, and preserves comparative NPAEs editions, notes, equity movement and immutable issued bytes."
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/production.test.ts",
+      "title": "posts material, conversion cost and independently released output atomically, clearing WIP and freezing each money source",
+      "review": "reviewed",
+      "proof": "Real material issue, actual labor/overhead, independent QC release and output posts reconcile stock value to balanced GL; WIP clears to zero and immutable dated currency/rate snapshots survive later quote changes and command replay."
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/ecommerce.test.ts",
+      "title": "collects a Sales-backed checkout and completes its reviewed return and bank refund with original stock and FX evidence",
+      "review": "reviewed",
+      "proof": "Checkout hands off once to Sales, fulfillment decrements actual stock, invoice and cash collection reconcile GL, partial return restores original carrying stock/FX and the independently approved refund settles against bank evidence without duplicate posting."
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/payroll-statutory.test.ts",
+      "title": "source-dated Thai payroll owner workflow carries independently corrected posted months into December actual YTD while preserving the original review export",
+      "review": "reviewed",
+      "proof": "Three independently posted months feed actual December YTD; an independently reviewed pre-post correction carries source receipts into the next month, independent statutory worksheet agrees, balanced GL and original immutable exported bytes/metadata remain retained."
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/payroll-statutory.test.ts",
+      "title": "source-dated Thai payroll owner workflow pays an independently reviewed posted-payroll delta without changing original bank slips exports GL or repeated YTD",
+      "proof": "Original monthly payroll is independently posted and settled; approved late4h OT plus100000 arrears creates175000 gross/8750 PIT/0 repeatSSO/166250 net according to independent worksheet, separately approved/post/slip/bank settled. Originalrun/item/GL/reviewCSV/slip/paymentCSV remain byte-identical; laterYTD counts originalanddelta once. Ownself-review,crossCompany,claimedOT,postedtamper and replay deny or remain exact.",
+      "review": "reviewed"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/payroll-statutory.test.ts",
+      "title": "source-dated Thai payroll owner workflow hands a paid net overpayment to own written consent independent review and Finance then collects exact bounded installments through later statutory payroll",
+      "proof": "Actual paid original source supports employee-own specific HTML agreement/checksum, independent lawful-basis approval and separate Finance60000 AR posting. Two later statutory payrolls independently post/pay30000 installments with independent worksheet totals; simultaneouspost hasonewinner, exact consumption receipts preserve sourceversion/journal, installmentscollectedonce/parentclosed and AR0. Originalslip/YTD/item/agreement unchanged; receipt deletion/reopen rejects.",
+      "review": "reviewed"
+    }
+  ]
+}

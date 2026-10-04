@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@/components/ui/foundation";
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -64,11 +65,19 @@ export function WorkspaceBreadcrumb({
   function crumbContent(crumb: Crumb, current: boolean) {
     if (crumb.href && !current)
       return crumb.fullNavigation ? (
-        <a href={crumb.href} title={crumb.label}>{crumb.label}</a>
+        <a href={crumb.href} title={crumb.label}>
+          {crumb.label}
+        </a>
       ) : (
-        <Link href={crumb.href} title={crumb.label}>{crumb.label}</Link>
+        <Link href={crumb.href} title={crumb.label}>
+          {crumb.label}
+        </Link>
       );
-    return <span aria-current={current ? "page" : undefined} title={crumb.label}>{crumb.label}</span>;
+    return (
+      <span aria-current={current ? "page" : undefined} title={crumb.label}>
+        {crumb.label}
+      </span>
+    );
   }
 
   return (
@@ -77,7 +86,10 @@ export function WorkspaceBreadcrumb({
         {crumbs.map((crumb, index) => {
           const current = index === crumbs.length - 1;
           return (
-            <li key={`${crumb.label}-${index}`} className={`${styles.breadcrumbItem} ${styles.breadcrumbFullItem}`}>
+            <li
+              key={`${crumb.label}-${index}`}
+              className={`${styles.breadcrumbItem} ${styles.breadcrumbFullItem}`}
+            >
               {index > 0 && (
                 <ChevronRight size={14} aria-hidden="true" className={styles.breadcrumbSeparator} />
               )}
@@ -86,8 +98,12 @@ export function WorkspaceBreadcrumb({
           );
         })}
         {hiddenCrumbs.length > 0 && currentCrumb && (
-          <li className={`${styles.breadcrumbItem} ${styles.breadcrumbCompactOverflow}`} ref={overflow}>
-            <button
+          <li
+            className={`${styles.breadcrumbItem} ${styles.breadcrumbCompactOverflow}`}
+            ref={overflow}
+          >
+            <Button appearance="standard"
+              variant="ghost"
               ref={overflowButton}
               type="button"
               className={styles.breadcrumbOverflowButton}
@@ -96,15 +112,31 @@ export function WorkspaceBreadcrumb({
               onClick={() => setOverflowOpen((open) => !open)}
             >
               <MoreHorizontal size={18} aria-hidden="true" />
-            </button>
+            </Button>
             {overflowOpen && (
-              <div className={styles.breadcrumbOverflowMenu} role="group" aria-label="Breadcrumb path">
+              <div
+                className={styles.breadcrumbOverflowMenu}
+                role="group"
+                aria-label="Breadcrumb path"
+              >
                 {hiddenCrumbs.map((crumb, index) =>
                   crumb.href ? (
                     crumb.fullNavigation ? (
-                      <a key={`${crumb.label}-${index}`} href={crumb.href} onClick={() => setOverflowOpen(false)}>{crumb.label}</a>
+                      <a
+                        key={`${crumb.label}-${index}`}
+                        href={crumb.href}
+                        onClick={() => setOverflowOpen(false)}
+                      >
+                        {crumb.label}
+                      </a>
                     ) : (
-                      <Link key={`${crumb.label}-${index}`} href={crumb.href} onClick={() => setOverflowOpen(false)}>{crumb.label}</Link>
+                      <Link
+                        key={`${crumb.label}-${index}`}
+                        href={crumb.href}
+                        onClick={() => setOverflowOpen(false)}
+                      >
+                        {crumb.label}
+                      </Link>
                     )
                   ) : (
                     <span key={`${crumb.label}-${index}`}>{crumb.label}</span>

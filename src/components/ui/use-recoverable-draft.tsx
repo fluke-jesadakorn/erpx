@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "./button";
 import { mergeAiDraft, type RecoverableDraft, type Citation } from "@/lib/ai-draft";
 import { useEffect, useState } from "react";
 
@@ -32,10 +33,7 @@ export function useRecoverableDraft<T extends Record<string, string>>(
         if (saved.fields && typeof saved.baseline === "string")
           restored = {
             ...saved,
-            baseline:
-              JSON.stringify(saved.fields) === baseline
-                ? baseline
-                : saved.baseline,
+            baseline: JSON.stringify(saved.fields) === baseline ? baseline : saved.baseline,
             ai: saved.ai ?? {},
             touched: [...new Set([...transferred, ...(saved.touched ?? [])])],
           };
@@ -60,7 +58,8 @@ export function useRecoverableDraft<T extends Record<string, string>>(
       const fields = change(previous.fields),
         ai = { ...previous.ai };
       const changed = new Set(touchedNames);
-      for (const name of Object.keys(fields)) if (fields[name] !== previous.fields[name]) changed.add(name);
+      for (const name of Object.keys(fields))
+        if (fields[name] !== previous.fields[name]) changed.add(name);
       const touched = new Set([...(previous.touched ?? []), ...changed]);
       for (const name of changed) delete ai[name];
       return { ...previous, fields, ai, touched: [...touched] };
@@ -72,7 +71,7 @@ export function useRecoverableDraft<T extends Record<string, string>>(
     proposalId?: string | null;
     invalidate?: boolean;
   }) {
-    changeDraft(previous => mergeAiDraft(previous, baseline, event));
+    changeDraft((previous) => mergeAiDraft(previous, baseline, event));
   }
 
   function clear() {
@@ -103,16 +102,16 @@ export function useRecoverableDraft<T extends Record<string, string>>(
     notice: conflict ? (
       <div className="notice" role="alert">
         <p>
-          This {label} changed while you were editing. Your unsaved fields are
-          preserved. Review them against the current {label} before saving.
+          This {label} changed while you were editing. Your unsaved fields are preserved. Review
+          them against the current {label} before saving.
         </p>
         <div className="form-actions">
-          <button type="button" className="button secondary" onClick={accept}>
+          <Button type="button" variant="secondary" onClick={accept}>
             I reviewed my saved edits
-          </button>
-          <button type="button" className="button secondary" onClick={discard}>
+          </Button>
+          <Button type="button" variant="secondary" onClick={discard}>
             Use current server fields
-          </button>
+          </Button>
         </div>
       </div>
     ) : null,

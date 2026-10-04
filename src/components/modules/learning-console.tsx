@@ -1,15 +1,18 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { FormDisclosure } from "@/components/ui/form-disclosure";
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
+
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
-import type {
-  learningAssignmentDetail,
-  learningWorkspace,
-} from "@/server/learning";
+import type { learningAssignmentDetail, learningWorkspace } from "@/server/learning";
 import {
   AttachmentPanel,
   type AttachmentPanelChange,
 } from "@/components/attachments/attachment-panel";
+import { FormLayout } from "@/components/ui/foundation";
 function useCommand(base: string) {
   const router = useRouter(),
     last = useRef<{ key: string; body: string } | null>(null),
@@ -17,8 +20,7 @@ function useCommand(base: string) {
     [error, setError] = useState("");
   async function send(input: unknown) {
     const body = JSON.stringify(input);
-    if (last.current?.body !== body)
-      last.current = { key: crypto.randomUUID(), body };
+    if (last.current?.body !== body) last.current = { key: crypto.randomUUID(), body };
     setBusy(true);
     setError("");
     try {
@@ -63,10 +65,10 @@ export function LearningConsole({
     [completionFiles, setCompletionFiles] = useState<AttachmentPanelChange | null>(null);
   return (
     <>
-      {error && <p role="alert">{error}</p>}
+      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
       {data?.canWrite && (
-        <form
-          className="card business-form"
+        <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Draft course</summary><FormLayout
+          className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
             const f = Object.fromEntries(new FormData(e.currentTarget));
@@ -79,37 +81,37 @@ export function LearningConsole({
           }}
         >
           <h2>Draft course</h2>
-          <label>
+          <Field appearance="standard">
             Title
-            <input name="title" required />
-          </label>
-          <label>
+            <TextInput appearance="standard" name="title" required />
+          </Field>
+          <Field appearance="standard">
             Description
-            <textarea name="description" required minLength={3} />
-          </label>
-          <label>
+            <TextArea appearance="standard" name="description" required minLength={3} />
+          </Field>
+          <Field appearance="standard">
             Provider
-            <input name="provider" required />
-          </label>
-          <label>
+            <TextInput appearance="standard" name="provider" required />
+          </Field>
+          <Field appearance="standard">
             Minutes
-            <input name="durationMinutes" type="number" min="1" required />
-          </label>
-          <label>
+            <TextInput appearance="standard" name="durationMinutes" type="number" min="1" required />
+          </Field>
+          <Field appearance="standard">
             Eligibility code
-            <input name="requiredFor" />
-          </label>
-          <button className="button" disabled={busy}>
+            <TextInput appearance="standard" name="requiredFor" />
+          </Field>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Draft course
-          </button>
-        </form>
+          </Button>
+        </FormLayout></FormDisclosure>
       )}
       {data?.canReview &&
         data.courses
           .filter((x) => x.status === "draft")
           .map((x) => (
-            <form
-              className="card business-form"
+            <FormLayout
+              className="ui-panel ui-form-grid"
               key={String(x.id)}
               onSubmit={(e) => {
                 e.preventDefault();
@@ -123,25 +125,25 @@ export function LearningConsole({
               }}
             >
               <h2>Review · {String(x.title)}</h2>
-              <label>
+              <Field appearance="standard">
                 Decision
-                <select name="action">
+                <Select appearance="standard" name="action">
                   <option value="publish">Publish</option>
                   <option value="reject">Reject</option>
-                </select>
-              </label>
-              <label>
+                </Select>
+              </Field>
+              <Field appearance="standard">
                 Reason
-                <textarea name="reason" required minLength={3} />
-              </label>
-              <button className="button" disabled={busy}>
+                <TextArea appearance="standard" name="reason" required minLength={3} />
+              </Field>
+              <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
                 Record review
-              </button>
-            </form>
+              </Button>
+            </FormLayout>
           ))}
       {data?.canReview && (
-        <form
-          className="card business-form"
+        <FormLayout
+          className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
             const f = Object.fromEntries(new FormData(e.currentTarget)),
@@ -150,9 +152,9 @@ export function LearningConsole({
           }}
         >
           <h2>Assign course</h2>
-          <label>
+          <Field appearance="standard">
             Course
-            <select name="courseId">
+            <Select appearance="standard" name="courseId">
               {data.courses
                 .filter((x) => x.status === "published")
                 .map((x) => (
@@ -160,34 +162,34 @@ export function LearningConsole({
                     {String(x.title)}
                   </option>
                 ))}
-            </select>
-          </label>
-          <label>
+            </Select>
+          </Field>
+          <Field appearance="standard">
             Learner
-            <select name="learnerId">
+            <Select appearance="standard" name="learnerId">
               {data.people.map((x) => (
                 <option key={String(x.id)} value={String(x.id)}>
                   {String(x.name)}
                 </option>
               ))}
-            </select>
-          </label>
-          <label>
+            </Select>
+          </Field>
+          <Field appearance="standard">
             Due
-            <input name="dueDate" type="date" required />
-          </label>
-          <label>
+            <TextInput appearance="standard" name="dueDate" type="date" required />
+          </Field>
+          <Field appearance="standard">
             Reason
-            <textarea name="reason" required minLength={3} />
-          </label>
-          <button className="button" disabled={busy}>
+            <TextArea appearance="standard" name="reason" required minLength={3} />
+          </Field>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Assign course
-          </button>
-        </form>
+          </Button>
+        </FormLayout>
       )}
       {a && a.status === "assigned" && (
-        <form
-          className="card business-form"
+        <FormLayout
+          className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
             void send({
@@ -199,18 +201,18 @@ export function LearningConsole({
           }}
         >
           <h2>Start course</h2>
-          <label>
+          <Field appearance="standard">
             Reason
-            <textarea name="reason" required minLength={3} />
-          </label>
-          <button className="button" disabled={busy}>
+            <TextArea appearance="standard" name="reason" required minLength={3} />
+          </Field>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Start
-          </button>
-        </form>
+          </Button>
+        </FormLayout>
       )}
       {a && a.status === "in_progress" && (
-        <form
-          className="card business-form"
+        <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Record attendance and result</summary><FormLayout
+          className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
             const f = Object.fromEntries(new FormData(e.currentTarget));
@@ -220,36 +222,38 @@ export function LearningConsole({
               action: "complete",
               expectedVersion: Number(a.version),
               scoreBps: Number(f.scoreBps),
+              ...(f.certificateValidFrom?{certificateValidFrom:f.certificateValidFrom}:{}),
+              certificateExpiresOn:f.certificateExpiresOn||null,
               attachmentSetIds:
-                completionFiles?.setId &&
-                completionFiles.readyCount > 0 &&
-                completionFiles.bindable
+                completionFiles?.setId && completionFiles.readyCount > 0 && completionFiles.bindable
                   ? [completionFiles.setId]
                   : [],
             });
           }}
         >
           <h2>Record attendance and result</h2>
-          <label>
+          <Field appearance="standard">
             Attendance
-            <select name="attendance">
+            <Select appearance="standard" name="attendance">
               <option value="attended">Attended</option>
               <option value="absent">Absent</option>
-            </select>
-          </label>
-          <label>
+            </Select>
+          </Field>
+          <Field appearance="standard">
             Score bps
-            <input name="scoreBps" type="number" min="0" max="10000" required />
-          </label>
-          <label>
+            <TextInput appearance="standard" name="scoreBps" type="number" min="0" max="10000" required />
+          </Field>
+          <Field appearance="standard">
             Evidence
-            <textarea name="evidence" required minLength={3} />
-          </label>
-          <label>
+            <TextArea appearance="standard" name="evidence" required minLength={3} />
+          </Field>
+          <Field appearance="standard">Certificate valid from<TextInput appearance="standard" name="certificateValidFrom" type="date"/></Field>
+          <Field appearance="standard">Certificate expiry, when applicable<TextInput appearance="standard" name="certificateExpiresOn" type="date"/></Field>
+          <Field appearance="standard">
             Reason
-            <textarea name="reason" required minLength={3} />
-          </label>
-          <AttachmentPanel
+            <TextArea appearance="standard" name="reason" required minLength={3} />
+          </Field>
+          <AttachmentPanel appearance="standard"
             base={base}
             targetType="learning_assignment"
             targetId={String(a.id)}
@@ -262,39 +266,37 @@ export function LearningConsole({
             visibility="Only the learner and authorized Learning document managers can access these files."
             onChange={setCompletionFiles}
           />
-          <button className="button" disabled={busy}>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Complete course
-          </button>
-        </form>
+          </Button>
+        </FormLayout></FormDisclosure>
       )}
-      {a &&
-        ["assigned", "in_progress"].includes(String(a.status)) &&
-        source.canReview && (
-          <form
-            className="card business-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const f = Object.fromEntries(new FormData(e.currentTarget));
-              void send({ ...f, id: a.id, expectedVersion: Number(a.version) });
-            }}
-          >
-            <h2>Reviewer exception</h2>
-            <label>
-              Action
-              <select name="action">
-                <option value="waive">Waive</option>
-                <option value="cancel">Cancel</option>
-              </select>
-            </label>
-            <label>
-              Reason
-              <textarea name="reason" required minLength={3} />
-            </label>
-            <button className="button" disabled={busy}>
-              Record exception
-            </button>
-          </form>
-        )}
+      {a && ["assigned", "in_progress"].includes(String(a.status)) && source.canReview && (
+        <FormLayout
+          className="ui-panel ui-form-grid"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const f = Object.fromEntries(new FormData(e.currentTarget));
+            void send({ ...f, id: a.id, expectedVersion: Number(a.version) });
+          }}
+        >
+          <h2>Reviewer exception</h2>
+          <Field appearance="standard">
+            Action
+            <Select appearance="standard" name="action">
+              <option value="waive">Waive</option>
+              <option value="cancel">Cancel</option>
+            </Select>
+          </Field>
+          <Field appearance="standard">
+            Reason
+            <TextArea appearance="standard" name="reason" required minLength={3} />
+          </Field>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
+            Record exception
+          </Button>
+        </FormLayout>
+      )}
     </>
   );
 }

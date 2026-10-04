@@ -9,6 +9,7 @@ import { holdingResources } from "./runtime";
 import { requirePermission } from "./iam-permissions";
 import { ApiError } from "./http";
 import { assertion, executeCommand, replayCommand } from "./commands";
+import { scheduledFeaturePredicate } from "./hospitality-rollout";
 
 const terminal = "('released','cancelled','disposed')";
 // Assignment scope and the required quality authority are evaluated from the
@@ -34,6 +35,7 @@ type Alert = {
   hold_id: string;
   phase: "due_soon" | "overdue";
   source_version: number;
+  hold_version: number;
   due_date: string;
   detected_at: number;
   version: number;
@@ -65,7 +67,6 @@ export async function drainQualityAlerts(
   now = Date.now(),
   warningWindowMs = 86_400_000,
 ): Promise<QualityAlertResult> {
-  if (process.env.NODE_ENV === "production") return { dueSoon: 0, overdue: 0 };
   const today = utcDate(now);
   const horizon = utcDate(now + warningWindowMs);
   const dueSoon = await db
@@ -74,6 +75,7 @@ export async function drainQualityAlerts(
        SELECT 'quality-alert-due-soon-'||h.id,h.id,'due_soon',h.version,h.due_date::date,?
        FROM inventory_quality_holds h
        WHERE h.status NOT IN ${terminal} AND h.due_date>=? AND h.due_date<=?
+         AND ${scheduledFeaturePredicate("h.company_id", "quality")}
        ON CONFLICT DO NOTHING`,
     )
     .bind(now, today, horizon)
@@ -84,6 +86,7 @@ export async function drainQualityAlerts(
        SELECT 'quality-alert-overdue-'||h.id,h.id,'overdue',h.version,h.due_date::date,?
        FROM inventory_quality_holds h
        WHERE h.status NOT IN ${terminal} AND h.due_date<?
+         AND ${scheduledFeaturePredicate("h.company_id", "quality")}
        ON CONFLICT DO NOTHING`,
     )
     .bind(now, today)
@@ -101,6 +104,7 @@ export async function drainQualityAlerts(
        JOIN inventory_quality_holds h ON h.id=a.hold_id
        JOIN assignments m ON ${recipient.replaceAll("clock_timestamp()", "to_timestamp(?::double precision / 1000.0)")}
        WHERE a.acknowledged_by IS NULL AND h.status NOT IN ${terminal}
+         AND ${scheduledFeaturePredicate("h.company_id", "quality")}
        ON CONFLICT DO NOTHING`,
     )
     // The recipient expression contains the sweep timestamp once. PostgreSQL
@@ -130,7 +134,7 @@ export async function qualityAlerts(actor: WorkContext): Promise<Alert[]> {
   return (
     await write
       .prepare(
-        `SELECT a.*,h.company_id,h.branch_id,h.status,p.name product_name,w.name warehouse_name,
+        `SELECT a.*,h.company_id,h.branch_id,h.status,h.version hold_version,p.name product_name,w.name warehouse_name,
           CASE WHEN EXISTS(SELECT 1 FROM assignments m WHERE ${recipient.replaceAll("clock_timestamp()", "clock_timestamp()")}
              AND m.user_id=?) THEN 1 ELSE 0 END can_ack,
           (SELECT COUNT(DISTINCT m.user_id) FROM assignments m WHERE ${recipient}) recipients
@@ -225,6 +229,8 @@ export async function qualityAlertWork(actor: WorkContext): Promise<WorkItem[]> 
     return {
       id: String(alert.id),
       type: "quality_alert" as const,
+      actionKind: "work" as const,
+      source: { kind: "quality_hold", id: String(alert.hold_id), href: `/quality/${encodeURIComponent(alert.hold_id)}`, label: "Quality hold", version: Number(alert.hold_version) },
       title: `${overdue ? "Overdue quality hold" : "Quality hold due soon"} · ${alert.product_name}`,
       detail: `${alert.warehouse_name} · due ${alert.due_date}`,
       href: `/quality/${encodeURIComponent(alert.hold_id)}`,
@@ -243,7 +249,7 @@ export async function qualityAlertWork(actor: WorkContext): Promise<WorkItem[]> 
         !completed && !Number(alert.recipients)
           ? "No eligible Quality recipient; Company administrator must assign quality authority"
           : null,
-      relationships: [canAct ? "approval" : "team"],
+      relationships: [canAct ? "assigned" : "team"],
     };
   });
 }

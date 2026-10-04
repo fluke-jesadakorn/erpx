@@ -33,13 +33,13 @@ export default async function NewRequest({
   const label = requestKinds.find(([id]) => id === kind)?.[1] ?? "Request";
 
   return (
-    <FeaturePage className="content-stack" data-source="live">
-      <Link className="back-link" href={`${base}/home`}>
-        ← Today
+    <FeaturePage className="ui-page-content request-page" data-source="live">
+      <Link className="back-link" href={`${base}/work${typeof query.return === "string" ? `?${query.return}` : "?view=tracking&tracking=requests"}`}>
+        ← My work
       </Link>
-      <PageHeader
+      <PageHeader appearance="standard"
         eyebrow="Personal requests"
-        title={kind === "purchase" ? "Buy something" : label}
+        title={label}
         description={kind === "purchase"
           ? "Describe what you need and where it is needed. Your purchasing team takes over sourcing after approval."
           : "Describe what you need. Your request will reach the right team."}
@@ -49,6 +49,7 @@ export default async function NewRequest({
         kind={kind as RequestKind}
         options={options}
         parentRequestId={parentRequestId}
+        returnTo={typeof query.return === "string" ? query.return : ""}
       />
     </FeaturePage>
   );

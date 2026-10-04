@@ -14,6 +14,7 @@ export const calendarLayers = [
   "quality_holds",
   "supplier_batches",
   "refunds",
+  "maintenance",
   "legal",
   "roster",
   "leave",

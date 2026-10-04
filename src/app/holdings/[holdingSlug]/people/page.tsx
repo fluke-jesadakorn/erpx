@@ -1,3 +1,5 @@
+
+import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { BetaPeople } from "@/components/beta/people-page";
 import { FeaturePage, FeatureWidget, WidgetGrid } from "@/components/features/feature-page";
 import { MemberProfile } from "@/components/modules/member-profile";
@@ -86,11 +88,11 @@ export default async function PeoplePage({
   const selectedMember = directoryPage?.members.find(m=>m.id===search.member);
   return (
     <FeaturePage className="content" data-source="live">
-      <PageHeader
+      <PageHeader appearance="standard"
         eyebrow="Your team"
         title="People"
         description="Manage people, positions, and employment changes. IT prepares their resources in Technology."
-        action={!editing && canManage ? <Link className="button" href={`${base}/people?new=person`}>Add person</Link> : undefined}
+        action={!editing && canManage ? <UiActionLink appearance="standard" variant="primary" href={`${base}/people?new=person`}>Add person</UiActionLink> : undefined}
       />
       <PeopleNavigation base={base} actor={actor} scopeKind={actor.scope.kind} active="directory"/>
       <div className={directory.directory}>
@@ -98,7 +100,7 @@ export default async function PeoplePage({
             <MemberProfile actor={actor} base={base} member={selectedMember} />
           )}
           {editing && staffOptions && (
-            <PeopleEditor
+            <PeopleEditor appearance="standard"
               initialOpen
               initialPositionId={organization?.positions.some(p=>p.id===search.position)?search.position:undefined}
               base={base}
@@ -114,7 +116,7 @@ export default async function PeoplePage({
             <Link href={`${base}/people?status=archived`} aria-current={archived ? "page" : undefined}>Archived</Link>
           </nav>
           <WidgetGrid>
-            {directoryPage && <FeatureWidget id={archived ? "archived-profiles" : exploring ? "people-explorer" : "current-profiles"} title={archived ? "Archived profiles" : exploring ? "People explorer" : "Current profiles"}>
+            {directoryPage && <FeatureWidget appearance="legacy" id={archived ? "archived-profiles" : exploring ? "people-explorer" : "current-profiles"} title={archived ? "Archived profiles" : exploring ? "People explorer" : "Current profiles"}>
               <PeopleDirectory
                 base={base}
                 lifecycle={archived ? null : lifecycle}

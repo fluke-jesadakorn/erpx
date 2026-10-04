@@ -1,11 +1,20 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { FormDisclosure } from "@/components/ui/form-disclosure";
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
+
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
 import { marketingAssetDraft, marketingAssetEditorSchema } from "@/lib/marketing-editor";
 import type { marketingDetail, marketingWorkspace } from "@/server/marketing";
+import { FormLayout, Card } from "@/components/ui/foundation";
 function displayMinor(minor: string, currency: string) {
-  const amount = BigInt(minor), scale = BigInt(100), whole = amount / scale, fraction = amount % scale;
+  const amount = BigInt(minor),
+    scale = BigInt(100),
+    whole = amount / scale,
+    fraction = amount % scale;
   return `${currency} ${new Intl.NumberFormat("en-GB").format(whole)}.${fraction.toString().padStart(2, "0")}`;
 }
 export function MarketingConsole({
@@ -26,11 +35,12 @@ export function MarketingConsole({
     [headline, setHeadline] = useState(""),
     [summary, setSummary] = useState(""),
     [reference, setReference] = useState(""),
+    [contentAssetId,setContentAssetId]=useState(""),
+    [mediaPublicationId,setMediaPublicationId]=useState(""),
     [consentRequired, setConsentRequired] = useState(false);
   async function send(input: unknown) {
     const body = JSON.stringify(input);
-    if (last.current?.body !== body)
-      last.current = { body, key: crypto.randomUUID() };
+    if (last.current?.body !== body) last.current = { body, key: crypto.randomUUID() };
     setBusy(true);
     setError("");
     try {
@@ -68,35 +78,93 @@ export function MarketingConsole({
     c = detail?.candidate;
   return (
     <>
-      {error && <p role="alert">{error}</p>}
+      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
       {data && (
         <>
-          <form className="card business-form" onSubmit={(e)=>{e.preventDefault();const f=vals(e);void send({entity:'campaign',action:'create',code:f.code,name:f.name});}}>
+          <FormLayout
+            className="ui-panel ui-form-grid"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const f = vals(e);
+              void send({ entity: "campaign", action: "create", code: f.code, name: f.name });
+            }}
+          >
             <h2>Create campaign ID</h2>
-            <label>Campaign code<input name="code" required pattern="[A-Za-z0-9_-]+" /></label>
-            <label>Name<input name="name" required /></label>
-            <button className="button" disabled={busy}>Create campaign</button>
-          </form>
-          {data.canLinkCost&&<form className="card business-form" onSubmit={(e)=>{e.preventDefault();const f=vals(e);void send({entity:'campaign',action:'link-cost',campaignId:f.campaignId,journalLineId:f.journalLineId,evidence:f.evidence});}}>
-            <h2>Link posted campaign cost</h2>
-            <p>Choose a posted expense line. Each line can belong to one campaign only.</p>
-            <label>Campaign<select name="campaignId" required><option value="">Select campaign</option>{data.campaigns.map(c=><option key={String(c.id)} value={String(c.id)}>{String(c.code)} · {String(c.name)}</option>)}</select></label>
-            <label>Posted expense<select name="journalLineId" required disabled={!data.costSources.length}>
-              <option value="">Select an expense line</option>
-              {data.costSources.map(line=><option key={line.source_line_id} value={line.source_line_id}>
-                {line.entry_date} · {line.journal_number} · {line.account_code} {line.account_name} · {displayMinor(line.debit_minor,line.currency)}
-              </option>)}
-            </select></label>
-            {!data.costSources.length&&<p>No unlinked posted expense lines are available.</p>}
-            <label>Why does this cost belong to the campaign?<textarea name="evidence" minLength={3} maxLength={2000} required /></label>
-            <button className="button" disabled={busy||!data.costSources.length}>Link cost</button>
-          </form>}
-          <form
-            className="card business-form"
+            <Field appearance="standard">
+              Campaign code
+              <TextInput appearance="standard" name="code" required pattern="[A-Za-z0-9_-]+" />
+            </Field>
+            <Field appearance="standard">
+              Name
+              <TextInput appearance="standard" name="name" required />
+            </Field>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
+              Create campaign
+            </Button>
+          </FormLayout>
+          {data.canLinkCost && (
+            <FormLayout
+              className="ui-panel ui-form-grid"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const f = vals(e);
+                void send({
+                  entity: "campaign",
+                  action: "link-cost",
+                  campaignId: f.campaignId,
+                  journalLineId: f.journalLineId,
+                  evidence: f.evidence,
+                });
+              }}
+            >
+              <h2>Link posted campaign cost</h2>
+              <p>Choose a posted expense line. Each line can belong to one campaign only.</p>
+              <Field appearance="standard">
+                Campaign
+                <Select appearance="standard" name="campaignId" required>
+                  <option value="">Select campaign</option>
+                  {data.campaigns.map((c) => (
+                    <option key={String(c.id)} value={String(c.id)}>
+                      {String(c.code)} · {String(c.name)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field appearance="standard">
+                Posted expense
+                <Select appearance="standard" name="journalLineId" required disabled={!data.costSources.length}>
+                  <option value="">Select an expense line</option>
+                  {data.costSources.map((line) => (
+                    <option key={line.source_line_id} value={line.source_line_id}>
+                      {line.entry_date} · {line.journal_number} · {line.account_code}{" "}
+                      {line.account_name} · {displayMinor(line.debit_minor, line.currency)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              {!data.costSources.length && <p>No unlinked posted expense lines are available.</p>}
+              <Field appearance="standard">
+                Why does this cost belong to the campaign?
+                <TextArea appearance="standard" name="evidence" minLength={3} maxLength={2000} required />
+              </Field>
+              <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy || !data.costSources.length}>
+                Link cost
+              </Button>
+            </FormLayout>
+          )}
+          <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Draft marketing asset</summary><FormLayout
+            className="ui-panel ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
               const result = marketingAssetEditorSchema.safeParse({
-                kind: assetKind, name: assetName, headline, summary, reference, consentRequired,
+                kind: assetKind,
+                name: assetName,
+                headline,
+                summary,
+                reference,
+                consentRequired,
+                ...(contentAssetId?{contentAssetId,contentVersion:Number(data.assets.find(asset=>asset.id===contentAssetId)?.version)}:{}),
+                ...(mediaPublicationId?{mediaPublicationId}:{}),
               });
               if (!result.success) {
                 setError(result.error.issues[0]?.message ?? "Review the asset details.");
@@ -106,45 +174,134 @@ export function MarketingConsole({
             }}
           >
             <h2>Draft marketing asset</h2>
-            <label>
+            <Field appearance="standard">
               Kind
-              <select name="kind" value={assetKind} onChange={e=>setAssetKind(e.target.value as typeof assetKind)}>
+              <Select appearance="standard"
+                name="kind"
+                value={assetKind}
+                onChange={(e) => setAssetKind(e.target.value as typeof assetKind)}
+              >
                 <option value="form">Form</option>
                 <option value="content">Content</option>
                 <option value="domain">Domain</option>
                 <option value="provider">Provider</option>
-              </select>
-            </label>
-            <label>
+              </Select>
+            </Field>
+            <Field appearance="standard">
               Name
-              <input name="name" value={assetName} onChange={e=>setAssetName(e.target.value)} minLength={2} maxLength={160} required />
-            </label>
-            {assetKind === "form" ? <>
-              <p>This form will ask visitors for their name, contact details and request. A separate reviewer must activate it.</p>
-              <label>Public headline<input value={headline} onChange={e=>setHeadline(e.target.value)} minLength={2} maxLength={160} required /></label>
-              <label>Supporting text<textarea value={summary} onChange={e=>setSummary(e.target.value)} maxLength={500} /></label>
-              <label><input type="checkbox" checked={consentRequired} onChange={e=>setConsentRequired(e.target.checked)} required /> Require visitor consent before submitting</label>
-            </> : <>
-              <label>Evidence or reference<input value={reference} onChange={e=>setReference(e.target.value)} minLength={2} maxLength={160} required placeholder="Document, URL or review reference" /></label>
-              <label>What should reviewers know?<textarea value={summary} onChange={e=>setSummary(e.target.value)} minLength={3} maxLength={500} required /></label>
-            </>}
-            <aside className="card" aria-label="Asset preview">
+              <TextInput appearance="standard"
+                name="name"
+                value={assetName}
+                onChange={(e) => setAssetName(e.target.value)}
+                minLength={2}
+                maxLength={160}
+                required
+              />
+            </Field>
+            {assetKind === "form" ? (
+              <>
+                <p>
+                  This form will ask visitors for their name, contact details and request. A
+                  separate reviewer must activate it.
+                </p>
+                <Field appearance="standard">
+                  Public headline
+                  <TextInput appearance="standard"
+                    value={headline}
+                    onChange={(e) => setHeadline(e.target.value)}
+                    minLength={2}
+                    maxLength={160}
+                    required
+                  />
+                </Field>
+                <Field appearance="standard">
+                  Supporting text
+                  <TextArea appearance="standard"
+                    value={summary}
+                    onChange={(e) => setSummary(e.target.value)}
+                    maxLength={500}
+                  />
+                </Field>
+                <Field appearance="standard" orientation="inline">
+                  <TextInput appearance="standard"
+                    type="checkbox"
+                    checked={consentRequired}
+                    onChange={(e) => setConsentRequired(e.target.checked)}
+                    required
+                  />{" "}
+                  Require visitor consent before submitting
+                </Field>
+                <Field appearance="standard">
+                  Approved supporting content
+                  <Select appearance="standard" name="contentAssetId" value={contentAssetId} onChange={e=>{setContentAssetId(e.target.value);setMediaPublicationId('');}}>
+                    <option value="">Form headline only</option>
+                    {data.assets.filter(asset=>asset.kind==='content'&&asset.status==='active').map(asset=><option key={String(asset.id)} value={String(asset.id)}>{String(asset.name)} · revision {Number(asset.version)}</option>)}
+                  </Select>
+                </Field>
+                {contentAssetId&&<Field appearance="standard">
+                  Approved public creative
+                  <Select appearance="standard" name="mediaPublicationId" value={mediaPublicationId} onChange={e=>setMediaPublicationId(e.target.value)}>
+                    <option value="">Supporting text only</option>
+                    {data.contentPublications.find(source=>source.assetId===contentAssetId)?.items.map(publication=><option key={String(publication.id)} value={String(publication.id)}>{String(publication.alt_text)} · revision {Number(publication.revision)}</option>)}
+                  </Select>
+                </Field>}
+              </>
+            ) : (
+              <>
+                <Field appearance="standard">
+                  Evidence or reference
+                  <TextInput appearance="standard"
+                    value={reference}
+                    onChange={(e) => setReference(e.target.value)}
+                    minLength={2}
+                    maxLength={160}
+                    required
+                    placeholder="Document, URL or review reference"
+                  />
+                </Field>
+                <Field appearance="standard">
+                  What should reviewers know?
+                  <TextArea appearance="standard"
+                    value={summary}
+                    onChange={(e) => setSummary(e.target.value)}
+                    minLength={3}
+                    maxLength={500}
+                    required
+                  />
+                </Field>
+              </>
+            )}
+            <aside className="ui-panel" aria-label="Asset preview">
               <strong>Preview for review</strong>
               <h3>{assetName.trim() || "Asset name"}</h3>
-              {assetKind === "form" ? <><p>{headline.trim() || "Public headline"}</p>
-                {summary.trim()&&<p>{summary.trim()}</p>}
-                <small>{consentRequired ? "Consent required" : "Choose consent before saving"}</small></>
-                : <><p>{summary.trim() || "Review summary"}</p><small>{reference.trim() || "Evidence reference"}</small></>}
+              {assetKind === "form" ? (
+                <>
+                  <p>{headline.trim() || "Public headline"}</p>
+                  {summary.trim() && <p>{summary.trim()}</p>}
+                  <small>
+                    {consentRequired ? "Consent required" : "Choose consent before saving"}
+                  </small>
+                </>
+              ) : (
+                <>
+                  <p>{summary.trim() || "Review summary"}</p>
+                  <small>{reference.trim() || "Evidence reference"}</small>
+                </>
+              )}
             </aside>
-            <button className="button" disabled={busy}>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Draft asset
-            </button>
-          </form>
+            </Button>
+          </FormLayout></FormDisclosure>
+          <Card as="section" appearance="standard" className="ui-panel">
+            <h2>Public form readiness</h2>
+            {data.formReadiness.length?data.formReadiness.map(readiness=>{const asset=data.assets.find(asset=>asset.id===readiness.id);return <article key={readiness.id}><h3>{String(asset?.name)}</h3><p>{asset?.status==='active'&&readiness.ready?'Ready for consented public submissions':asset?.status==='active'?'Unavailable until supporting content and creative are approved':'Awaiting independent form activation'}</p>{asset?.status==='active'&&readiness.ready&&<a href={`/forms/${encodeURIComponent(base.split('/')[2])}/${encodeURIComponent(readiness.id)}`} target="_blank" rel="noreferrer">Open public form</a>}</article>}):<p>No forms have been drafted.</p>}
+          </Card>
           {data.assets
             .filter((x) => x.status === "draft")
             .map((x) => (
-              <form
-                className="card business-form"
+              <FormLayout
+                className="ui-panel ui-form-grid"
                 key={String(x.id)}
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -158,17 +315,17 @@ export function MarketingConsole({
                 }}
               >
                 <h2>Independent review · {String(x.name)}</h2>
-                <label>
+                <Field appearance="standard">
                   Reason
-                  <textarea name="reason" required minLength={3} />
-                </label>
-                <button className="button" disabled={busy}>
+                  <TextArea appearance="standard" name="reason" required minLength={3} />
+                </Field>
+                <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
                   Activate
-                </button>
-              </form>
+                </Button>
+              </FormLayout>
             ))}
-          <form
-            className="card business-form"
+          <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Capture consented lead</summary><FormLayout
+            className="ui-panel ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
               const f = vals(e),
@@ -180,15 +337,15 @@ export function MarketingConsole({
                 attribution: {
                   campaign: String(f.campaign),
                   source: String(f.source),
-                  campaignId: String(f.campaignId ?? ''),
+                  campaignId: String(f.campaignId ?? ""),
                 },
               });
             }}
           >
             <h2>Capture consented lead</h2>
-            <label>
+            <Field appearance="standard">
               Active form
-              <select name="formId">
+              <Select appearance="standard" name="formId">
                 {data.assets
                   .filter((x) => x.kind === "form" && x.status === "active")
                   .map((x) => (
@@ -196,55 +353,63 @@ export function MarketingConsole({
                       {String(x.name)}
                     </option>
                   ))}
-              </select>
-            </label>
-            <label>
+              </Select>
+            </Field>
+            <Field appearance="standard">
               Branch
-              <select name="branchId">
+              <Select appearance="standard" name="branchId">
                 {data.branches.map((x) => (
                   <option key={String(x.id)} value={String(x.id)}>
                     {String(x.name)}
                   </option>
                 ))}
-              </select>
-            </label>
-            <label>
+              </Select>
+            </Field>
+            <Field appearance="standard">
               Contact name
-              <input name="contactName" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="contactName" required />
+            </Field>
+            <Field appearance="standard">
               Contact detail
-              <textarea name="contactDetail" required minLength={3} />
-            </label>
-            <label>
+              <TextArea appearance="standard" name="contactDetail" required minLength={3} />
+            </Field>
+            <Field appearance="standard">
               Consent evidence
-              <textarea name="consentEvidence" required minLength={3} />
-            </label>
-            <label>
+              <TextArea appearance="standard" name="consentEvidence" required minLength={3} />
+            </Field>
+            <Field appearance="standard">
               Campaign
-              <input name="campaign" required />
-            </label>
-            <label>Reviewed campaign ID
-              <select name="campaignId"><option value="">No linked campaign</option>{data.campaigns.map((x)=><option key={String(x.id)} value={String(x.id)}>{String(x.code)} · {String(x.name)}</option>)}</select>
-            </label>
-            <label>
+              <TextInput appearance="standard" name="campaign" required />
+            </Field>
+            <Field appearance="standard">
+              Reviewed campaign ID
+              <Select appearance="standard" name="campaignId">
+                <option value="">No linked campaign</option>
+                {data.campaigns.map((x) => (
+                  <option key={String(x.id)} value={String(x.id)}>
+                    {String(x.code)} · {String(x.name)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field appearance="standard">
               Source
-              <input name="source" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="source" required />
+            </Field>
+            <Field appearance="standard">
               Brief
-              <textarea name="brief" required minLength={3} />
-            </label>
-            <button className="button" disabled={busy}>
+              <TextArea appearance="standard" name="brief" required minLength={3} />
+            </Field>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Create lead candidate
-            </button>
-          </form>
+            </Button>
+          </FormLayout></FormDisclosure>
         </>
       )}
       {c && c.status === "pending" && (
         <>
-          <form
-            className="card business-form"
+          <FormLayout
+            className="ui-panel ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
               const f = vals(e);
@@ -260,24 +425,24 @@ export function MarketingConsole({
             }}
           >
             <h2>Record engagement</h2>
-            <label>
+            <Field appearance="standard">
               Event
-              <input name="eventType" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="eventType" required />
+            </Field>
+            <Field appearance="standard">
               Channel
-              <input name="channel" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="channel" required />
+            </Field>
+            <Field appearance="standard">
               Evidence
-              <textarea name="reason" required minLength={3} />
-            </label>
-            <button className="button" disabled={busy}>
+              <TextArea appearance="standard" name="reason" required minLength={3} />
+            </Field>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Record
-            </button>
-          </form>
-          <form
-            className="card business-form"
+            </Button>
+          </FormLayout>
+          <FormLayout
+            className="ui-panel ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
               const f = vals(e);
@@ -292,18 +457,18 @@ export function MarketingConsole({
             }}
           >
             <h2>Independent CRM handoff</h2>
-            <label>
+            <Field appearance="standard">
               Due date
-              <input name="dueDate" type="date" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="dueDate" type="date" required />
+            </Field>
+            <Field appearance="standard">
               Review evidence
-              <textarea name="reason" required minLength={3} />
-            </label>
-            <button className="button" disabled={busy}>
+              <TextArea appearance="standard" name="reason" required minLength={3} />
+            </Field>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Create CRM lead
-            </button>
-          </form>
+            </Button>
+          </FormLayout>
         </>
       )}
     </>

@@ -1,10 +1,19 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { FormDisclosure } from "@/components/ui/form-disclosure";
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
+
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
 import type { benefitDetail, benefitsWorkspace } from "@/server/benefits";
-import { AttachmentPanel, type AttachmentPanelChange } from "@/components/attachments/attachment-panel";
+import {
+  AttachmentPanel,
+  type AttachmentPanelChange,
+} from "@/components/attachments/attachment-panel";
 import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
+import { FormLayout } from "@/components/ui/foundation";
 function useCommand(base: string) {
   const router = useRouter(),
     last = useRef<{ key: string; body: string } | null>(null),
@@ -12,8 +21,7 @@ function useCommand(base: string) {
     [error, setError] = useState("");
   async function send(input: unknown) {
     const body = JSON.stringify(input);
-    if (last.current?.body !== body)
-      last.current = { key: crypto.randomUUID(), body };
+    if (last.current?.body !== body) last.current = { key: crypto.randomUUID(), body };
     setBusy(true);
     setError("");
     try {
@@ -58,11 +66,11 @@ export function BenefitsConsole({
     [dependentFiles, setDependentFiles] = useState<Record<string, AttachmentPanelChange>>({});
   return (
     <>
-      {error && <p role="alert">{error}</p>}
+      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
       {data?.canReview && (
         <>
-          <form
-            className="card business-form"
+          <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Draft benefit plan</summary><FormLayout
+            className="ui-panel ui-form-grid"
             onSubmit={(x) => {
               x.preventDefault();
               const f = Object.fromEntries(new FormData(x.currentTarget));
@@ -70,51 +78,53 @@ export function BenefitsConsole({
                 ...f,
                 entity: "plan",
                 effectiveTo: f.effectiveTo || null,
+                requiredEligibilityCode:f.requiredEligibilityCode||null,
               });
             }}
           >
             <h2>Draft benefit plan</h2>
-            <label>
+            <Field appearance="standard">
               Name
-              <input name="name" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="name" required />
+            </Field>
+            <Field appearance="standard">
               Provider
-              <input name="provider" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="provider" required />
+            </Field>
+            <Field appearance="standard">
               Coverage
-              <select name="coverageType">
+              <Select appearance="standard" name="coverageType">
                 <option value="employee">Employee</option>
                 <option value="family">Family</option>
-              </select>
-            </label>
-            <label>
+              </Select>
+            </Field>
+            <Field appearance="standard">
               Currency
-              <input name="currency" defaultValue="THB" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="currency" defaultValue="THB" required />
+            </Field>
+            <Field appearance="standard">
               Employee deduction
-              <input name="employeeDeduction" inputMode="decimal" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="employeeDeduction" inputMode="decimal" required />
+            </Field>
+            <Field appearance="standard">
               Employer cost
-              <input name="employerCost" inputMode="decimal" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="employerCost" inputMode="decimal" required />
+            </Field>
+            <Field appearance="standard">
               Effective from
-              <input name="effectiveFrom" type="date" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="effectiveFrom" type="date" required />
+            </Field>
+            <Field appearance="standard">
               Effective to
-              <input name="effectiveTo" type="date" />
-            </label>
-            <button className="button" disabled={busy}>
+              <TextInput appearance="standard" name="effectiveTo" type="date" />
+            </Field>
+            <Field appearance="standard">Required learning eligibility code, when applicable<TextInput appearance="standard" name="requiredEligibilityCode" maxLength={120}/></Field>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Draft plan
-            </button>
-          </form>
-          <form
-            className="card business-form"
+            </Button>
+          </FormLayout></FormDisclosure>
+          <FormLayout
+            className="ui-panel ui-form-grid"
             onSubmit={(x) => {
               x.preventDefault();
               void send({
@@ -124,36 +134,38 @@ export function BenefitsConsole({
             }}
           >
             <h2>Draft enrollment window</h2>
-            <label>
+            <Field appearance="standard">
               Name
-              <input name="name" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="name" required />
+            </Field>
+            <Field appearance="standard">
               Opens
-              <input name="opensOn" type="date" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="opensOn" type="date" required />
+            </Field>
+            <Field appearance="standard">
               Closes
-              <input name="closesOn" type="date" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="closesOn" type="date" required />
+            </Field>
+            <Field appearance="standard">
               Coverage effective
-              <input name="effectiveOn" type="date" required />
-            </label>
-            <button className="button" disabled={busy}>
+              <TextInput appearance="standard" name="effectiveOn" type="date" required />
+            </Field>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Draft window
-            </button>
-          </form>
-          {([
-            ...data.plans
-              .filter((x) => x.status === "draft")
-              .map((x) => ({ entity: "plan", ...x })),
-            ...data.windows
-              .filter((x) => x.status === "draft")
-              .map((x) => ({ entity: "window", ...x })),
-          ] as Array<Record<string, unknown>>).map((x) => (
-            <form
-              className="card business-form"
+            </Button>
+          </FormLayout>
+          {(
+            [
+              ...data.plans
+                .filter((x) => x.status === "draft")
+                .map((x) => ({ entity: "plan", ...x })),
+              ...data.windows
+                .filter((x) => x.status === "draft")
+                .map((x) => ({ entity: "window", ...x })),
+            ] as Array<Record<string, unknown>>
+          ).map((x) => (
+            <FormLayout
+              className="ui-panel ui-form-grid"
               key={String(x.id)}
               onSubmit={(ev) => {
                 ev.preventDefault();
@@ -167,20 +179,20 @@ export function BenefitsConsole({
               }}
             >
               <h2>Independent review · {String(x.name)}</h2>
-              <label>
+              <Field appearance="standard">
                 Reason
-                <textarea name="reason" minLength={3} required />
-              </label>
-              <button className="button" disabled={busy}>
+                <TextArea appearance="standard" name="reason" minLength={3} required />
+              </Field>
+              <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
                 {x.entity === "plan" ? "Publish plan" : "Open window"}
-              </button>
-            </form>
+              </Button>
+            </FormLayout>
           ))}
         </>
       )}
       {data?.canWrite && (
-        <form
-          className="card business-form"
+        <FormLayout
+          className="ui-panel ui-form-grid"
           onSubmit={(x) => {
             x.preventDefault();
             void send({
@@ -190,27 +202,27 @@ export function BenefitsConsole({
           }}
         >
           <h2>Add dependent</h2>
-          <label>
+          <Field appearance="standard">
             Name
-            <input name="name" required />
-          </label>
-          <label>
+            <TextInput appearance="standard" name="name" required />
+          </Field>
+          <Field appearance="standard">
             Relationship
-            <input name="relationship" required />
-          </label>
-          <label>
+            <TextInput appearance="standard" name="relationship" required />
+          </Field>
+          <Field appearance="standard">
             Birth date
-            <input name="birthDate" type="date" required />
-          </label>
-          <button className="button" disabled={busy}>
+            <TextInput appearance="standard" name="birthDate" type="date" required />
+          </Field>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Submit dependent
-          </button>
-        </form>
+          </Button>
+        </FormLayout>
       )}
       {data?.plans
         .filter((plan) => ["draft", "published", "retired"].includes(String(plan.status)))
         .map((plan) => (
-          <RecordDocumentPanel
+          <RecordDocumentPanel appearance="standard"
             key={`booklet:${String(plan.id)}`}
             base={base}
             targetType="benefit_plan"
@@ -222,14 +234,16 @@ export function BenefitsConsole({
               {
                 key: "benefit_booklet",
                 label: "Benefit booklet",
-                description: "Attach the reviewed plan booklet or coverage guide for this plan revision.",
-                visibility: "Published booklets are self-visible to active employees; drafts remain restricted to Benefits document managers.",
+                description:
+                  "Attach the reviewed plan booklet or coverage guide for this plan revision.",
+                visibility:
+                  "Published booklets are self-visible to active employees; drafts remain restricted to Benefits document managers.",
               },
             ]}
           />
         ))}
       {data?.dependents.map((dependent) => (
-        <RecordDocumentPanel
+        <RecordDocumentPanel appearance="standard"
           key={`dependent-proof:${String(dependent.id)}`}
           base={base}
           targetType="benefit_dependent"
@@ -242,7 +256,8 @@ export function BenefitsConsole({
               key: "dependent_proof",
               label: "Dependent proof",
               description: "Attach relationship, identity, or provider eligibility evidence.",
-              visibility: "Only the employee owner and dedicated Benefits document roles can access these files.",
+              visibility:
+                "Only the employee owner and dedicated Benefits document roles can access these files.",
             },
           ]}
         />
@@ -251,8 +266,8 @@ export function BenefitsConsole({
         data.dependents
           .filter((x) => x.status === "pending")
           .map((x) => (
-            <form
-              className="card business-form"
+            <FormLayout
+              className="ui-panel ui-form-grid"
               key={String(x.id)}
               onSubmit={(ev) => {
                 ev.preventDefault();
@@ -272,12 +287,12 @@ export function BenefitsConsole({
               }}
             >
               <h2>Verify dependent · {String(x.name)}</h2>
-              <label>
+              <Field appearance="standard">
                 Reason
-                <textarea name="reason" required minLength={3} />
-              </label>
+                <TextArea appearance="standard" name="reason" required minLength={3} />
+              </Field>
               {data.canManageDocuments && (
-                <AttachmentPanel
+                <AttachmentPanel appearance="standard"
                   base={base}
                   targetType="benefit_dependent"
                   targetId={String(x.id)}
@@ -296,14 +311,14 @@ export function BenefitsConsole({
                   }
                 />
               )}
-              <button className="button" disabled={busy}>
+              <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
                 Verify
-              </button>
-            </form>
+              </Button>
+            </FormLayout>
           ))}
       {data?.canWrite && (
-        <form
-          className="card business-form"
+        <FormLayout
+          className="ui-panel ui-form-grid"
           onSubmit={(x) => {
             x.preventDefault();
             const f = Object.fromEntries(new FormData(x.currentTarget)),
@@ -315,16 +330,14 @@ export function BenefitsConsole({
               planVersion: Number(plan?.version),
               windowId: f.windowId,
               windowVersion: Number(win?.version),
-              dependentIds: new FormData(x.currentTarget).getAll(
-                "dependentIds",
-              ),
+              dependentIds: new FormData(x.currentTarget).getAll("dependentIds"),
             });
           }}
         >
           <h2>Elect coverage</h2>
-          <label>
+          <Field appearance="standard">
             Plan
-            <select name="planId">
+            <Select appearance="standard" name="planId">
               {data.plans
                 .filter((x) => x.status === "published")
                 .map((x) => (
@@ -332,11 +345,11 @@ export function BenefitsConsole({
                     {String(x.name)}
                   </option>
                 ))}
-            </select>
-          </label>
-          <label>
+            </Select>
+          </Field>
+          <Field appearance="standard">
             Window
-            <select name="windowId">
+            <Select appearance="standard" name="windowId">
               {data.windows
                 .filter((x) => x.status === "open")
                 .map((x) => (
@@ -344,31 +357,27 @@ export function BenefitsConsole({
                     {String(x.name)}
                   </option>
                 ))}
-            </select>
-          </label>
+            </Select>
+          </Field>
           <fieldset>
             <legend>Verified dependents</legend>
             {data.dependents
               .filter((x) => x.status === "verified")
               .map((x) => (
-                <label key={String(x.id)}>
-                  <input
-                    type="checkbox"
-                    name="dependentIds"
-                    value={String(x.id)}
-                  />
+                <Field appearance="standard" orientation="inline" key={String(x.id)}>
+                  <TextInput appearance="standard" type="checkbox" name="dependentIds" value={String(x.id)} />
                   {String(x.name)}
-                </label>
+                </Field>
               ))}
           </fieldset>
-          <button className="button" disabled={busy}>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Elect plan
-          </button>
-        </form>
+          </Button>
+        </FormLayout>
       )}
       {e && !["released", "cancelled"].includes(String(e.status)) && (
-        <form
-          className="card business-form"
+        <FormLayout
+          className="ui-panel ui-form-grid"
           onSubmit={(x) => {
             x.preventDefault();
             const f = Object.fromEntries(new FormData(x.currentTarget)),
@@ -386,9 +395,7 @@ export function BenefitsConsole({
               reason: f.reason,
               providerReference: f.providerReference || undefined,
               attachmentSetIds:
-                transitionFiles?.setId &&
-                transitionFiles.readyCount > 0 &&
-                transitionFiles.bindable
+                transitionFiles?.setId && transitionFiles.readyCount > 0 && transitionFiles.bindable
                   ? [transitionFiles.setId]
                   : [],
             });
@@ -402,17 +409,17 @@ export function BenefitsConsole({
                 : "Release payroll input"}
           </h2>
           {e.status === "submitted" && (
-            <label>
+            <Field appearance="standard">
               Provider reference
-              <input name="providerReference" required />
-            </label>
+              <TextInput appearance="standard" name="providerReference" required />
+            </Field>
           )}
-          <label>
+          <Field appearance="standard">
             Reason
-            <textarea name="reason" required minLength={3} />
-          </label>
+            <TextArea appearance="standard" name="reason" required minLength={3} />
+          </Field>
           {e.status === "elected" && (
-            <AttachmentPanel
+            <AttachmentPanel appearance="standard"
               key={`${String(e.id)}:election:${String(e.version)}`}
               base={base}
               targetType="benefit_election"
@@ -428,7 +435,7 @@ export function BenefitsConsole({
             />
           )}
           {e.status === "submitted" && detail?.canManageDocuments && (
-            <AttachmentPanel
+            <AttachmentPanel appearance="standard"
               key={`${String(e.id)}:provider:${String(e.version)}`}
               base={base}
               targetType="benefit_election"
@@ -443,10 +450,10 @@ export function BenefitsConsole({
               onChange={setTransitionFiles}
             />
           )}
-          <button className="button" disabled={busy}>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Continue
-          </button>
-        </form>
+          </Button>
+        </FormLayout>
       )}
     </>
   );

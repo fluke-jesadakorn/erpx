@@ -18,7 +18,7 @@ export async function GET(req: Request, ctx: Context) {
       { write, files, actor } = await portalContext(p.holdingSlug),
       path = p.path ?? [];
     if (path.length === 2 && path[1] === "download")
-      return portalDownload(write, files, actor, path[0]);
+      return await portalDownload(write, files, actor, path[0]);
     if (path.length > 1)
       throw new ApiError(404, "NOT_FOUND", "Unknown portal resource.");
     return Response.json(

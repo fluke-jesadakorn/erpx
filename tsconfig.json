@@ -39,12 +39,10 @@
   "exclude": [
     "node_modules",
     "tests",
-    "scripts/legacy-cloudflare",
     ".runtime",
     ".scratch",
     ".open-next",
     ".wrangler",
-    "cloudflare-env.d.ts",
-    "beta-cloudflare-env.d.ts"
+    "cloudflare-env.d.ts"
   ]
 }

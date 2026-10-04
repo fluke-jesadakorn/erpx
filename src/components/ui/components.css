@@ -1,0 +1,78 @@
+/* Shared control dimensions also apply to bespoke module layouts. Geometry
+   handles opt into data-size=layout and retain their canvas hit targets. */
+[data-slot="button"][data-size="default"],
+[data-slot="input"][data-size="default"]:not([type="hidden"]):not([type="file"]),
+[data-slot="select"][data-size="default"] {
+  min-height: var(--ui-control-height);
+}
+[data-slot="button"][data-size="compact"] {
+  min-height: var(--ui-control-height-compact);
+}
+[data-slot="button"][data-size="spacious"] {
+  min-height: var(--ui-control-height-spacious);
+}
+/* Module classes can supply layout; action colors belong to these variants. */
+[data-slot="button"][data-variant="primary"] {
+  border-color: transparent;
+  background-color: var(--ui-brand);
+  color: var(--ui-on-brand);
+}
+[data-slot="button"][data-variant="primary"]:hover:not(:disabled) {
+  background-color: var(--ui-brand-strong);
+}
+[data-slot="button"][data-variant="secondary"] {
+  border-color: var(--ui-line);
+  background-color: var(--ui-card);
+  color: var(--ui-ink);
+}
+[data-slot="button"][data-variant="secondary"]:hover:not(:disabled) {
+  background-color: var(--ui-card-2);
+}
+[data-slot="button"][data-variant="danger"] {
+  border-color: transparent;
+  background-color: var(--ui-red);
+  color: white;
+}
+[data-slot="button"][aria-disabled="true"] {
+  opacity: 0.55;
+}
+[data-slot="field"] :is([data-slot="checkbox"], [data-slot="radio"]) {
+  min-height: 18px;
+  height: 18px;
+  width: 18px;
+  flex: none;
+  padding: 0;
+}
+[data-slot="table-frame"][data-density="compact"] :is(th, td) {
+  padding-block: 9px;
+}
+[data-slot="table-frame"] table {
+  margin: 0;
+}
+[data-slot="dialog"] [data-slot="table-frame"] {
+  min-width: 0;
+}
+@media (max-width: 650px) {
+  .ui-responsive-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    margin: 24px -16px -16px;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--ui-line);
+    background: var(--ui-card);
+  }
+  .ui-responsive-actions > [data-slot="button"] {
+    flex: 1;
+  }
+}
+@media print {
+  [data-slot="table-frame"] {
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+  }
+  [data-slot="dialog-backdrop"] {
+    display: none;
+  }
+}

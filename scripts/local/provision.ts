@@ -243,5 +243,8 @@ export async function provision(options: { adminUrl: string; dataDir: string; pr
 if (import.meta.main) {
   const adminUrl = process.env.ERPX_ADMIN_DATABASE_URL;
   if (!adminUrl) throw new Error('ERPX_ADMIN_DATABASE_URL_REQUIRED');
+  if (process.argv.includes('--development') &&
+      (process.env.ERPX_ENVIRONMENT !== 'local' || process.env.ERPX_DATABASE_PREFIX !== 'erpx_dev'))
+    throw new Error('DEVELOPMENT_PROVISION_REQUIRES_LOCAL_ERPX_DEV_PREFIX');
   console.log(await provision({ adminUrl, dataDir: process.env.ERPX_DATA_DIR ?? '.runtime/local', prefix: process.env.ERPX_DATABASE_PREFIX ?? 'erpx', beta: !process.argv.includes('--development') }));
 }

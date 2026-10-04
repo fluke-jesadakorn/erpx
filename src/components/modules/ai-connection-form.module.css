@@ -1,5 +1,5 @@
 .form {
-  color: var(--ink);
+  color: var(--ui-ink);
 }
 
 .fieldset {
@@ -19,7 +19,7 @@
 
 .section + .section {
   padding-top: 22px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--ui-line);
 }
 
 .sectionHeader {
@@ -35,26 +35,26 @@
 
 .sectionHeader h3 {
   margin: 3px 0 4px;
-  color: var(--ink-strong);
+  color: var(--ui-ink-strong);
   font-size: 16px;
   line-height: 1.35;
-  letter-spacing: -.015em;
+  letter-spacing: -0.015em;
 }
 
 .sectionHeader p {
   margin: 0;
   max-width: 50ch;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 12px;
   line-height: 1.55;
 }
 
 .eyebrow {
   display: block;
-  color: var(--brand);
+  color: var(--ui-brand);
   font-size: 10px;
   font-weight: 750;
-  letter-spacing: .14em;
+  letter-spacing: 0.14em;
 }
 
 .securityNote {
@@ -63,19 +63,19 @@
   flex: none;
   gap: 6px;
   padding: 6px 9px;
-  border: 1px solid color-mix(in srgb, var(--brand) 18%, var(--line));
+  border: 1px solid color-mix(in srgb, var(--ui-brand) 18%, var(--ui-line));
   border-radius: 999px;
-  background: var(--brand-soft);
-  color: var(--brand-strong);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-strong);
   font-size: 10px;
   font-weight: 650;
   white-space: nowrap;
 }
 
 .securityWarning {
-  border-color: color-mix(in srgb, var(--amber) 30%, var(--line));
-  background: var(--amber-soft);
-  color: var(--amber);
+  border-color: color-mix(in srgb, var(--ui-amber) 30%, var(--ui-line));
+  background: var(--ui-amber-soft);
+  color: var(--ui-amber);
 }
 
 .grid,
@@ -91,13 +91,13 @@
   align-content: start;
   gap: 7px;
   min-width: 0;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 12px;
 }
 
 .field > span,
 .field > label {
-  color: var(--ink);
+  color: var(--ui-ink);
   font-weight: 620;
 }
 
@@ -105,37 +105,37 @@
 .field select {
   width: 100%;
   min-width: 0;
-  min-height: var(--control-height);
+  min-height: var(--ui-control-height);
   padding: 10px 12px;
-  border: 1px solid var(--control-border);
-  border-radius: var(--radius-md);
-  background: var(--card);
-  color: var(--ink);
+  border: 1px solid var(--ui-control-border);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-card);
+  color: var(--ui-ink);
   font: inherit;
   font-size: 13px;
   transition:
-    border-color var(--motion-fast) var(--ease-standard),
-    box-shadow var(--motion-fast) var(--ease-standard);
+    border-color var(--ui-motion-fast) var(--ui-ease-standard),
+    box-shadow var(--ui-motion-fast) var(--ui-ease-standard);
 }
 
 .field input:focus,
 .field select:focus {
-  border-color: var(--brand);
+  border-color: var(--ui-brand);
   outline: 0;
-  box-shadow: var(--focus-ring);
+  box-shadow: var(--ui-focus-ring);
 }
 
 .field input[aria-invalid="true"] {
-  border-color: var(--red);
+  border-color: var(--ui-red);
 }
 
 .field input:disabled,
 .field select:disabled {
-  background: var(--card-2);
+  background: var(--ui-card-2);
 }
 
 .field small {
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 10px;
   line-height: 1.5;
 }
@@ -151,19 +151,19 @@
   gap: 11px;
   min-width: 0;
   padding: 12px 13px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--card);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-card);
   cursor: pointer;
   transition:
-    border-color var(--motion-fast) var(--ease-standard),
-    background var(--motion-fast) var(--ease-standard);
+    border-color var(--ui-motion-fast) var(--ui-ease-standard),
+    background var(--ui-motion-fast) var(--ui-ease-standard);
 }
 
 .removeKey:hover,
 .documentOption:hover {
-  border-color: var(--line-strong);
-  background: var(--card-2);
+  border-color: var(--ui-line-strong);
+  background: var(--ui-card-2);
 }
 
 .removeKey input,
@@ -186,25 +186,25 @@
 
 .removeKey strong,
 .documentOption strong {
-  color: var(--ink-strong);
+  color: var(--ui-ink-strong);
   font-size: 12px;
   line-height: 1.4;
 }
 
 .removeKey small,
 .documentOption small {
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 10px;
   line-height: 1.5;
 }
 
 .removeKeyActive {
-  border-color: color-mix(in srgb, var(--red) 34%, var(--line));
-  background: var(--red-soft);
+  border-color: color-mix(in srgb, var(--ui-red) 34%, var(--ui-line));
+  background: var(--ui-red-soft);
 }
 
 .removeKeyActive strong {
-  color: var(--red);
+  color: var(--ui-red);
 }
 
 .providerNotice,
@@ -214,9 +214,9 @@
   align-items: flex-start;
   gap: 11px;
   padding: 13px 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--card-2);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-card-2);
 }
 
 .providerNotice > svg,
@@ -237,7 +237,7 @@
 .providerNotice strong,
 .catalogStatus strong,
 .errorNotice strong {
-  color: var(--ink-strong);
+  color: var(--ui-ink-strong);
   font-size: 12px;
 }
 
@@ -245,7 +245,7 @@
 .catalogStatus span,
 .errorNotice span {
   margin: 0;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 11px;
   line-height: 1.55;
 }
@@ -255,7 +255,7 @@
   align-items: center;
   width: fit-content;
   gap: 5px;
-  color: var(--brand-strong);
+  color: var(--ui-brand-strong);
   font-size: 11px;
   font-weight: 650;
 }
@@ -272,32 +272,32 @@
 }
 
 .catalogStatus {
-  border-color: color-mix(in srgb, var(--green) 22%, var(--line));
-  background: var(--green-soft);
+  border-color: color-mix(in srgb, var(--ui-green) 22%, var(--ui-line));
+  background: var(--ui-green-soft);
 }
 
 .catalogStatus > svg {
-  color: var(--green);
+  color: var(--ui-green);
 }
 
 .catalogStatus small {
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 10px;
   line-height: 1.5;
 }
 
 .errorNotice {
-  border-color: color-mix(in srgb, var(--red) 28%, var(--line));
-  background: var(--red-soft);
-  color: var(--red);
+  border-color: color-mix(in srgb, var(--ui-red) 28%, var(--ui-line));
+  background: var(--ui-red-soft);
+  color: var(--ui-red);
 }
 
 .fieldError {
-  color: var(--red) !important;
+  color: var(--ui-red) !important;
 }
 
 .spinning {
-  animation: spin .9s linear infinite;
+  animation: spin 0.9s linear infinite;
 }
 
 @keyframes spin {
@@ -317,7 +317,7 @@
   justify-content: space-between;
   gap: 18px;
   padding-top: 18px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--ui-line);
 }
 
 .nextStep {
@@ -325,7 +325,7 @@
   align-items: flex-start;
   gap: 9px;
   min-width: 0;
-  color: var(--brand-strong);
+  color: var(--ui-brand-strong);
 }
 
 .nextStep > svg {
@@ -340,13 +340,13 @@
 }
 
 .nextStep strong {
-  color: var(--ink-strong);
+  color: var(--ui-ink-strong);
   font-size: 11px;
 }
 
 .nextStep small {
   max-width: 34ch;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 10px;
   line-height: 1.45;
 }
@@ -359,7 +359,7 @@
 }
 
 .form :is(button, input, select, a):focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--ui-brand);
   outline-offset: 3px;
 }
 

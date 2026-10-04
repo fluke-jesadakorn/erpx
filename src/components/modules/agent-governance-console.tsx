@@ -1,8 +1,13 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
+
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
 import type { agentWorkspace } from "@/server/agent-governance";
+import { FormLayout, Card } from "@/components/ui/foundation";
 export function AgentGovernanceConsole({
   base,
   data,
@@ -16,8 +21,7 @@ export function AgentGovernanceConsole({
     [error, setError] = useState("");
   async function send(input: unknown) {
     const body = JSON.stringify(input);
-    if (last.current?.body !== body)
-      last.current = { body, key: crypto.randomUUID() };
+    if (last.current?.body !== body) last.current = { body, key: crypto.randomUUID() };
     setBusy(true);
     setError("");
     try {
@@ -32,9 +36,7 @@ export function AgentGovernanceConsole({
         j = await r.json();
       if (!r.ok) {
         if (r.status < 500) last.current = null;
-        throw new Error(
-          j.error?.message ?? "Unable to update agent governance.",
-        );
+        throw new Error(j.error?.message ?? "Unable to update agent governance.");
       }
       last.current = null;
       router.refresh();
@@ -48,56 +50,48 @@ export function AgentGovernanceConsole({
     Object.fromEntries(new FormData(e.currentTarget));
   return (
     <>
-      {error && <p role="alert">{error}</p>}
-      <form
-        className="card business-form"
+      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+      <FormLayout
+        className="ui-panel ui-form-grid"
         onSubmit={(e) => {
           e.preventDefault();
           void send({ ...values(e), entity: "agent" });
         }}
       >
         <h2>Draft agent</h2>
-        <label>
+        <Field appearance="standard">
           Name
-          <input name="name" required />
-        </label>
-        <label>
+          <TextInput appearance="standard" name="name" required />
+        </Field>
+        <Field appearance="standard">
           Purpose
-          <textarea name="purpose" required minLength={3} />
-        </label>
-        <button className="button" disabled={busy}>
+          <TextArea appearance="standard" name="purpose" required minLength={3} />
+        </Field>
+        <Button appearance="standard" type="submit" clientManaged variant="primary" disabled={busy}>
           Draft agent
-        </button>
-      </form>
+        </Button>
+      </FormLayout>
       {data.agents
         .filter((x) => x.status === "draft")
         .map((x) => (
-          <Review
-            key={String(x.id)}
-            entity="agent"
-            row={x}
-            send={send}
-            busy={busy}
-          />
+          <Review key={String(x.id)} entity="agent" row={x} send={send} busy={busy} />
         ))}
-      <form
-        className="card business-form"
+      <FormLayout
+        className="ui-panel ui-form-grid"
         onSubmit={(e) => {
           e.preventDefault();
           const f = values(e);
           void send({
             ...f,
             entity: "version",
-            allowedSources: String(f.allowedSources)
-              .split(/\s+/)
-              .filter(Boolean),
+            allowedSources: String(f.allowedSources).split(/\s+/).filter(Boolean),
           });
         }}
       >
         <h2>Draft version</h2>
-        <label>
+        <Field appearance="standard">
           Approved agent
-          <select name="agentId">
+          <Select appearance="standard" name="agentId">
             {data.agents
               .filter((x) => x.status === "approved")
               .map((x) => (
@@ -105,33 +99,35 @@ export function AgentGovernanceConsole({
                   {String(x.name)}
                 </option>
               ))}
-          </select>
-        </label>
-        <label>
+          </Select>
+        </Field>
+        <Field appearance="standard">
           Read-only prompt
-          <textarea name="prompt" required minLength={3} />
-        </label>
-        <label>
+          <TextArea appearance="standard" name="prompt" required minLength={3} />
+        </Field>
+        <Field appearance="standard">
           Allowed paths
-          <input name="allowedSources" placeholder="/home /work" required />
-        </label>
-        <button className="button" disabled={busy}>
+          <TextInput appearance="standard" name="allowedSources" placeholder="/home /work" required />
+        </Field>
+        <Button appearance="standard" type="submit" clientManaged variant="primary" disabled={busy}>
           Draft version
-        </button>
-      </form>
+        </Button>
+      </FormLayout>
       {data.versions
         .filter((x) => x.status === "draft")
         .map((x) => (
-          <Review
-            key={String(x.id)}
-            entity="version"
-            row={x}
-            send={send}
-            busy={busy}
-          />
+          <Review key={String(x.id)} entity="version" row={x} send={send} busy={busy} />
         ))}
-      <form
-        className="card business-form"
+      {data.versions.filter(x=>x.status==="approved").map(x=>(
+        <Card as="section" appearance="standard" className="ui-panel" key={String(x.id)}>
+          <h2>{String(x.agent_name)} · version {String(x.version_number)}</h2>
+          <p>{String(x.prompt)}</p>
+          <p>Approved sources: {(JSON.parse(String(x.allowed_sources_json)) as string[]).join(", ")}</p>
+          <Lifecycle entity="version" row={x} actions={["retire"]} send={send} busy={busy}/>
+        </Card>
+      ))}
+      <FormLayout
+        className="ui-panel ui-form-grid"
         onSubmit={(e) => {
           e.preventDefault();
           const f = new FormData(e.currentTarget);
@@ -143,25 +139,45 @@ export function AgentGovernanceConsole({
         }}
       >
         <h2>Create routing pool</h2>
-        <label>
+        <Field appearance="standard">
           Name
-          <input name="name" required />
-        </label>
+          <TextInput appearance="standard" name="name" required />
+        </Field>
         <fieldset>
           <legend>Members</legend>
           {data.people.map((x) => (
-            <label key={String(x.id)}>
-              <input type="checkbox" name="userIds" value={String(x.id)} />
+            <Field appearance="standard" orientation="inline" key={String(x.id)}>
+              <TextInput appearance="standard" type="checkbox" name="userIds" value={String(x.id)} />
               {String(x.name)}
-            </label>
+            </Field>
           ))}
         </fieldset>
-        <button className="button" disabled={busy}>
+        <Button appearance="standard" type="submit" clientManaged variant="primary" disabled={busy}>
           Create pool
-        </button>
-      </form>
-      <form
-        className="card business-form"
+        </Button>
+      </FormLayout>
+      {data.pools.filter(x=>x.status==="active").map(pool=>(
+        <Card as="section" appearance="standard" className="ui-panel" key={String(pool.id)}>
+          <h2>Routing pool · {String(pool.name)}</h2>
+          <FormLayout className="ui-form-grid" onSubmit={event=>{
+            event.preventDefault();const f=new FormData(event.currentTarget);
+            void send({entity:"pool",id:pool.id,action:"replace-members",expectedVersion:Number(pool.version),userIds:f.getAll("userIds"),reason:f.get("reason")});
+          }}>
+            <fieldset><legend>Current routing members</legend>
+              {data.people.map(person=><Field appearance="standard" orientation="inline" key={String(person.id)}>
+                <TextInput appearance="standard" type="checkbox" name="userIds" value={String(person.id)} defaultChecked={data.members.some(member=>member.pool_id===pool.id&&member.user_id===person.id&&member.revoked_at===null)}/>
+                {String(person.name)}
+              </Field>)}
+            </fieldset>
+            <Field appearance="standard">Replacement reason<TextArea appearance="standard" name="reason" required minLength={3}/></Field>
+            <Button appearance="standard" type="submit" clientManaged disabled={busy}>Replace members</Button>
+          </FormLayout>
+          <Lifecycle entity="pool" row={pool} actions={["retire"]} send={send} busy={busy}/>
+          <details><summary>Pool membership history</summary><ul>{data.poolHistory.filter(revision=>revision.pool_id===pool.id).map(revision=><li key={String(revision.id)}>Revision {String(revision.version)} · {String(revision.reason)} · {(JSON.parse(String(revision.members_json)) as string[]).join(", ")}</li>)}</ul></details>
+        </Card>
+      ))}
+      <FormLayout
+        className="ui-panel ui-form-grid"
         onSubmit={(e) => {
           e.preventDefault();
           const f = values(e);
@@ -175,9 +191,9 @@ export function AgentGovernanceConsole({
         }}
       >
         <h2>Assign approved version</h2>
-        <label>
+        <Field appearance="standard">
           Version
-          <select name="agentVersionId">
+          <Select appearance="standard" name="agentVersionId">
             {data.versions
               .filter((x) => x.status === "approved")
               .map((x) => (
@@ -185,11 +201,11 @@ export function AgentGovernanceConsole({
                   {String(x.agent_name)} v{String(x.version_number)}
                 </option>
               ))}
-          </select>
-        </label>
-        <label>
+          </Select>
+        </Field>
+        <Field appearance="standard">
           Pool
-          <select name="poolId">
+          <Select appearance="standard" name="poolId">
             <option value="">Direct user</option>
             {data.pools
               .filter((x) => x.status === "active")
@@ -198,28 +214,52 @@ export function AgentGovernanceConsole({
                   {String(x.name)}
                 </option>
               ))}
-          </select>
-        </label>
-        <label>
+          </Select>
+        </Field>
+        <Field appearance="standard">
           Direct user
-          <select name="userId">
+          <Select appearance="standard" name="userId">
             {data.people.map((x) => (
               <option key={String(x.id)} value={String(x.id)}>
                 {String(x.name)}
               </option>
             ))}
-          </select>
-        </label>
-        <label>
+          </Select>
+        </Field>
+        <Field appearance="standard">
           Path scope
-          <input name="scopePath" defaultValue="/" required />
-        </label>
-        <button className="button" disabled={busy}>
+          <TextInput appearance="standard" name="scopePath" defaultValue="/" required />
+        </Field>
+        <Button appearance="standard" type="submit" clientManaged variant="primary" disabled={busy}>
           Assign
-        </button>
-      </form>
+        </Button>
+      </FormLayout>
+      {data.assignments.filter(x=>x.status==="active").map(row=><Card as="section" appearance="standard" className="ui-panel" key={String(row.id)}>
+        <h2>Active assignment · {String(row.agent_name)} v{String(row.version_number)}</h2>
+        <p>Scope {String(row.scope_path)} · {String(row.user_id??row.pool_id)}</p>
+        <Lifecycle entity="assignment" row={row} actions={["revoke"]} send={send} busy={busy}/>
+      </Card>)}
+      <Card as="section" appearance="standard" className="ui-panel">
+        <h2>Private session retention</h2>
+        <p>A hold preserves evidence. Expiry starts a fresh private conversation and keeps retained evidence out of the new history.</p>
+        {data.sessions.map(session=><article key={String(session.id)}>
+          <h3>{String(session.conversation_key)} · generation {String(session.generation)}</h3>
+          <p>{String(session.user_id)} · {String(session.effective_status)} · expires {new Date(Number(session.expires_at)).toISOString()} {session.legal_hold?"· evidence held":""}</p>
+          <Lifecycle entity="session" row={session} actions={[session.legal_hold?"release-hold":"hold",...(session.effective_status==="active"?["expire"]:[])]} send={send} busy={busy}/>
+        </article>)}
+      </Card>
     </>
   );
+}
+function Lifecycle({entity,row,actions,send,busy}:{entity:"version"|"assignment"|"pool"|"session";row:Record<string,unknown>;actions:string[];send:(input:unknown)=>Promise<void>;busy:boolean}) {
+  return <FormLayout className="ui-form-grid" onSubmit={event=>{
+    event.preventDefault();const f=new FormData(event.currentTarget);
+    void send({entity,id:row.id,action:f.get("action"),expectedVersion:Number(row.version),reason:f.get("reason")});
+  }}>
+    <Field appearance="standard">Action<Select appearance="standard" name="action">{actions.map(action=><option key={action} value={action}>{action.replaceAll("-"," ")}</option>)}</Select></Field>
+    <Field appearance="standard">Reason<TextArea appearance="standard" name="reason" required minLength={3}/></Field>
+    <Button appearance="standard" type="submit" clientManaged disabled={busy}>Apply {entity} action</Button>
+  </FormLayout>;
 }
 function Review({
   entity,
@@ -233,8 +273,8 @@ function Review({
   busy: boolean;
 }) {
   return (
-    <form
-      className="card business-form"
+    <FormLayout
+      className="ui-panel ui-form-grid"
       onSubmit={(e) => {
         e.preventDefault();
         void send({
@@ -247,13 +287,13 @@ function Review({
       }}
     >
       <h2>Independent review · {String(row.name ?? row.agent_name)}</h2>
-      <label>
+      <Field appearance="standard">
         Reason
-        <textarea name="reason" required minLength={3} />
-      </label>
-      <button className="button" disabled={busy}>
+        <TextArea appearance="standard" name="reason" required minLength={3} />
+      </Field>
+      <Button appearance="standard" type="submit" clientManaged variant="primary" disabled={busy}>
         Approve
-      </button>
-    </form>
+      </Button>
+    </FormLayout>
   );
 }

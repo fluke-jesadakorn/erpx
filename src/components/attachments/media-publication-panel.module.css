@@ -32,7 +32,7 @@
 
 .item {
   align-items: center;
-  border: 1px solid var(--line, #d8dde6);
+  border: 1px solid var(--ui-line, #d8dde6);
   border-radius: 0.75rem;
   display: grid;
   gap: 0.75rem;
@@ -83,7 +83,7 @@
 .actions a {
   align-items: center;
   background: transparent;
-  border: 1px solid var(--line, #d8dde6);
+  border: 1px solid var(--ui-line, #d8dde6);
   border-radius: 0.45rem;
   color: inherit;
   cursor: pointer;

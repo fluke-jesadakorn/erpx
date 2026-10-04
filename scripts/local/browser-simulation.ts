@@ -1,19 +1,22 @@
 /** Disposable browser acceptance workspace. Never reuses development/production databases or sessions.
- * bun --conditions=react-server scripts/local/browser-simulation.ts prepare
- * ERPX_BROWSER_SIMULATION_PORT=3104 bun --conditions=react-server scripts/local/browser-simulation.ts prepare
- * ERPX_BROWSER_SIMULATION_PORT=3104 bun --conditions=react-server scripts/local/browser-simulation.ts start <run-id>
- * ERPX_BROWSER_SIMULATION_PORT=3104 bun --conditions=react-server scripts/local/browser-simulation.ts destroy <run-id>
+ * ERPX_BROWSER_SIMULATION_PORT=3104 bun run demo:prepare
+ * ERPX_BROWSER_SIMULATION_PORT=3104 bun scripts/local/run-server-script.ts scripts/local/browser-simulation.ts prepare-diagnostic
+ * ERPX_BROWSER_SIMULATION_PORT=3104 bun run demo:start <run-id>
+ * ERPX_BROWSER_SIMULATION_PORT=3104 ERPX_BROWSER_SIMULATION_RELEASE_DIR=<release> bun run demo:start <run-id>
+ * ERPX_BROWSER_SIMULATION_PORT=3104 bun run demo:destroy <run-id>
  */
-import {mkdir,readFile,writeFile,cp,chmod,open,rm} from 'node:fs/promises';
+import {mkdir,readFile,writeFile,cp,chmod,open,rm,realpath} from 'node:fs/promises';
 import {existsSync,constants} from 'node:fs';
 import {resolve,join} from 'node:path';
-import {randomBytes} from 'node:crypto';
+import {createHash,randomBytes} from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {createServer} from 'node:net';
 import {Pool} from 'pg';
 import {PostgresDatabase} from '../../src/server/runtime/postgres';
 import {migrateDatabase} from '../../src/server/runtime/migrations';
 import {generalCompanyDemoGuide} from '../fixtures/general-company-demo';
+import {placeScopedBrowserEmployee} from '../fixtures/scoped-browser-staff';
+import {runtimeSourceFingerprint} from './source-fingerprint';
 const root=resolve(import.meta.dir,'../..'),parent=join(root,'.runtime/browser'),port=Number(process.env.ERPX_BROWSER_SIMULATION_PORT??'3102');
 if(![3102,3104].includes(port))throw new Error('UNSUPPORTED_BROWSER_SIMULATION_PORT');
 const useWebpack=process.env.ERPX_BROWSER_SIMULATION_WEBPACK==='1';
@@ -25,25 +28,32 @@ let adminUrl=process.env.ERPX_TEST_ADMIN_URL;
 if(!adminUrl)for(const file of ['.env.test.local','.env.test','.env.local']){const path=join(root,file);if(!existsSync(path))continue;const value=(await readFile(path,'utf8')).match(/^\s*(?:export\s+)?ERPX_TEST_ADMIN_URL\s*=\s*(.*?)\s*$/m)?.[1];if(value){adminUrl=value.replace(/^(["'])(.*)\1$/,'$2');break;}}
 if(!adminUrl)throw new Error('ISOLATED_TEST_ADMIN_REQUIRED');
 const connection=new URL(adminUrl);if(connection.hostname!=='127.0.0.1'||connection.port!=='5432'||connection.username!=='erpx_test_admin'||connection.pathname!=='/postgres')throw new Error('UNSAFE_TEST_DATABASE_ADMIN');
-const tracks={CONTROL_DB:'control',CONTROL_READ_DB:'control-read',H001_DB:'holding-write',H001_READ_DB:'holding-read',H002_DB:'holding-write',H002_READ_DB:'holding-read'} as const;
-const mode=process.argv[2],run=mode==='prepare'?randomBytes(6).toString('hex'):process.argv[3];
+const tracks={CONTROL_DB:'control',CONTROL_READ_DB:'control-read',H001_DB:'holding-write',H001_READ_DB:'holding-read',H002_DB:'holding-write',H002_READ_DB:'holding-read',H003_DB:'holding-write',H003_READ_DB:'holding-read'} as const;
+const mode=process.argv[2],diagnostic=mode==='prepare-diagnostic',run=mode==='prepare'||diagnostic?randomBytes(6).toString('hex'):process.argv[3];
 if(!run||!/^([a-f0-9]{12})$/.test(run))throw new Error('EXACT_BROWSER_RUN_ID_REQUIRED');
 const directory=join(parent,run),app=join(directory,'app'),manifestPath=join(directory,'databases.json'),statePath=join(directory,'state.json');
-type State={run:string;prefix:string;createdAt:string;origin:string;port?:number;ready?:boolean;pid?:number;jobsPid?:number;fixture?:Record<string,unknown>};
+type State={run:string;prefix:string;createdAt:string;origin:string;port?:number;ready?:boolean;diagnostic?:boolean;pid?:number;jobsPid?:number|null;jobsStartedAt?:string;jobsPaused?:boolean;sourceFingerprint?:string;softwareVersion?:string;webEntrypoint?:string;jobsEntrypoint?:string;release?:{id:string;fileManifestSha256:string};fixture?:Record<string,unknown>};
 const localAttachmentMode=process.env.ERPX_BROWSER_SIMULATION_ATTACHMENTS==='local';
 const localJobsEnabled=process.env.ERPX_BROWSER_SIMULATION_JOBS==='1';
 const safeEnv=(secret:string)=>({
+ ...Object.fromEntries(Object.entries(process.env).filter(([name])=>name.startsWith('NEXT_PUBLIC_'))),
  PATH:`${join(root,'.runtime/node/node-v24.20.0-darwin-arm64/bin')}:${process.env.PATH??''}`,
  HOME:process.env.HOME??'',
  TMPDIR:process.env.TMPDIR??'/tmp',
  NODE_ENV:'development' as const,
+ // Match workspace dev headroom while compiling the complete route inventory.
+ NODE_OPTIONS:'--max-old-space-size=8192',
  ERPX_ENVIRONMENT:'local',
  ERPX_BROWSER_SIMULATION_PORT:String(port),
  ERPX_BROWSER_SIMULATION:'thai-hotel-v1',
  ERPX_AI_ADAPTER:'deterministic-v1',
  ERPX_PAYROLL_ADAPTER:'synthetic-fixtures-v1',
  ERPX_EMAIL_ADAPTER:'sandbox',
+ // Explicit fixture activation for the existing restaurant/hotel pilot.
+ // The compiled runtime still checks the enrolled Company and both owners.
+ ERPX_POS_ROOM_CHARGE_PILOT_ENABLED:'true',
  ERPX_PUBLIC_ORIGIN:origin,
+ ERPX_MARKETING_ORIGIN:`http://dev-erpx.localhost:${port}`,
  ERPX_FRONT_PMS_ORIGIN:`http://dev-pms.localhost:${port}`,
  ERPX_FRONT_POS_ORIGIN:`http://dev-pos.localhost:${port}`,
  BETTER_AUTH_URL:origin,
@@ -56,6 +66,7 @@ const safeEnv=(secret:string)=>({
  ERPX_DEV_PG_POOL_MAX:'2',
  ...(localAttachmentMode?{
   ERPX_ATTACHMENTS_V2:'true',
+  ERPX_ATTACHMENT_UPLOAD_FREEZE:'false',
   ERPX_CLAMD_SOCKET:join(root,'.scratch/dev/clamav/clamd.sock'),
   ERPX_CLAMAV_DATABASE_DIR:join(root,'.scratch/dev/clamav/db'),
   ERPX_CLAMAV_VERSION:'1.5.4',
@@ -65,13 +76,32 @@ const safeEnv=(secret:string)=>({
 });
 async function assertAdmin(admin:Pool){const role=(await admin.query('SELECT current_user name,rolsuper,rolcreatedb,rolcreaterole FROM pg_roles WHERE rolname=current_user')).rows[0];if(role.name!=='erpx_test_admin'||role.rolsuper||!role.rolcreatedb||role.rolcreaterole)throw new Error('UNSAFE_TEST_DATABASE_ROLE');const forbidden=await admin.query("SELECT datname FROM pg_database WHERE (datname LIKE 'epsx\\_%' ESCAPE '\\' OR datname IN ('n8n','plf_webapp_dev')) AND has_database_privilege(current_user,datname,'CONNECT')");if(forbidden.rowCount)throw new Error('TEST_ADMIN_CAN_CONNECT_TO_OTHER_PROJECT');}
 async function writePrivate(path:string,value:unknown){await writeFile(path,JSON.stringify(value,null,2)+'\n',{mode:0o600});await chmod(path,0o600);}
+function assertCohortManifest(value:{version:number;databases:Record<string,string>;slots:Array<{id:string;write:string;read:string;files:string;internal?:boolean}>}){
+ const expected=Object.keys(tracks).sort();
+ if(value.version!==1||JSON.stringify(Object.keys(value.databases).sort())!==JSON.stringify(expected)||value.slots.length!==3)throw new Error('EXACT_EIGHT_COHORT_BINDINGS_REQUIRED');
+ for(const binding of expected){const url=new URL(value.databases[binding]);if(url.hostname!=='127.0.0.1'||url.port!=='5432'||url.username!=='erpx_test_admin'||url.pathname!==`/erpx_browser_${run}_${binding.toLowerCase()}`)throw new Error('COHORT_DATABASE_IDENTITY_CHANGED');}
+ for(const id of ['h001','h002','h003']){const slot=value.slots.filter(item=>item.id===id),prefix=id.toUpperCase();if(slot.length!==1||slot[0].write!==`${prefix}_DB`||slot[0].read!==`${prefix}_READ_DB`||slot[0].files!==`${prefix}_FILES`||id==='h003'&&slot[0].internal!==true)throw new Error('COHORT_SLOT_IDENTITY_CHANGED');}
+}
 async function freePort(){const server=createServer();await new Promise<void>((ok,no)=>{server.once('error',no);server.listen(port,'127.0.0.1',()=>server.close(error=>error?no(error):ok()));});}
-if(mode==='prepare'){
- await freePort();await mkdir(directory,{recursive:true,mode:0o700});const prefix=`erpx_browser_${run}`,state:State={run,prefix,createdAt:new Date().toISOString(),origin,port};await writePrivate(statePath,state);
+if(mode==='prepare'||diagnostic){
+ if(diagnostic&&port!==3104)throw new Error('SEED_DIAGNOSTIC_REQUIRES_ISOLATED_3104');
+ const sourceFingerprint=await runtimeSourceFingerprint(root);
+ if(process.env.ERPX_SERVER_SCRIPT_SOURCE_FINGERPRINT&&process.env.ERPX_SERVER_SCRIPT_SOURCE_FINGERPRINT!==sourceFingerprint)
+  throw new Error('BROWSER_FIXTURE_COMPILED_SOURCE_MISMATCH');
+ await freePort();await mkdir(directory,{recursive:true,mode:0o700});const prefix=`erpx_browser_${run}`,state:State={run,prefix,createdAt:new Date().toISOString(),origin,port,sourceFingerprint};await writePrivate(statePath,state);
  const admin=new Pool({connectionString:adminUrl,max:1}),urls:Record<string,string>={};
  try{await assertAdmin(admin);for(const [binding,track] of Object.entries(tracks)){const name=`${prefix}_${binding.toLowerCase()}`;await admin.query(`CREATE DATABASE "${name}" TEMPLATE template0`);const url=new URL(adminUrl);url.pathname=name;urls[binding]=url.href;const db=new PostgresDatabase({connectionString:url.href,max:1});try{await migrateDatabase(db,track);}finally{await db.close();}}}finally{await admin.end();}
- await writePrivate(manifestPath,{version:1,databases:urls,slots:[{id:'h001',write:'H001_DB',read:'H001_READ_DB',files:'H001_FILES'},{id:'h002',write:'H002_DB',read:'H002_READ_DB',files:'H002_FILES'}]});
- const secret=randomBytes(32).toString('hex');await writePrivate(join(directory,'runtime.json'),{secret});for(const name of Object.keys(process.env))if(/^(AI_|RESEND_|STRIPE_|SITEMINDER_|ERPX_IAM_SECRET_PROFILES)/.test(name))delete process.env[name];Object.assign(process.env,safeEnv(secret));
+ await writePrivate(manifestPath,{version:1,databases:urls,slots:[{id:'h001',write:'H001_DB',read:'H001_READ_DB',files:'H001_FILES'},{id:'h002',write:'H002_DB',read:'H002_READ_DB',files:'H002_FILES'},{id:'h003',write:'H003_DB',read:'H003_READ_DB',files:'H003_FILES',internal:true}]});
+ // This is the same restricted disposable owner, never a development or
+ // production migration identity. The normal Platform command verifies it
+ // against the runtime cohort before replaying packaged migrations.
+ await writePrivate(join(directory,'databases-migrations.json'),JSON.parse(await readFile(manifestPath,'utf8')));
+ const secret=randomBytes(32).toString('hex');await writePrivate(join(directory,'runtime.json'),{secret});
+ // Bun loads the workspace dotenv before this launcher. Object.assign alone
+ // leaves omitted deployment credentials behind; native seed commands must
+ // use this cohort's private local files and explicitly declared adapters.
+ for(const name of Object.keys(process.env))if(/^(AI_|RESEND_|STRIPE_|SITEMINDER_|ERPX_MINIO_|ERPX_IAM_SECRET_PROFILES|ERPX_MIGRATION_DATABASE_MANIFEST|ERPX_PROCESS_ROLE|ERPX_ENGINEERING_VERIFICATION_RUN|ERPX_ENGINEERING_SOURCE_FINGERPRINT)/.test(name))delete process.env[name];
+ Object.assign(process.env,safeEnv(secret));
  const {getRuntime,closeRuntime}=await import('../../src/server/runtime/env'),env=getRuntime();
  try{
   await env.CONTROL_DB.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES('h001','simulation','Browser simulation','H001_DB','H001_READ_DB','H001_FILES','active')").run();
@@ -93,11 +123,25 @@ if(mode==='prepare'){
   const employeeActor={...f.claimant,role:'employee',assignmentId:await extraGrant(f.claimant,'employee')};
   await extraGrant(f.head,'people_manager');
   await extraGrant(f.payer,'hr_admin');users.find(user=>user.userId===f.payer.userId)!.roles.push('hr_admin');
+  const {changeAppointment}=await import('../../src/server/department-authority');
+  const hrSeat=await env.H001_DB.prepare("SELECT version FROM authority_seats WHERE company_id=? AND kind='hr' AND scope_id=?").bind(f.company,f.company).first<{version:number}>();
+  await changeAppointment(env.H001_DB,f.owner,{kind:'hr',positionId:null,personId:`person-${f.payer.userId}`,expectedVersion:Number(hrSeat?.version??0),reason:'Fictional Company owner appoints the independent HR reviewer for organization changes.'},crypto.randomUUID());
   await extraGrant(f.payer,'holding_owner');users.find(user=>user.userId===f.payer.userId)!.roles.push('holding_owner');
   await extraGrant(f.it,'purchasing_operator');
   await extraGrant(f.it,'warehouse_manager');
   await extraGrant(f.tie,'purchasing_manager');
   const salesOperatorAssignment=await extraGrant(f.claimant,'sales_operator');
+  // An action-card owner selects one published role that can open both the
+  // collaboration workspace and its Sales source. The Employee role remains
+  // limited to its normal self-service permissions.
+  const collaborationOwnerRole='custom_demo_sales_collaboration_owner';
+  await env.H001_DB.batch([
+   env.H001_DB.prepare('INSERT INTO iam_roles(company_id,id,name,built_in,published_revision) VALUES(?,?,?,false,1)').bind(f.company,collaborationOwnerRole,'Fictional Sales collaboration owner'),
+   env.H001_DB.prepare("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES(?,?,1,?,'[]','[\"holding\"]','fixture',?)").bind(f.company,collaborationOwnerRole,JSON.stringify(['records.read','records.write','commerce.read','module.sales.read','module.collaboration.read','self.tasks']),now),
+  ]);
+  const collaborationOwnerAssignment=await f.grant(f.claimant,collaborationOwnerRole);
+  await env.H001_DB.prepare('UPDATE assignments SET modules_json=? WHERE id=?').bind(JSON.stringify(['sales','collaboration']),collaborationOwnerAssignment).run();
+  users.find(user=>user.userId===f.claimant.userId)!.roles.push(collaborationOwnerRole);
   await extraGrant(f.tie,'sales_manager');
   await extraGrant(f.reviewer,'quality_inspector');
   await extraGrant(f.reviewer,'finance_approver');users.find(user=>user.userId===f.reviewer.userId)!.roles.push('finance_approver');
@@ -117,6 +161,7 @@ if(mode==='prepare'){
     env.CONTROL_DB.prepare("INSERT INTO account(id,accountId,providerId,issuer,userId,password,createdAt,updatedAt) VALUES(?,?,'credential','local:credential',?,?,?,?)").bind(`account-${actor.userId}`,actor.userId,actor.userId,hash,now,now),
     env.CONTROL_DB.prepare("INSERT INTO principals(id,user_id,display_name,status,created_at) VALUES(?,?,?,'active',?)").bind(`principal-${actor.userId}`,actor.userId,label,now),
    ]);
+   await placeScopedBrowserEmployee(f,{userId:actor.userId,assignmentId,scope,nodeId:node,...(parentNode?{parentNodeId:parentNode}:{})});
    users.push({label,email,role:'employee',userId:actor.userId,roles:['employee'],scope,scopeNode:node,...(parentNode?{scopeParentNode:parentNode}:{})});
   };
   await addScopedEmployee('Branch employee','branch@simulation.test','branch',f.branch);
@@ -131,7 +176,10 @@ if(mode==='prepare'){
   const demoEngagement=await env.H001_DB.prepare("SELECT e.id FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=? AND p.user_id=? AND e.status='active' ORDER BY e.start_date LIMIT 1").bind(f.company,f.claimant.userId).first<{id:string}>();
   if(demoEngagement){
     await env.H001_DB.prepare("UPDATE hr_engagements SET pay_group_id=?,currency='THB',version=version+1,updated_at=? WHERE id=?").bind(demoPayrollGroup,now,demoEngagement.id).run();
-    await env.H001_DB.prepare("INSERT INTO hr_compensation_revisions(id,engagement_id,effective_from,pay_frequency,base_amount_minor,hourly_rate_minor,expected_hours,currency,components_json,status,created_by,created_at,updated_at) VALUES(?,?, '2026-09-01','monthly',100000,0,160,'THB','[]','approved',?,?,?)").bind(demoPayrollCompensation,demoEngagement.id,f.owner.userId,now,now).run();
+    // Declared synthetic monthly THB 1,000 and THB 10/hour compensation for
+    // the legacy native payroll/210-minute overtime journey. Real Thai payroll
+    // uses the separate independently approved dated statutory fixture below.
+    await env.H001_DB.prepare("INSERT INTO hr_compensation_revisions(id,engagement_id,effective_from,pay_frequency,base_amount_minor,hourly_rate_minor,expected_hours,currency,components_json,status,created_by,created_at,updated_at) VALUES(?,?, '2026-09-01','monthly',100000,1000,160,'THB','[]','approved',?,?,?)").bind(demoPayrollCompensation,demoEngagement.id,f.owner.userId,now,now).run();
   }
   // Payroll has more than one eligible specialist in this Demo (the payment
   // operator also carries the HR admin role). Persist an explicit owner for
@@ -163,7 +211,9 @@ if(mode==='prepare'){
   const inventoryAccountId=`${f.company}-inventory`,clearingAccountId=`${f.company}-clearing`,receivableAccountId=`${f.company}-receivable`,openingEquityAccountId=`${f.company}-opening-equity`;
   await env.H001_DB.batch([env.H001_DB.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,'INV','Simulation inventory','asset','THB',?,?)").bind(inventoryAccountId,f.chart,f.company,now,now),env.H001_DB.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,'GRNI','Simulation goods received clearing','liability','THB',?,?)").bind(clearingAccountId,f.chart,f.company,now,now),env.H001_DB.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,'AR','Simulation receivables','asset','THB',?,?)").bind(receivableAccountId,f.chart,f.company,now,now),env.H001_DB.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,'OPEN','Simulation opening equity','equity','THB',?,?)").bind(openingEquityAccountId,f.chart,f.company,now,now),env.H001_DB.prepare('UPDATE commerce_settings SET inventory_account_id=?,clearing_account_id=?,receivable_account_id=? WHERE company_id=?').bind(inventoryAccountId,clearingAccountId,receivableAccountId,f.company)]);
   const {createJournal,createJournalSchema,postJournal}=await import('../../src/server/finance'),{resolveFlow,assignFlowPrimary}=await import('../../src/server/flow-routing');
-  const opening=await createJournal(f.owner,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:'2026-01-01',currency:'THB',memo:'Simulation opening stock only',sourceType:'manual',isOpening:true,lines:[{accountId:inventoryAccountId,debit:'10',credit:'0'},{accountId:openingEquityAccountId,debit:'0',credit:'10'}]}),crypto.randomUUID());
+  // Declared imported quantities below carry THB 10 + 500 + 1000 + 10.
+  // The independently reviewed opening GL covers every initial stock row.
+  const opening=await createJournal(f.owner,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:'2026-01-01',currency:'THB',memo:'Fictional imported opening stock: sales item, single laptops, laptop cases and dedicated transport item',sourceType:'manual',isOpening:true,lines:[{accountId:inventoryAccountId,debit:'1520',credit:'0'},{accountId:openingEquityAccountId,debit:'0',credit:'1520'}]}),crypto.randomUUID());
   const openingFlow=await resolveFlow(env.H001_DB,f.owner,'journal',String(opening.id));await assignFlowPrimary(env.H001_DB,f.owner,'journal',String(opening.id),{stepKey:'draft',userId:f.manager.userId,expectedVersion:openingFlow.version,recordVersion:1,reason:'Simulation independent opening balance review',saveDefault:false},crypto.randomUUID());
   await env.H001_DB.prepare("INSERT INTO flow_defaults(company_id,kind,step_key,primary_user_id,created_by,reason,created_at) VALUES(?,'journal','draft',?,?,'Simulation independent journal review',?)").bind(f.company,f.manager.userId,f.owner.userId,now).run();
   await postJournal(f.manager,String(opening.id),crypto.randomUUID(),{expectedVersion:1});
@@ -218,11 +268,16 @@ if(mode==='prepare'){
   const {saveMaster,saveOrder,orderSchema}=await import('../../src/server/commerce');
   const source=String((await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:'SIM-SOURCE',name:'Simulation source warehouse'},crypto.randomUUID())).id),target=String((await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:'SIM-TARGET',name:'Simulation receiving warehouse'},crypto.randomUUID())).id),product=String((await saveMaster(f.owner,'products',null,{sku:'SIM-ITEM',name:'Simulation stock only',price:'10'},crypto.randomUUID())).id),laptopEach=String((await saveMaster(f.owner,'products',null,{sku:'SIM-LAP-EACH',name:'Demo laptop single unit',unit:'each',price:'25000'},crypto.randomUUID())).id),laptopCase=String((await saveMaster(f.owner,'products',null,{sku:'SIM-LAP-CASE',name:'Demo laptop case of two',unit:'case',price:'50000'},crypto.randomUUID())).id),demoSuppliers=[String((await saveMaster(f.owner,'parties',null,{kind:'supplier',code:'SIM-SUP-A',name:'Demo supplier A'},crypto.randomUUID())).id),String((await saveMaster(f.owner,'parties',null,{kind:'supplier',code:'SIM-SUP-B',name:'Demo supplier B'},crypto.randomUUID())).id)];
   const lotProduct=String((await saveMaster(f.owner,'products',null,{sku:'SIM-LOT-MED',name:'Demo lot-tracked medical supplies',unit:'box',trackingMode:'lot',price:'1200'},crypto.randomUUID())).id),serialProduct=String((await saveMaster(f.owner,'products',null,{sku:'SIM-SERIAL-DEVICE',name:'Demo serial-tracked service device',unit:'each',trackingMode:'serial',price:'35000'},crypto.randomUUID())).id);
+  const transitProduct=String((await saveMaster(f.owner,'products',null,{sku:'SIM-TRANSIT-ITEM',name:'Fictional transport stock only',price:'10'},crypto.randomUUID())).id);
   await env.H001_DB.batch([
     env.H001_DB.prepare('INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor,version) VALUES(?,?,3000,1000,1)').bind(source,product),
     env.H001_DB.prepare('INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor,version) VALUES(?,?,2000,50000,1)').bind(source,laptopEach),
     env.H001_DB.prepare('INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor,version) VALUES(?,?,2000,100000,1)').bind(source,laptopCase),
+    env.H001_DB.prepare('INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor,version) VALUES(?,?,3000,1000,1)').bind(source,transitProduct),
   ]);
+  const initialStock=await env.H001_DB.prepare('SELECT COALESCE(SUM(s.value_minor),0)::bigint value FROM commerce_stock s JOIN commerce_warehouses w ON w.id=s.warehouse_id WHERE w.company_id=?').bind(f.company).first<{value:number}>();
+  const initialInventoryGl=await env.H001_DB.prepare("SELECT COALESCE(SUM(l.base_debit_minor-l.base_credit_minor),0)::bigint value FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id=? AND j.status='posted' AND l.account_id=?").bind(f.company,inventoryAccountId).first<{value:number}>();
+  if(Number(initialStock?.value)!==152000||Number(initialInventoryGl?.value)!==152000)throw new Error('FICTIONAL_INITIAL_STOCK_GL_NOT_RECONCILED');
   const {createQualityHold}=await import('../../src/server/quality');
   const {drainQualityAlerts}=await import('../../src/server/quality-alerts');
   const demoDate=(offset:number)=>new Date(Date.now()+offset*86_400_000).toISOString().slice(0,10);
@@ -240,22 +295,47 @@ if(mode==='prepare'){
   const {createCRMLead}=await import('../../src/server/crm');
   const crmLead=await createCRMLead(salesOperatorActor,{branchId:f.branch,title:'Demo installation scheduling inquiry',contactName:'Demo customer contact',contactDetail:'Email channel is approved for this fictional customer',source:'Demo Customer 360 scenario',brief:'Customer needs a confirmed installation window before quotation follow-up.',dueDate:'2026-09-26'},crypto.randomUUID());
   const actor=(userId:string,role:string)=>{const user=users.find(item=>item.userId===userId)!;return {label:user.label,email:user.email,userId,role};};
-  const guide=generalCompanyDemoGuide({run,origin,holdingSlug:'simulation',organizationReviewer:actor(f.payer.userId,'hr_admin'),customerId:String(customer.id),customerDuplicateIds:[String(duplicateCustomerLeft.id),String(duplicateCustomerRight.id)],customerOperator:actor(f.claimant.userId,'sales_operator'),crmLeadId:String(crmLead.id),qualityDueSoonHoldId:String(qualityDueSoon.id),qualityOverdueHoldId:String(qualityOverdue.id),qualityInspector:actor(f.reviewer.userId,'quality_inspector'),qualityManager:actor(f.payer.userId,'quality_manager'),requestId:String(purchaseRequest.id),quotationId:String(quotation.id),sourceWarehouseId:source,targetWarehouseId:target,movementProductId:product,lotProductId:lotProduct,serialProductId:serialProduct,closePeriodIds:closePeriods,controlledPaymentInvoiceId:paymentInvoice,actors:{employee:actor(f.claimant.userId,'employee'),manager:actor(f.head.userId,'people_manager'),hrApprover:actor(f.payer.userId,'hr_admin'),payrollPreparer:actor(f.owner.userId,'payroll_preparer'),buyer:actor(f.it.userId,'purchasing_operator'),purchasingManager:actor(f.tie.userId,'purchasing_manager'),salesOperator:actor(f.claimant.userId,'sales_operator'),salesManager:actor(f.tie.userId,'sales_manager'),warehouse:actor(f.head.userId,'warehouse_manager'),sourceWarehouse:actor(f.it.userId,'warehouse_manager'),financePreparer:actor(f.reviewer.userId,'finance_preparer'),financeApprover:actor(f.manager.userId,'finance_approver'),treasury:actor(f.payer.userId,'treasury'),administrator:actor(f.owner.userId,'holding_owner')}});
+  const guide=generalCompanyDemoGuide({run,origin,holdingSlug:'simulation',organizationReviewer:actor(f.payer.userId,'hr_admin'),customerId:String(customer.id),customerDuplicateIds:[String(duplicateCustomerLeft.id),String(duplicateCustomerRight.id)],customerOperator:actor(f.claimant.userId,'sales_operator'),crmLeadId:String(crmLead.id),qualityDueSoonHoldId:String(qualityDueSoon.id),qualityOverdueHoldId:String(qualityOverdue.id),qualityInspector:actor(f.reviewer.userId,'quality_inspector'),qualityManager:actor(f.payer.userId,'quality_manager'),requestId:String(purchaseRequest.id),quotationId:String(quotation.id),sourceWarehouseId:source,targetWarehouseId:target,movementProductId:transitProduct,lotProductId:lotProduct,serialProductId:serialProduct,closePeriodIds:closePeriods,controlledPaymentInvoiceId:paymentInvoice,actors:{employee:actor(f.claimant.userId,'employee'),manager:actor(f.head.userId,'people_manager'),hrApprover:actor(f.payer.userId,'hr_admin'),payrollPreparer:actor(f.owner.userId,'payroll_preparer'),buyer:actor(f.it.userId,'purchasing_operator'),purchasingManager:actor(f.tie.userId,'purchasing_manager'),salesOperator:actor(f.claimant.userId,'sales_operator'),salesManager:actor(f.tie.userId,'sales_manager'),warehouse:actor(f.head.userId,'warehouse_manager'),sourceWarehouse:actor(f.it.userId,'warehouse_manager'),financePreparer:actor(f.reviewer.userId,'finance_preparer'),financeApprover:actor(f.manager.userId,'finance_approver'),treasury:actor(f.payer.userId,'treasury'),administrator:actor(f.owner.userId,'holding_owner')}});
   const {seedHospitalityBrowserDemo}=await import('../fixtures/hospitality-browser-demo');
   const hospitality=await seedHospitalityBrowserDemo({db:env.H002_DB,control:env.CONTROL_DB,files:env.H002_FILES,passwordHash:hash,run,origin});
-  state.fixture={customerId:customer.id,customerDuplicateIds:[duplicateCustomerLeft.id,duplicateCustomerRight.id],customerDuplicateQuotationId:duplicateCustomerQuotation.id,quotationId:quotation.id,crmLeadId:crmLead.id,purchaseRequestId:purchaseRequest.id,companyId:f.company,inventoryAccountId,clearingAccountId,openingEquityAccountId,openingJournalId:opening.id,browserOpeningChartId,browserOpeningCashId,browserOpeningEquityId,sourceWarehouseId:source,targetWarehouseId:target,productId:product,laptopEachProductId:laptopEach,laptopCaseProductId:laptopCase,lotProductId:lotProduct,serialProductId:serialProduct,qualityDueSoonHoldId:qualityDueSoon.id,qualityOverdueHoldId:qualityOverdue.id,demoSupplierIds:demoSuppliers,periodId:f.period,closePeriodIds:closePeriods,closeBankAccountId:closeBank,controlledPaymentPeriodId:paymentPeriod,controlledPaymentInvoiceId:paymentInvoice,controlledPaymentBankTransactionId:paymentBankTransaction,customerRefundBankTransactionId:refundBankTransaction,expenseAccountId:f.accounts.expense,supplierInvoiceMatchingPolicy:'required',users,scenarioIds:guide.scenarios.map(s=>s.id),hospitality:{companyId:hospitality.companyId,propertyId:hospitality.propertyId,registerId:hospitality.registerId,warehouseId:hospitality.warehouseId,openingJournalId:hospitality.openingJournalId,openingInventoryAccountId:hospitality.openingInventoryAccountId,roomIds:hospitality.roomIds,roomTypeIds:hospitality.roomTypeIds,rateIds:hospitality.rateIds,productIds:hospitality.productIds,supplierIds:hospitality.supplierIds,purchaseRequestId:hospitality.purchaseRequestId,payrollGroupId:hospitality.payrollGroupId,payrollEngagementIds:hospitality.payrollEngagementIds,payrollPersonIds:hospitality.payrollPersonIds,leaveTypeId:hospitality.leaveTypeId,leavePolicyId:hospitality.leavePolicyId,leaveAssignmentId:hospitality.leaveAssignmentId,rosterWeekId:hospitality.rosterWeekId,rosterShiftId:hospitality.rosterShiftId}};await writePrivate(statePath,state);await writePrivate(join(directory,'credentials.json'),{password,users:[...users,...hospitality.users]});await writePrivate(join(directory,'demo-guide.json'),guide);await writePrivate(join(directory,'hospitality-guide.json'),hospitality.guide);
+  state.fixture={customerId:customer.id,customerDuplicateIds:[duplicateCustomerLeft.id,duplicateCustomerRight.id],customerDuplicateQuotationId:duplicateCustomerQuotation.id,quotationId:quotation.id,crmLeadId:crmLead.id,purchaseRequestId:purchaseRequest.id,companyId:f.company,inventoryAccountId,clearingAccountId,openingEquityAccountId,openingJournalId:opening.id,browserOpeningChartId,browserOpeningCashId,browserOpeningEquityId,sourceWarehouseId:source,targetWarehouseId:target,productId:product,transitProductId:transitProduct,laptopEachProductId:laptopEach,laptopCaseProductId:laptopCase,lotProductId:lotProduct,serialProductId:serialProduct,qualityDueSoonHoldId:qualityDueSoon.id,qualityOverdueHoldId:qualityOverdue.id,demoSupplierIds:demoSuppliers,periodId:f.period,closePeriodIds:closePeriods,closeBankAccountId:closeBank,controlledPaymentPeriodId:paymentPeriod,controlledPaymentInvoiceId:paymentInvoice,controlledPaymentBankTransactionId:paymentBankTransaction,customerRefundBankTransactionId:refundBankTransaction,expenseAccountId:f.accounts.expense,supplierInvoiceMatchingPolicy:'required',users,scenarioIds:guide.scenarios.map(s=>s.id),hospitality:{companyId:hospitality.companyId,propertyId:hospitality.propertyId,registerId:hospitality.registerId,warehouseId:hospitality.warehouseId,openingJournalId:hospitality.openingJournalId,openingInventoryAccountId:hospitality.openingInventoryAccountId,roomIds:hospitality.roomIds,roomTypeIds:hospitality.roomTypeIds,rateIds:hospitality.rateIds,productIds:hospitality.productIds,supplierIds:hospitality.supplierIds,purchaseRequestId:hospitality.purchaseRequestId,payrollGroupId:hospitality.payrollGroupId,payrollEngagementIds:hospitality.payrollEngagementIds,payrollPersonIds:hospitality.payrollPersonIds,leaveTypeId:hospitality.leaveTypeId,leavePolicyId:hospitality.leavePolicyId,leaveAssignmentId:hospitality.leaveAssignmentId,rosterWeekId:hospitality.rosterWeekId,rosterShiftId:hospitality.rosterShiftId}};await writePrivate(statePath,state);await writePrivate(join(directory,'credentials.json'),{password,users:[...users,...hospitality.users]});await writePrivate(join(directory,'demo-guide.json'),guide);await writePrivate(join(directory,'hospitality-guide.json'),hospitality.guide);
   if(process.env.ERPX_BROWSER_SIMULATION_LEGAL==='1') {
     if(port!==3104)throw new Error('LEGAL_UAT_REQUIRES_3104');
     const {seedLegalBrowserDemo}=await import('../fixtures/legal-browser-demo');
     const legal=await seedLegalBrowserDemo({run,directory,control:env.CONTROL_DB as PostgresDatabase,h001:env.H001_DB as PostgresDatabase,h002:env.H002_DB as PostgresDatabase,h001Files:env.H001_FILES,h002Files:env.H002_FILES});
     state.fixture.legal=legal;await writePrivate(statePath,state);
   }
+  if(port===3104) {
+    const {seedEngineeringMoneyPeopleBrowser}=await import('../fixtures/engineering-money-people-browser');
+    const {seedEngineeringBusinessBrowser}=await import('../fixtures/engineering-business-browser');
+    const {seedEngineeringWorkplacePlatformBrowser}=await import('../fixtures/engineering-workplace-platform-browser');
+    const {seedEngineeringThaiPayrollBrowser}=await import('../fixtures/engineering-thai-payroll-browser');
+    const {seedEngineeringFinanceCloseBrowser}=await import('../fixtures/engineering-finance-close-browser');
+    const {createEngineeringShowcaseGuide}=await import('../fixtures/engineering-showcase-guide');
+    state.fixture.engineeringMoneyPeople=await seedEngineeringMoneyPeopleBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,db:env.H001_DB as PostgresDatabase,files:env.H001_FILES});
+    state.fixture.engineeringBusiness=await seedEngineeringBusinessBrowser({run,db:env.H001_DB,f});
+    state.fixture.engineeringWorkplacePlatform=await seedEngineeringWorkplacePlatformBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,h001:env.H001_DB as PostgresDatabase,h002:env.H002_DB as PostgresDatabase,h003:env.H003_DB as PostgresDatabase,h001Files:env.H001_FILES,h002Files:env.H002_FILES,h003Files:env.H003_FILES});
+    state.fixture.engineeringThaiPayroll=await seedEngineeringThaiPayrollBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,db:env.H001_DB as PostgresDatabase,files:env.H001_FILES});
+    state.fixture.engineeringFinanceClose=await seedEngineeringFinanceCloseBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,db:env.H001_DB as PostgresDatabase,files:env.H001_FILES});
+    const showcaseGuide=await createEngineeringShowcaseGuide({run,directory,origin,sourceFingerprint,fixture:state.fixture,databases:{CONTROL_DB:env.CONTROL_DB as PostgresDatabase,H001_DB:env.H001_DB as PostgresDatabase,H002_DB:env.H002_DB as PostgresDatabase,H003_DB:env.H003_DB as PostgresDatabase}});
+    await writePrivate(join(directory,'engineering-showcase-guide.json'),showcaseGuide);
+    state.fixture.engineeringShowcaseGuide={moduleCount:showcaseGuide.moduleCount,path:join(directory,'engineering-showcase-guide.json')};
+    await writePrivate(statePath,state);
+  }
  }finally{await closeRuntime();}
- await mkdir(app,{recursive:true});for(const name of ['src','public','package.json','bun.lock','next.config.ts','tsconfig.json','next-env.d.ts','postcss.config.mjs','node_modules'])await cp(join(root,name),join(app,name),{recursive:true,mode:constants.COPYFILE_FICLONE});
+ // Fixture diagnostics never become a runnable cohort or release evidence.
+ // They exercise every native seed while implementation continues, avoiding
+ // an expensive app copy and a misleading ready flag on changing source.
+ if(diagnostic){state.ready=false;state.diagnostic=true;await writePrivate(statePath,state);console.log(JSON.stringify({run,origin,statePath,ready:false,diagnostic:true,nativeSeedsCompleted:true}));process.exit(0);}
+ await mkdir(app,{recursive:true});for(const name of ['src','public','scripts','fixtures','migrations/postgres','tests/helpers','ops/macos/clamav','ops/macos/install-attachment-runtime.py','ops/macos/attachment-rollout.md','ops/macos/erpxctl.py','ops/macos/offsite.py','ops/macos/recovery_status.py','package.json','bun.lock','next.config.ts','tsconfig.json','tsconfig.engineering-tests.json','next-env.d.ts','postcss.config.mjs','node_modules'])await cp(join(root,name),join(app,name),{recursive:true,mode:constants.COPYFILE_FICLONE});
+ if(await runtimeSourceFingerprint(root)!==sourceFingerprint||await runtimeSourceFingerprint(app)!==sourceFingerprint)throw new Error('BROWSER_PREPARATION_SOURCE_CHANGED');
+ state.softwareVersion=`release-${sourceFingerprint}`;
+ await writeFile(join(app,'src/data/release-artifact.json'),JSON.stringify({softwareVersion:state.softwareVersion})+'\n');
  state.ready=true;await writePrivate(statePath,state);
  console.log(JSON.stringify({run,origin,statePath,credentialsPath:join(directory,'credentials.json'),guidePath:join(directory,'demo-guide.json'),hospitalityGuidePath:join(directory,'hospitality-guide.json'),ready:true}));
 }else if(mode==='start'){
- const state=JSON.parse(await readFile(statePath,'utf8')) as State;if(state.run!==run||state.prefix!==`erpx_browser_${run}`)throw new Error('BROWSER_STATE_MISMATCH');if((state.port??3102)!==port||state.origin!==origin)throw new Error('BROWSER_SIMULATION_PORT_MISMATCH');if(!state.ready||!existsSync(join(app,'package.json')))throw new Error('BROWSER_PREPARATION_INCOMPLETE');await freePort();const {secret}=JSON.parse(await readFile(join(directory,'runtime.json'),'utf8'));const environment=safeEnv(secret);
+ const state=JSON.parse(await readFile(statePath,'utf8')) as State;if(state.run!==run||state.prefix!==`erpx_browser_${run}`)throw new Error('BROWSER_STATE_MISMATCH');if((state.port??3102)!==port||state.origin!==origin)throw new Error('BROWSER_SIMULATION_PORT_MISMATCH');if(state.diagnostic||!state.ready||!existsSync(join(app,'package.json')))throw new Error('BROWSER_PREPARATION_INCOMPLETE');await freePort();const {secret}=JSON.parse(await readFile(join(directory,'runtime.json'),'utf8'));const environment=safeEnv(secret);
+ assertCohortManifest(JSON.parse(await readFile(manifestPath,'utf8')));
  if(localAttachmentMode){
   const required=[environment.ERPX_CLAMD_SOCKET,environment.ERPX_CLAMAV_DATABASE_DIR,environment.ERPX_HEIF_CONVERT,environment.ERPX_PDFTOPPM_BIN];
   if(required.some(value=>typeof value!=='string'||!existsSync(value)))throw new Error('LOCAL_ATTACHMENT_RUNTIME_FILES_MISSING');
@@ -263,29 +343,121 @@ if(mode==='prepare'){
   const readiness=await attachmentRuntimeReadiness(environment);
   if(!readiness.ready)throw new Error(`LOCAL_ATTACHMENT_RUNTIME_NOT_READY:${readiness.scanner.error??readiness.preview.error??'UNKNOWN'}`);
  }
- const jobsBundle=join(app,'.runtime/jobs/jobs.mjs');
- if(localJobsEnabled){
+ let webEntrypoint=join(app,'node_modules/next/dist/bin/next'),jobsBundle=join(app,'.runtime/jobs/jobs.mjs');
+ let webArgs=[webEntrypoint,'dev',...(useWebpack?['--webpack']:[]),'--hostname','127.0.0.1','-p',String(port)],workingDirectory=app;
+ const suppliedRelease=process.env.ERPX_BROWSER_SIMULATION_RELEASE_DIR;
+ if(suppliedRelease){
+  if(port!==3104||!localJobsEnabled||!localAttachmentMode)throw new Error('RELEASE_VERIFICATION_REQUIRES_3104_SCANNER_AND_JOBS');
+  const releaseRoot=await realpath(resolve(suppliedRelease)),allowedRoot=join(root,'.runtime/releases')+'/';
+  if(!releaseRoot.startsWith(allowedRoot))throw new Error('LOCAL_RELEASE_DIRECTORY_REQUIRED');
+  const release=JSON.parse(await readFile(join(releaseRoot,'release.json'),'utf8'));
+  if(release.node!=='24.20.0'||release.sourceFingerprint!==state.sourceFingerprint||release.softwareVersion!==state.softwareVersion)
+   throw new Error('BROWSER_RELEASE_SOURCE_MISMATCH');
+  const manifestBytes=await readFile(join(releaseRoot,'release-files.json'));
+  if(createHash('sha256').update(manifestBytes).digest('hex')!==release.fileManifestSha256)throw new Error('RELEASE_FILE_MANIFEST_MISMATCH');
+  for(const [name,digest] of Object.entries(JSON.parse(manifestBytes.toString()) as Record<string,string>)){
+   const path=resolve(releaseRoot,name);if(!path.startsWith(releaseRoot+'/')||createHash('sha256').update(await readFile(path)).digest('hex')!==digest)
+    throw new Error('RELEASE_FILE_CHECKSUM_MISMATCH');
+  }
+  workingDirectory=join(directory,'release');await cp(releaseRoot,workingDirectory,{recursive:true,mode:constants.COPYFILE_FICLONE});
+  webEntrypoint=join(workingDirectory,'server.js');jobsBundle=join(workingDirectory,'tools/jobs.mjs');webArgs=[webEntrypoint];
+  Object.assign(environment,{NODE_ENV:'production',PORT:String(port),HOSTNAME:'127.0.0.1',NEXT_DEPLOYMENT_ID:release.deploymentId});
+  Object.assign(environment,{ERPX_ENGINEERING_VERIFICATION_RUN:run,ERPX_ENGINEERING_SOURCE_FINGERPRINT:state.sourceFingerprint});
+  state.release={id:release.id,fileManifestSha256:release.fileManifestSha256};
+  const {enrollEngineeringVerification}=await import('../../src/server/engineering-verification');
+  const urls=JSON.parse(await readFile(manifestPath,'utf8')).databases as Record<string,string>;
+  const legal=state.fixture?.legal as {companies?:Record<string,{id:string}>}|undefined;
+  const company=state.fixture?.companyId as string,hospitality=state.fixture?.hospitality as {companyId:string};
+  const moneyPeople=state.fixture?.engineeringMoneyPeople as {companyIds:string[]}|undefined;
+  const thaiPayroll=state.fixture?.engineeringThaiPayroll as {companyIds:string[]}|undefined;
+  const financeClose=state.fixture?.engineeringFinanceClose as {companyIds:string[]}|undefined;
+  const workplace=state.fixture?.engineeringWorkplacePlatform as {companyId:string;realmCompanyId:string}|undefined;
+  if(!moneyPeople?.companyIds.length||thaiPayroll?.companyIds.length!==2||financeClose?.companyIds.length!==2||!workplace?.companyId||!workplace.realmCompanyId)throw new Error('COMPLETE_NORMAL_ACCOUNT_COHORT_REQUIRED');
+  const enrollment={run,sourceFingerprint:release.sourceFingerprint,softwareVersion:release.softwareVersion,fileManifestSha256:release.fileManifestSha256};
+  const first=new PostgresDatabase({connectionString:urls.H001_DB,max:1}),second=new PostgresDatabase({connectionString:urls.H002_DB,max:1}),third=new PostgresDatabase({connectionString:urls.H003_DB,max:1});
+  try{
+   const attestation=await enrollEngineeringVerification(first,{...enrollment,companyIds:[company,...moneyPeople.companyIds,...thaiPayroll.companyIds,...financeClose.companyIds,workplace.companyId,...(legal?.companies?.A?[legal.companies.A.id]:[])],disabledCompanyIds:legal?.companies?.B?[legal.companies.B.id]:[]});
+   await enrollEngineeringVerification(second,{...enrollment,companyIds:[hospitality.companyId,...(legal?.companies?.C?[legal.companies.C.id]:[])]});
+   await enrollEngineeringVerification(third,{...enrollment,companyIds:[workplace.realmCompanyId]});
+   await writePrivate(join(directory,'engineering-attestation.json'),attestation);
+  }finally{await first.close();await second.close();await third.close();}
+  // Establish real scan, ownership, checksum and quota receipts before the
+  // isolated gate is opened. No web/jobs process can upload during this pass.
+  const reconcileLog=await open(join(directory,'attachment-final.json'),'w',0o600);
+  const reconciliation=spawn(node,[join(workingDirectory,'tools/reconcile-attachments.mjs'),'--apply','--checksum','--scan','--final'],{
+   cwd:workingDirectory,env:{...environment,ERPX_ATTACHMENTS_V2:'false',ERPX_ATTACHMENT_UPLOAD_FREEZE:'true'},stdio:['ignore',reconcileLog.fd,reconcileLog.fd],
+  });
+  const reconciliationExit=await new Promise<number|null>((ok,no)=>{reconciliation.once('error',no);reconciliation.once('exit',ok);});
+  await reconcileLog.close();
+  if(reconciliationExit!==0)throw new Error('BROWSER_FINAL_ATTACHMENT_RECONCILIATION_FAILED');
+  const receipt=JSON.parse(await readFile(join(directory,'attachment-final.json'),'utf8'));
+  if(receipt.gateReady!==true)throw new Error('BROWSER_FINAL_ATTACHMENT_GATE_NOT_READY');
+ }
+ if(localJobsEnabled&&!suppliedRelease){
   const outdir=join(app,'.runtime/jobs');await mkdir(outdir,{recursive:true});
-  const bundle=await Bun.build({entrypoints:[join(root,'scripts/local/jobs.ts')],outdir,target:'node',format:'esm',conditions:['react-server'],external:['pg'],naming:'jobs.mjs'});
+  if(!state.sourceFingerprint||await runtimeSourceFingerprint(app)!==state.sourceFingerprint)throw new Error('BROWSER_WORKER_SOURCE_CHANGED');
+  const bundle=await Bun.build({entrypoints:[join(app,'scripts/local/jobs.ts')],outdir,target:'node',format:'esm',conditions:['react-server'],external:['pg'],naming:'jobs.mjs',
+   plugins:[{name:'next-server-navigation',setup(build){build.onResolve({filter:/^next\/navigation$/},()=>({path:join(app,'node_modules/next/dist/client/components/navigation.react-server.js')}));}}],
+  });
   if(!bundle.success)throw new Error('BROWSER_SIMULATION_JOBS_BUILD_FAILED');
  }
  const log=await open(join(directory,'server.log'),'a',0o600);
- const child=spawn(node,[join(app,'node_modules/next/dist/bin/next'),'dev',...(useWebpack?['--webpack']:[]),'--hostname','127.0.0.1','-p',String(port)],{cwd:app,env:environment,detached:true,stdio:['ignore',log.fd,log.fd]});if(!child.pid)throw new Error('BROWSER_SERVER_FAILED');state.pid=child.pid;await writePrivate(statePath,state);child.unref();await log.close();
+ const child=spawn(node,webArgs,{cwd:workingDirectory,env:environment,detached:true,stdio:['ignore',log.fd,log.fd]});if(!child.pid)throw new Error('BROWSER_SERVER_FAILED');state.pid=child.pid;state.webEntrypoint=webEntrypoint;await writePrivate(statePath,state);child.unref();await log.close();
  if(localJobsEnabled){
   const jobsLog=await open(join(directory,'jobs.log'),'a',0o600);
-  const worker=spawn(node,[jobsBundle],{cwd:app,env:{...environment,ERPX_PROCESS_ROLE:'jobs',ERPX_DATABASE_MANIFEST:manifestPath},detached:true,stdio:['ignore',jobsLog.fd,jobsLog.fd]});
+  const worker=spawn(node,[jobsBundle],{cwd:workingDirectory,env:{...environment,ERPX_PROCESS_ROLE:'jobs',ERPX_DATABASE_MANIFEST:manifestPath},detached:true,stdio:['ignore',jobsLog.fd,jobsLog.fd]});
   if(!worker.pid){await jobsLog.close();throw new Error('BROWSER_SIMULATION_JOBS_FAILED');}
-  state.jobsPid=worker.pid;await writePrivate(statePath,state);worker.unref();await jobsLog.close();
+  state.jobsPid=worker.pid;state.jobsStartedAt=Bun.spawnSync(['ps','-p',String(worker.pid),'-o','lstart=']).stdout.toString().trim();state.jobsPaused=false;state.jobsEntrypoint=jobsBundle;await writePrivate(statePath,state);worker.unref();await jobsLog.close();
  }
- console.log(JSON.stringify({run,pid:state.pid,...(state.jobsPid?{jobsPid:state.jobsPid}:{}),origin,bundler:useWebpack?'webpack':'turbopack'}));
+ console.log(JSON.stringify({run,pid:state.pid,...(state.jobsPid?{jobsPid:state.jobsPid}:{}),origin,runtime:suppliedRelease?'standalone-release':useWebpack?'webpack':'turbopack',softwareVersion:state.softwareVersion}));
+}else if(mode==='pause-jobs'||mode==='resume-jobs'){
+ const state=JSON.parse(await readFile(statePath,'utf8')) as State,releaseDirectory=join(directory,'release'),entrypoint=join(releaseDirectory,'tools/jobs.mjs');
+ if(port!==3104||!localJobsEnabled||!localAttachmentMode||state.run!==run||state.prefix!==`erpx_browser_${run}`||state.port!==3104||state.origin!==origin||state.jobsEntrypoint!==entrypoint||!state.release)throw new Error('COMPILED_COHORT_JOBS_REQUIRED');
+ const release=JSON.parse(await readFile(join(releaseDirectory,'release.json'),'utf8'));
+ if(release.sourceFingerprint!==state.sourceFingerprint||release.softwareVersion!==state.softwareVersion||release.fileManifestSha256!==state.release.fileManifestSha256||createHash('sha256').update(await readFile(join(releaseDirectory,'release-files.json'))).digest('hex')!==release.fileManifestSha256)throw new Error('COHORT_JOBS_RELEASE_MISMATCH');
+ const manifest=JSON.parse(await readFile(manifestPath,'utf8'));
+ assertCohortManifest(manifest);
+ const receiptPath=join(directory,'jobs-pause.json');
+ if(mode==='pause-jobs'){
+  if(state.jobsPaused&&!state.jobsPid){console.log(JSON.stringify({run,jobsPaused:true,replayed:true}));process.exit(0);}
+  const pid=state.jobsPid;if(!pid||!state.jobsStartedAt)throw new Error('EXACT_COHORT_JOB_PID_REQUIRED');
+  const command=Bun.spawnSync(['ps','-p',String(pid),'-o','command=']).stdout.toString().trim();
+  const startedAt=Bun.spawnSync(['ps','-p',String(pid),'-o','lstart=']).stdout.toString().trim();
+  const actualCwd=Bun.spawnSync(['lsof','-a','-p',String(pid),'-d','cwd','-Fn']).stdout.toString().split('\n').find(line=>line.startsWith('n'))?.slice(1);
+  if(!command.includes(entrypoint)||startedAt!==state.jobsStartedAt||actualCwd!==releaseDirectory)throw new Error('COHORT_JOB_PROCESS_IDENTITY_CHANGED');
+  process.kill(-pid,'SIGTERM');
+  const deadline=Date.now()+5_000;while(Date.now()<deadline&&Bun.spawnSync(['ps','-p',String(pid),'-o','pid=']).stdout.toString().trim())await Bun.sleep(100);
+  if(Bun.spawnSync(['ps','-p',String(pid),'-o','pid=']).stdout.toString().trim())process.kill(-pid,'SIGKILL');
+  const stoppedDeadline=Date.now()+5_000;while(Date.now()<stoppedDeadline&&Bun.spawnSync(['ps','-p',String(pid),'-o','pid=']).stdout.toString().trim())await Bun.sleep(100);
+  if(Bun.spawnSync(['ps','-p',String(pid),'-o','pid=']).stdout.toString().trim())throw new Error('COHORT_JOB_DID_NOT_STOP');
+  await writePrivate(receiptPath,{scope:'isolated-engineering',run,sourceFingerprint:state.sourceFingerprint,softwareVersion:state.softwareVersion,releaseManifestSha256:release.fileManifestSha256,jobsPid:pid,jobsStartedAt:startedAt,entrypoint,cwd:actualCwd,stopped:true,pausedAt:new Date().toISOString()});
+  state.jobsPid=null;state.jobsPaused=true;await writePrivate(statePath,state);console.log(JSON.stringify({run,jobsPaused:true,stoppedPid:pid}));
+ }else{
+  if(!state.jobsPaused||state.jobsPid)throw new Error('COHORT_JOBS_ALREADY_RUNNING');
+  const pause=JSON.parse(await readFile(receiptPath,'utf8'));if(!pause.stopped||pause.run!==run||pause.releaseManifestSha256!==release.fileManifestSha256)throw new Error('COHORT_JOBS_PAUSE_RECEIPT_REQUIRED');
+  const {secret}=JSON.parse(await readFile(join(directory,'runtime.json'),'utf8'));
+  const environment:NodeJS.ProcessEnv={...safeEnv(secret),NODE_ENV:'production',PORT:'3104',HOSTNAME:'127.0.0.1',NEXT_DEPLOYMENT_ID:release.deploymentId,ERPX_ENGINEERING_VERIFICATION_RUN:run,ERPX_ENGINEERING_SOURCE_FINGERPRINT:state.sourceFingerprint,ERPX_PROCESS_ROLE:'jobs',ERPX_DATABASE_MANIFEST:manifestPath};
+  const log=await open(join(directory,'jobs.log'),'a',0o600),worker=spawn(node,[entrypoint],{cwd:releaseDirectory,env:environment,detached:true,stdio:['ignore',log.fd,log.fd]});
+  if(!worker.pid){await log.close();throw new Error('COHORT_JOBS_RESTART_FAILED');}
+  state.jobsPid=worker.pid;state.jobsStartedAt=Bun.spawnSync(['ps','-p',String(worker.pid),'-o','lstart=']).stdout.toString().trim();state.jobsPaused=false;await writePrivate(statePath,state);worker.unref();await log.close();
+  await writePrivate(join(directory,'jobs-resume.json'),{scope:'isolated-engineering',run,sourceFingerprint:state.sourceFingerprint,softwareVersion:state.softwareVersion,releaseManifestSha256:release.fileManifestSha256,jobsPid:state.jobsPid,jobsStartedAt:state.jobsStartedAt,resumedAt:new Date().toISOString()});
+  console.log(JSON.stringify({run,jobsPaused:false,jobsPid:state.jobsPid}));
+ }
 }else if(mode==='destroy'){
  const state=JSON.parse(await readFile(statePath,'utf8')) as State;if(state.run!==run||state.prefix!==`erpx_browser_${run}`)throw new Error('BROWSER_STATE_MISMATCH');if((state.port??3102)!==port||state.origin!==origin)throw new Error('BROWSER_SIMULATION_PORT_MISMATCH');
+ if(existsSync(manifestPath))assertCohortManifest(JSON.parse(await readFile(manifestPath,'utf8')));
  let stopped=false;
- for(const [key,pid,marker,group] of [['pid',state.pid,join(app,'node_modules/next/dist/bin/next'),true],['jobsPid',state.jobsPid,join(app,'.runtime/jobs/jobs.mjs'),true]] as const){
+ const webMarker=state.webEntrypoint??join(app,'node_modules/next/dist/bin/next'),jobsMarker=state.jobsEntrypoint??join(app,'.runtime/jobs/jobs.mjs');
+ if(![join(app,'node_modules/next/dist/bin/next'),join(directory,'release/server.js')].includes(webMarker)||
+   ![join(app,'.runtime/jobs/jobs.mjs'),join(directory,'release/tools/jobs.mjs')].includes(jobsMarker))throw new Error('BROWSER_ENTRYPOINT_MISMATCH');
+ for(const [key,pid,marker,group] of [['pid',state.pid,webMarker,true],['jobsPid',state.jobsPid,jobsMarker,true]] as const){
   if(!pid)continue;
   const command=Bun.spawnSync(['ps','-p',String(pid),'-o','command=']).stdout.toString();
   if(command.trim()){
-   if(!command.includes(marker))throw new Error(key==='pid'?'BROWSER_PROCESS_IDENTITY_CHANGED':'BROWSER_JOBS_IDENTITY_CHANGED');
+   const expectedCwd=marker.startsWith(join(directory,'release')+'/')?join(directory,'release'):app;
+   const actualCwd=Bun.spawnSync(['lsof','-a','-p',String(pid),'-d','cwd','-Fn']).stdout.toString().split('\n').find(line=>line.startsWith('n'))?.slice(1);
+   const ownedNextTitle=key==='pid'&&/^next-server(?:\s|$)/.test(command.trim())&&actualCwd===expectedCwd;
+   if(!(command.includes(marker)||ownedNextTitle)||actualCwd!==expectedCwd)throw new Error(key==='pid'?'BROWSER_PROCESS_IDENTITY_CHANGED':'BROWSER_JOBS_IDENTITY_CHANGED');
    process.kill(group?-pid:pid,'SIGTERM');stopped=true;
   }
   delete state[key];
@@ -294,4 +466,4 @@ if(mode==='prepare'){
  await freePort();const admin=new Pool({connectionString:adminUrl,max:1});try{await assertAdmin(admin);for(const binding of Object.keys(tracks)){const name=`${state.prefix}_${binding.toLowerCase()}`,owner=(await admin.query('SELECT pg_get_userbyid(datdba) owner FROM pg_database WHERE datname=$1',[name])).rows[0];if(!owner)continue;if(owner.owner!=='erpx_test_admin')throw new Error('BROWSER_DATABASE_OWNER_CHANGED');await admin.query(`DROP DATABASE "${name}"`);}}finally{await admin.end();}
  // Keep evidence/credentials private until the owned data has been dropped, then remove this exact run only.
  await rm(directory,{recursive:true,force:false});console.log(JSON.stringify({run,destroyed:true}));
-}else throw new Error('Use prepare, start <run-id>, or destroy <run-id>.');
+}else throw new Error('Use prepare, start <run-id>, pause-jobs <run-id>, resume-jobs <run-id>, or destroy <run-id>.');

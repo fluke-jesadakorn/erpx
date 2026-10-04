@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-09-26T08:16:26.412Z",
-  "generatedDate": "2026-09-26",
-  "sourceFingerprint": "0d9deee1770eabee957a1243b3e099a834b3af0936bd59f01da77fc1369ce090",
-  "pageRouteCount": 166,
+  "generatedAt": "2026-10-03T15:38:51.088Z",
+  "generatedDate": "2026-10-03",
+  "sourceFingerprint": "2bb7b41398a63dbd67c9bd63674c5e5247f466985267564bf4ed523713c60d06",
+  "pageRouteCount": 205,
   "workspaceScopePatterns": [
     "holding",
     "branch",
@@ -97,6 +97,7 @@
       ],
       "detailRoute": false,
       "sourceSignals": [
+        "empty",
         "error"
       ]
     },
@@ -153,9 +154,7 @@
       "workspaceScopes": [],
       "dynamicParameters": [],
       "detailRoute": false,
-      "sourceSignals": [
-        "long/Thai"
-      ]
+      "sourceSignals": []
     },
     {
       "source": "src/app/front-access/login/page.tsx",
@@ -166,9 +165,7 @@
       "workspaceScopes": [],
       "dynamicParameters": [],
       "detailRoute": false,
-      "sourceSignals": [
-        "long/Thai"
-      ]
+      "sourceSignals": []
     },
     {
       "source": "src/app/front-access/page.tsx",
@@ -180,8 +177,7 @@
       "dynamicParameters": [],
       "detailRoute": false,
       "sourceSignals": [
-        "error",
-        "long/Thai"
+        "error"
       ]
     },
     {
@@ -194,8 +190,7 @@
       "dynamicParameters": [],
       "detailRoute": false,
       "sourceSignals": [
-        "error",
-        "long/Thai"
+        "error"
       ]
     },
     {
@@ -207,9 +202,7 @@
       "workspaceScopes": [],
       "dynamicParameters": [],
       "detailRoute": false,
-      "sourceSignals": [
-        "long/Thai"
-      ]
+      "sourceSignals": []
     },
     {
       "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/[[...path]]/page.tsx",
@@ -228,6 +221,7 @@
       "sourceSignals": [
         "error",
         "permission",
+        "dark",
         "long/Thai"
       ]
     },
@@ -311,7 +305,8 @@
       ],
       "detailRoute": true,
       "sourceSignals": [
-        "error"
+        "error",
+        "read-only"
       ]
     },
     {
@@ -320,6 +315,26 @@
       "area": "Holding workspace",
       "signedOut": "login-or-explicit-denial",
       "primaryActor": "people_manager",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
+        "error"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/brand/page.tsx",
+      "template": "/holdings/[holdingSlug]/brand",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "holding_owner",
       "workspaceScopes": [
         "holding",
         "branch",
@@ -724,7 +739,8 @@
       ],
       "detailRoute": false,
       "sourceSignals": [
-        "error"
+        "error",
+        "permission"
       ]
     },
     {
@@ -867,7 +883,9 @@
       ],
       "detailRoute": true,
       "sourceSignals": [
-        "error"
+        "error",
+        "permission",
+        "success"
       ]
     },
     {
@@ -908,6 +926,50 @@
       "detailRoute": false,
       "sourceSignals": [
         "empty",
+        "error",
+        "permission"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/finance/assets/[id]/page.tsx",
+      "template": "/holdings/[holdingSlug]/finance/assets/[id]",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "finance_approver",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug",
+        "id"
+      ],
+      "detailRoute": true,
+      "sourceSignals": [
+        "error",
+        "permission"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/finance/assets/page.tsx",
+      "template": "/holdings/[holdingSlug]/finance/assets",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "finance_approver",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
+        "error",
         "permission"
       ]
     },
@@ -928,6 +990,8 @@
       ],
       "detailRoute": false,
       "sourceSignals": [
+        "empty",
+        "error",
         "permission"
       ]
     },
@@ -997,6 +1061,27 @@
       ]
     },
     {
+      "source": "src/app/holdings/[holdingSlug]/finance/hotels/page.tsx",
+      "template": "/holdings/[holdingSlug]/finance/hotels",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "finance_approver",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
+        "loading",
+        "error"
+      ]
+    },
+    {
       "source": "src/app/holdings/[holdingSlug]/finance/invoices/[id]/page.tsx",
       "template": "/holdings/[holdingSlug]/finance/invoices/[id]",
       "area": "Holding workspace",
@@ -1035,7 +1120,10 @@
       ],
       "detailRoute": false,
       "sourceSignals": [
-        "permission"
+        "empty",
+        "error",
+        "permission",
+        "destructive"
       ]
     },
     {
@@ -1158,7 +1246,8 @@
       ],
       "detailRoute": true,
       "sourceSignals": [
-        "error"
+        "error",
+        "permission"
       ]
     },
     {
@@ -1178,6 +1267,7 @@
       ],
       "detailRoute": false,
       "sourceSignals": [
+        "error",
         "permission"
       ]
     },
@@ -1197,7 +1287,9 @@
         "holdingSlug"
       ],
       "detailRoute": false,
-      "sourceSignals": []
+      "sourceSignals": [
+        "permission"
+      ]
     },
     {
       "source": "src/app/holdings/[holdingSlug]/finance/setup/page.tsx",
@@ -1216,8 +1308,30 @@
       ],
       "detailRoute": false,
       "sourceSignals": [
+        "empty",
         "permission",
         "success"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/finance/statement-packages/[id]/page.tsx",
+      "template": "/holdings/[holdingSlug]/finance/statement-packages/[id]",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "finance_approver",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug",
+        "id"
+      ],
+      "detailRoute": true,
+      "sourceSignals": [
+        "error"
       ]
     },
     {
@@ -1238,7 +1352,8 @@
       ],
       "detailRoute": true,
       "sourceSignals": [
-        "error"
+        "error",
+        "permission"
       ]
     },
     {
@@ -1259,7 +1374,144 @@
       "detailRoute": false,
       "sourceSignals": [
         "loading",
-        "error"
+        "error",
+        "permission"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/finance/tax/corrections/[id]/page.tsx",
+      "template": "/holdings/[holdingSlug]/finance/tax/corrections/[id]",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "finance_approver",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug",
+        "id"
+      ],
+      "detailRoute": true,
+      "sourceSignals": [
+        "error",
+        "permission",
+        "success"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/finance/tax/entries/[id]/page.tsx",
+      "template": "/holdings/[holdingSlug]/finance/tax/entries/[id]",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "finance_approver",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug",
+        "id"
+      ],
+      "detailRoute": true,
+      "sourceSignals": [
+        "error",
+        "permission",
+        "success"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/finance/tax/packages/[id]/page.tsx",
+      "template": "/holdings/[holdingSlug]/finance/tax/packages/[id]",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "finance_approver",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug",
+        "id"
+      ],
+      "detailRoute": true,
+      "sourceSignals": [
+        "loading",
+        "error",
+        "permission",
+        "long/Thai"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/finance/tax/page.tsx",
+      "template": "/holdings/[holdingSlug]/finance/tax",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "finance_approver",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
+        "loading",
+        "permission",
+        "long/Thai"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/finance/thai-documents/[id]/page.tsx",
+      "template": "/holdings/[holdingSlug]/finance/thai-documents/[id]",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "finance_approver",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug",
+        "id"
+      ],
+      "detailRoute": true,
+      "sourceSignals": [
+        "error",
+        "permission",
+        "long/Thai"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/finance/thai-tax/page.tsx",
+      "template": "/holdings/[holdingSlug]/finance/thai-tax",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "finance_approver",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
+        "error",
+        "permission"
       ]
     },
     {
@@ -1344,6 +1596,26 @@
       "sourceSignals": []
     },
     {
+      "source": "src/app/holdings/[holdingSlug]/hospitality/setup/page.tsx",
+      "template": "/holdings/[holdingSlug]/hospitality/setup",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "holding_owner",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
+        "error"
+      ]
+    },
+    {
       "source": "src/app/holdings/[holdingSlug]/iam/[[...section]]/page.tsx",
       "template": "/holdings/[holdingSlug]/iam/[[...section]]",
       "area": "Holding workspace",
@@ -1422,8 +1694,7 @@
       ],
       "detailRoute": false,
       "sourceSignals": [
-        "empty",
-        "permission"
+        "empty"
       ]
     },
     {
@@ -1444,7 +1715,9 @@
       ],
       "detailRoute": true,
       "sourceSignals": [
-        "error"
+        "error",
+        "permission",
+        "success"
       ]
     },
     {
@@ -1509,6 +1782,27 @@
       ]
     },
     {
+      "source": "src/app/holdings/[holdingSlug]/legal/citations/[id]/page.tsx",
+      "template": "/holdings/[holdingSlug]/legal/citations/[id]",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "holding_owner",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug",
+        "id"
+      ],
+      "detailRoute": true,
+      "sourceSignals": [
+        "error"
+      ]
+    },
+    {
       "source": "src/app/holdings/[holdingSlug]/legal/page.tsx",
       "template": "/holdings/[holdingSlug]/legal",
       "area": "Holding workspace",
@@ -1544,7 +1838,9 @@
       ],
       "detailRoute": true,
       "sourceSignals": [
-        "error"
+        "error",
+        "permission",
+        "success"
       ]
     },
     {
@@ -1569,8 +1865,50 @@
       ]
     },
     {
+      "source": "src/app/holdings/[holdingSlug]/maintenance/plans/[id]/page.tsx",
+      "template": "/holdings/[holdingSlug]/maintenance/plans/[id]",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "holding_owner",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug",
+        "id"
+      ],
+      "detailRoute": true,
+      "sourceSignals": [
+        "error"
+      ]
+    },
+    {
       "source": "src/app/holdings/[holdingSlug]/manage-erpx/billing/page.tsx",
       "template": "/holdings/[holdingSlug]/manage-erpx/billing",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "holding_owner",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
+        "error",
+        "permission"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/manage-erpx/billing/usage/page.tsx",
+      "template": "/holdings/[holdingSlug]/manage-erpx/billing/usage",
       "area": "Holding workspace",
       "signedOut": "login-or-explicit-denial",
       "primaryActor": "holding_owner",
@@ -1667,7 +2005,8 @@
       ],
       "detailRoute": true,
       "sourceSignals": [
-        "error"
+        "error",
+        "permission"
       ]
     },
     {
@@ -1687,7 +2026,8 @@
       ],
       "detailRoute": false,
       "sourceSignals": [
-        "error"
+        "error",
+        "permission"
       ]
     },
     {
@@ -1729,6 +2069,48 @@
       "detailRoute": false,
       "sourceSignals": [
         "loading",
+        "error",
+        "permission"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/operations/[id]/page.tsx",
+      "template": "/holdings/[holdingSlug]/operations/[id]",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "holding_owner",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug",
+        "id"
+      ],
+      "detailRoute": true,
+      "sourceSignals": [
+        "error"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/operations/page.tsx",
+      "template": "/holdings/[holdingSlug]/operations",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "holding_owner",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
         "error"
       ]
     },
@@ -1773,6 +2155,97 @@
         "error",
         "success"
       ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/payroll/advances/page.tsx",
+      "template": "/holdings/[holdingSlug]/payroll/advances",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "holding_owner",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": []
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/payroll/history/page.tsx",
+      "template": "/holdings/[holdingSlug]/payroll/history",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "holding_owner",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": []
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/payroll/page.tsx",
+      "template": "/holdings/[holdingSlug]/payroll",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "holding_owner",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": []
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/payroll/runs/[id]/page.tsx",
+      "template": "/holdings/[holdingSlug]/payroll/runs/[id]",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "holding_owner",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug",
+        "id"
+      ],
+      "detailRoute": true,
+      "sourceSignals": []
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/payroll/settings/page.tsx",
+      "template": "/holdings/[holdingSlug]/payroll/settings",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "holding_owner",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": []
     },
     {
       "source": "src/app/holdings/[holdingSlug]/people/[id]/page.tsx",
@@ -1838,6 +2311,119 @@
       ]
     },
     {
+      "source": "src/app/holdings/[holdingSlug]/people/hire-handoffs/page.tsx",
+      "template": "/holdings/[holdingSlug]/people/hire-handoffs",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "people_manager",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
+        "error"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/people/move/batch/page.tsx",
+      "template": "/holdings/[holdingSlug]/people/move/batch",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "people_manager",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
+        "permission"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/people/move/page.tsx",
+      "template": "/holdings/[holdingSlug]/people/move",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "people_manager",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": []
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/people/move/review/page.tsx",
+      "template": "/holdings/[holdingSlug]/people/move/review",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "people_manager",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": []
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/people/organization/drafts/[id]/review/page.tsx",
+      "template": "/holdings/[holdingSlug]/people/organization/drafts/[id]/review",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "people_manager",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug",
+        "id"
+      ],
+      "detailRoute": true,
+      "sourceSignals": []
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/people/organization/drafts/page.tsx",
+      "template": "/holdings/[holdingSlug]/people/organization/drafts",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "people_manager",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": []
+    },
+    {
       "source": "src/app/holdings/[holdingSlug]/people/organization/page.tsx",
       "template": "/holdings/[holdingSlug]/people/organization",
       "area": "Holding workspace",
@@ -1854,6 +2440,7 @@
       ],
       "detailRoute": false,
       "sourceSignals": [
+        "loading",
         "permission"
       ]
     },
@@ -1874,7 +2461,7 @@
       ],
       "detailRoute": false,
       "sourceSignals": [
-        "empty",
+        "error",
         "permission"
       ]
     },
@@ -1895,9 +2482,176 @@
         "id"
       ],
       "detailRoute": true,
+      "sourceSignals": []
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/people/payroll/advances/page.tsx",
+      "template": "/holdings/[holdingSlug]/people/payroll/advances",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "people_manager",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
       "sourceSignals": [
         "error",
         "permission"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/people/payroll/history/page.tsx",
+      "template": "/holdings/[holdingSlug]/people/payroll/history",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "people_manager",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
+        "error",
+        "permission"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/people/payroll/page.tsx",
+      "template": "/holdings/[holdingSlug]/people/payroll",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "people_manager",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
+        "loading",
+        "error",
+        "permission"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/people/payroll/recoveries/page.tsx",
+      "template": "/holdings/[holdingSlug]/people/payroll/recoveries",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "people_manager",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
+        "error",
+        "permission"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/people/payroll/runs/[id]/page.tsx",
+      "template": "/holdings/[holdingSlug]/people/payroll/runs/[id]",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "people_manager",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug",
+        "id"
+      ],
+      "detailRoute": true,
+      "sourceSignals": [
+        "error",
+        "permission",
+        "destructive"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/people/payroll/settings/page.tsx",
+      "template": "/holdings/[holdingSlug]/people/payroll/settings",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "people_manager",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
+        "error",
+        "permission"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/people/payslips/[id]/page.tsx",
+      "template": "/holdings/[holdingSlug]/people/payslips/[id]",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "people_manager",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug",
+        "id"
+      ],
+      "detailRoute": true,
+      "sourceSignals": [
+        "error"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/people/payslips/page.tsx",
+      "template": "/holdings/[holdingSlug]/people/payslips",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "people_manager",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
+        "error"
       ]
     },
     {
@@ -1934,10 +2688,7 @@
         "holdingSlug"
       ],
       "detailRoute": false,
-      "sourceSignals": [
-        "error",
-        "permission"
-      ]
+      "sourceSignals": []
     },
     {
       "source": "src/app/holdings/[holdingSlug]/people/settings/page.tsx",
@@ -1979,7 +2730,8 @@
       ],
       "detailRoute": false,
       "sourceSignals": [
-        "error"
+        "error",
+        "permission"
       ]
     },
     {
@@ -2015,7 +2767,27 @@
       ],
       "detailRoute": true,
       "sourceSignals": [
-        "permission"
+        "permission",
+        "long/Thai"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/pms/import/page.tsx",
+      "template": "/holdings/[holdingSlug]/pms/import",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "pms_frontdesk",
+      "workspaceScopes": [
+        "holding"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
+        "error",
+        "permission",
+        "long/Thai"
       ]
     },
     {
@@ -2096,6 +2868,27 @@
       ]
     },
     {
+      "source": "src/app/holdings/[holdingSlug]/profiles/[userId]/page.tsx",
+      "template": "/holdings/[holdingSlug]/profiles/[userId]",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "holding_owner",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug",
+        "userId"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
+        "error"
+      ]
+    },
+    {
       "source": "src/app/holdings/[holdingSlug]/projects/[id]/page.tsx",
       "template": "/holdings/[holdingSlug]/projects/[id]",
       "area": "Holding workspace",
@@ -2157,6 +2950,7 @@
       "detailRoute": true,
       "sourceSignals": [
         "loading",
+        "empty",
         "error",
         "permission",
         "destructive",
@@ -2309,7 +3103,8 @@
       "sourceSignals": [
         "loading",
         "error",
-        "permission"
+        "permission",
+        "destructive"
       ]
     },
     {
@@ -2618,7 +3413,8 @@
       ],
       "detailRoute": true,
       "sourceSignals": [
-        "error"
+        "error",
+        "permission"
       ]
     },
     {
@@ -2805,7 +3601,8 @@
       ],
       "detailRoute": true,
       "sourceSignals": [
-        "error"
+        "error",
+        "permission"
       ]
     },
     {
@@ -2825,7 +3622,8 @@
       ],
       "detailRoute": false,
       "sourceSignals": [
-        "error"
+        "error",
+        "permission"
       ]
     },
     {
@@ -2848,12 +3646,34 @@
       "sourceSignals": [
         "loading",
         "error",
+        "read-only",
         "destructive"
       ]
     },
     {
       "source": "src/app/holdings/[holdingSlug]/technology/page.tsx",
       "template": "/holdings/[holdingSlug]/technology",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "holding_owner",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
+        "error",
+        "permission"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/usage/page.tsx",
+      "template": "/holdings/[holdingSlug]/usage",
       "area": "Holding workspace",
       "signedOut": "login-or-explicit-denial",
       "primaryActor": "holding_owner",
@@ -2892,7 +3712,9 @@
       "detailRoute": true,
       "sourceSignals": [
         "loading",
-        "destructive"
+        "error",
+        "destructive",
+        "success"
       ]
     },
     {
@@ -3009,7 +3831,7 @@
       "source": "src/app/marketing/page.tsx",
       "template": "/marketing",
       "area": "Public and account",
-      "signedOut": "login-or-explicit-denial",
+      "signedOut": "public",
       "primaryActor": "holding_owner",
       "workspaceScopes": [],
       "dynamicParameters": [],

@@ -4,6 +4,12 @@ import type { SqlDatabase, SqlResult, SqlStatement } from './types';
 import { currentReadMetrics, recordReadPoolWait, recordReadQuery, runWithReadMetrics } from './read-metrics';
 
 const instrumented = Symbol.for('erpx.postgres.readMetrics');
+const transactionOwnership = Symbol.for('erpx.postgres.transactionOwnership');
+type TransactionOwnership = { pool: Pool; active: boolean };
+const runtimeGlobal = globalThis as typeof globalThis & { [transactionOwnership]?: WeakMap<SqlDatabase, TransactionOwnership> };
+// A retained pool and an active callback keep their identity across dev reloads.
+// Raw client adapters and pinned sessions never receive this capability.
+const transactionOwners = runtimeGlobal[transactionOwnership] ??= new WeakMap<SqlDatabase, TransactionOwnership>();
 type Marked = { [instrumented]?: boolean };
 type Callback = (this: unknown, ...args: unknown[]) => unknown;
 
@@ -176,6 +182,10 @@ export class PostgresDatabase implements SqlDatabase {
     this.pool.on('error', () => console.error(JSON.stringify({ event: 'database_connection_error' })));
   }
   prepare(sql: string) { return new Statement(this, sql); }
+  assertActiveTransaction(database: SqlDatabase) {
+    const ownership = transactionOwners.get(database);
+    if (!ownership?.active || ownership.pool !== this.pool) throw new Error('TRANSACTION_NOT_ACTIVE_OR_OWNED');
+  }
   /** Pin a connection for a session advisory lock without holding a transaction
    * across external work. Each batch still commits independently on this client. */
   async withSession<T>(action: (session: SqlDatabase) => Promise<T>): Promise<T> {
@@ -190,7 +200,11 @@ export class PostgresDatabase implements SqlDatabase {
       try {
         await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
         const tx = new TransactionDatabase(client);
-        const value = await action(tx);
+        const ownership = { pool: this.pool, active: true };
+        transactionOwners.set(tx, ownership);
+        let value: T;
+        try { value = await action(tx); }
+        finally { ownership.active = false; }
         await client.query('COMMIT');
         return value;
       } catch (error) {
@@ -223,6 +237,12 @@ export class PostgresDatabase implements SqlDatabase {
     return { count: Array.isArray(results) ? results.length : 1, duration: performance.now() - start };
   }
   close() { return this.pool.end(); }
+}
+
+/** Adapt an owner's already-open PostgreSQL transaction; this never begins,
+ * commits, rolls back or releases the client on the owner's behalf. */
+export function transactionDatabase(client: PoolClient): SqlDatabase {
+  return new TransactionDatabase(client);
 }
 
 class TransactionDatabase implements SqlDatabase {

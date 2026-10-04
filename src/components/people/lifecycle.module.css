@@ -60,9 +60,9 @@
 .packageShelf {
   margin-bottom: 24px;
   padding: 12px 16px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 10px;
-  background: var(--card-2);
+  background: var(--ui-card-2);
 }
 .packageShelf summary {
   cursor: pointer;
@@ -70,11 +70,11 @@
 }
 .packageShelf summary span {
   margin-left: 6px;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .packageShelf p {
   margin: 12px 0;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 13px;
 }
 .packageEmpty {
@@ -84,13 +84,13 @@
   gap: 16px;
   margin-bottom: 20px;
   padding: 14px 16px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 10px;
-  background: var(--card-2);
+  background: var(--ui-card-2);
 }
 .packageEmpty p {
   margin: 5px 0 0;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 12px;
 }
 .packageEmpty a {
@@ -116,17 +116,17 @@
   gap: 10px;
   min-width: 0;
   padding: 12px 14px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 10px;
-  background: var(--card);
+  background: var(--ui-card);
   color: inherit;
   text-align: left;
   cursor: pointer;
 }
 .positionStatusFilters button:hover,
 .positionStatusFilters button[aria-pressed="true"] {
-  border-color: var(--brand);
-  background: var(--brand-soft);
+  border-color: var(--ui-brand);
+  background: var(--ui-brand-soft);
 }
 .positionStatusFilters strong {
   font-size: 20px;
@@ -144,7 +144,7 @@
 .positionToolbar label {
   display: grid;
   gap: 6px;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 12px;
   font-weight: 600;
 }
@@ -153,39 +153,43 @@
   width: 100%;
   min-height: 42px;
   padding: 9px 11px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 8px;
-  background: var(--card);
-  color: var(--ink);
+  background: var(--ui-card);
+  color: var(--ui-ink);
   font: inherit;
   font-size: 13px;
 }
 .positionResultCount {
   margin: 0;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 12px;
 }
 .positionEmpty {
   padding: 28px;
-  border: 1px dashed var(--line);
+  border: 1px dashed var(--ui-line);
   border-radius: 10px;
   text-align: center;
 }
-.positionEmpty p { color: var(--muted); }
+.positionEmpty p {
+  color: var(--ui-muted);
+}
 .showMore {
   display: block;
   width: 100%;
   margin-top: 16px;
   padding: 12px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 8px;
-  background: var(--card);
-  color: var(--ink);
+  background: var(--ui-card);
+  color: var(--ui-ink);
   font: inherit;
   font-size: 13px;
   cursor: pointer;
 }
-.showMore:hover { background: var(--card-2); }
+.showMore:hover {
+  background: var(--ui-card-2);
+}
 .positionGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -208,7 +212,7 @@
 .positionCard:focus-visible,
 .showMore:focus-visible,
 .positionStatusFilters button:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--ui-brand);
   outline-offset: 2px;
 }
 .positionCard strong {
@@ -262,7 +266,7 @@
 }
 .steps span {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--ui-muted);
   padding: 8px;
   border-radius: 6px;
 }
@@ -296,12 +300,19 @@
 }
 .empty {
   padding: 28px 0;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 @media (max-width: 640px) {
-  .packageEmpty { align-items: flex-start; flex-direction: column; }
-  .positionStatusFilters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .positionToolbar { grid-template-columns: 1fr; }
+  .packageEmpty {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .positionStatusFilters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .positionToolbar {
+    grid-template-columns: 1fr;
+  }
   .heading {
     align-items: flex-start;
     flex-direction: column;
@@ -312,4 +323,13 @@
   .actions > * {
     flex: 1;
   }
+}
+
+/* The enclosing widget already supplies this section's surface. */
+:global([data-slot="widget-content"]) > .stack {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
 }

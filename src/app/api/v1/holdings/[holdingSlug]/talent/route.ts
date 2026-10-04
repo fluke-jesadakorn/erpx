@@ -11,6 +11,7 @@ import {
   talentDetail,
   talentWorkspace,
 } from "@/server/talent";
+import { candidatePrivacySchema,changeCandidatePrivacy } from "@/server/people-handoffs";
 type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
 export async function GET(r: Request, c: C) {
@@ -46,7 +47,8 @@ export async function POST(r: Request, c: C) {
     const a = await requireWorkContext((await c.params).holdingSlug),
       i = await r.json();
     let data;
-    if (typeof i.id === "string")
+    if(i.entity==="candidate-privacy"&&typeof i.id==="string")data=await changeCandidatePrivacy(a,i.id,candidatePrivacySchema.parse({action:i.action,expectedVersion:i.expectedVersion,reason:i.reason}),key);
+    else if (typeof i.id === "string")
       data = await changeTalentRecord(a, i.entity, i.id, i, key);
     else if (i.entity === "requisition")
       data = await createTalentRequisition(a, i, key);

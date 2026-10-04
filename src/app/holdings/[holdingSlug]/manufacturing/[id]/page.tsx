@@ -6,6 +6,7 @@ import { productionDetail } from "@/server/production";
 import { ProductionConsole } from "@/components/modules/production-console";
 import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
 import { hasPermission } from "@/lib/permissions";
+import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Page({
   params,
@@ -20,14 +21,14 @@ export default async function Page({
     ),
     o = data.order;
   return (
-    <div className="content-stack">
+    <PageContent as="div" className="ui-page-content">
       <Link href={`${base}/manufacturing`}>Manufacturing</Link>
       <h1>{String(o.specification_name)}</h1>
       <p>
         {String(o.mode)} · {String(o.status)} · version {String(o.version)}
       </p>
       <ProductionConsole base={base} module="manufacturing" detail={data} />
-      {hasPermission(a,"records.read") && <RecordDocumentPanel
+      {hasPermission(a,"records.read") && <RecordDocumentPanel appearance="standard"
         base={base}
         targetType="production_run"
         targetId={String(o.id)}
@@ -42,7 +43,7 @@ export default async function Page({
           {key:"rework_evidence",label:"Rework evidence",description:"Attach the approved rework instruction and completion evidence."},
         ]}
       />}
-      <section className="card">
+      <Card as="section" appearance="standard" className="ui-panel">
         <h2>Material and history</h2>
         {data.materials.map((x) => (
           <p key={String(x.id)}>
@@ -54,17 +55,22 @@ export default async function Page({
             v{String(x.version)} · {String(x.action)} · {String(x.reason)}
           </p>
         ))}
-      </section>
+      </Card>
       {data.cost && (
-        <section className="card">
+        <Card as="section" appearance="standard" className="ui-panel">
           <h2>Actual cost and genealogy</h2>
           <p>
             Total minor units {String(data.cost.total_minor)} · output{" "}
             {Number(data.cost.output_quantity_milli) / 1000}
           </p>
           <p>{data.genealogy.length} material genealogy links</p>
-        </section>
+          {data.lotGenealogy.map(link => <p key={String(link.id)}>{String(link.input_lot_code ?? link.input_serial_number)} → {String(link.output_lot_code ?? link.output_serial_number)} · {Number(link.input_quantity_milli) / 1000} input units</p>)}
+        </Card>
       )}
-    </div>
+      {data.postings.length > 0 && <Card as="section" appearance="standard" className="ui-panel"><h2>Production accounting</h2>{data.postings.map(posting => <p key={String(posting.id)}>
+        {String(posting.phase)} · THB {(Number(posting.amount_minor) / 100).toFixed(2)} · {String(posting.journal_status)}
+        {hasPermission(a, "finance.read") && <> · <Link href={`${base}/finance/journals/${String(posting.journal_id)}`}>Journal</Link></>}
+      </p>)}</Card>}
+    </PageContent>
   );
 }

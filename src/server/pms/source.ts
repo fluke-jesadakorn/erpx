@@ -5,6 +5,7 @@ import type { StaffActor } from "../staff-policy";
 import type { SqlDatabase } from "../runtime/types";
 import { ApiError } from "../http";
 import { pmsSourcesSql, pmsSourceReadableSql } from "./source-policy";
+import { sourceRecordLabel } from "@/lib/source-record";
 
 export type PmsSource = {
   id: string; property_id: string; company_id: string; branch_id: string;
@@ -52,7 +53,8 @@ export function pmsSourceLink(source: PmsSource) {
   if (source.kind === "task") query.set("task", source.id);
   if (["transfer","refund"].includes(source.kind)) query.set("queue","approval");
   if (source.kind === "correction") query.set("queue","corrections");
-  return { section, href: `/pms/${section}?${query}`, title: `${source.property_name} · ${source.kind}${source.data.number ? " " + source.data.number : ""}` };
+  return { section, sourceKind: source.kind, version: source.version, label: sourceRecordLabel(source.kind),
+    href: `/pms/${section}?${query}`, title: `${source.property_name} · ${sourceRecordLabel(source.kind)}${source.data.number ? " " + source.data.number : ""}` };
 }
 
 export async function pmsSourceRecipients(db: SqlDatabase, actor: WorkContext) {

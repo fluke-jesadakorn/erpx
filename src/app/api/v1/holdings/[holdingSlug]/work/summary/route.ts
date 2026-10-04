@@ -13,6 +13,7 @@ export async function GET(
       work = params.get("paged") === "1" ? await getWorkPage(actor,{
         view:params.get("view")??"actions",queue:params.get("queue")??"todo",type:params.get("type")??"all",
         q:params.get("q")??"",responsibility:params.get("responsibility")??"all",offset:Number(params.get("offset")??0),
+        tracking:params.get("tracking")??"all",
       }) : await getWorkSummary(actor);
     return Response.json(
       { data: work },

@@ -1,6 +1,6 @@
 # ADR-002: CQRS and replaceable read models
 
-> **Superseded by ADR-020 (Next.js stack, 2026-09-02). Retired — see ADR-020 for App Router + Prisma/Drizzle + REST/tRPC.**
+> **Superseded by ADR-020 (Next.js stack, 2026-09-02). Retired — see ADR-020 for App Router, Drizzle/PostgreSQL and versioned REST.**
 > See `CUTOVER.md` (2026-09-02) and `ADR-020-nextjs-stack.md`.
 
 

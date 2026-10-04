@@ -1,12 +1,10 @@
 "use client";
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
+
 import { useState, type FormEvent } from "react";
-import {
-  addDays,
-  rosterMonday,
-  type RosterData,
-  type RosterShift,
-} from "@/lib/people-roster";
+import { addDays, rosterMonday, type RosterData, type RosterShift } from "@/lib/people-roster";
 import styles from "./roster.module.css";
+import { type UiAppearance } from "@/components/ui/foundation";
 function form(e: FormEvent<HTMLFormElement>) {
   e.preventDefault();
   return new FormData(e.currentTarget);
@@ -15,29 +13,25 @@ function field(f: FormData, name: string) {
   return String(f.get(name) ?? "");
 }
 
-export function RosterShiftForm({
+export function RosterShiftForm({ appearance = "legacy",
   editor,
   data,
   busy,
   submit,
   cancelShift,
-}: {
+}: ({
   editor: { kind: "shift"; shift?: RosterShift; date?: string };
   data: RosterData;
   busy: boolean;
   submit: (input: unknown) => Promise<void>;
   cancelShift: (s: RosterShift) => void;
-}) {
+}) & { appearance?: UiAppearance }) {
   const s = editor.shift,
     first = data.templates.find((t) => t.active),
     week = data.week!;
-  const [templateId, setTemplateId] = useState(
-    s?.template_id ?? first?.id ?? "",
-  );
+  const [templateId, setTemplateId] = useState(s?.template_id ?? first?.id ?? "");
   const [name, setName] = useState(s?.name ?? first?.name ?? "");
-  const [start, setStart] = useState(
-    s?.start_time ?? first?.start_time ?? "06:00",
-  );
+  const [start, setStart] = useState(s?.start_time ?? first?.start_time ?? "06:00");
   const [end, setEnd] = useState(s?.end_time ?? first?.end_time ?? "14:00");
   const [capacity, setCapacity] = useState(s?.capacity ?? first?.capacity ?? 2);
   const defaultDate =
@@ -52,7 +46,7 @@ export function RosterShiftForm({
         }).format(new Date(data.asOf))
       : week.week_start);
   return (
-    <form
+    <form data-ui-appearance={appearance}
       className={styles.form}
       onSubmit={(e) => {
         const f = form(e);
@@ -72,9 +66,9 @@ export function RosterShiftForm({
         });
       }}
     >
-      <label>
+      <Field appearance={appearance}>
         Shift template
-        <select
+        <Select appearance={appearance}
           value={templateId}
           onChange={(e) => {
             const t = data.templates.find((t) => t.id === e.target.value);
@@ -87,29 +81,29 @@ export function RosterShiftForm({
             }
           }}
         >
-          <option value="">Custom shift</option>
+          <option data-ui-appearance={appearance} value="">Custom shift</option>
           {data.templates
             .filter((t) => t.active)
             .map((t) => (
-              <option key={t.id} value={t.id}>
+              <option data-ui-appearance={appearance} key={t.id} value={t.id}>
                 {t.name} · {t.start_time}–{t.end_time}
               </option>
             ))}
-        </select>
-      </label>
-      <div className={styles.twoFields}>
-        <label>
+        </Select>
+      </Field>
+      <div data-ui-appearance={appearance} className={styles.twoFields}>
+        <Field appearance={appearance}>
           Shift name
-          <input
+          <TextInput appearance={appearance}
             required
             maxLength={80}
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
-        </label>
-        <label>
+        </Field>
+        <Field appearance={appearance}>
           Date
-          <input
+          <TextInput appearance={appearance}
             name="date"
             type="date"
             required
@@ -117,31 +111,26 @@ export function RosterShiftForm({
             max={addDays(week.week_start, 6)}
             defaultValue={defaultDate}
           />
-        </label>
+        </Field>
       </div>
-      <div className={styles.twoFields}>
-        <label>
+      <div data-ui-appearance={appearance} className={styles.twoFields}>
+        <Field appearance={appearance}>
           Start time
-          <input
+          <TextInput appearance={appearance}
             type="time"
             required
             value={start}
             onChange={(e) => setStart(e.target.value)}
           />
-        </label>
-        <label>
+        </Field>
+        <Field appearance={appearance}>
           End time
-          <input
-            type="time"
-            required
-            value={end}
-            onChange={(e) => setEnd(e.target.value)}
-          />
-        </label>
+          <TextInput appearance={appearance} type="time" required value={end} onChange={(e) => setEnd(e.target.value)} />
+        </Field>
       </div>
-      <label>
+      <Field appearance={appearance}>
         Required staff
-        <input
+        <TextInput appearance={appearance}
           type="number"
           min="1"
           max="100"
@@ -149,46 +138,45 @@ export function RosterShiftForm({
           value={capacity}
           onChange={(e) => setCapacity(Number(e.target.value))}
         />
-      </label>
-      <fieldset className={styles.staffPicker}>
-        <legend>Assign staff</legend>
+      </Field>
+      <fieldset data-ui-appearance={appearance} className={styles.staffPicker}>
+        <legend data-ui-appearance={appearance}>Assign staff</legend>
         {data.people.map((p) => (
-          <label className={styles.check} key={p.person_id}>
-            <input
+          <Field appearance={appearance} orientation="inline" className={styles.check} key={p.person_id}>
+            <TextInput appearance={appearance}
               type="checkbox"
               name="staff"
               value={p.person_id}
               defaultChecked={data.assignments.some(
                 (a) =>
-                  a.shift_id === s?.id &&
-                  a.person_id === p.person_id &&
-                  a.state === "assigned",
+                  a.shift_id === s?.id && a.person_id === p.person_id && a.state === "assigned",
               )}
             />
             {p.legal_name}
-          </label>
+          </Field>
         ))}
-        {!data.people.length && <p>No eligible staff in this department.</p>}
+        {!data.people.length && <p data-ui-appearance={appearance}>No eligible staff in this department.</p>}
       </fieldset>
       {week.state === "published" && (
-        <label>
+        <Field appearance={appearance}>
           Reason for this change
-          <textarea name="reason" required minLength={3} maxLength={1000} />
-        </label>
+          <TextArea appearance={appearance} name="reason" required minLength={3} maxLength={1000} />
+        </Field>
       )}
-      <div className={styles.actions}>
-        <button className={styles.primary} disabled={busy}>
+      <div data-ui-appearance={appearance} className={styles.actions}>
+        <Button appearance={appearance} clientManaged type="submit" variant="primary" className={styles.primary} disabled={busy}>
           Save shift
-        </button>
+        </Button>
         {s && (
-          <button
+          <Button appearance={appearance}
+            variant="danger"
             type="button"
             className={styles.danger}
             disabled={busy}
             onClick={() => cancelShift(s)}
           >
             Cancel shift
-          </button>
+          </Button>
         )}
       </div>
     </form>

@@ -1,5 +1,7 @@
 # Attachment platform closeout and release-readiness report — 2026-09-27
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 > Historical snapshot. The 133 development reconciliation blockers described below were resolved with explicit operator approval on 2026-09-28. See [the reconciliation closeout](attachment-reconciliation-closeout-2026-09-28.md) for the final zero-blocker receipt, backup, and remaining release gates. The rest of this report records the pre-remediation state.
 
 ## Decision

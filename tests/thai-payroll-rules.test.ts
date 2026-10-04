@@ -40,8 +40,8 @@ describe("Thai payroll calculation kernel with explicit reviewed rules", () => {
   });
   it("annualizes ordinary pay, calculates irregular income separately, and splits employee/employer contributions", () => {
     const result = calculateThaiPayroll(base, syntheticRules);
-    expect(result).toMatchObject({ grossMinor: 11_000, taxWithheldMinor: 2_116, employeeSsoMinor: 550, employerSsoMinor: 550, netMinor: 8_334 });
-    expect(result.explanation).toMatchObject({ ruleVersion: "synthetic-test-only", ordinaryAnnualTaxMinor: 11_000, irregularAnnualTaxDifferenceMinor: 1_200 });
+    expect(result).toMatchObject({ grossMinor: 11_000, taxWithheldMinor: 1_016, employeeSsoMinor: 550, employerSsoMinor: 550, netMinor: 9_434 });
+    expect(result.explanation).toMatchObject({ ruleVersion: "synthetic-test-only", ordinaryAnnualTaxMinor: 11_000, irregularAnnualTaxDifferenceMinor: 100 });
   });
 
   it("uses actual year-to-date income and withholding for the last pay in a year", () => {

@@ -91,7 +91,7 @@ Business language for ERPX, independent of implementation. Current delivery scop
 - **Provenance** — Provider/model/prompt digest describing how a suggestion was produced.
 - **Conflicted** — Patch state when host or source version/digest drifted since the suggestion was computed; requires re-request or explicit conflict acceptance.
 
-## Executive reporting (proposed: [AI Live Canvas](docs/archive/planning-2026-09/2026-09-18-executive-live-canvas.md))
+## Executive reporting (proposed: [AI Live Canvas](docs/production-plan.md))
 
 - **Executive Report** — A creator-owned, private-by-default analysis of authorized Company information, arranged for ongoing use and optionally shared with named people.
 - **Report Widget** — A movable part of an Executive Report that presents an analysis, explanation, or interaction with a defined data scope.
@@ -100,13 +100,27 @@ Business language for ERPX, independent of implementation. Current delivery scop
 
 ## Daily work and social engagement
 
-- **Today** — One personal entry point for the current day, actions needing the person, work being tracked, and authorized team updates. It is a view across owners, not the owner of a business transaction. _Avoid_: Home, Work as separate starting places.
+- **Today** — The shared daily place to understand team activity, discuss work, share a blocker or handover, and see a brief signal of personal priorities.
+- **My work** — A person's authorized actions, approval decisions, tracked requests, team responsibilities, personal services, and completed results across Source Records.
+- **My actions** — The next steps a person can currently perform, including operational work and permitted decisions.
+- **Approvals** — The decisions a person is currently authorized to make for a Source Record. Preparing information, posting accounting, and recording payment remain their own steps.
+- **Approval Routing** — The reviewed policy and recorded participants that determine who receives a business decision. Changing routing does not alter a completed decision.
+- **Tracking** — The progress of matters a person started or is waiting for, with the current responsible person and next step.
+- **For me** — Personal schedule, time off, overtime, expense claims, learning, benefits, and pay information that are available to the person.
+- **Start** — The entry point for a person to begin work using the information they know, then review proposed preparation in the owning workflow.
+- **Work Category** — A shared way to discover related work by objective. It does not determine data ownership or a person's authority.
+- **My Shortcut** — A person's chosen direct entry to permitted work in their current context.
 - **Source Record** — The business item owned by its specialist application, such as an Expense Claim, Leave Request, or Purchase Request. Its owner controls its status, permissions, decisions, and evidence even when Today shows it.
 - **Work Item** — A current, permission-checked view of one Source Record's next step and responsible person or team. It is not a copied task or a second workflow.
 - **Daily Plan** — A person's dated ordering and time allocation for their own work. Moving an item in this plan does not change its deadline, roster, attendance, or approval state.
 - **Post** — A person's update to an explicitly chosen audience, optionally linked to one or more Source Records. Editing the update does not edit those records.
 - **Post Audience** — The people or organizational scope a poster chooses for one publication; it is bounded by each linked Source Record's own access rules. _Avoid_: Inherited audience from the previous post.
-- **Feed** — Chronological stream of posts visible in the chosen context. Actionable Work Items have their own priority space so new posts do not bury required work.
+- **Feed** — The team conversations visible in the chosen context, ordered by recency or following. System milestones summarize linked work in their own context.
+- **Get Help** — An entry point to describe a problem, affected people, and work context, then confirm the responsible team and owning workflow.
+- **Internal Service Request** — A colleague's request for help or equipment from a responsible internal team, with the requester confirming completion or reopening the matter.
+- **Workflow Guide** — Instructions and effective company policies used to carry out work. Reading a guide is distinct from completing a course.
+- **Learning Assignment** — A course or training activity assigned to a person, with its own participation, assessment, and completion evidence.
+- **Ask ERPX** — Assistance that explains, prepares, checks, or summarizes authorized work while the person confirms the business action in its owning workflow.
 - **Role Lane** — The separate priority space for items needing your role (approvals, SLA breaches, period gates).
 - **Follow** — Subscribe to record/person/hashtag; drives feed + notifications, never grants access.
 - **Hashtag/Topic** — Scoped classifier (`#tag`); local / holding-moderated / system-reserved; placement-aware visibility.
@@ -294,3 +308,10 @@ _Avoid_: Invoice; an invoice is an issued document summarizing a Folio.
 - **Bank Match Group** — A reviewed allocation connecting one or more bank movements to one or more accounting targets. It retains its allocation evidence when reversed.
 - **Close Check** — A dated, source-versioned result that either passes, warns or blocks an Accounting Period close. A later source change requires a new Check.
 - **Manufacturing Cost Movement** — An immutable quantity-and-value event that moves actual cost among raw material, work in progress, finished goods, abnormal loss and cost of sales.
+
+
+## Verification and acceptance
+
+- **Engineering Acceptance** — Evidence that a named capability's required workflows and controls passed for a particular software revision and test environment. It does not grant Company release approval.
+- **Provider Verification** — Evidence that a named integration journey was exercised against a specified Sandbox, isolated real service or production provider. Its environment and covered behavior limit the claim.
+- **Company Release Acceptance** — A Company's independent acceptance of the required criteria for a particular software revision and configuration. It is distinct from Company setup acceptance and engineering evidence.

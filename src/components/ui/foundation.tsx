@@ -1,138 +1,305 @@
-import Link from "next/link";
-import {
-  AlertCircle,
-  CheckCircle2,
-  Info,
-  LoaderCircle,
-  Search,
-  TriangleAlert,
-} from "lucide-react";
+import Link, { type LinkProps } from "next/link";
+import { AlertCircle, CheckCircle2, Info, LoaderCircle, Search, TriangleAlert } from "lucide-react";
 import {
   forwardRef,
+  type HTMLAttributes,
+  type AnchorHTMLAttributes,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
-  type SelectHTMLAttributes,
-  type TextareaHTMLAttributes,
 } from "react";
-import styles from "./foundation.module.css";
+import { cn } from "@/lib/ui";
+import { Button } from "./button";
+import { buttonVariants, type UiButtonVariant, type UiSize } from "./button-variants";
+import { TextInput } from "./input";
 
-export type UiSize = "compact" | "default" | "spacious";
+import type { UiAppearance } from "./appearance";
+
+export { Menu, MenuTrigger, MenuContent, MenuItem, MenuSeparator, Popover, PopoverTrigger, PopoverContent, PopoverClose, Combobox, LocalTabs, TabsList, TabsTrigger, TabsPanel, Tooltip, TooltipProvider } from "./popups";
+export { PageContent, Stack, Panel, SectionHeader, FormGrid, FormLayout, FormActions, FilterBar, RecordList, RecordListItem, Badge, InlineNotice } from "./patterns";
+export type { UiAppearance } from "./appearance";
+
+export { Button } from "./button";
+export { Field } from "./field";
+export { TextInput, Select, TextArea } from "./input";
+export { Table, TableFrame } from "./table";
+export type { UiSize } from "./button-variants";
 export type UiTone = "neutral" | "brand" | "success" | "warning" | "danger" | "info";
 export type UiDensity = "compact" | "comfortable";
 
-function classes(...values: Array<string | false | null | undefined>) {
-  return values.filter(Boolean).join(" ");
-}
-
-export const Button = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "ghost" | "danger";
-  size?: UiSize;
-  pending?: boolean;
-}>(function Button({ variant = "primary", size = "default", pending = false, disabled, children, className, type = "button", ...props }, ref) {
-  return <button ref={ref} type={type} className={classes(styles.button, styles[variant], styles[size], className)} disabled={disabled || pending} aria-busy={pending || undefined} {...props}>
-    {pending && <LoaderCircle className={styles.spinner} size={16} aria-hidden="true" />}
-    <span>{children}</span>
-  </button>;
+export const IconButton = forwardRef<
+  HTMLButtonElement,
+  ButtonHTMLAttributes<HTMLButtonElement> & {
+    label: string;
+    appearance?: UiAppearance;
+    size?: UiSize;
+    tone?: "neutral" | "danger";
+  }
+>(function IconButton(
+  { label, size = "default", appearance = "legacy", tone = "neutral", className, children, ...props },
+  ref,
+) {
+  const widths = { compact: "w-9", default: "w-11", spacious: "w-12" };
+  return (
+    <Button
+      ref={ref}
+      appearance={appearance}
+      variant="secondary"
+      size={size}
+      aria-label={label}
+      title={label}
+      className={cn(
+        "aspect-square p-0",
+        widths[size],
+        tone === "danger" && "border-[var(--ui-red)] bg-[var(--ui-red-soft)] text-[var(--ui-red)]",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </Button>
+  );
 });
 
-export const IconButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement> & {
-  label: string;
+type ActionProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
+  variant?: UiButtonVariant;
+  appearance?: UiAppearance;
   size?: UiSize;
-  tone?: "neutral" | "danger";
-}>(function IconButton({ label, size = "default", tone = "neutral", className, type = "button", children, ...props }, ref) {
-  return <button ref={ref} type={type} className={classes(styles.iconButton, styles[size], styles[tone], className)} aria-label={label} title={label} {...props}>{children}</button>;
-});
+};
+export function ActionLink({
+  href,
+  children,
+  variant = "secondary",
+  appearance = "legacy",
+  size = "default",
+  className,
+  ...props
+}: ActionProps & LinkProps) {
+  return (
+    <Link
+      href={href}
+      data-slot="button"
+      data-size={size}
+      data-variant={variant}
+      data-appearance={appearance === "standard" ? appearance : undefined}
+      className={cn(buttonVariants({ variant, size }), appearance === "standard" && "ui-standard-control", className)}
+      {...props}
+    >
+      {children}
+    </Link>
+  );
+}
+export function ActionAnchor({
+  children,
+  variant = "secondary",
+  appearance = "legacy",
+  size = "default",
+  className,
+  ...props
+}: ActionProps) {
+  return (
+    <a
+      data-slot="button"
+      data-size={size}
+      data-variant={variant}
+      data-appearance={appearance === "standard" ? appearance : undefined}
+      className={cn(buttonVariants({ variant, size }), appearance === "standard" && "ui-standard-control", className)}
+      {...props}
+    >
+      {children}
+    </a>
+  );
+}
 
-export function ActionLink({ href, children, variant = "secondary", size = "default", className, prefetch }: {
-  href: string;
-  children: ReactNode;
-  variant?: "primary" | "secondary" | "ghost" | "danger";
-  size?: UiSize;
-  className?: string;
-  prefetch?: boolean;
+export function SearchField(props: InputHTMLAttributes<HTMLInputElement> & { appearance?: UiAppearance }) {
+  return (
+    <span className="ui-search-field relative flex min-w-0 items-center">
+      <Search
+        size={16}
+        aria-hidden="true"
+        className="pointer-events-none absolute left-3 text-[var(--ui-muted)]"
+      />
+      <TextInput type="search" {...props} className={cn("pl-9", props.className)} />
+    </span>
+  );
+}
+
+export function Checkbox({
+  label,
+  description,
+  ...props
+}: InputHTMLAttributes<HTMLInputElement> & { label: string; description?: string }) {
+  return (
+    <label className="flex min-h-11 cursor-pointer items-start gap-2.5 py-2.5">
+      <TextInput type="checkbox" className="mt-0.5 size-4.5 shrink-0" {...props} />
+      <span className="grid gap-0.5">
+        <strong className="text-sm font-semibold">{label}</strong>
+        {description && <small className="text-xs text-[var(--ui-muted)]">{description}</small>}
+      </span>
+    </label>
+  );
+}
+export function Radio({
+  label,
+  description,
+  ...props
+}: InputHTMLAttributes<HTMLInputElement> & { label: string; description?: string }) {
+  return (
+    <label className="flex min-h-11 cursor-pointer items-start gap-2.5 py-2.5">
+      <TextInput type="radio" className="mt-0.5 size-4.5 shrink-0" {...props} />
+      <span className="grid gap-0.5">
+        <strong className="text-sm font-semibold">{label}</strong>
+        {description && <small className="text-xs text-[var(--ui-muted)]">{description}</small>}
+      </span>
+    </label>
+  );
+}
+
+const alertIcons = {
+  success: CheckCircle2,
+  warning: TriangleAlert,
+  danger: AlertCircle,
+  info: Info,
+  neutral: Info,
+  brand: Info,
+};
+const alertTones = {
+  neutral: "border-[var(--ui-line)] bg-[var(--ui-card)] text-[var(--ui-ink)]",
+  success: "border-[var(--ui-green)] bg-[var(--ui-green-soft)] text-[var(--ui-green)]",
+  warning: "border-[var(--ui-amber)] bg-[var(--ui-amber-soft)] text-[var(--ui-amber)]",
+  danger: "border-[var(--ui-red)] bg-[var(--ui-red-soft)] text-[var(--ui-red)]",
+  info: "border-[var(--ui-brand)] bg-[var(--ui-brand-soft)] text-[var(--ui-brand)]",
+  brand: "border-[var(--ui-brand)] bg-[var(--ui-brand-soft)] text-[var(--ui-brand)]",
+};
+export function Alert({
+  tone = "info",
+  title,
+  children,
+  actions,
+  live = false,
+}: {
+  tone?: UiTone;
+  title: string;
+  children?: ReactNode;
+  actions?: ReactNode;
+  live?: boolean;
 }) {
-  return <Link href={href} prefetch={prefetch} className={classes(styles.button, styles[variant], styles[size], className)}>{children}</Link>;
-}
-
-export function Field({ label, hint, error, required, children, className }: {
-  label: string;
-  hint?: string;
-  error?: string;
-  required?: boolean;
-  children: ReactNode;
-  className?: string;
-}) {
-  return <label className={classes(styles.field, className)}>
-    <span className={styles.fieldLabel} data-required={required || undefined}>{label}</span>
-    {children}
-    {error ? <span className={styles.fieldError} role="alert">{error}</span> : hint ? <span className={styles.fieldHint}>{hint}</span> : null}
-  </label>;
-}
-
-export const TextInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { invalid?: boolean; inputSize?: UiSize }>(
-  function TextInput({ invalid, inputSize = "default", className, ...props }, ref) {
-    return <input ref={ref} className={classes(styles.control, styles[inputSize], className)} aria-invalid={invalid || undefined} {...props} />;
-  },
-);
-
-export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement> & { invalid?: boolean; inputSize?: UiSize }>(
-  function Select({ invalid, inputSize = "default", className, children, ...props }, ref) {
-    return <select ref={ref} className={classes(styles.control, styles[inputSize], className)} aria-invalid={invalid || undefined} {...props}>{children}</select>;
-  },
-);
-
-export const TextArea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement> & { invalid?: boolean }>(
-  function TextArea({ invalid, className, ...props }, ref) {
-    return <textarea ref={ref} className={classes(styles.control, styles.textarea, className)} aria-invalid={invalid || undefined} {...props} />;
-  },
-);
-
-export function SearchField(props: InputHTMLAttributes<HTMLInputElement>) {
-  return <span className={styles.search}><Search size={16} aria-hidden="true" /><TextInput type="search" {...props} /></span>;
-}
-
-export function Checkbox({ label, description, ...props }: InputHTMLAttributes<HTMLInputElement> & { label: string; description?: string }) {
-  return <label className={styles.choice}><input type="checkbox" {...props} /><span><strong>{label}</strong>{description && <small>{description}</small>}</span></label>;
-}
-
-export function Radio({ label, description, ...props }: InputHTMLAttributes<HTMLInputElement> & { label: string; description?: string }) {
-  return <label className={styles.choice}><input type="radio" {...props} /><span><strong>{label}</strong>{description && <small>{description}</small>}</span></label>;
-}
-
-const alertIcons = { success: CheckCircle2, warning: TriangleAlert, danger: AlertCircle, info: Info, neutral: Info, brand: Info };
-export function Alert({ tone = "info", title, children, actions, live = false }: { tone?: UiTone; title: string; children?: ReactNode; actions?: ReactNode; live?: boolean }) {
   const Icon = alertIcons[tone];
-  return <section className={classes(styles.alert, styles[tone])} role={live || tone === "danger" ? "alert" : "status"}>
-    <Icon size={20} aria-hidden="true" />
-    <div><strong>{title}</strong>{children && <div className={styles.alertBody}>{children}</div>}{actions && <div className={styles.alertActions}>{actions}</div>}</div>
-  </section>;
+  return (
+    <section
+      data-slot="alert"
+      className={cn(
+        "grid grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-[var(--ui-radius-lg)] border p-4 text-sm",
+        alertTones[tone],
+      )}
+      role={live || tone === "danger" ? "alert" : "status"}
+    >
+      <Icon size={20} aria-hidden="true" />
+      <div>
+        <strong className="block text-[var(--ui-ink-strong)]">{title}</strong>
+        {children && <div className="mt-1 leading-relaxed text-[var(--ui-muted)]">{children}</div>}
+        {actions && <div className="mt-3 flex flex-wrap gap-2">{actions}</div>}
+      </div>
+    </section>
+  );
 }
 
-export function Card({ children, density = "comfortable", className, as: Element = "section" }: { children: ReactNode; density?: UiDensity; className?: string; as?: "article" | "div" | "section" }) {
-  return <Element className={classes(styles.card, styles[density], className)}>{children}</Element>;
+export function Card({
+  children,
+  density = "comfortable",
+  className,
+  as: Element = "section",
+  appearance = "legacy",
+  ...props
+}: HTMLAttributes<HTMLElement> & {
+  children: ReactNode;
+  density?: UiDensity;
+  appearance?: UiAppearance;
+  className?: string;
+  as?: "article" | "div" | "section";
+}) {
+  return (
+    <Element
+      {...props}
+      data-slot="card"
+      data-appearance={appearance}
+      className={cn(
+        "min-w-0 rounded-[var(--ui-radius-lg)] border border-[var(--ui-line)] bg-[var(--ui-card)]",
+        appearance === "standard" ? "ui-panel" : density === "compact" ? "p-4" : "p-4 sm:p-6",
+        className,
+      )}
+    >
+      {children}
+    </Element>
+  );
 }
-
-export function Toolbar({ children, label = "Page actions", className }: { children: ReactNode; label?: string; className?: string }) {
-  return <div className={classes(styles.toolbar, className)} role="toolbar" aria-label={label}>{children}</div>;
+export function Toolbar({
+  children,
+  label = "Page actions",
+  className,
+}: {
+  children: ReactNode;
+  label?: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn("flex min-w-0 flex-wrap items-center gap-2", className)}
+      role="toolbar"
+      aria-label={label}
+    >
+      {children}
+    </div>
+  );
 }
-
 export function ResponsiveActions({ children }: { children: ReactNode }) {
-  return <div className={styles.responsiveActions}>{children}</div>;
+  return (
+    <div className="ui-responsive-actions flex flex-wrap items-center justify-end gap-2">
+      {children}
+    </div>
+  );
 }
-
-export function Tabs({ label, children }: { label: string; children: ReactNode }) {
-  return <nav className={styles.tabs} aria-label={label}>{children}</nav>;
+export function Tabs({ label, children, appearance = "legacy" }: { label: string; children: ReactNode; appearance?: UiAppearance }) {
+  return (
+    <nav
+      className={appearance === "standard" ? "ui-tab-nav" : "ui-tabs flex items-center gap-6 overflow-x-auto border-b border-[var(--ui-line)]"}
+      aria-label={label}
+    >
+      {children}
+    </nav>
+  );
 }
-
-export function TabLink({ href, current = false, children }: { href: string; current?: boolean; children: ReactNode }) {
-  return <Link href={href} aria-current={current ? "page" : undefined}>{children}</Link>;
+export function TabLink({
+  href,
+  current = false,
+  children,
+}: {
+  href: string;
+  current?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <Link
+      className="inline-flex min-h-11 items-center whitespace-nowrap border-b-2 border-transparent py-1.5 text-sm text-[var(--ui-muted)] aria-[current=page]:border-[var(--ui-brand)] aria-[current=page]:font-semibold aria-[current=page]:text-[var(--ui-brand)]"
+      href={href}
+      aria-current={current ? "page" : undefined}
+    >
+      {children}
+    </Link>
+  );
 }
-
-export function TableFrame({ label, children, density = "comfortable" }: { label: string; children: ReactNode; density?: UiDensity }) {
-  return <div className={classes(styles.tableFrame, styles[density])} role="region" aria-label={label} tabIndex={0}>{children}</div>;
-}
-
 export function LoadingState({ label = "Loading" }: { label?: string }) {
-  return <div className={styles.loading} role="status" aria-live="polite"><LoaderCircle className={styles.spinner} aria-hidden="true" />{label}</div>;
+  return (
+    <div
+      className="flex min-h-30 items-center justify-center gap-2 text-sm text-[var(--ui-muted)]"
+      role="status"
+      aria-live="polite"
+    >
+      <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" />
+      {label}
+    </div>
+  );
 }
+
+/** URL navigation stays links; local-state tabs use LocalTabs. */
+export const TabNav = Tabs;

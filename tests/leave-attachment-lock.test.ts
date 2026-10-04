@@ -287,7 +287,7 @@ describe("Leave attachment serialization", () => {
       filename: "revoked-assignment.pdf",
       mediaType: "application/pdf",
       bytes: pdf.byteLength,
-    }, key())).rejects.toMatchObject({ status: 409, code: "WORK_CONTEXT_CHANGED" });
+    }, key())).rejects.toMatchObject({ status: 404, code: "ATTACHMENT_TARGET_NOT_FOUND" });
     expect(await db.prepare("SELECT count(*)::int count FROM attachment_links WHERE set_id=?").bind(set.id).first("count")).toBe(0);
   });
 });

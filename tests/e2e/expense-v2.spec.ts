@@ -189,6 +189,8 @@ test("every member can preserve an incomplete claim and reach People setup", asy
       .getByLabel("Merchant", { exact: true })
       .fill("Preserved incomplete claim");
     await page.reload();
+    await page.getByRole("button",{name:"New",exact:true}).click();
+    await page.getByRole("dialog",{name:"New work"}).getByRole("link",{name:"Expense claim",exact:true}).click();
     await expect(page.getByLabel("Merchant", { exact: true })).toHaveValue(
       "Preserved incomplete claim",
     );
@@ -198,7 +200,7 @@ test("every member can preserve an incomplete claim and reach People setup", asy
       page.getByText("Before you submit", { exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByRole("link", { name: "Open claimant profile in People" }),
+      page.getByRole("link", { name: "Open claimant profile" }),
     ).toBeVisible();
     await page
       .getByRole("textbox", { name: "Business purpose", exact: true })
@@ -209,9 +211,10 @@ test("every member can preserve an incomplete claim and reach People setup", asy
     ).toHaveValue("My unsaved explanation");
     await snapshots(page, `draft-${info.project.name}`);
     await page
-      .getByRole("link", { name: "Open claimant profile in People" })
+      .getByRole("link", { name: "Open claimant profile" })
       .click();
-    await expect(page.getByRole("dialog").last()).toBeVisible();
+    await expect(page).toHaveURL(/\/profiles\//);
+    await expect(page.getByRole("heading",{name:"missing",exact:true})).toBeVisible();
     await page.goBack();
     await expect(
       page.getByRole("textbox", { name: "Business purpose", exact: true }),
@@ -239,9 +242,10 @@ test("expense goes through four independent people and two slip-backed payments"
     await page.getByLabel("Merchant", { exact: true }).fill(merchant);
     await page.getByLabel("Receipt number", { exact: true }).fill(merchant);
     await page
-      .getByRole("combobox", { name: "Expense category", exact: true })
+      .getByRole("combobox", { name: "What type of expense is this?", exact: true })
       .selectOption(fixture.accounts.expense);
-    await page.getByLabel("Net amount", { exact: true }).fill("100");
+    await page.getByLabel("Amount paid", { exact: true }).fill("100");
+    await page.getByText("Tax details (optional)",{exact:true}).click();
     await page.getByLabel("Recoverable tax", { exact: true }).fill("7");
     await page
       .getByRole("textbox", { name: "Business purpose", exact: true })
@@ -249,7 +253,7 @@ test("expense goes through four independent people and two slip-backed payments"
     await page.getByRole("button", { name: "Save draft", exact: true }).click();
     await expect(page).toHaveURL(/\/expenses\/expense-/);
     const url = page.url(),
-      id = url.split("/").pop()!;
+      id = new URL(url).pathname.split("/").pop()!;
     const receipt = scannedPdf(
       await sampleImage(
         page,
@@ -257,6 +261,7 @@ test("expense goes through four independent people and two slip-backed payments"
         "image/jpeg",
       ),
     );
+    await page.getByRole("tab",{name:"Evidence",exact:true}).click();
     await page.getByLabel("Receipt file", { exact: true }).setInputFiles({
       name: "scanned-receipt.pdf",
       mimeType: "application/pdf",
@@ -274,30 +279,31 @@ test("expense goes through four independent people and two slip-backed payments"
     await expect(
       page.getByRole("link", { name: /^scanned-receipt.pdf/ }),
     ).toBeVisible();
+    await page.getByRole("tab",{name:"Overview",exact:true}).click();
     await expect(page.locator(".error[role=alert]")).toHaveCount(0);
-    await page
-      .getByRole("button", { name: "Submit for department approval" })
-      .click();
+    await page.getByRole("button",{name:"Review & submit",exact:true}).click();
+    await expect(page.getByRole("heading",{name:"Review before you send",exact:true})).toBeVisible();
+    await page.getByRole("button",{name:"Confirm & submit",exact:true}).click();
     await expect(
-      page.getByRole("heading", { name: "Review and decide", exact: true }),
+      page.getByRole("heading", { name: "Department approval", exact: true }),
     ).toBeVisible();
     const flowEndpoint=`/api/v1${base}/flows/expense/${id}`;
     const flowResponse=await owner.request.get(flowEndpoint);
     expect(flowResponse.ok(),await flowResponse.text()).toBeTruthy();
-    const flow=(await flowResponse.json()).data;
-    const assigned=await owner.request.post(flowEndpoint,{headers:{...await contextHeaders(owner,"owner"),"Idempotency-Key":randomUUID()},data:{stepKey:"department_approval",userId:fixture.actors.head.userId,expectedVersion:flow.version,recordVersion:flow.recordVersion,reason:"Primary reviewer for this isolated browser test",saveDefault:false}});
-    expect(assigned.ok(),await assigned.text()).toBeTruthy();
     const approve = await head.newPage();
+    await approve.goto(`${base}/work?view=approvals&type=expense&q=${encodeURIComponent(merchant)}`);
+    await approve.getByRole("button",{name:new RegExp(`^Review .*${merchant}`)}).click();
+    const reviewDrawer=approve.getByRole("dialog",{name:"Review approval",exact:true});
+    await expect(reviewDrawer).toBeVisible();
+    await reviewDrawer.getByText("scanned-receipt.pdf",{exact:true}).click();
+    await expect(reviewDrawer.getByRole("img",{name:"scanned-receipt.pdf, page 1 of 1",exact:true})).toBeVisible();
+    await reviewDrawer.getByRole("button",{name:"Approve",exact:true}).click();
+    await reviewDrawer.getByLabel("Reason",{exact:true}).fill("Purpose, amount and receipt verified");
+    await expect(reviewDrawer.getByRole("checkbox")).toHaveCount(0);
+    await reviewDrawer.getByRole("button",{name:"Confirm Approve",exact:true}).click();
+    await expect(reviewDrawer).not.toBeVisible();
     await approve.goto(url);
-    await approve
-      .getByLabel("Decision reason")
-      .fill("Purpose, amount and receipt verified");
-    await approve
-      .getByRole("button", { name: "Approve department review" })
-      .click();
-    await expect(
-      approve.getByRole("heading", { name: "Accounts review", exact: true }),
-    ).toBeVisible();
+    await expect(approve.getByRole("heading",{name:"Accounts review",exact:true})).toBeVisible();
     const accounts = await reviewer.newPage();
     await accounts.goto(url);
     await accounts
@@ -316,12 +322,9 @@ test("expense goes through four independent people and two slip-backed payments"
     await expect(
       accounts.getByRole("button", { name: "Save accounting preparation" }),
     ).toBeEnabled();
-    await accounts
-      .getByLabel("Decision reason")
-      .fill("Accounting classification verified");
-    await accounts
-      .getByRole("button", { name: "Confirm Accounts review" })
-      .click();
+    await accounts.getByRole("button",{name:"Approve",exact:true}).click();
+    await accounts.getByLabel("Reason",{exact:true}).fill("Accounting classification verified");
+    await accounts.getByRole("button",{name:"Confirm Approve",exact:true}).click();
     await expect(
       accounts.getByRole("heading", {
         name: "Accounts manager approval",
@@ -330,13 +333,9 @@ test("expense goes through four independent people and two slip-backed payments"
     ).toBeVisible();
     const post = await manager.newPage();
     await post.goto(url);
-    await post
-      .getByLabel("Decision reason")
-      .first()
-      .fill("Approve accounting and payable posting");
-    await post
-      .getByRole("button", { name: "Approve accounting → GL review" })
-      .click();
+    await post.getByRole("button",{name:"Approve",exact:true}).click();
+    await post.getByLabel("Reason",{exact:true}).fill("Approve accounting and payable posting");
+    await post.getByRole("button",{name:"Confirm Approve",exact:true}).click();
     await expect(post.getByRole("heading",{name:"Post general ledger",exact:true})).toBeVisible();
     await post.getByRole("button",{name:"Confirm Debit / Credit and post to GL", exact:true}).click();
     await expect(
@@ -353,7 +352,7 @@ test("expense goes through four independent people and two slip-backed payments"
       ).toBeVisible();
       await payment
         .getByLabel("Payment date", { exact: true })
-        .fill("2026-09-21");
+        .fill(new Date().toISOString().slice(0,10));
       await payment
         .getByLabel("Amount paid (THB)", { exact: true })
         .fill(amount);
@@ -612,4 +611,94 @@ test("AI suggestions fill blanks, preserve human edits and require explicit repl
   } finally {
     await context.close();
   }
+});
+
+test("all four request drawers keep their actions accessible and preserve the queue", async ({ browser },info) => {
+  test.setTimeout(180000);
+  const context=await browser.newContext(info.project.use);
+  try {
+    await login(context,"claimant");
+    const page=await context.newPage();
+    for(const width of [390,768,1280]) {
+      await page.setViewportSize({width,height:width===390?844:1024});
+      await page.goto(`${base}/work?type=expense&queue=all&q=keep`);
+      for(const label of ["Expense claim","Leave request","Purchase request","Service request"]) {
+        await page.getByRole("button",{name:"New",exact:true}).click();
+        await page.getByRole("dialog",{name:"New work",exact:true}).getByRole("link",{name:label,exact:true}).click();
+        const drawer=page.getByRole("dialog",{name:label,exact:true});
+        await expect(drawer).toBeVisible();
+        const action=drawer.getByRole("button",{name:label==="Leave request"?"Review request":"Review & submit",exact:true});
+        await expect(action).toBeVisible();
+        await drawer.evaluate(element=>{const body=element.querySelector('[class*="body"]');if(body)body.scrollTop=body.scrollHeight;});
+        const bounds=await action.boundingBox();
+        expect(bounds).not.toBeNull();
+        expect(bounds!.y+bounds!.height).toBeLessThanOrEqual(width===390?844:1024);
+        expect(await action.evaluate(element=>{const r=element.getBoundingClientRect();return document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest("button")===element;})).toBe(true);
+        if(label==="Service request") await expect(drawer.getByText(/coverage|Receive and assign/).first()).toBeVisible();
+        await drawer.press("Escape");
+        await expect(drawer).not.toBeVisible();
+        await expect(page).toHaveURL(/type=expense&queue=all&q=keep/);
+      }
+    }
+  } finally {await context.close();}
+});
+
+test("service settings preview validates coverage without publishing",async({browser},info)=>{
+ test.setTimeout(90000);
+ const context=await browser.newContext(info.project.use);
+ try {
+  await login(context,"owner");const page=await context.newPage();
+  const writes:string[]=[];
+  page.on("request",request=>{if(request.method()==="POST"&&/\/service-teams(?:\/[a-zA-Z0-9-]+)?$/.test(new URL(request.url()).pathname)&&!request.url().endsWith("/preview"))writes.push(request.url());});
+  await page.goto(`${base}/settings?section=approvals`);
+  await page.getByRole("button",{name:"Set up team",exact:true}).first().click();
+  const drawer=page.getByRole("dialog",{name:"Set up service team",exact:true});
+  await drawer.getByRole("button",{name:"Add member",exact:true}).click();
+  await drawer.getByRole("combobox",{name:"Team member 1",exact:true}).fill("it");
+  await page.getByRole("option",{name:"it",exact:true}).click();
+  await drawer.getByRole("button",{name:"Review coverage",exact:true}).click();
+  await expect(drawer.getByRole("button",{name:"Confirm team settings",exact:true})).toBeVisible();
+  await expect(drawer.getByText("Saving rechecks active people, scope, leads and your current authority.",{exact:true})).toBeVisible();
+  expect(writes).toEqual([]);
+  await drawer.getByLabel("Team name",{exact:true}).fill("Edited test coverage");
+  await expect(drawer.getByRole("button",{name:"Review coverage",exact:true})).toBeVisible();
+  await drawer.press("Escape");
+ } finally {await context.close();}
+});
+
+test("new leave uploads private evidence before submitting a half day",async({browser},info)=>{
+ test.setTimeout(180000);
+ const owner=await browser.newContext(info.project.use),claimant=await browser.newContext(info.project.use);
+ try {
+  await login(owner,"owner");await login(claimant,"claimant");
+  const headers=await contextHeaders(owner,"owner");
+  const admin=async(data:Record<string,unknown>)=>{const response=await owner.request.post(`/api/v1${base}/leave/admin`,{headers:{...headers,"Idempotency-Key":randomUUID()},data});expect(response.ok(),await response.text()).toBeTruthy();return(await response.json()).data;};
+  const authority=await owner.request.get(`/api/v1${base}/authority`);expect(authority.ok()).toBeTruthy();
+  const hr=(await authority.json()).data.seats.find((seat:{kind:string})=>seat.kind==="hr");
+  if(hr?.person_id!==`person-${fixture.actors.owner.userId}`){const appointed=await owner.request.post(`/api/v1${base}/authority/appointments`,{headers:{...headers,"Idempotency-Key":randomUUID()},data:{kind:"hr",departmentId:null,positionId:null,personId:`person-${fixture.actors.owner.userId}`,expectedVersion:hr?.version??0,reason:"Independent HR reviewer in the isolated development fixture"}});expect(appointed.ok(),await appointed.text()).toBeTruthy();}
+  const setup=await owner.request.get(`/api/v1${base}/leave/admin`);expect(setup.ok()).toBeTruthy();
+  const assignments=(await setup.json()).data.assignments.filter((a:{name:string})=>a.name==="claimant");
+  for(const assignment of assignments)if(!assignment.effective_to)await admin({resource:"assignment_end",id:assignment.id,expectedVersion:assignment.version,effectiveTo:assignment.effective_from});
+  const effectiveFrom=new Date(Math.max(Date.parse("2025-12-31"),...assignments.map((a:{effective_to:string|null;effective_from:string})=>Date.parse(a.effective_to??a.effective_from)))+86400000).toISOString().slice(0,10);
+  const suffix=randomUUID().slice(0,8),type=await admin({resource:"type",code:`TST${suffix}`,name:`Test leave ${suffix}`,tracked:true});
+  const policy=await admin({resource:"policy",policyKey:`test-${suffix}`,version:1,name:"Isolated browser leave policy",effectiveFrom:"2026-01-01",timezone:"Asia/Bangkok",workweek:[1,2,3,4,5],rules:[{leaveTypeId:type.id,grantKind:"annual",grantUnits:10,evidencePurpose:"medical_certificate",evidenceMinUnits:.5,evidenceMinCount:1,evidenceDueStage:"before_submit"}]});
+  await admin({resource:"assignment",engagementId:`eng-${fixture.actors.claimant.userId}`,policyVersionId:policy.id,effectiveFrom});
+  const page=await claimant.newPage();await page.goto(`${base}/leave/new`);
+  await page.getByRole("combobox",{name:"Leave type",exact:true}).selectOption(type.id);
+  await page.getByLabel("First day",{exact:true}).fill("2026-10-13");
+  await page.getByLabel("Last day",{exact:true}).fill("2026-10-13");
+  await page.getByRole("combobox",{name:"Portion",exact:true}).nth(0).selectOption("first_half");
+  await page.getByRole("combobox",{name:"Portion",exact:true}).nth(1).selectOption("first_half");
+  await page.getByLabel("Choose a private file",{exact:true}).setInputFiles({name:"test-leave-evidence.png",mimeType:"image/png",buffer:await sampleImage(page,"TEST EVIDENCE — NO REAL MEDICAL DATA")});
+  await page.getByRole("button",{name:"Review request",exact:true}).click();
+  await expect(page.getByRole("heading",{name:"Check the calculation",exact:true})).toBeVisible();
+  await expect(page.getByText("0.5 working days",{exact:true})).toBeVisible();
+  await page.getByRole("button",{name:"Submit leave request",exact:true}).click();
+  await expect(page).toHaveURL(/\/tasks\/people_payroll\/leave-/,{timeout:60000});
+  const id=new URL(page.url()).pathname.split("/").pop()!;
+  const result=await claimant.request.get(`/api/v1${base}/leave-requests/${id}`);expect(result.ok(),await result.text()).toBeTruthy();
+  expect((await result.json()).data.state).toBe("pending_approval");
+  await page.getByRole("tab",{name:"Evidence",exact:true}).click();
+  await expect(page.getByText("test-leave-evidence.png",{exact:true}).first()).toBeVisible();
+ } finally {await Promise.all([owner.close(),claimant.close()]);}
 });

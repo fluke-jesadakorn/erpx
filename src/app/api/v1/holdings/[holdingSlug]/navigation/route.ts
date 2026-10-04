@@ -1,4 +1,4 @@
-import { isMyAction } from "@/lib/work-item";
+import { isMyAction, workMatchesView } from "@/lib/work-item";
 import { requireWorkContext } from "@/server/authorization";
 import { holdingResources } from "@/server/runtime";
 import { workSnapshot } from "@/server/work-items";
@@ -15,13 +15,17 @@ export async function GET(_request: Request, context: Context) {
     const actor = await requireWorkContext((await context.params).holdingSlug);
     const { write } = await holdingResources(actor.holdingId);
     const workPending = workSnapshot(actor);
-    const [home, work, { cards, preferences, preferencesUnavailable }] = await Promise.all([
+    const [home, work, { cards, preferences, preferencesUnavailable, capabilities }] = await Promise.all([
       unreadHomeCount(write, actor), workPending, getWorkCardProjection(actor, workPending),
     ]);
     return Response.json({ data: {
       home,
       work: work.unavailableSources.length ? null : work.items.filter(isMyAction).length,
-      quickAccess: { cards, preferences, preferencesUnavailable },
+      workViewAvailability: {
+        team: capabilities.teamQueue || work.items.some(item => item.relationships?.includes("team")),
+        routing: work.items.some(item => workMatchesView(item, "routing")),
+      },
+      quickAccess: { cards, preferences, preferencesUnavailable, capabilities },
     } }, { headers });
   } catch (error) { return errorResponse(error); }
 }

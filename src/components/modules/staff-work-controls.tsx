@@ -1,7 +1,10 @@
 "use client";
+import { FormDisclosure } from "@/components/ui/form-disclosure";
+import { ActionLink as UiActionLink } from "@/components/ui/foundation";
+
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { workFetch } from "@/lib/work-fetch";
-import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { clearGuidedIntakeHandoff, readGuidedIntakeHandoff } from "@/lib/ai/guided-intake";
 import { preparedTaskFields } from "@/lib/ai/prepared-work";
@@ -14,7 +17,11 @@ import type { StaffPerson } from "@/server/staff-policy";
 import type { TaskDetail, TaskRow, ProjectRow } from "@/server/staff-tasks";
 import type { ScheduleRow, TemplateRow } from "@/server/routines";
 import type { ApprovalView } from "@/server/approvals";
-import { AttachmentPanel, type AttachmentPanelChange } from "@/components/attachments/attachment-panel";
+import {
+  AttachmentPanel,
+  type AttachmentPanelChange,
+} from "@/components/attachments/attachment-panel";
+import { type UiAppearance } from "@/components/ui/foundation";
 
 export type StaffOptions = {
   people: StaffPerson[];
@@ -62,18 +69,14 @@ export function useStaffCommand(base: string) {
         error?: { message: string };
       };
       if (!response.ok)
-        throw new Error(
-          data.error?.message ?? "Unable to save. Your details are still here.",
-        );
+        throw new Error(data.error?.message ?? "Unable to save. Your details are still here.");
       attempt.current = null;
       if (destination) router.push(`${base}/${destination}/${data.data.id}`);
       startRefresh(() => router.refresh());
       return data.data;
     } catch (e) {
       setError(
-        e instanceof Error
-          ? e.message
-          : "Connection interrupted. Retry to finish the same action.",
+        e instanceof Error ? e.message : "Connection interrupted. Retry to finish the same action.",
       );
       return null;
     } finally {
@@ -82,21 +85,21 @@ export function useStaffCommand(base: string) {
   }
   return { send, busy: busy || refreshing, error };
 }
-export function StaffPicker({
+export function StaffPicker({ appearance = "legacy",
   label,
   value,
   onChange,
   options,
   exclude = [],
   required = true,
-}: {
+}: ({
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: StaffOptions;
   exclude?: string[];
   required?: boolean;
-}) {
+}) & { appearance?: UiAppearance }) {
   const [department, setDepartment] = useState(""),
     [level, setLevel] = useState("");
   const seen = new Set<string>(),
@@ -113,90 +116,80 @@ export function StaffPicker({
   );
   const selected = people.find((p) => p.user_id === value);
   return (
-    <fieldset className="staff-picker">
-      <legend>{label}</legend>
-      <div className="business-form">
-        <label>
+    <fieldset data-ui-appearance={appearance} className="staff-picker">
+      <legend data-ui-appearance={appearance}>{label}</legend>
+      <div data-ui-appearance={appearance} className={appearance === "standard" ? "ui-form-grid" : "business-form"}>
+        <Field appearance={appearance}>
           Department filter
-          <select
-            value={department}
-            onChange={(e) => setDepartment(e.target.value)}
-          >
-            <option value="">All departments</option>
+          <Select appearance={appearance} value={department} onChange={(e) => setDepartment(e.target.value)}>
+            <option data-ui-appearance={appearance} value="">All departments</option>
             {options.departments.map((d) => (
-              <option key={d.id} value={d.id}>
+              <option data-ui-appearance={appearance} key={d.id} value={d.id}>
                 {d.display_name}
               </option>
             ))}
-          </select>
-        </label>
-        <label>
+          </Select>
+        </Field>
+        <Field appearance={appearance}>
           Level filter
-          <select value={level} onChange={(e) => setLevel(e.target.value)}>
-            <option value="">All levels</option>
-            <option value="unset">Not set</option>
+          <Select appearance={appearance} value={level} onChange={(e) => setLevel(e.target.value)}>
+            <option data-ui-appearance={appearance} value="">All levels</option>
+            <option data-ui-appearance={appearance} value="unset">Not set</option>
             {options.levels.map((l) => (
-              <option key={l.id} value={l.id}>
+              <option data-ui-appearance={appearance} key={l.id} value={l.id}>
                 {l.name} · rank {l.rank}
               </option>
             ))}
-          </select>
-        </label>
+          </Select>
+        </Field>
       </div>
-      <label>
+      <Field appearance={appearance}>
         {label}
-        <select
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          required={required}
-        >
-          <option value="">Choose staff</option>
+        <Select appearance={appearance} value={value} onChange={(e) => onChange(e.target.value)} required={required}>
+          <option data-ui-appearance={appearance} value="">Choose staff</option>
           {value && !visible.some((p) => p.user_id === value) && (
-            <option value={value}>
-              {selected?.legal_name ?? "Unavailable staff"} · selected
-            </option>
+            <option data-ui-appearance={appearance} value={value}>{selected?.legal_name ?? "Unavailable staff"} · selected</option>
           )}
           {visible.map((p) => (
-            <option key={p.user_id} value={p.user_id}>
+            <option data-ui-appearance={appearance} key={p.user_id} value={p.user_id}>
               {p.legal_name} · {p.level_name ?? "Not set"}
             </option>
           ))}
-        </select>
-      </label>
+        </Select>
+      </Field>
     </fieldset>
   );
 }
-function Approvers({
+function Approvers({ appearance = "legacy",
   label,
   values,
   onChange,
   options,
   exclude,
-}: {
+}: ({
   label: string;
   values: string[];
   onChange: (values: string[]) => void;
   options: StaffOptions;
   exclude: string[];
-}) {
+}) & { appearance?: UiAppearance }) {
   return (
-    <fieldset>
-      <legend>{label}</legend>
+    <fieldset data-ui-appearance={appearance}>
+      <legend data-ui-appearance={appearance}>{label}</legend>
       {values.map((value, index) => (
-        <div className="staff-step" key={index}>
-          <StaffPicker
+        <div data-ui-appearance={appearance} className="staff-step" key={index}>
+          <StaffPicker appearance={appearance}
             label={`Step ${index + 1} approver`}
             value={value}
-            onChange={(user) =>
-              onChange(values.map((v, i) => (i === index ? user : v)))
-            }
+            onChange={(user) => onChange(values.map((v, i) => (i === index ? user : v)))}
             options={options}
             exclude={[...exclude, ...values.filter((_, i) => i !== index)]}
           />
-          <div className="form-actions">
-            <button
+          <div data-ui-appearance={appearance} className={appearance === "standard" ? "ui-form-actions" : "form-actions"}>
+            <Button appearance={appearance}
+              variant="secondary"
               type="button"
-              className="button secondary"
+
               disabled={index === 0}
               onClick={() => {
                 const next = [...values];
@@ -205,29 +198,31 @@ function Approvers({
               }}
             >
               Move step {index + 1} up
-            </button>
-            <button
+            </Button>
+            <Button appearance={appearance}
+              variant="ghost"
               type="button"
-              className="button ghost"
+
               onClick={() => onChange(values.filter((_, i) => i !== index))}
             >
               Remove step {index + 1}
-            </button>
+            </Button>
           </div>
         </div>
       ))}
-      <button
+      <Button appearance={appearance}
+        variant="secondary"
         type="button"
-        className="button secondary"
+
         disabled={values.length >= 20}
         onClick={() => onChange([...values, ""])}
       >
         Add {label.toLowerCase()} step
-      </button>
+      </Button>
     </fieldset>
   );
 }
-export function TaskEditor({
+export function TaskEditor({ appearance = "legacy",
   base,
   options,
   projects,
@@ -241,7 +236,7 @@ export function TaskEditor({
   createAs = "task",
   initialDueDate,
   initialProjectId,
-}: {
+}: ({
   base: string;
   options: StaffOptions;
   projects: ProjectRow[];
@@ -255,18 +250,18 @@ export function TaskEditor({
   createAs?: "task" | "routine";
   initialDueDate?: string;
   initialProjectId?: string;
-}) {
+}) & { appearance?: UiAppearance }) {
   const { timeZone, ready: timeReady } = useDisplayTimeZone();
-  const [defaultDue] = useState(() => initialDueDate && /^\d{4}-\d{2}-\d{2}$/.test(initialDueDate) ? `${initialDueDate}T09:00` : "");
+  const [defaultDue] = useState(() =>
+    initialDueDate && /^\d{4}-\d{2}-\d{2}$/.test(initialDueDate) ? `${initialDueDate}T09:00` : "",
+  );
   const source = task ?? template,
     { send, busy, error } = useStaffCommand(base),
     [title, setTitle] = useState(`${clone ? "Copy of " : ""}${source?.title ?? ""}`),
     [description, setDescription] = useState(source?.description ?? ""),
-    [guided, setGuided] = useState<Record<string,string> | null>(null),
+    [guided, setGuided] = useState<Record<string, string> | null>(null),
     [assignee, setAssignee] = useState(source?.assignee_user_id ?? userId),
-    [before, setBefore] = useState<string[]>(
-      source ? JSON.parse(source.start_approvers_json) : [],
-    ),
+    [before, setBefore] = useState<string[]>(source ? JSON.parse(source.start_approvers_json) : []),
     [after, setAfter] = useState<string[]>(
       source ? JSON.parse(source.completion_approvers_json) : createAs === "routine" ? [""] : [],
     ),
@@ -276,11 +271,22 @@ export function TaskEditor({
           ? JSON.parse(source.completion_approvers_json).length
             ? "both"
             : "start"
-          : JSON.parse(source.completion_approvers_json).length ? "completion" : "none"
-        : createAs === "routine" ? "completion" : "none",
+          : JSON.parse(source.completion_approvers_json).length
+            ? "completion"
+            : "none"
+        : createAs === "routine"
+          ? "completion"
+          : "none",
     ),
     [dueOverride, setDue] = useState<string | null>(null);
-  const due = dueOverride ?? (task?.due_at != null && timeReady ? (() => { const value = localMinuteAt(task.due_at, timeZone); return `${value.date}T${value.time}`; })() : defaultDue);
+  const due =
+    dueOverride ??
+    (task?.due_at != null && timeReady
+      ? (() => {
+          const value = localMinuteAt(task.due_at, timeZone);
+          return `${value.date}T${value.time}`;
+        })()
+      : defaultDue);
   const creator = clone
     ? userId
     : source
@@ -290,23 +296,26 @@ export function TaskEditor({
       : userId;
   const [createKind, setCreateKind] = useState(createAs);
   const templateMode = !!template || createKind === "routine";
-  const maySkipReview = !templateMode && (!task ||
-    task.start_approvers_json === "[]" && task.completion_approvers_json === "[]");
+  const maySkipReview =
+    !templateMode &&
+    (!task || (task.start_approvers_json === "[]" && task.completion_approvers_json === "[]"));
   const ordinaryTask = !templateMode && phase === "none";
   useEffect(() => {
     if (source || createAs !== "task" || !companyId || !assignmentId) return;
-    const restore = () => setGuided(readGuidedIntakeHandoff(companyId,userId,assignmentId,base,"task"));
+    const restore = () =>
+      setGuided(readGuidedIntakeHandoff(companyId, userId, assignmentId, base, "task"));
     restore();
     window.addEventListener("erpx:guided-intake-handoff", restore);
     return () => window.removeEventListener("erpx:guided-intake-handoff", restore);
-  }, [source,createAs,companyId,userId,assignmentId,base]);
+  }, [source, createAs, companyId, userId, assignmentId, base]);
   function clearPrepared() {
-    if (companyId && assignmentId) clearGuidedIntakeHandoff(companyId,userId,assignmentId,base,"task");
+    if (companyId && assignmentId)
+      clearGuidedIntakeHandoff(companyId, userId, assignmentId, base, "task");
     setGuided(null);
   }
   function usePrepared() {
     if (!guided || createKind !== "task") return;
-    const prepared = preparedTaskFields(guided,options.people);
+    const prepared = preparedTaskFields(guided, options.people);
     if (prepared.title) setTitle(prepared.title);
     if (prepared.description) setDescription(prepared.description);
     if (prepared.dueLocal) setDue(prepared.dueLocal);
@@ -314,8 +323,8 @@ export function TaskEditor({
     clearPrepared();
   }
   return (
-    <details className="card" open={!source || clone}>
-      <summary>
+    <FormDisclosure appearance={appearance} inline={Boolean(!source || clone)} className={appearance === "standard" ? "ui-panel" : "card"} open={!source || clone}>
+      <summary data-ui-appearance={appearance}>
         {templateMode
           ? clone
             ? "Clone routine template"
@@ -323,18 +332,34 @@ export function TaskEditor({
               ? "Edit routine template"
               : "New routine template"
           : canRevise
-            ? ordinaryTask ? "Update task" : "Revise task and restart approvals"
+            ? ordinaryTask
+              ? "Update task"
+              : "Revise task and restart approvals"
             : task
               ? "Edit draft"
               : "New task"}
       </summary>
-      {guided && createKind === "task" && <div className="notice" role="status">
-        <p>AI prepared task details. Review the owner, date and text before saving; this will replace any text already entered.</p>
-        {guided.assignee && <p>Suggested owner: {guided.assignee}. Choose the accountable assignee if it is not selected automatically.</p>}
-        <button type="button" className="button secondary" onClick={usePrepared}>Use prepared details</button>{" "}
-        <button type="button" className="button ghost" onClick={clearPrepared}>Discard suggestion</button>
-      </div>}
-      <form
+      {guided && createKind === "task" && (
+        <div data-ui-appearance={appearance} className="notice" role="status">
+          <p data-ui-appearance={appearance}>
+            AI prepared task details. Review the owner, date and text before saving; this will
+            replace any text already entered.
+          </p>
+          {guided.assignee && (
+            <p data-ui-appearance={appearance}>
+              Suggested owner: {guided.assignee}. Choose the accountable assignee if it is not
+              selected automatically.
+            </p>
+          )}
+          <Button appearance={appearance} variant="secondary" type="button" onClick={usePrepared}>
+            Use prepared details
+          </Button>{" "}
+          <Button appearance={appearance} variant="ghost" type="button" onClick={clearPrepared}>
+            Discard suggestion
+          </Button>
+        </div>
+      )}
+      <form data-ui-appearance={appearance}
         onSubmit={(e) => {
           e.preventDefault();
           const f = new FormData(e.currentTarget),
@@ -357,18 +382,14 @@ export function TaskEditor({
           const path = routine
             ? `routine-templates${template ? `/${template.id}${clone ? "/clone" : ""}` : ""}`
             : `staff-tasks${task ? `/${task.id}${canRevise ? "/revise" : ""}` : ""}`;
-          void send(
-            path,
-            payload,
-            routine ? "routine-templates" : "staff-tasks",
-          );
+          void send(path, payload, routine ? "routine-templates" : "staff-tasks");
         }}
       >
-        <div className="business-form">
+        <div data-ui-appearance={appearance} className={appearance === "standard" ? "ui-form-grid" : "business-form"}>
           {!source && (
-            <label>
+            <Field appearance={appearance}>
               Create as
-              <select
+              <Select appearance={appearance}
                 name="recordKind"
                 value={createKind}
                 onChange={(e) => {
@@ -380,71 +401,81 @@ export function TaskEditor({
                   }
                 }}
               >
-                <option value="task">Operational or project task</option>
-                <option value="routine">Reusable routine template</option>
-              </select>
-            </label>
+                <option data-ui-appearance={appearance} value="task">Operational or project task</option>
+                <option data-ui-appearance={appearance} value="routine">Reusable routine template</option>
+              </Select>
+            </Field>
           )}
-          <label>
+          <Field appearance={appearance}>
             Title
-            <input
+            <TextInput appearance={appearance}
               name="title"
               required
               minLength={2}
               maxLength={200}
               value={title}
-              onChange={e=>setTitle(e.target.value)}
+              onChange={(e) => setTitle(e.target.value)}
             />
-          </label>
-          <label>
+          </Field>
+          <Field appearance={appearance}>
             Project
-            <select name="projectId" defaultValue={source?.project_id ?? initialProjectId ?? ""}>
-              <option value="">Standalone work</option>
+            <Select appearance={appearance} name="projectId" defaultValue={source?.project_id ?? initialProjectId ?? ""}>
+              <option data-ui-appearance={appearance} value="">Standalone work</option>
               {projects.map((p) => (
-                <option key={p.id} value={p.id}>
+                <option data-ui-appearance={appearance} key={p.id} value={p.id}>
                   {p.title}
                 </option>
               ))}
-            </select>
-          </label>
-          {!templateMode && <PreferredDateTimeField name="dueAt" label={`Due date and time${ordinaryTask ? " (optional)" : ""}`}
-            required={!ordinaryTask} valueLocal={due} onLocalChange={setDue} />}
+            </Select>
+          </Field>
+          {!templateMode && (
+            <PreferredDateTimeField appearance={appearance}
+              name="dueAt"
+              label={`Due date and time${ordinaryTask ? " (optional)" : ""}`}
+              required={!ordinaryTask}
+              valueLocal={due}
+              onLocalChange={setDue}
+            />
+          )}
         </div>
-        <label>
+        <Field appearance={appearance}>
           Description
-          <textarea
+          <TextArea appearance={appearance}
             name="description"
             maxLength={10000}
             value={description}
-            onChange={e=>setDescription(e.target.value)}
+            onChange={(e) => setDescription(e.target.value)}
           />
-        </label>
-        <StaffPicker
+        </Field>
+        <StaffPicker appearance={appearance}
           label="Accountable assignee"
           value={assignee}
           onChange={setAssignee}
           options={options}
         />
-        <label>
+        <Field appearance={appearance}>
           Review
-          <select
+          <Select appearance={appearance}
             value={phase}
             onChange={(e) => {
               const next = e.target.value;
               setPhase(next);
               if ((next === "start" || next === "both") && !before.length) setBefore([""]);
               if ((next === "completion" || next === "both") && !after.length) setAfter([""]);
-              if (next !== "none" && !due) { const value = localMinuteAt(Date.now() + 86400000, timeZone); setDue(`${value.date}T${value.time}`); }
+              if (next !== "none" && !due) {
+                const value = localMinuteAt(Date.now() + 86400000, timeZone);
+                setDue(`${value.date}T${value.time}`);
+              }
             }}
           >
-            {maySkipReview && <option value="none">No review needed</option>}
-            <option value="completion">After completion</option>
-            <option value="start">Before work starts</option>
-            <option value="both">Before work and after completion</option>
-          </select>
-        </label>
+            {maySkipReview && <option data-ui-appearance={appearance} value="none">No review needed</option>}
+            <option data-ui-appearance={appearance} value="completion">After completion</option>
+            <option data-ui-appearance={appearance} value="start">Before work starts</option>
+            <option data-ui-appearance={appearance} value="both">Before work and after completion</option>
+          </Select>
+        </Field>
         {(phase === "start" || phase === "both") && (
-          <Approvers
+          <Approvers appearance={appearance}
             label="Start approval"
             values={before}
             onChange={setBefore}
@@ -453,7 +484,7 @@ export function TaskEditor({
           />
         )}
         {(phase === "completion" || phase === "both") && (
-          <Approvers
+          <Approvers appearance={appearance}
             label="Completion approval"
             values={after}
             onChange={setAfter}
@@ -462,33 +493,38 @@ export function TaskEditor({
           />
         )}
         {templateMode && (
-          <label className="staff-check">
-            <input
+          <Field appearance={appearance} orientation="inline" className="staff-check">
+            <TextInput appearance={appearance}
               name="published"
               type="checkbox"
               defaultChecked={!template || !!template.published}
             />
             Publish for company staff
-          </label>
+          </Field>
         )}
         {canRevise && (
-          <label>
+          <Field appearance={appearance}>
             Revision reason
-            <textarea name="reason" required={!ordinaryTask} minLength={ordinaryTask ? undefined : 3} maxLength={2000} />
-            <small>
+            <TextArea appearance={appearance}
+              name="reason"
+              required={!ordinaryTask}
+              minLength={ordinaryTask ? undefined : 3}
+              maxLength={2000}
+            />
+            <small data-ui-appearance={appearance}>
               {ordinaryTask
                 ? "The updated task remains ready to work."
                 : "This returns the task to draft. Submit it again to restart approvals. Previous decisions remain in history."}
             </small>
-          </label>
+          </Field>
         )}
         {error && (
-          <p className="error" role="alert">
+          <p data-ui-appearance={appearance} className="error" role="alert">
             {error}
           </p>
         )}
-        <div className="form-actions">
-          <button className="button" disabled={busy}>
+        <div data-ui-appearance={appearance} className={appearance === "standard" ? "ui-form-actions" : "form-actions"}>
+          <Button appearance={appearance} clientManaged type="submit" variant="primary" disabled={busy}>
             {busy
               ? "Saving…"
               : canRevise
@@ -497,24 +533,28 @@ export function TaskEditor({
                   ? "Create my copy"
                   : templateMode
                     ? "Save routine template"
-                    : ordinaryTask ? "Create task" : "Save task draft"}
-          </button>
+                    : ordinaryTask
+                      ? "Create task"
+                      : "Save task draft"}
+          </Button>
         </div>
       </form>
-    </details>
+    </FormDisclosure>
   );
 }
-export function TaskActions({
-  base,
-  detail,
-}: {
-  base: string;
-  detail: TaskDetail;
-}) {
+export function TaskActions({ appearance = "legacy", base, detail }: ({ base: string; detail: TaskDetail }) & { appearance?: UiAppearance }) {
   const { send, busy, error } = useStaffCommand(base),
     [note, setNote] = useState(detail.task.completion_note),
-    [evidence, setEvidence] = useState<AttachmentPanelChange>({setId:null,links:[],readyCount:0,requiredCount:0,bindable:true});
-  const ordinaryTask = detail.task.template_id === null && detail.task.schedule_id === null &&
+    [evidence, setEvidence] = useState<AttachmentPanelChange>({
+      setId: null,
+      links: [],
+      readyCount: 0,
+      requiredCount: 0,
+      bindable: true,
+    });
+  const ordinaryTask =
+    detail.task.template_id === null &&
+    detail.task.schedule_id === null &&
     detail.task.start_approvers_json === "[]" &&
     detail.task.completion_approvers_json === "[]";
   const labels: Record<string, string> = {
@@ -531,63 +571,75 @@ export function TaskActions({
     detail.permittedActions.includes("edit") ||
     detail.permittedActions.includes("save-progress") ||
     (ordinaryTask && detail.task.state === "ready" && detail.permittedActions.includes("complete"));
-  const activeEvidence=evidence.links.filter((link)=>!["withdrawn","expired"].includes(link.linkState));
-  const hasEvidence=activeEvidence.length>0,evidencePending=hasEvidence&&!evidence.bindable;
-  const evidenceActions=new Set(["submit","save-progress","complete"]);
+  const activeEvidence = evidence.links.filter(
+    (link) => !["withdrawn", "expired"].includes(link.linkState),
+  );
+  const hasEvidence = activeEvidence.length > 0,
+    evidencePending = hasEvidence && !evidence.bindable;
+  const evidenceActions = new Set(["submit", "save-progress", "complete"]);
   return (
     <>
       {(actions.length > 0 || detail.blockedReason) && (
-        <section className="card">
-          <h2>Next action</h2>
+        <section data-ui-appearance={appearance} className={appearance === "standard" ? "ui-panel" : "card"}>
+          <h2 data-ui-appearance={appearance}>Next action</h2>
           {detail.blockedReason && (
-            <p className="notice" role="status">
+            <p data-ui-appearance={appearance} className="notice" role="status">
               Blocked: {detail.blockedReason}
             </p>
           )}
           {actions.length > 0 && (
             <>
-              <label>
-                {ordinaryTask ? "Completion note (optional; cancellation needs a reason)" : "Completion or decision note"}
-                <textarea
+              <Field appearance={appearance}>
+                {ordinaryTask
+                  ? "Completion note (optional; cancellation needs a reason)"
+                  : "Completion or decision note"}
+                <TextArea appearance={appearance}
                   aria-label="Completion or decision note"
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   maxLength={10000}
                 />
-              </label>
-              <div className="form-actions">
+              </Field>
+              <div data-ui-appearance={appearance} className={appearance === "standard" ? "ui-form-actions" : "form-actions"}>
                 {actions.map((action) => (
-                  <button
+                  <Button appearance={appearance}
+                    clientManaged type="submit"
+                    variant="plain"
                     key={action}
                     className={`button ${["reject", "cancel", "save-progress"].includes(action) ? "secondary" : ""}`}
-                    disabled={busy || evidencePending || (hasEvidence && !evidenceActions.has(action))}
+                    disabled={
+                      busy || evidencePending || (hasEvidence && !evidenceActions.has(action))
+                    }
                     onClick={() =>
                       void send(`staff-tasks/${detail.task.id}/transition`, {
                         action,
                         expectedVersion: detail.task.version,
                         note,
                         attachmentSetIds:
-                          hasEvidence && evidence.bindable && evidence.setId && evidenceActions.has(action)
+                          hasEvidence &&
+                          evidence.bindable &&
+                          evidence.setId &&
+                          evidenceActions.has(action)
                             ? [evidence.setId]
                             : [],
                       })
                     }
                   >
                     {labels[action]}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </>
           )}
           {error && (
-            <p role="alert" className="error">
+            <p data-ui-appearance={appearance} role="alert" className="error">
               {error}
             </p>
           )}
         </section>
       )}
-      <section className="card">
-        <AttachmentPanel
+      <section data-ui-appearance={appearance} className={appearance === "standard" ? "ui-panel" : "card"}>
+        <AttachmentPanel appearance={appearance}
           key={`${detail.task.id}:${detail.task.version}`}
           base={base}
           targetType="staff_task"
@@ -604,61 +656,95 @@ export function TaskActions({
           showHistory
           onChange={setEvidence}
         />
-        {evidencePending && <p className="notice" role="status">Wait for every selected file to pass security scanning before changing the task.</p>}
-        {hasEvidence && evidence.bindable && <p className="notice" role="status">Clean evidence will be locked to the next supported task action.</p>}
-        {detail.attachments.length > 0 && <details><summary>Legacy task attachments</summary>{detail.attachments.map((file) => (
-          <a className="row" key={file.id} href={`/api/v1${base}/attachments/${file.id}/content`}>
-            {file.original_name} · {Math.ceil(file.bytes / 1024)} KB
-          </a>
-        ))}</details>}
+        {evidencePending && (
+          <p data-ui-appearance={appearance} className="notice" role="status">
+            Wait for every selected file to pass security scanning before changing the task.
+          </p>
+        )}
+        {hasEvidence && evidence.bindable && (
+          <p data-ui-appearance={appearance} className="notice" role="status">
+            Clean evidence will be locked to the next supported task action.
+          </p>
+        )}
+        {detail.attachments.length > 0 && (
+          <details data-ui-appearance={appearance}>
+            <summary data-ui-appearance={appearance}>Legacy task attachments</summary>
+            {detail.attachments.map((file) => (
+              <a data-ui-appearance={appearance}
+                className={appearance === "standard" ? "ui-record-item" : "row"}
+                key={file.id}
+                href={`/api/v1${base}/attachments/${file.id}/content`}
+              >
+                {file.original_name} · {Math.ceil(file.bytes / 1024)} KB
+              </a>
+            ))}
+          </details>
+        )}
       </section>
     </>
   );
 }
-export function TaskDelegationControls({
+export function TaskDelegationControls({ appearance = "legacy",
   base,
   detail,
   options,
-}: {
+}: ({
   base: string;
   detail: TaskDetail;
   options: StaffOptions;
-}) {
+}) & { appearance?: UiAppearance }) {
   const { send, busy, error } = useStaffCommand(base),
     canDelegate = detail.permittedActions.includes("delegate"),
     [defaultExpiry] = useState(() => Date.now() + 86_400_000),
     [delegate, setDelegate] = useState(""),
     [reason, setReason] = useState(""),
     [revokeReason, setRevokeReason] = useState("");
-  const timestamp = (value: number) => <TimeText value={value} />;
+  const timestamp = (value: number) => <TimeText appearance={appearance} value={value} />;
   return (
-    <section className="card">
-      <h2>Temporary delegation</h2>
+    <section data-ui-appearance={appearance} className={appearance === "standard" ? "ui-panel" : "card"}>
+      <h2 data-ui-appearance={appearance}>Temporary delegation</h2>
       {detail.delegation ? (
         <>
-          <p className="notice">
-            This task is delegated to <strong>{detail.delegation.delegate_name}</strong> until {timestamp(detail.delegation.expires_at)}.
+          <p data-ui-appearance={appearance} className="notice">
+            This task is delegated to <strong data-ui-appearance={appearance}>{detail.delegation.delegate_name}</strong> until{" "}
+            {timestamp(detail.delegation.expires_at)}.
           </p>
-          <p className="muted">Reason: {detail.delegation.reason}</p>
+          <p data-ui-appearance={appearance} className="muted">Reason: {detail.delegation.reason}</p>
           {canDelegate && (
-            <form className="business-form" onSubmit={(event) => {
-              event.preventDefault();
-                void send(`staff-tasks/${detail.task.id}/delegate/revoke/${detail.delegation!.id}`, {
-                  expectedVersion: detail.task.version,
-                  reason: revokeReason,
-                }).then((result) => { if (result) setRevokeReason(""); });
-            }}>
-              <label>
+            <form data-ui-appearance={appearance}
+              className={appearance === "standard" ? "ui-form-grid" : "business-form"}
+              onSubmit={(event) => {
+                event.preventDefault();
+                void send(
+                  `staff-tasks/${detail.task.id}/delegate/revoke/${detail.delegation!.id}`,
+                  {
+                    expectedVersion: detail.task.version,
+                    reason: revokeReason,
+                  },
+                ).then((result) => {
+                  if (result) setRevokeReason("");
+                });
+              }}
+            >
+              <Field appearance={appearance}>
                 Reason for revoking
-                <textarea value={revokeReason} onChange={(event) => setRevokeReason(event.target.value)} minLength={3} maxLength={2000} required />
-              </label>
-              <button className="button secondary" disabled={busy}>Revoke delegation</button>
+                <TextArea appearance={appearance}
+                  value={revokeReason}
+                  onChange={(event) => setRevokeReason(event.target.value)}
+                  minLength={3}
+                  maxLength={2000}
+                  required
+                />
+              </Field>
+              <Button appearance={appearance} clientManaged type="submit" variant="secondary" disabled={busy}>
+                Revoke delegation
+              </Button>
             </form>
           )}
         </>
       ) : canDelegate ? (
-        <form
-          className="business-form"
+        <form data-ui-appearance={appearance}
+          className={appearance === "standard" ? "ui-form-grid" : "business-form"}
           onSubmit={(event) => {
             event.preventDefault();
             void send(`staff-tasks/${detail.task.id}/delegate`, {
@@ -669,38 +755,82 @@ export function TaskDelegationControls({
             });
           }}
         >
-          <label>
+          <Field appearance={appearance}>
             Delegate to
-            <select value={delegate} onChange={(event) => setDelegate(event.target.value)} required>
-              <option value="">Choose active staff</option>
+            <Select appearance={appearance} value={delegate} onChange={(event) => setDelegate(event.target.value)} required>
+              <option data-ui-appearance={appearance} value="">Choose active staff</option>
               {options.people
-                .filter((person, index, people) => people.findIndex((candidate) => candidate.user_id === person.user_id) === index && person.user_id !== detail.task.assignee_user_id)
-                .map((person) => <option key={person.user_id} value={person.user_id}>{person.legal_name}</option>)}
-            </select>
-          </label>
-          <PreferredDateTimeField name="expiry" label="Expires" required initialInstant={defaultExpiry} />
-          <label>
+                .filter(
+                  (person, index, people) =>
+                    people.findIndex((candidate) => candidate.user_id === person.user_id) ===
+                      index && person.user_id !== detail.task.assignee_user_id,
+                )
+                .map((person) => (
+                  <option data-ui-appearance={appearance} key={person.user_id} value={person.user_id}>
+                    {person.legal_name}
+                  </option>
+                ))}
+            </Select>
+          </Field>
+          <PreferredDateTimeField appearance={appearance}
+            name="expiry"
+            label="Expires"
+            required
+            initialInstant={defaultExpiry}
+          />
+          <Field appearance={appearance}>
             Reason
-            <textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={2000} required />
-          </label>
-          {error && <p className="error" role="alert">{error}</p>}
-          <button className="button" disabled={busy || !delegate}>Delegate task</button>
+            <TextArea appearance={appearance}
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              minLength={3}
+              maxLength={2000}
+              required
+            />
+          </Field>
+          {error && (
+            <p data-ui-appearance={appearance} className="error" role="alert">
+              {error}
+            </p>
+          )}
+          <Button appearance={appearance} clientManaged type="submit" variant="primary" disabled={busy || !delegate}>
+            Delegate task
+          </Button>
         </form>
       ) : (
-        <p className="muted">No active delegation. The creator or project owner can temporarily assign coverage.</p>
+        <p data-ui-appearance={appearance} className="muted">
+          No active delegation. The creator or project owner can temporarily assign coverage.
+        </p>
       )}
-      {error && detail.delegation && <p className="error" role="alert">{error}</p>}
+      {error && detail.delegation && (
+        <p data-ui-appearance={appearance} className="error" role="alert">
+          {error}
+        </p>
+      )}
       {detail.delegationHistory.length > 0 && (
-        <details>
-          <summary>Delegation history</summary>
-          {detail.delegationHistory.length === 50 && <p className="muted">Showing the 50 most recent delegations.</p>}
-          <ol>
+        <details data-ui-appearance={appearance}>
+          <summary data-ui-appearance={appearance}>Delegation history</summary>
+          {detail.delegationHistory.length === 50 && (
+            <p data-ui-appearance={appearance} className="muted">Showing the 50 most recent delegations.</p>
+          )}
+          <ol data-ui-appearance={appearance}>
             {detail.delegationHistory.map((entry) => (
-              <li key={entry.id}>
-                <p><strong>{entry.delegate_name}</strong> · {entry.status}</p>
-                <p>Delegated by {entry.delegator_name} from {timestamp(entry.starts_at)} until {timestamp(entry.expires_at)}.</p>
-                <p>Reason: {entry.reason}</p>
-                {entry.status === "revoked" && <p>Revoked by {entry.revoked_by_name} {entry.revoked_at ? <>at {timestamp(entry.revoked_at)}</> : ""}. Reason: {entry.revoke_reason ?? "No reason retained for this earlier revocation."}</p>}
+              <li data-ui-appearance={appearance} key={entry.id}>
+                <p data-ui-appearance={appearance}>
+                  <strong data-ui-appearance={appearance}>{entry.delegate_name}</strong> · {entry.status}
+                </p>
+                <p data-ui-appearance={appearance}>
+                  Delegated by {entry.delegator_name} from {timestamp(entry.starts_at)} until{" "}
+                  {timestamp(entry.expires_at)}.
+                </p>
+                <p data-ui-appearance={appearance}>Reason: {entry.reason}</p>
+                {entry.status === "revoked" && (
+                  <p data-ui-appearance={appearance}>
+                    Revoked by {entry.revoked_by_name}{" "}
+                    {entry.revoked_at ? <>at {timestamp(entry.revoked_at)}</> : ""}. Reason:{" "}
+                    {entry.revoke_reason ?? "No reason retained for this earlier revocation."}
+                  </p>
+                )}
               </li>
             ))}
           </ol>
@@ -709,26 +839,24 @@ export function TaskDelegationControls({
     </section>
   );
 }
-export function ProjectEditor({
+export function ProjectEditor({ appearance = "legacy",
   base,
   options,
   project,
   members = [],
-}: {
+}: ({
   base: string;
   options: StaffOptions;
   project?: ProjectRow;
   members?: string[];
-}) {
+}) & { appearance?: UiAppearance }) {
   const { send, busy, error } = useStaffCommand(base),
     [selected, setSelected] = useState(members),
     [person, setPerson] = useState("");
   return (
-    <details className="card">
-      <summary>
-        {project ? "Manage project and members" : "New project"}
-      </summary>
-      <form
+    <FormDisclosure appearance={appearance} className={appearance === "standard" ? "ui-panel" : "card"}>
+      <summary data-ui-appearance={appearance}>{project ? "Manage project and members" : "New project"}</summary>
+      <form data-ui-appearance={appearance}
         onSubmit={(e) => {
           e.preventDefault();
           const f = new FormData(e.currentTarget);
@@ -744,25 +872,25 @@ export function ProjectEditor({
           );
         }}
       >
-        <label>
+        <Field appearance={appearance}>
           Project title
-          <input
+          <TextInput appearance={appearance}
             name="title"
             required
             minLength={2}
             maxLength={200}
             defaultValue={project?.title ?? ""}
           />
-        </label>
-        <label>
+        </Field>
+        <Field appearance={appearance}>
           Description
-          <textarea
+          <TextArea appearance={appearance}
             name="description"
             maxLength={10000}
             defaultValue={project?.description ?? ""}
           />
-        </label>
-        <StaffPicker
+        </Field>
+        <StaffPicker appearance={appearance}
           label="Add company member"
           required={false}
           value={person}
@@ -770,8 +898,9 @@ export function ProjectEditor({
           options={options}
           exclude={selected}
         />
-        <button
-          className="button secondary"
+        <Button appearance={appearance}
+          variant="secondary"
+
           type="button"
           disabled={!person}
           onClick={() => {
@@ -780,53 +909,53 @@ export function ProjectEditor({
           }}
         >
           Add member
-        </button>
+        </Button>
         {selected.map((user) => (
-          <div className="row" key={user}>
-            <span>
-              {options.people.find((p) => p.user_id === user)?.legal_name ??
-                "Unavailable staff"}
+          <div data-ui-appearance={appearance} className={appearance === "standard" ? "ui-record-item" : "row"} key={user}>
+            <span data-ui-appearance={appearance}>
+              {options.people.find((p) => p.user_id === user)?.legal_name ?? "Unavailable staff"}
             </span>
-            <button
-              className="button ghost"
+            <Button appearance={appearance}
+              variant="ghost"
+
               type="button"
               onClick={() => setSelected(selected.filter((v) => v !== user))}
             >
               Remove member
-            </button>
+            </Button>
           </div>
         ))}
         {error && (
-          <p className="error" role="alert">
+          <p data-ui-appearance={appearance} className="error" role="alert">
             {error}
           </p>
         )}
-        <button className="button" disabled={busy}>
+        <Button appearance={appearance} clientManaged type="submit" variant="primary" disabled={busy}>
           Save project
-        </button>
+        </Button>
       </form>
-    </details>
+    </FormDisclosure>
   );
 }
-export function RoutineScheduleControls({
+export function RoutineScheduleControls({ appearance = "legacy",
   base,
   template,
   schedules,
   canEdit,
-}: {
+}: ({
   base: string;
   template: TemplateRow;
   schedules: ScheduleRow[];
   canEdit: boolean;
-}) {
+}) & { appearance?: UiAppearance }) {
   const { send, busy, error } = useStaffCommand(base),
     [frequency, setFrequency] = useState("daily"),
     [defaultDueInstant] = useState(() => Date.now() + 86400000);
   function scheduleForm(schedule?: ScheduleRow) {
     return (
-      <form
+      <form data-ui-appearance={appearance}
         key={schedule?.id ?? "new"}
-        className="business-form"
+        className={appearance === "standard" ? "ui-form-grid" : "business-form"}
         onSubmit={(e) => {
           e.preventDefault();
           const f = new FormData(e.currentTarget);
@@ -838,86 +967,68 @@ export function RoutineScheduleControls({
               occurrenceTime: f.get("occurrenceTime"),
               startDate: f.get("startDate"),
               endDate: f.get("endDate") || null,
-              weekday:
-                f.get("weekday") === "" ? null : Number(f.get("weekday")),
-              monthDay:
-                f.get("monthDay") === "" ? null : Number(f.get("monthDay")),
+              weekday: f.get("weekday") === "" ? null : Number(f.get("weekday")),
+              monthDay: f.get("monthDay") === "" ? null : Number(f.get("monthDay")),
               dueOffsetHours: Number(f.get("dueOffsetHours")),
               expectedVersion: schedule?.version ?? 1,
             },
           );
         }}
       >
-        <label>
+        <Field appearance={appearance}>
           Frequency
-          <select
+          <Select appearance={appearance}
             name="frequency"
             defaultValue={schedule?.frequency ?? frequency}
             onChange={(e) => setFrequency(e.target.value)}
           >
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
-        </label>
-        <label>
+            <option data-ui-appearance={appearance} value="daily">Daily</option>
+            <option data-ui-appearance={appearance} value="weekly">Weekly</option>
+            <option data-ui-appearance={appearance} value="monthly">Monthly</option>
+          </Select>
+        </Field>
+        <Field appearance={appearance}>
           Timezone
-          <input
-            name="timezone"
-            defaultValue={schedule?.timezone ?? "Asia/Bangkok"}
-            required
-          />
-        </label>
-        <label>
+          <TextInput appearance={appearance} name="timezone" defaultValue={schedule?.timezone ?? "Asia/Bangkok"} required />
+        </Field>
+        <Field appearance={appearance}>
           Occurrence time
-          <input
+          <TextInput appearance={appearance}
             name="occurrenceTime"
             type="time"
             defaultValue={schedule?.occurrence_time ?? "09:00"}
             required
           />
-        </label>
-        <label>
+        </Field>
+        <Field appearance={appearance}>
           Start date
-          <input
+          <TextInput appearance={appearance}
             name="startDate"
             type="date"
             required
-            defaultValue={
-              schedule?.start_date ?? new Date().toISOString().slice(0, 10)
-            }
+            defaultValue={schedule?.start_date ?? new Date().toISOString().slice(0, 10)}
           />
-        </label>
-        <label>
+        </Field>
+        <Field appearance={appearance}>
           End date
-          <input
-            name="endDate"
-            type="date"
-            defaultValue={schedule?.end_date ?? ""}
-          />
-        </label>
-        <label>
+          <TextInput appearance={appearance} name="endDate" type="date" defaultValue={schedule?.end_date ?? ""} />
+        </Field>
+        <Field appearance={appearance}>
           Weekly weekday
-          <select name="weekday" defaultValue={schedule?.weekday ?? ""}>
-            <option value="">Use start weekday</option>
-            {[
-              "Sunday",
-              "Monday",
-              "Tuesday",
-              "Wednesday",
-              "Thursday",
-              "Friday",
-              "Saturday",
-            ].map((day, i) => (
-              <option key={day} value={i}>
-                {day}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
+          <Select appearance={appearance} name="weekday" defaultValue={schedule?.weekday ?? ""}>
+            <option data-ui-appearance={appearance} value="">Use start weekday</option>
+            {["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map(
+              (day, i) => (
+                <option data-ui-appearance={appearance} key={day} value={i}>
+                  {day}
+                </option>
+              ),
+            )}
+          </Select>
+        </Field>
+        <Field appearance={appearance}>
           Monthly day
-          <input
+          <TextInput appearance={appearance}
             name="monthDay"
             type="number"
             min={1}
@@ -925,10 +1036,10 @@ export function RoutineScheduleControls({
             defaultValue={schedule?.month_day ?? ""}
             placeholder="Use start day"
           />
-        </label>
-        <label>
+        </Field>
+        <Field appearance={appearance}>
           Due offset in hours
-          <input
+          <TextInput appearance={appearance}
             name="dueOffsetHours"
             type="number"
             required
@@ -936,19 +1047,19 @@ export function RoutineScheduleControls({
             max={8760}
             defaultValue={schedule?.due_offset_hours ?? 24}
           />
-        </label>
-        <button className="button secondary" disabled={busy}>
+        </Field>
+        <Button appearance={appearance} clientManaged type="submit" variant="secondary" disabled={busy}>
           Save paused schedule
-        </button>
+        </Button>
       </form>
     );
   }
   return (
     <>
-      <section className="card">
-        <h2>Run routine now</h2>
-        <form
-          className="business-form"
+      <section data-ui-appearance={appearance} className={appearance === "standard" ? "ui-panel" : "card"}>
+        <h2 data-ui-appearance={appearance}>Run routine now</h2>
+        <form data-ui-appearance={appearance}
+          className={appearance === "standard" ? "ui-form-grid" : "business-form"}
           onSubmit={(e) => {
             e.preventDefault();
             void send(
@@ -960,39 +1071,41 @@ export function RoutineScheduleControls({
             );
           }}
         >
-          <PreferredDateTimeField name="dueAt" label="Task due date and time" required initialInstant={defaultDueInstant} />
-          <button className="button" disabled={busy || !template.published}>
+          <PreferredDateTimeField appearance={appearance}
+            name="dueAt"
+            label="Task due date and time"
+            required
+            initialInstant={defaultDueInstant}
+          />
+          <Button appearance={appearance} clientManaged type="submit" variant="primary" disabled={busy || !template.published}>
             Create occurrence
-          </button>
+          </Button>
         </form>
       </section>
-      <section className="card">
-        <h2>Schedules</h2>
-        <p className="muted">
-          Each occurrence creates independent work. Monthly days beyond
-          month-end use the last day.
+      <section data-ui-appearance={appearance} className={appearance === "standard" ? "ui-panel" : "card"}>
+        <h2 data-ui-appearance={appearance}>Schedules</h2>
+        <p data-ui-appearance={appearance} className="muted">
+          Each occurrence creates independent work. Monthly days beyond month-end use the last day.
         </p>
         {schedules.map((s) => (
-          <article className="card" key={s.id}>
-            <p>
-              <strong>
+          <article data-ui-appearance={appearance} className={appearance === "standard" ? "ui-panel" : "card"} key={s.id}>
+            <p data-ui-appearance={appearance}>
+              <strong data-ui-appearance={appearance}>
                 {s.frequency} at {s.occurrence_time} · {s.timezone}
               </strong>{" "}
               · {s.state}
             </p>
-            <p>
+            <p data-ui-appearance={appearance}>
               Next occurrence:{" "}
-              {s.next_occurrence_at
-                ? formatUiDateTime(s.next_occurrence_at, s.timezone)
-                : "None"}
+              {s.next_occurrence_at ? formatUiDateTime(s.next_occurrence_at, s.timezone) : "None"}
             </p>
-            {s.last_error && (
-              <p role="alert">Generation failed: {s.last_error}</p>
-            )}
+            {s.last_error && <p data-ui-appearance={appearance} role="alert">Generation failed: {s.last_error}</p>}
             {canEdit && s.state !== "ended" && (
               <>
-                <button
-                  className="button secondary"
+                <Button appearance={appearance}
+                  clientManaged type="submit"
+                  variant="secondary"
+
                   disabled={busy}
                   onClick={() =>
                     void send(
@@ -1002,10 +1115,10 @@ export function RoutineScheduleControls({
                   }
                 >
                   {s.state === "active" ? "Pause schedule" : "Resume schedule"}
-                </button>
+                </Button>
                 {s.state === "paused" && (
-                  <details>
-                    <summary>Edit paused schedule</summary>
+                  <details data-ui-appearance={appearance}>
+                    <summary data-ui-appearance={appearance}>Edit paused schedule</summary>
                     {scheduleForm(s)}
                   </details>
                 )}
@@ -1014,17 +1127,17 @@ export function RoutineScheduleControls({
           </article>
         ))}
         {canEdit && (
-          <details>
-            <summary>Add schedule</summary>
-            <p>
-              Schedules are saved paused. Resume after reviewing assignment and
-              approval configuration.
+          <details data-ui-appearance={appearance}>
+            <summary data-ui-appearance={appearance}>Add schedule</summary>
+            <p data-ui-appearance={appearance}>
+              Schedules are saved paused. Resume after reviewing assignment and approval
+              configuration.
             </p>
             {scheduleForm()}
           </details>
         )}
         {error && (
-          <p className="error" role="alert">
+          <p data-ui-appearance={appearance} className="error" role="alert">
             {error}
           </p>
         )}
@@ -1032,24 +1145,24 @@ export function RoutineScheduleControls({
     </>
   );
 }
-export function RerouteControl({
+export function RerouteControl({ appearance = "legacy",
   base,
   approval,
   version,
   options,
-}: {
+}: ({
   base: string;
   approval: ApprovalView;
   version: number;
   options: StaffOptions;
-}) {
+}) & { appearance?: UiAppearance }) {
   const { send, busy, error } = useStaffCommand(base),
     [user, setUser] = useState("");
   if (!approval.instance || !approval.currentApprover) return null;
   return (
-    <details className="card">
-      <summary>Administratively reroute current step</summary>
-      <form
+    <details data-ui-appearance={appearance} className={appearance === "standard" ? "ui-panel" : "card"}>
+      <summary data-ui-appearance={appearance}>Administratively reroute current step</summary>
+      <form data-ui-appearance={appearance}
         onSubmit={(e) => {
           e.preventDefault();
           void send(`approvals/${approval.instance!.id}/reroute`, {
@@ -1060,21 +1173,21 @@ export function RerouteControl({
           });
         }}
       >
-        <StaffPicker
+        <StaffPicker appearance={appearance}
           label="Replacement approver"
           value={user}
           onChange={setUser}
           options={options}
         />
-        <label>
+        <Field appearance={appearance}>
           Rerouting reason
-          <textarea name="reason" minLength={3} maxLength={2000} required />
-        </label>
-        <button className="button secondary" disabled={busy}>
+          <TextArea appearance={appearance} name="reason" minLength={3} maxLength={2000} required />
+        </Field>
+        <Button appearance={appearance} clientManaged type="submit" variant="secondary" disabled={busy}>
           Record rerouting
-        </button>
+        </Button>
         {error && (
-          <p role="alert" className="error">
+          <p data-ui-appearance={appearance} role="alert" className="error">
             {error}
           </p>
         )}
@@ -1082,31 +1195,33 @@ export function RerouteControl({
     </details>
   );
 }
-export function StaffTaskLinks({ base }: { base: string }) {
+export function StaffTaskLinks({ appearance = "legacy", base }: ({ base: string }) & { appearance?: UiAppearance }) {
   return (
-    <nav className="form-actions" aria-label="Staff work">
-      <Link className="button secondary" href={`${base}/work?type=staff_task`}>
+    <nav data-ui-appearance={appearance} className={appearance === "standard" ? "ui-form-actions" : "form-actions"} aria-label="Staff work">
+      <UiActionLink appearance={appearance} variant="secondary" href={`${base}/work?type=staff_task`}>
         Tasks
-      </Link>
-      <Link className="button secondary" href={`${base}/projects`}>
+      </UiActionLink>
+      <UiActionLink appearance={appearance} variant="secondary" href={`${base}/projects`}>
         Projects
-      </Link>
+      </UiActionLink>
     </nav>
   );
 }
 
-export function ReadNotification({ base, id }: { base: string; id: string }) {
+export function ReadNotification({ appearance = "legacy", base, id }: ({ base: string; id: string }) & { appearance?: UiAppearance }) {
   const { send, busy, error } = useStaffCommand(base);
   return (
-    <span>
-      <button
-        className="button ghost"
+    <span data-ui-appearance={appearance}>
+      <Button appearance={appearance}
+        clientManaged type="submit"
+        variant="ghost"
+
         disabled={busy}
         onClick={() => void send(`staff/notifications/${id}/read`, {})}
       >
         Mark read
-      </button>
-      {error && <span role="alert">{error}</span>}
+      </Button>
+      {error && <span data-ui-appearance={appearance} role="alert">{error}</span>}
     </span>
   );
 }

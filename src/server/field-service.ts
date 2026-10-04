@@ -9,9 +9,11 @@ import { hasPermission } from "@/lib/permissions";
 import { hasModuleAccess } from "@/data/module-access";
 import { assertion, executeCommand, replayCommand } from "./commands";
 import { ApiError } from "./http";
+import { availableServiceSpares, consumptionLotSchema, prepareInventoryConsumption } from "./inventory-consumption";
+import { snapshotMoney } from "./company-money";
 const reason = z.string().trim().min(3).max(3000),
   version = z.number().int().positive(),
-  date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+  date = z.string().date();
 const createAgreementSchema = z.object({
   branchId: z.string().min(1),
   departmentId: z.string().nullable().optional(),
@@ -65,6 +67,8 @@ const orderActionSchema = z.discriminatedUnion("action", [
     expectedVersion: version,
     reservationId: z.string().min(1),
     quantityMilli: z.number().int().positive(),
+    entryDate: date.optional(),
+    allocations: z.array(consumptionLotSchema).max(200).default([]),
     reason,
   }),
   z.object({
@@ -220,6 +224,7 @@ export async function fieldServiceDetail(a: WorkContext, id: string) {
   return {
     ...data,
     order,
+    spares:await availableServiceSpares(write,a,String(order.branch_id)),
     parts: (
       await write
         .prepare(
@@ -228,6 +233,7 @@ export async function fieldServiceDetail(a: WorkContext, id: string) {
         .bind(id)
         .all<Row>()
     ).results,
+    consumptions:(await write.prepare("SELECT p.*,j.status journal_status,product.name product_name FROM operational_inventory_consumptions p JOIN finance_journals j ON j.id=p.journal_id JOIN commerce_products product ON product.id=p.product_id WHERE p.source_kind='field_service' AND p.source_id=? ORDER BY p.created_at,p.id").bind(id).all<Row>()).results,
     history: (
       await write
         .prepare(
@@ -262,7 +268,7 @@ export async function createAgreement(
     op = "field.agreement.create",
     prior = await replayCommand(write, a, key, op, id, input);
   if (prior) return prior;
-  const now = Date.now();
+  const now=Date.now(),money=await snapshotMoney(write,a,{sourceType:'field_service_agreement',sourceId:id,amountKind:'visit_rate',transactionDate:input.startDate,currency:input.currency,currencyScale:2,amountUnits:String(input.visitRateMinor)});
   return executeCommand(
     write,
     a,
@@ -273,6 +279,7 @@ export async function createAgreement(
     1,
     { id, version: 1, status: "draft" },
     [
+      money.statement,
       assertion(
         write,
         key,
@@ -683,36 +690,17 @@ export async function changeServiceOrder(
   } else if (input.action === "resume") {
     status = "in_visit";
     exceptionReason = null;
-  } else if (input.action === "issue-part") {
-    details = {
-      reservationId: input.reservationId,
-      quantityMilli: input.quantityMilli,
-    };
-    steps.push(
-      assertion(
-        write,
-        key,
-        "part",
-        "EXISTS(SELECT 1 FROM field_service_part_reservations WHERE id=? AND order_id=? AND quantity_milli-consumed_milli-released_milli>=? AND expires_at>?)",
-        [input.reservationId, id, input.quantityMilli, now],
-      ),
-      write
-        .prepare(
-          "UPDATE field_service_part_reservations SET consumed_milli=consumed_milli+? WHERE id=?",
-        )
-        .bind(input.quantityMilli, input.reservationId),
-      write
-        .prepare(
-          "UPDATE commerce_stock s SET value_minor=s.value_minor-CASE WHEN s.quantity_milli=? THEN s.value_minor ELSE round(s.value_minor::numeric*?/s.quantity_milli)::bigint END,quantity_milli=s.quantity_milli-?,version=s.version+1 FROM field_service_part_reservations r WHERE r.id=? AND s.warehouse_id=r.warehouse_id AND s.product_id=r.product_id",
-        )
-        .bind(
-          input.quantityMilli,
-          input.quantityMilli,
-          input.quantityMilli,
-          input.reservationId,
-        ),
-    );
+  } else if(input.action==='issue-part'){
+    const reservation=await write.prepare('SELECT * FROM field_service_part_reservations WHERE id=? AND order_id=?').bind(input.reservationId,id).first<Row>();
+    if(!reservation)throw new ApiError(404,'FIELD_SERVICE_PART_NOT_FOUND','Select a part reserved for this service order.');
+    const consumption=await prepareInventoryConsumption(write,a,{key,sourceKind:'field_service',sourceId:id,sourceVersion:input.expectedVersion+1,branchId:String(row.branch_id),departmentId:row.department_id?String(row.department_id):null,
+      warehouseId:String(reservation.warehouse_id),productId:String(reservation.product_id),quantityMilli:input.quantityMilli,entryDate:input.entryDate??new Date(now).toISOString().slice(0,10),reason:input.reason,
+      ownReservationMilli:Number(reservation.quantity_milli)-Number(reservation.consumed_milli)-Number(reservation.released_milli),allocations:input.allocations,
+      beforeStock:[assertion(write,key,'part',"EXISTS(SELECT 1 FROM field_service_part_reservations WHERE id=? AND order_id=? AND quantity_milli-consumed_milli-released_milli>=? AND expires_at>?)",[input.reservationId,id,input.quantityMilli,now]),write.prepare('UPDATE field_service_part_reservations SET consumed_milli=consumed_milli+? WHERE id=?').bind(input.quantityMilli,input.reservationId)]});
+    details={reservationId:input.reservationId,quantityMilli:input.quantityMilli,consumptionId:consumption.id,costMinor:consumption.valueMinor,journalId:consumption.journalId};
+    steps.push(...consumption.steps);
   } else if (input.action === "complete") {
+    steps.push(assertion(write,key,'parts-gl-posted',"NOT EXISTS(SELECT 1 FROM operational_inventory_consumptions p JOIN finance_journals j ON j.id=p.journal_id WHERE p.source_kind='field_service' AND p.source_id=? AND j.status<>'posted')",[id]));
     status = "completed";
     details = {
       laborMinutes: input.laborMinutes,
@@ -770,6 +758,7 @@ export async function changeServiceOrder(
         "Configure an active receivable control account and revenue account in Finance before releasing field service billing.",
       );
     steps.push(
+      (await snapshotMoney(write,a,{sourceType:'field_service_billing_release',sourceId:`field-billing-${key}`,amountKind:'invoice_total',transactionDate:invoiceDate,currency:String(row.currency),currencyScale:2,amountUnits:String(amountMinor)})).statement,
       assertion(
         write,
         key,
@@ -841,6 +830,7 @@ export async function changeServiceOrder(
   } else {
     status = "cancelled";
     steps.push(
+      assertion(write,key,'parts-gl-posted',"NOT EXISTS(SELECT 1 FROM operational_inventory_consumptions p JOIN finance_journals j ON j.id=p.journal_id WHERE p.source_kind='field_service' AND p.source_id=? AND j.status<>'posted')",[id]),
       write
         .prepare(
           "UPDATE field_service_part_reservations SET released_milli=quantity_milli-consumed_milli,release_reason='Service order cancelled' WHERE order_id=? AND quantity_milli>consumed_milli+released_milli",

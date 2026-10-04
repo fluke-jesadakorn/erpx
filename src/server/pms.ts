@@ -36,7 +36,7 @@ import { requirePermission } from "./iam-permissions";
 import { prepareJournal } from "./finance";
 import { prepareAttachmentBinding } from "./attachments/service";
 import { ApiError } from "./http";
-import { snapshotMoney } from "./company-money";
+import { snapshotMoney, snapshotMoneyCarry, snapshotMoneyReversal } from "./company-money";
 import { holdingResources } from "./runtime";
 import { readAllPmsRecords, readPmsCalendar, readPmsDashboard, readPmsDetail, readPmsSetupFacts } from "./pms/read-repository";
 import type { PmsSetupFacts } from "@/lib/pms-read";
@@ -1157,7 +1157,7 @@ export async function pmsCommand(
           : op === "lost.release"
             ? {
                 targetType: "pms_lost_property",
-                purposes: new Set(["handover_evidence"]),
+                purposes: new Set(["handover_evidence","lost_property_photo"]),
                 bindingType: "pms_lost_property_release",
                 expectedTargetVersion: targetRecord?.version,
               }
@@ -1343,11 +1343,9 @@ export async function pmsCommand(
       if(op==='reservation.create'&&records(s,'reservation').some(row=>row.id===outcome.id&&row.data.state==='confirmed')){
         const total=records(s,'stay').filter(row=>row.data.reservationId===outcome.id)
           .reduce((sum,row)=>sum+row.data.prices.reduce((nightSum,night)=>nightSum+night.total,0),0);
-        try {
-          const evidence=await snapshotMoney(tx,actor,{sourceType:'pms_reservation',sourceId:outcome.id,amountKind:'room_total',
-            transactionDate:s.property.businessDate,currency:s.property.config.currency,currencyScale:2,amountUnits:String(total)});
-          await evidence.statement.run();
-        } catch(error){if(!(error instanceof ApiError&&error.code==='MANUAL_RATE_REQUIRED'))throw error;}
+        const evidence=await snapshotMoney(tx,actor,{sourceType:'pms_reservation',sourceId:outcome.id,amountKind:'room_total',
+          transactionDate:s.property.businessDate,currency:s.property.config.currency,currencyScale:2,amountUnits:String(total)});
+        await evidence.statement.run();
       }
       if (op === "folio.merge") {
         const v = command.input as { id: string; toFolioId: string };
@@ -1577,4 +1575,105 @@ export async function persistPmsRecords(
         r.version,
         r.updatedAt,
       );
+  await capturePmsMoneyRecords(tx, s, original);
+  // Provider confirmation can persist several folios in one transaction. The
+  // next flush compares with this committed-in-transaction state, not its first
+  // in-memory snapshot, so earlier source evidence is never inserted twice.
+  for (const row of s.records) original.set(row.id, JSON.stringify(row));
+}
+
+/** Owner rows and shared money evidence commit together, including imports and workers. */
+async function capturePmsMoneyRecords(tx: SqlDatabase, s: Snapshot, original: Map<string, string>) {
+  const company = { companyId: s.property.companyId };
+  const capture = async (sourceType: string, sourceId: string, amountKind: string, amount: number, date = s.property.businessDate) => {
+    const value = await snapshotMoney(tx, company, { sourceType, sourceId, amountKind, amountUnits: String(amount),
+      transactionDate: date, currency: s.property.config.currency, currencyScale: s.property.config.minorUnit });
+    await value.statement.run();
+  };
+  // Versioned prices remain the quote selected when booked or explicitly repriced.
+  for (const stay of records(s, "stay")) {
+    const previous = original.has(stay.id) ? JSON.parse(original.get(stay.id)!).data.prices : undefined;
+    if (JSON.stringify(previous) === JSON.stringify(stay.data.prices)) continue;
+    for (const price of stay.data.prices)
+      await capture("pms_stay_price", `${stay.id}:${stay.version}`, price.date, price.total);
+  }
+  for (const row of s.records) {
+    if (original.get(row.id) === JSON.stringify(row) || row.kind === "entry") continue;
+    const previous = original.has(row.id) ? JSON.parse(original.get(row.id)!).data as Record<string, unknown> : undefined;
+    const values: Array<[string, number]> = [];
+    if (row.kind === "rate") {
+      const data = record(s, "rate", row.id).data;
+      values.push(["price", data.price], ["extra_adult", data.extraAdult]);
+      for (const [index, band] of (data.childBands ?? []).entries()) values.push([`child_band:${index}`, band.price]);
+      for (const date of data.calendar ?? []) values.push([`calendar:${date.date}`, date.price]);
+    } else if (row.kind === "item") values.push(["price", record(s, "item", row.id).data.price]);
+    else if (row.kind === "credit") values.push(["limit", record(s, "credit", row.id).data.limit]);
+    else if (row.kind === "refund") values.push(["requested", record(s, "refund", row.id).data.amount]);
+    else if (row.kind === "shift") {
+      const data = record(s, "shift", row.id).data;
+      values.push(["opening", data.opening], ["counted", data.counted], ["variance", data.variance]);
+      for (const [index, movement] of data.movements.entries()) values.push([`movement:${index}`, movement.amount]);
+    }
+    // Cash totals and folio balances are projections of these immutable entries,
+    // not fresh transactions to quote again on every room or shift update.
+    for (const [kind, amount] of values) {
+      const before = row.kind === "rate" && kind.startsWith("child_band:")
+        ? (previous?.childBands as Array<{ price: number }> | undefined)?.[Number(kind.split(":")[1])]?.price
+        : row.kind === "rate" && kind.startsWith("calendar:")
+          ? (previous?.calendar as Array<{ date: string; price: number }> | undefined)?.find(value => value.date === kind.slice(9))?.price
+          : row.kind === "shift" && kind.startsWith("movement:")
+            ? (previous?.movements as Array<{ amount: number }> | undefined)?.[Number(kind.split(":")[1])]?.amount
+          : previous?.[kind === "extra_adult" ? "extraAdult" : kind === "requested" ? "amount" : kind];
+      if (before !== amount) await capture(`pms_${row.kind}`, `${row.id}:${row.version}`, kind, amount);
+    }
+  }
+  for (const row of records(s, "entry")) {
+    if (original.has(row.id)) continue; // Entries are immutable economic source records.
+    const input = { sourceType: "pms_entry", sourceId: row.id, amountKind: "total", transactionDate: row.data.date };
+    if (row.data.total < 0) {
+      if (row.data.funding?.length) {
+        if (row.data.funding.reduce((sum, value) => sum + value.amount, 0) !== -row.data.total)
+          throw new ApiError(409, "PMS_REFUND_FUNDING_CHANGED", "The refund must retain all of its original payment sources.");
+        for (const source of row.data.funding) {
+          const value = await snapshotMoneyReversal(tx, company, { ...input, amountKind: `funding:${source.entryId}`,
+            amountUnits: String(source.amount), original: { sourceType: "pms_entry", sourceId: source.entryId, amountKind: "total" } });
+          await value.statement.run();
+        }
+      } else {
+        const value = await snapshotMoneyReversal(tx, company, { ...input, amountUnits: String(-row.data.total),
+          original: { sourceType: "pms_entry", sourceId: row.data.originalId, amountKind: "total" } });
+        await value.statement.run();
+      }
+      continue;
+    }
+    if (row.data.sourceKey.startsWith("online-payment:") || row.data.sourceKey.startsWith("counter-payment:")) {
+      const online = row.data.sourceKey.startsWith("online-payment:"), sourceId = row.data.sourceKey.slice(online ? 15 : 16);
+      const value = await snapshotMoneyCarry(tx, company, { ...input, amountUnits: String(row.data.total),
+        allocationOffsetUnits: String(row.data.providerPaymentOffset ?? 0),
+        original: { sourceType: online ? "pms_booking_payment" : "pms_stripe_payment", sourceId, amountKind: "requested" } });
+      await value.statement.run();
+    } else if (row.data.kind === "transfer" && row.data.originalId) {
+      const counter = record(s, "entry", row.data.originalId);
+      const value = await snapshotMoneyCarry(tx, company, { ...input, amountUnits: String(row.data.total),
+        original: { sourceType: "pms_entry", sourceId: counter.data.originalId, amountKind: "total" } });
+      await value.statement.run();
+    } else if (row.data.sourceKey.startsWith("night:")) {
+      const date = row.data.sourceKey.slice(-10), stay = record(s, "stay", row.data.stayId);
+      const candidates = (await tx.prepare(`SELECT source_id FROM money_transaction_snapshots WHERE company_id=? AND source_type='pms_stay_price'
+        AND source_id LIKE ? AND amount_kind=? AND amount_units=?`).bind(company.companyId, `${stay.id}:%`, date, String(row.data.total))
+        .all<{ source_id: string }>()).results.sort((a, b) => Number(b.source_id.split(":").at(-1)) - Number(a.source_id.split(":").at(-1)));
+      if (!candidates[0]) throw new ApiError(409, "PMS_PRICE_SNAPSHOT_REQUIRED", "The room charge must retain its reviewed booking price.");
+      const value = await snapshotMoneyCarry(tx, company, { ...input, amountUnits: String(row.data.total),
+        original: { sourceType: "pms_stay_price", sourceId: candidates[0].source_id, amountKind: date } });
+      await value.statement.run();
+    } else if (row.data.funding?.length) {
+      if (row.data.funding.reduce((sum, value) => sum + value.amount, 0) !== row.data.total)
+        throw new ApiError(409, "PMS_ALLOCATION_FUNDING_CHANGED", "The allocation must retain its original payment sources.");
+      for (const source of row.data.funding) {
+        const value = await snapshotMoneyCarry(tx, company, { ...input, amountKind: `funding:${source.entryId}`,
+          amountUnits: String(source.amount), original: { sourceType: "pms_entry", sourceId: source.entryId, amountKind: "total" } });
+        await value.statement.run();
+      }
+    } else await capture(input.sourceType, input.sourceId, input.amountKind, row.data.total, row.data.date);
+  }
 }

@@ -3,33 +3,34 @@ import betaStyles from "@/components/beta/beta.module.css";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { Alert, Button, Field, TextInput } from "@/components/ui/foundation";
-export function BetaAuthForm({
+import { type UiAppearance } from "@/components/ui/foundation";
+export function BetaAuthForm({ appearance = "legacy",
   mode,
   token,
   invalid = false,
   frontMode = false,
-}: {
+}: ({
   mode: "signup" | "forgot" | "reset" | "verify";
   token?: string;
   invalid?: boolean;
   frontMode?: boolean;
-}) {
+}) & { appearance?: UiAppearance }) {
   const [message, setMessage] = useState(""),
     [failed, setFailed] = useState(false),
     [busy, setBusy] = useState(false),
     [completed, setCompleted] = useState(false);
   if (mode === "reset" && (!token || invalid))
     return (
-      <div className={`beta-form ${betaStyles.surface}`}>
+      <div data-ui-appearance={appearance} className={`beta-form ${betaStyles.surface}`}>
         <Alert tone="danger" title="Reset link unavailable">
           This link is invalid, expired, or has been replaced by a newer request.
         </Alert>
-        <a href="/forgot-password">Request a new reset link</a>
-        <a href="/login">Sign in</a>
+        <a data-ui-appearance={appearance} href="/forgot-password">Request a new reset link</a>
+        <a data-ui-appearance={appearance} href="/login">Sign in</a>
       </div>
     );
   return (
-    <form
+    <form data-ui-appearance={appearance}
       className={`beta-form ${betaStyles.surface}`}
       onSubmit={async (e) => {
         e.preventDefault();
@@ -82,14 +83,14 @@ export function BetaAuthForm({
       }}
     >
       {mode === "signup" && (
-        <Field label="Your name" required><TextInput name="name" required maxLength={100} autoComplete="name" /></Field>
+        <Field appearance={appearance} label="Your name" required><TextInput appearance={appearance} name="name" required maxLength={100} autoComplete="name" /></Field>
       )}
       {mode !== "reset" && (
-        <Field label="Email" required><TextInput type="email" name="email" required autoComplete="email" /></Field>
+        <Field appearance={appearance} label="Email" required><TextInput appearance={appearance} type="email" name="email" required autoComplete="email" /></Field>
       )}
       {(mode === "signup" || mode === "reset") && !completed && (
-        <Field label={frontMode ? "New password" : "Password"} required hint="Use at least 12 characters.">
-          <TextInput
+        <Field appearance={appearance} label={frontMode ? "New password" : "Password"} required hint="Use at least 12 characters.">
+          <TextInput appearance={appearance}
             type="password"
             name="password"
             minLength={12}
@@ -98,7 +99,7 @@ export function BetaAuthForm({
           />
         </Field>
       )}
-      {!completed && <Button type="submit" pending={busy}>
+      {!completed && <Button appearance={appearance} clientManaged type="submit" pending={busy}>
         {mode === "signup"
             ? "Create account"
             : mode === "verify"
@@ -108,9 +109,9 @@ export function BetaAuthForm({
                 : "Change password"}
       </Button>}
       {message && <Alert tone={failed ? "danger" : "success"} title={failed ? "Request not completed" : "Check the next step"} live>{message}</Alert>}
-      <a href="/login">Sign in</a>
+      <a data-ui-appearance={appearance} href="/login">Sign in</a>
       {mode === "signup" && (
-        <a href="/verify-email">Resend verification email</a>
+        <a data-ui-appearance={appearance} href="/verify-email">Resend verification email</a>
       )}
     </form>
   );

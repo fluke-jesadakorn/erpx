@@ -65,6 +65,8 @@ export function betaHandler(resource = "beta") {
                 tag: query.get("tag")?.normalize("NFC").toLowerCase(),
                 following: query.get("filter") === "following",
                 branchId: query.get("branch") ?? undefined,
+                teamId: query.has("team") ? z.string().min(1).max(160).parse(query.get("team")) : undefined,
+                stream: query.has("stream") ? z.enum(["conversations", "milestones"]).parse(query.get("stream")) : undefined,
                 beforeId: query.has("beforeId")
                   ? z.string().max(160).parse(query.get("beforeId"))
                   : undefined,

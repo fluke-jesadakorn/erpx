@@ -1,5 +1,7 @@
 # Development performance — 2026-09-22
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 Implemented on the existing dirty workspace, preserving its business changes and HTTP contracts. Public development remains https://erpx.jesadakorn.com → port 3100. Production 3101 and Tunnel rules were not changed.
 
 ## Final measurements

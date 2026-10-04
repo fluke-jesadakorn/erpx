@@ -40,13 +40,13 @@ A paid manual payout (`automatic=false`) has no attributable automatic batch. Th
 - The shared `commerce_stock` trigger rejects quantities below live reservations, including writes by Sales, transfers and physical counts. Resolve affected checkout/kitchen reservations before posting a conflicting count; do not bypass this constraint.
 - Immutable recipe/account snapshots, POS audit and stock moves link bills, preparation, refunds and waste. `inventory_ledger` includes POS movements.
 
-## Acceptance and rollout
+## Acceptance boundaries
 
 Automated tests live in `tests/pos.test.ts`; they exercise real disposable PostgreSQL databases and simulated Stripe responses. They cover cash/split tender, replay, concurrent last-unit reservations, legacy stock-write protection, kitchen WIP/waste, splitting dispatched work, original-cost returns, independent approval, scope/period rejection, rounding, provider account changes, revoked cashiers, closed-period recovery, signature/mode validation and duplicate events. Card checkout expiry and PromptPay expiry/failure release unpaid reservations without inventory or financial postings. Newer refund callbacks delivered before older payment/refund callbacks, including repeated delivery, preserve one receipt, one refund posting, one stock return and the original frozen receipt. These cancellation/reordering checks use simulated providers; genuine Stripe sandbox acceptance remains separate.
 
 Before enabling live payments: complete Connect onboarding in the intended sandbox, then exercise card and PromptPay checkout, partial refund, payment failure/expiry, repeated/reordered webhooks, failed local posting after provider receipt, payout constituents, fees, disputes and bank matching. Test both a retail and restaurant pilot branch with real scanners and 80 mm printers. Monitor pending provider receipts, `pos_jobs.state='exception'`, refund failures and unmatched payouts. Production remains on its existing service; the public development hostname continues to use port 3100.
 
-Environment-dependent acceptance (real connected-account sandbox, physical peripherals and pilot-store signoff) is pending until those accounts and devices are available. Full tax invoices/e-Tax and offline selling are outside this release.
+Actual Stripe Sandbox journeys have recorded development evidence; this does not establish live merchant operation, physical peripherals or pilot-store signoff. See the dated POS records in `docs/testing/evidence/` and the current engineering register. Full tax invoices/e-Tax and offline selling are outside this release.
 
 ## Historical verification — 2026-09-17
 
@@ -54,7 +54,7 @@ These observations describe the earlier baseline. Current development acceptance
 
 - `bun run typecheck`, `bun run lint`, and the isolated `bun run deploy:build` passed. The final verified build was `.runtime/releases/2026-09-16T18-58-29-114Z` (not installed over production).
 - Full integration run: 452 passed, 9 failed, 2 external-service tests skipped. The nine failures were obsolete navigation expectations, a baseline table count, and hard-coded built-in role revisions after the additive migrations. Those fixtures were corrected; the five affected/relevant suites then passed all 41 tests.
-- After the final Stripe recovery changes, POS + business-command + finance-money suites passed all 24 tests, including 18 POS tests. Real Stripe sandbox acceptance remains pending: dedicated POS test key, webhook secret and OAuth client ID are absent.
+- After the final Stripe recovery changes, POS + business-command + finance-money suites passed all 24 tests, including 18 POS tests. This early run did not include real Stripe acceptance. Later dated POS Sandbox records and the 2026-10-03 engineering register cover their named test-mode journeys; provider configuration is still required separately in each environment.
 - Public Chrome session: POS loads, SKU search filters correctly, kitchen station view renders, account configuration lists the selected chart, and creating `POS Acceptance Retail` succeeds through the authenticated command API. The register uses the existing Bangkok warehouse. Company posting settings were intentionally left for Finance to choose; there are no POS sales or payment-provider transactions created by this browser check.
 - Both `http://127.0.0.1:3100/api/health` and `https://erpx.jesadakorn.com/api/health` returned HTTP 200. The detached development server and refreshed jobs worker remain running; PID and logs are in ignored `.scratch/dev/`.
 - Existing Company demo Commerce uses USD; POS preserves that shared currency for manual methods. Stripe POS requires THB. New THB companies need a matching Commerce currency and chart base currency before enabling POS.

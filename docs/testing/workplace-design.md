@@ -1,5 +1,7 @@
 # Workplace design acceptance — 2026-09-13
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 Implemented the shared stone/charcoal and cobalt palette, person avatars, compact Work shortcuts and workflow rows, shared Home/Work attention summary, responsive Home feed, and Inbox conversation and Bangkok-day notification styling. Existing document routes, approval rules, public APIs and database schemas are unchanged by this UI work.
 
 ## Verification

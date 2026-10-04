@@ -1,7 +1,6 @@
 # ERPX end-to-end specification and test cases
 
-Reviewed against the current workspace source on 2026-09-12. This is a browser
-acceptance specification, not a claim that every ERP module is complete.
+This document defines the foundation authentication/Work browser cases first reviewed on 2026-09-12. Full-catalogue engineering cases are mapped in [the current scenario register](engineering-scenarios.json); [the verification inventory](../status/capability-delivery-matrix.md) records the dated result separately. This specification does not certify every source revision.
 
 ## Scope and sources
 
@@ -22,9 +21,9 @@ Read alongside these implementation sources:
   [request service](../../src/server/employee-requests.ts),
   [browser draft recovery](../../src/components/ui/use-recoverable-draft.tsx), and
   [command retry](../../src/components/modules/staff-work-controls.tsx).
-- [Named workflow handoffs](../archive/planning-2026-09/2026-09-10-flow-handoffs.md),
+- [Named workflow handoffs](../production-plan.md),
   [local personas and connected examples](../local-seed.md), and
-  [module inventory](../archive/planning-2026-09/2026-09-07-global-core-status.md).
+  [module inventory](../production-plan.md).
 
 The older module inventory contains historical Cloudflare runtime evidence.
 Current acceptance uses Node/PostgreSQL. In particular, accounting approval and

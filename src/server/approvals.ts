@@ -247,13 +247,17 @@ export async function openApproval(
       ),
       ...(s.authority === "hr_admin" || s.authority === "holding_owner"
         ? [
-            roleGuard(
-              db,
-              key,
-              route.scope,
-              { approver_user_id: s.userId, authority: s.authority },
-              `route-role-${ordinal}`,
-            ),
+            s.authority === "hr_admin" && s.snapshot?.appointmentKind === "hr" && typeof s.snapshot.appointedPersonId === "string"
+              ? assertion(db,key,`route-role-${ordinal}`,
+                  `EXISTS(SELECT 1 FROM authority_seats seat JOIN hr_people person ON person.id=seat.person_id AND person.company_id=seat.company_id WHERE seat.company_id=? AND seat.kind='hr' AND seat.scope_id=seat.company_id AND seat.person_id=? AND iam_same_person(person.user_id,?,person.company_id) AND person.status='active' AND seat.effective_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint)`,
+                  [route.scope.company_id,s.snapshot.appointedPersonId,s.userId])
+              : roleGuard(
+                  db,
+                  key,
+                  route.scope,
+                  { approver_user_id: s.userId, authority: s.authority },
+                  `route-role-${ordinal}`,
+                ),
           ]
         : []),
       db

@@ -1,3 +1,5 @@
+
+import { PageContent } from "@/components/ui/patterns";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { publicScope } from "@/server/authorization";
@@ -5,6 +7,7 @@ import { workspaceBase } from "@/lib/workspace";
 import { MemberProfile } from "@/components/modules/member-profile";
 import { companyMembers } from "@/server/member-directory";
 import type { WorkContext } from "@/server/authorization";
+import { Card } from "@/components/ui/foundation";
 export async function BetaPeople({
   actor,
   member,
@@ -17,14 +20,14 @@ export async function BetaPeople({
   const selected = member ? people.find((p) => p.id === member) : null;
   if (member && !selected) notFound();
   return (
-    <div className="content">
+    <PageContent >
       <p className="eyebrow">Better together</p>
       <h1>Your people</h1>
       <p>The teammates you can work with in this company.</p>
-      <section className="card">
+      <Card as="section" appearance="standard" className="ui-panel">
         {people.map((p) => (
           <Link
-            className="row"
+            className="ui-record-item"
             key={p.id}
             href={`${base}/profiles/${encodeURIComponent(p.id)}`}
           >
@@ -32,10 +35,10 @@ export async function BetaPeople({
             <strong>{p.name}</strong>
           </Link>
         ))}
-      </section>
+      </Card>
       {selected && (
         <MemberProfile base={base} actor={actor} member={selected} />
       )}
-    </div>
+    </PageContent>
   );
 }

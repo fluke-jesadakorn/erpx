@@ -1,14 +1,8 @@
 "use client";
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
 import Image from "next/image";
-import {
-  ArrowDown,
-  ArrowUp,
-  Check,
-  ExternalLink,
-  Globe2,
-  RotateCcw,
-} from "lucide-react";
+import { ArrowDown, ArrowUp, Check, ExternalLink, Globe2, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AttachmentApiError,
@@ -31,6 +25,7 @@ import {
 } from "@/lib/attachment-state";
 import { useAttachmentFeatureMode } from "./attachment-feature-context";
 import styles from "./media-publication-panel.module.css";
+import { type UiAppearance } from "@/components/ui/foundation";
 
 type PublishableLink = AttachmentLinkDto & { setId: string };
 
@@ -45,11 +40,11 @@ type MediaPublicationPanelProps = {
   canReview?: boolean;
 };
 
-export function MediaPublicationPanel(props: MediaPublicationPanelProps) {
+export function MediaPublicationPanel(props: (MediaPublicationPanelProps) & { appearance?: UiAppearance }) {
   const mode = useAttachmentFeatureMode();
   if (mode === "disabled") return null;
   return (
-    <MediaPublicationPanelContent
+    <MediaPublicationPanelContent appearance={(props.appearance ?? "legacy")}
       {...props}
       canCreate={props.canCreate === true && mode !== "read-only"}
       canReview={props.canReview === true && mode !== "read-only"}
@@ -57,7 +52,7 @@ export function MediaPublicationPanel(props: MediaPublicationPanelProps) {
   );
 }
 
-function MediaPublicationPanelContent({
+function MediaPublicationPanelContent({ appearance = "legacy",
   base,
   targetType,
   targetId,
@@ -66,10 +61,8 @@ function MediaPublicationPanelContent({
   title = "Public media",
   canCreate = false,
   canReview = false,
-}: MediaPublicationPanelProps) {
-  const [manifest, setManifest] = useState<MediaPublicationListDto | null>(
-    null,
-  );
+}: (MediaPublicationPanelProps) & { appearance?: UiAppearance }) {
+  const [manifest, setManifest] = useState<MediaPublicationListDto | null>(null);
   const [sources, setSources] = useState<PublishableLink[]>([]);
   const [sourceLinkId, setSourceLinkId] = useState("");
   const [altText, setAltText] = useState("");
@@ -105,9 +98,7 @@ function MediaPublicationPanelContent({
       );
       setSources(nextSources);
       setSourceLinkId((current) =>
-        nextSources.some((source) => source.id === current)
-          ? current
-          : (nextSources[0]?.id ?? ""),
+        nextSources.some((source) => source.id === current) ? current : (nextSources[0]?.id ?? ""),
       );
       setManifest(publications);
       setAvailable(true);
@@ -120,9 +111,7 @@ function MediaPublicationPanelContent({
         setAvailable(false);
         return;
       }
-      setError(
-        cause instanceof Error ? cause.message : "Unable to load public media.",
-      );
+      setError(cause instanceof Error ? cause.message : "Unable to load public media.");
     }
   }, [base, purposeKey, sourceComponentKind, targetId, targetType]);
 
@@ -136,20 +125,14 @@ function MediaPublicationPanelContent({
     [sources],
   );
   const visibleItems = useMemo(
-    () =>
-      (manifest?.items ?? []).filter((item) =>
-        sourceById.has(item.source_link_id),
-      ),
+    () => (manifest?.items ?? []).filter((item) => sourceById.has(item.source_link_id)),
     [manifest, sourceById],
   );
   const activeItems = useMemo(
     () =>
       visibleItems
         .filter((item) => item.state !== "revoked")
-        .sort(
-          (left, right) =>
-            left.ordinal - right.ordinal || left.revision - right.revision,
-        ),
+        .sort((left, right) => left.ordinal - right.ordinal || left.revision - right.revision),
     [visibleItems],
   );
 
@@ -160,11 +143,7 @@ function MediaPublicationPanelContent({
       await action();
       await load();
     } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "Unable to update public media.",
-      );
+      setError(cause instanceof Error ? cause.message : "Unable to update public media.");
     } finally {
       setBusy(false);
     }
@@ -190,9 +169,7 @@ function MediaPublicationPanelContent({
 
   function approve(item: MediaPublicationDto) {
     if (!canReview) return;
-    void perform(() =>
-      approveMediaPublication(base, item.id, crypto.randomUUID()),
-    );
+    void perform(() => approveMediaPublication(base, item.id, crypto.randomUUID()));
   }
 
   function revoke(item: MediaPublicationDto) {
@@ -202,12 +179,7 @@ function MediaPublicationPanelContent({
     )
       return;
     void perform(async () => {
-      await revokeMediaPublication(
-        base,
-        item.id,
-        revokeReason.trim(),
-        crypto.randomUUID(),
-      );
+      await revokeMediaPublication(base, item.id, revokeReason.trim(), crypto.randomUUID());
       setRevokeId(null);
       setRevokeReason("");
     });
@@ -226,8 +198,7 @@ function MediaPublicationPanelContent({
     )
       return;
     const ordered = [...activeItems].sort(
-      (left, right) =>
-        left.ordinal - right.ordinal || left.revision - right.revision,
+      (left, right) => left.ordinal - right.ordinal || left.revision - right.revision,
     );
     const index = ordered.findIndex((candidate) => candidate.id === item.id);
     const nextIndex = index + direction;
@@ -253,79 +224,73 @@ function MediaPublicationPanelContent({
   if (!available) return null;
 
   return (
-    <section className={`card ${styles.panel}`}>
-      <div className={styles.heading}>
-        <div>
-          <h2>{title}</h2>
-          <p>
-            Only a sanitized derivative can become public. Each revision needs
-            alt text and approval from another authorized reviewer.
+    <section data-ui-appearance={appearance} className={`card ${styles.panel}`}>
+      <div data-ui-appearance={appearance} className={styles.heading}>
+        <div data-ui-appearance={appearance}>
+          <h2 data-ui-appearance={appearance}>{title}</h2>
+          <p data-ui-appearance={appearance}>
+            Only a sanitized derivative can become public. Each revision needs alt text and approval
+            from another authorized reviewer.
           </p>
         </div>
-        <span>
+        <span data-ui-appearance={appearance}>
           <Globe2 aria-hidden size={16} /> {activeItems.length} active
         </span>
       </div>
 
       {error && (
-        <p className={styles.error} role="alert">
+        <p data-ui-appearance={appearance} className={styles.error} role="alert">
           {error}
         </p>
       )}
 
       {canCreate && (
-        <div className={styles.create}>
-          <label>
+        <div data-ui-appearance={appearance} className={styles.create}>
+          <Field appearance={appearance}>
             Bound private source
-            <select
+            <Select appearance={appearance}
               value={sourceLinkId}
               disabled={busy || sources.length === 0}
               onChange={(event) => setSourceLinkId(event.target.value)}
             >
-              {sources.length === 0 && (
-                <option value="">Bind a clean image first</option>
-              )}
+              {sources.length === 0 && <option data-ui-appearance={appearance} value="">Bind a clean image first</option>}
               {sources.map((source) => (
-                <option key={source.id} value={source.id}>
+                <option data-ui-appearance={appearance} key={source.id} value={source.id}>
                   {source.filename}
                   {source.caption ? ` · ${source.caption}` : ""}
                 </option>
               ))}
-            </select>
-          </label>
-          <label>
+            </Select>
+          </Field>
+          <Field appearance={appearance}>
             Public alt text
-            <input
+            <TextInput appearance={appearance}
               value={altText}
               maxLength={500}
               disabled={busy || !sourceLinkId}
               onChange={(event) => setAltText(event.target.value)}
               placeholder="Describe the image for customers using screen readers"
             />
-          </label>
-          <button
+          </Field>
+          <Button appearance={appearance}
+            variant="primary"
             type="button"
-            className="button"
+
             disabled={busy || !sourceLinkId || !altText.trim()}
             onClick={create}
           >
             Create publication revision
-          </button>
+          </Button>
         </div>
       )}
 
       {manifest && visibleItems.length > 0 ? (
-        <ol className={styles.items}>
+        <ol data-ui-appearance={appearance} className={styles.items}>
           {[...visibleItems]
-            .sort(
-              (left, right) =>
-                left.ordinal - right.ordinal || left.revision - right.revision,
-            )
+            .sort((left, right) => left.ordinal - right.ordinal || left.revision - right.revision)
             .map((item) => {
               const source = sourceById.get(item.source_link_id);
-              const activeIndex = activeItems.findIndex(
-                (candidate) => candidate.id === item.id,
-              );
+              const activeIndex = activeItems.findIndex((candidate) => candidate.id === item.id);
               const imageUrl =
                 item.state === "approved"
                   ? publicMediaPublicationUrl(base, item.id)
@@ -333,11 +298,7 @@ function MediaPublicationPanelContent({
                     ? attachmentContentUrl(base, source.id, "preview")
                     : null;
               return (
-                <li
-                  key={item.id}
-                  className={styles.item}
-                  data-state={item.state}
-                >
+                <li data-ui-appearance={appearance} key={item.id} className={styles.item} data-state={item.state}>
                   {imageUrl ? (
                     <Image
                       className={styles.thumbnail}
@@ -348,24 +309,19 @@ function MediaPublicationPanelContent({
                       unoptimized
                     />
                   ) : (
-                    <div className={styles.thumbnailPlaceholder}>
-                      Preview unavailable
-                    </div>
+                    <div data-ui-appearance={appearance} className={styles.thumbnailPlaceholder}>Preview unavailable</div>
                   )}
-                  <div className={styles.details}>
-                    <strong>
+                  <div data-ui-appearance={appearance} className={styles.details}>
+                    <strong data-ui-appearance={appearance}>
                       Revision {item.revision} · {item.state}
                     </strong>
-                    <span>{item.alt_text}</span>
-                    <small>
-                      Order {item.ordinal + 1} ·{" "}
-                      {source?.filename ?? "retained source"}
+                    <span data-ui-appearance={appearance}>{item.alt_text}</span>
+                    <small data-ui-appearance={appearance}>
+                      Order {item.ordinal + 1} · {source?.filename ?? "retained source"}
                     </small>
-                    {item.revocation_reason && (
-                      <small>Revoked: {item.revocation_reason}</small>
-                    )}
+                    {item.revocation_reason && <small data-ui-appearance={appearance}>Revoked: {item.revocation_reason}</small>}
                   </div>
-                  <div className={styles.actions}>
+                  <div data-ui-appearance={appearance} className={styles.actions}>
                     {canReorderAttachmentPublications({
                       canCreate,
                       canReview,
@@ -374,37 +330,38 @@ function MediaPublicationPanelContent({
                       activeCount: activeItems.length,
                     }) && (
                       <>
-                        <button
+                        <Button appearance={appearance}
+                          variant="plain"
                           type="button"
                           aria-label={`Move revision ${item.revision} earlier`}
                           disabled={busy || activeIndex === 0}
                           onClick={() => move(item, -1)}
                         >
                           <ArrowUp aria-hidden size={15} />
-                        </button>
-                        <button
+                        </Button>
+                        <Button appearance={appearance}
+                          variant="plain"
                           type="button"
                           aria-label={`Move revision ${item.revision} later`}
-                          disabled={
-                            busy || activeIndex === activeItems.length - 1
-                          }
+                          disabled={busy || activeIndex === activeItems.length - 1}
                           onClick={() => move(item, 1)}
                         >
                           <ArrowDown aria-hidden size={15} />
-                        </button>
+                        </Button>
                       </>
                     )}
                     {item.state === "draft" && canReview && (
-                      <button
+                      <Button appearance={appearance}
+                        variant="plain"
                         type="button"
                         disabled={busy}
                         onClick={() => approve(item)}
                       >
                         <Check aria-hidden size={15} /> Approve
-                      </button>
+                      </Button>
                     )}
                     {item.state === "approved" && (
-                      <a
+                      <a data-ui-appearance={appearance}
                         href={publicMediaPublicationUrl(base, item.id)}
                         target="_blank"
                         rel="noreferrer"
@@ -416,7 +373,8 @@ function MediaPublicationPanelContent({
                       canReview,
                       itemState: item.state,
                     }) && (
-                      <button
+                      <Button appearance={appearance}
+                        variant="plain"
                         type="button"
                         disabled={busy}
                         onClick={() => {
@@ -425,7 +383,7 @@ function MediaPublicationPanelContent({
                         }}
                       >
                         <RotateCcw aria-hidden size={15} /> Revoke
-                      </button>
+                      </Button>
                     )}
                   </div>
                   {canRevokeAttachmentPublication({
@@ -433,34 +391,34 @@ function MediaPublicationPanelContent({
                     itemState: item.state,
                   }) &&
                     revokeId === item.id && (
-                      <div className={styles.revoke}>
-                        <label>
+                      <div data-ui-appearance={appearance} className={styles.revoke}>
+                        <Field appearance={appearance}>
                           Revocation reason
-                          <textarea
+                          <TextArea appearance={appearance}
                             value={revokeReason}
                             minLength={3}
                             maxLength={1000}
-                            onChange={(event) =>
-                              setRevokeReason(event.target.value)
-                            }
+                            onChange={(event) => setRevokeReason(event.target.value)}
                           />
-                        </label>
-                        <button
+                        </Field>
+                        <Button appearance={appearance}
+                          variant="secondary"
                           type="button"
-                          className="button secondary"
+
                           disabled={busy || revokeReason.trim().length < 3}
                           onClick={() => revoke(item)}
                         >
                           Confirm revocation
-                        </button>
-                        <button
+                        </Button>
+                        <Button appearance={appearance}
+                          variant="secondary"
                           type="button"
-                          className="button secondary"
+
                           disabled={busy}
                           onClick={() => setRevokeId(null)}
                         >
                           Cancel
-                        </button>
+                        </Button>
                       </div>
                     )}
                 </li>
@@ -468,7 +426,7 @@ function MediaPublicationPanelContent({
             })}
         </ol>
       ) : (
-        <p>No public media revisions yet.</p>
+        <p data-ui-appearance={appearance}>No public media revisions yet.</p>
       )}
     </section>
   );

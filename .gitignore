@@ -54,7 +54,7 @@ next-env.d.ts
 # legacy Rust artifacts (retained on backup branch; ignored here)
 .runtime/
 .sqlx/
-target/
+/target/
 .cargo/
 
 # local skill mirror — canonical is .agents/skills/ (see AGENTS.md, docs/TOC.md)

@@ -8,6 +8,7 @@ import { requirePermission } from "./iam-permissions";
 import { hasPermission } from "@/lib/permissions";
 import { hasModuleAccess } from "@/data/module-access";
 import { assertion, executeCommand, replayCommand } from "./commands";
+import { snapshotMoney } from "./company-money";
 import { ApiError } from "./http";
 import { decimalToMinor } from "@/lib/finance-money";
 import type { SqlDatabase, SqlStatement } from "./runtime/types";
@@ -239,11 +240,16 @@ export async function createTalentApplication(
   access(a, true);
   const i = appSchema.parse(raw),
     { write } = await holdingResources(a.holdingId),
+    id = `talent-application-${key}`,
+    op = "talent.application.create",
+    prior = await replayCommand(write, a, key, op, id, i);
+  if (prior) return prior;
+  const
     req = await write
       .prepare(
-        "SELECT * FROM talent_requisitions WHERE id=? AND company_id=? AND version=? AND status='open'",
+        "SELECT * FROM talent_requisitions WHERE id=? AND company_id=? AND version=? AND status='open' AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?)",
       )
-      .bind(i.requisitionId, a.companyId, i.requisitionVersion)
+      .bind(i.requisitionId, a.companyId, i.requisitionVersion,a.branchId,a.branchId,a.departmentId,a.departmentId)
       .first<Row>();
   if (!req)
     throw new ApiError(
@@ -251,13 +257,10 @@ export async function createTalentApplication(
       "TALENT_SOURCE_CHANGED",
       "Choose a current open requisition.",
     );
-  const id = `talent-application-${key}`,
-    op = "talent.application.create",
-    prior = await replayCommand(write, a, key, op, id, i);
-  if (prior) return prior;
   const now = Date.now(),
     result = { id, status: "applied", version: 1 };
   return executeCommand(write, a, key, op, i, id, 1, result, [
+    assertion(write,key,"requisition-source","EXISTS(SELECT 1 FROM talent_requisitions WHERE id=? AND company_id=? AND version=? AND status='open' AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?))",[i.requisitionId,a.companyId,i.requisitionVersion,a.branchId,a.branchId,a.departmentId,a.departmentId]),
     assertion(
       write,
       key,
@@ -313,8 +316,8 @@ export async function createTalentProposal(
       write,
       key,
       "application",
-      "EXISTS(SELECT 1 FROM talent_applications WHERE id=? AND company_id=? AND version=? AND status='interview' AND owner_id=?)",
-      [i.applicationId, a.companyId, i.applicationVersion, a.userId],
+      "EXISTS(SELECT 1 FROM talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id WHERE a.id=? AND a.company_id=? AND a.version=? AND a.status='interview' AND a.owner_id=? AND c.status='active' AND c.retention_until>=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?))",
+      [i.applicationId, a.companyId, i.applicationVersion, a.userId,new Date().toISOString().slice(0,10),a.branchId,a.branchId,a.departmentId,a.departmentId],
     ),
     write
       .prepare(
@@ -353,13 +356,14 @@ export async function createTalentOffer(
     );
   const now = Date.now(),
     result = { id, status: "draft", version: 1 };
+  const money=await snapshotMoney(write,a,{sourceType:"talent_offer",sourceId:id,amountKind:"monthly_compensation",transactionDate:i.startDate,currency:i.currency,currencyScale:2,amountUnits:String(decimalToMinor(i.baseAmount))});
   return executeCommand(write, a, key, op, i, id, 1, result, [
     assertion(
       write,
       key,
       "application",
-      "EXISTS(SELECT 1 FROM talent_applications a JOIN talent_proposals p ON p.application_id=a.id WHERE a.id=? AND a.company_id=? AND a.version=? AND a.status='selected' AND p.status='accepted')",
-      [i.applicationId, a.companyId, i.applicationVersion],
+      "EXISTS(SELECT 1 FROM talent_applications a JOIN talent_proposals p ON p.application_id=a.id JOIN talent_requisitions r ON r.id=a.requisition_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id WHERE a.id=? AND a.company_id=? AND a.version=? AND a.status='selected' AND p.status='accepted' AND c.status='active' AND c.retention_until>=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?))",
+      [i.applicationId, a.companyId, i.applicationVersion,new Date().toISOString().slice(0,10),a.branchId,a.branchId,a.departmentId,a.departmentId],
     ),
     write
       .prepare(
@@ -384,6 +388,7 @@ export async function createTalentOffer(
         "INSERT INTO talent_offer_events VALUES(?,?,1,'create',?,'Offer drafted from accepted proposal','draft',?)",
       )
       .bind(`talent-offer-event-${key}`, id, a.userId, now),
+    money.statement,
   ]);
 }
 export async function changeTalentRecord(
@@ -396,6 +401,10 @@ export async function changeTalentRecord(
   access(a, true);
   const i = actionSchema.parse(raw),
     { write } = await holdingResources(a.holdingId),
+    op = `talent.${kind}.${i.action}`,
+    prior = await replayCommand(write, a, key, op, id, i);
+  if (prior) return prior;
+  const
     table =
       kind === "requisition"
         ? "talent_requisitions"
@@ -404,11 +413,14 @@ export async function changeTalentRecord(
           : kind === "proposal"
             ? "talent_proposals"
             : "talent_offers",
+    join=kind==="requisition"?"":kind==="application"?"JOIN talent_requisitions r ON r.id=t.requisition_id":"JOIN talent_applications ap ON ap.id=t.application_id JOIN talent_requisitions r ON r.id=ap.requisition_id",
+    companyRef=kind==="proposal"?"ap":"t",
+    placementRef=kind==="requisition"?"t":"r",
     row = await write
       .prepare(
-        `SELECT * FROM ${table} WHERE id=? ${kind === "proposal" ? "" : "AND company_id=?"}`,
+        `SELECT t.* FROM ${table} t ${join} WHERE t.id=? AND ${companyRef}.company_id=? AND (?::text IS NULL OR ${placementRef}.branch_id=?) AND (?::text IS NULL OR ${placementRef}.department_id=?)`,
       )
-      .bind(...(kind === "proposal" ? [id] : [id, a.companyId]))
+      .bind(id,a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId)
       .first<Row>();
   if (!row)
     throw new ApiError(
@@ -430,7 +442,7 @@ export async function changeTalentRecord(
             interview: ["applied", "interview"],
             select: ["interview", "selected"],
             reject: ["applied", "rejected"],
-            withdraw: ["applied", "withdrawn"],
+            withdraw: [["applied","interview","selected"].includes(String(row.status))?String(row.status):"applied", "withdrawn"],
             reassign: [String(row.status), String(row.status)],
           }
         : kind === "proposal"
@@ -443,7 +455,7 @@ export async function changeTalentRecord(
               send: ["approved", "sent"],
               "accept-offer": ["sent", "accepted"],
               decline: ["sent", "declined"],
-              withdraw: ["approved", "withdrawn"],
+              withdraw: [["draft","approved","sent"].includes(String(row.status))?String(row.status):"approved", "withdrawn"],
             };
   const rule = rules[i.action];
   if (
@@ -475,9 +487,6 @@ export async function changeTalentRecord(
       "ACCEPTANCE_EVIDENCE_REQUIRED",
       "Record candidate acceptance evidence.",
     );
-  const op = `talent.${kind}.${i.action}`,
-    prior = await replayCommand(write, a, key, op, id, i);
-  if (prior) return prior;
   const now = Date.now(),
     next = i.expectedVersion + 1,
     sets = ["status=?", "version=version+1", "updated_at=?"],
@@ -525,6 +534,11 @@ export async function changeTalentRecord(
       .prepare(`UPDATE ${table} SET ${sets.join(",")} WHERE id=?`)
       .bind(...bind),
   ];
+  if(kind!=="requisition"&&!["withdraw","decline","reject","reject-proposal"].includes(i.action)){
+    const applicationId=kind==="application"?id:String(row.application_id),candidate=await write.prepare("SELECT c.id,c.version,c.status,c.retention_until FROM talent_candidates c JOIN talent_applications a ON a.candidate_id=c.id AND a.company_id=c.company_id WHERE a.id=? AND c.company_id=?").bind(applicationId,a.companyId).first<{id:string;version:number;status:string;retention_until:string}>();
+    if(!candidate||candidate.status!=="active"||candidate.retention_until<new Date().toISOString().slice(0,10))throw new ApiError(409,"TALENT_CANDIDATE_PROCESSING_BLOCKED","Current recruitment consent and retention evidence are required before progressing this application.");
+    statements.unshift(assertion(write,key,"candidate-current","EXISTS(SELECT 1 FROM talent_candidates WHERE id=? AND company_id=? AND version=? AND status='active' AND retention_until>=?)",[candidate.id,a.companyId,candidate.version,new Date().toISOString().slice(0,10)]));
+  }
   if (kind === "requisition")
     statements.push(
       write

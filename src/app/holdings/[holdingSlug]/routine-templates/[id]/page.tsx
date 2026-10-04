@@ -31,7 +31,7 @@ export default async function Routine({
         .all<ScheduleRow>()
     ).results;
   return (
-    <FeaturePage className="content-stack" data-source="live">
+    <FeaturePage className="ui-page-content" data-source="live">
       <Link href={`${base}/routine-templates`}>← Routine templates</Link>
       <h1>{template.title}</h1><FeatureTabs/><WidgetGrid pageKey="routine-templates-detail">
       <p>{template.description}</p>
@@ -40,8 +40,8 @@ export default async function Routine({
         {template.published ? "Published" : "Draft"}. Edits affect future
         occurrences.
       </p>
-      <FeatureWidget id="routine-template" title="Routine template">{canEdit && (
-        <TaskEditor
+      <FeatureWidget appearance="standard" id="routine-template" title="Routine template">{canEdit && (
+        <TaskEditor appearance="standard"
           key={template.version}
           base={base}
           options={options}
@@ -50,7 +50,7 @@ export default async function Routine({
           template={template}
         />
       )}
-      <TaskEditor
+      <TaskEditor appearance="standard"
         key={`clone-${template.version}`}
         base={base}
         options={options}
@@ -59,7 +59,7 @@ export default async function Routine({
         template={template}
         clone
       />
-      </FeatureWidget><FeatureWidget id="routine-schedule" title="Schedule"><RoutineScheduleControls
+      </FeatureWidget><FeatureWidget appearance="standard" id="routine-schedule" title="Schedule"><RoutineScheduleControls appearance="standard"
         base={base}
         template={template}
         schedules={schedules}

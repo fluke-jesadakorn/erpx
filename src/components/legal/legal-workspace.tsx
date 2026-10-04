@@ -1,4 +1,13 @@
 "use client";
+import { DraftFormDrawer } from "@/components/ui/draft-form-drawer";
+import { DialogClose } from "@/components/ui/dialog";
+import { FormGrid, FormLayout } from "@/components/ui/patterns";
+import { Card } from "@/components/ui/foundation";
+
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { Button, Field, Select, Table, TextArea, TextInput, LocalTabs, TabsList, TabsTrigger, TabsPanel } from "@/components/ui/foundation";
+
 import { TimeText } from "@/components/time/time-preference-context";
 import { BarChart3, BookOpen, Globe2, Plus, X, Scale } from "lucide-react";
 import { workFetch } from "@/lib/work-fetch";
@@ -33,6 +42,7 @@ import {
   type ItemInput,
 } from "@/lib/legal/model";
 import s from "./legal.module.css";
+import { TableFrame } from "@/components/ui/foundation";
 const button = `${s.button}`,
   primary = `${s.button} ${s.primary}`;
 export function LegalWorkspace({
@@ -49,19 +59,21 @@ export function LegalWorkspace({
   initialKind?: LegalKind;
 }) {
   const [data, setData] = useState(initial),
-    [kind, setKind] = useState<LegalKind>(
-      initialDetail?.item.kind ?? initialKind,
-    ),
+    [kind, setKind] = useState<LegalKind>(initialDetail?.item.kind ?? initialKind),
     [search, setSearch] = useState(""),
     [state, setState] = useState(""),
     [selected, setSelected] = useState<LegalDetail | null>(initialDetail),
-    [creating, setCreating] = useState(initialCreate && initial.enabled && initial.permissions.includes("legal.create")),
+    [creating, setCreating] = useState(
+      initialCreate && initial.enabled && initial.permissions.includes("legal.create"),
+    ),
     [editing, setEditing] = useState(false),
     [busy, setBusy] = useState(false),
     [pendingAction, setPendingAction] = useState(false),
     [error, setError] = useState(""),
     [tab, setTab] = useState("Overview"),
-    [tool, setTool] = useState<"reports" | "knowledge" | "thailand" | "laws" | "release" | null>(null),
+    [tool, setTool] = useState<"reports" | "knowledge" | "thailand" | "laws" | "release" | null>(
+      null,
+    ),
     [workView, setWorkView] = useState<"register" | "mine" | "deadlines">("register"),
     [inspection, setInspection] = useState<unknown>(null),
     [proposals, setProposals] = useState<Record<string, unknown>[]>([]);
@@ -81,17 +93,23 @@ export function LegalWorkspace({
     can = (p: string) => data.permissions.includes(`legal.${p}`);
   const contextKey = `erpx:legal:${base}:${JSON.stringify(initial.workContext ?? { userId: initial.userId })}`;
   const send = useMemo(() => createLegalCommandClient(`${contextKey}:command`), [contextKey]);
-  useEffect(() => { const frame = requestAnimationFrame(() => setPendingAction(send.hasPending())); return () => cancelAnimationFrame(frame); }, [send]);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setPendingAction(send.hasPending()));
+    return () => cancelAnimationFrame(frame);
+  }, [send]);
   const call = useCallback(
     async (path: string, body?: unknown) => {
       if (body !== undefined) {
-        try { const result = await send(api + path, body); setPendingAction(false); return result; }
-        catch (error) { setPendingAction(send.hasPending()); throw error; }
+        try {
+          const result = await send(api + path, body);
+          setPendingAction(false);
+          return result;
+        } catch (error) {
+          setPendingAction(send.hasPending());
+          throw error;
+        }
       }
-      const r = await workFetch(
-        api + path,
-        { cache: "no-store" },
-      );
+      const r = await workFetch(api + path, { cache: "no-store" });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error?.message ?? "Request failed");
       return j.data;
@@ -107,17 +125,13 @@ export function LegalWorkspace({
     window.history.replaceState(null, "", url);
   }
   async function load(k = kind, page = 1, q = search, status = state) {
-    setData(
-      await call(
-        `?kind=${k}&page=${page}&search=${encodeURIComponent(q)}&state=${status}`,
-      ),
-    );
+    setData(await call(`?kind=${k}&page=${page}&search=${encodeURIComponent(q)}&state=${status}`));
   }
   async function open(id: string) {
     setBusy(true);
     setError("");
     try {
-      const detail = await call(`/${id}`) as LegalDetail;
+      const detail = (await call(`/${id}`)) as LegalDetail;
       setSelected(detail);
       setKind(detail.item.kind);
       setWorkView("register");
@@ -136,9 +150,7 @@ export function LegalWorkspace({
     setError("");
     try {
       const result = await call("", {
-        ...(selected
-          ? { id: selected.item.id, expectedVersion: selected.item.version }
-          : {}),
+        ...(selected ? { id: selected.item.id, expectedVersion: selected.item.version } : {}),
         ...body,
       });
       if (body.action === "create" || body.action === "revision.create") {
@@ -207,19 +219,21 @@ export function LegalWorkspace({
   }
   const total = data.counts.reduce((n, c) => n + c.count, 0),
     count = (states: string[]) =>
-      data.counts
-        .filter((c) => states.includes(c.state))
-        .reduce((n, c) => n + c.count, 0);
+      data.counts.filter((c) => states.includes(c.state)).reduce((n, c) => n + c.count, 0);
   return (
-    <div className={s.workspace}>
+    <div className="ui-stack">
       <header className={s.header}>
         <div>
-          <span className={s.eyebrow}><Scale size={15} aria-hidden="true" /> Legal workspace</span>
+          <span className={s.eyebrow}>
+            <Scale size={15} aria-hidden="true" /> Legal workspace
+          </span>
           <h1>Legal</h1>
           <p>Commitments, decisions and evidence in one place.</p>
         </div>
         {can("create") && data.enabled && (
-          <button
+          <Button appearance="standard"
+            type="submit"
+            variant="ghost"
             className={primary}
             onClick={() => {
               setCreating(true);
@@ -228,35 +242,66 @@ export function LegalWorkspace({
             }}
           >
             <Plus size={16} aria-hidden="true" /> New {kind}
-          </button>
+          </Button>
         )}
       </header>
       {error && (
-        <div role="alert" className={s.error}>
+        <InlineNotice tone="danger" role="alert" className={s.error}>
           {error}
-        </div>
+        </InlineNotice>
       )}
-      {pendingAction && <div className={s.notice} role="status"><p>A previous Legal action has an uncertain result. Recover its original request before starting another action.</p><button className={button} disabled={busy} onClick={async () => {
-        setBusy(true); setError("");
-        try {
-          const recovered = await send.recover(); setPendingAction(send.hasPending());
-          if (recovered) { const recordId = typeof recovered.input.id === "string" ? recovered.input.id : ["create", "revision.create"].includes(String(recovered.input.action)) ? (recovered.data as { id: string }).id : null; if (recordId) await open(recordId); await load(); }
-        } catch (error) { setError(error instanceof Error ? error.message : "Unable to recover the action."); setPendingAction(send.hasPending()); }
-        finally { setBusy(false); }
-      }}>Recover previous Legal action</button></div>}
+      {pendingAction && (
+        <InlineNotice tone="info" className={s.notice} role="status">
+          <p>
+            A previous Legal action has an uncertain result. Recover its original request before
+            starting another action.
+          </p>
+          <Button appearance="standard"
+            type="submit"
+            variant="ghost"
+            className={button}
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              setError("");
+              try {
+                const recovered = await send.recover();
+                setPendingAction(send.hasPending());
+                if (recovered) {
+                  const recordId =
+                    typeof recovered.input.id === "string"
+                      ? recovered.input.id
+                      : ["create", "revision.create"].includes(String(recovered.input.action))
+                        ? (recovered.data as { id: string }).id
+                        : null;
+                  if (recordId) await open(recordId);
+                  await load();
+                }
+              } catch (error) {
+                setError(error instanceof Error ? error.message : "Unable to recover the action.");
+                setPendingAction(send.hasPending());
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Recover previous Legal action
+          </Button>
+        </InlineNotice>
+      )}
       {!data.enabled && (
         <div className={s.notice}>
           Legal is currently read-only for this Company.{" "}
           {can("manage") && (
-            <button
+            <Button appearance="standard"
+              type="submit"
+              variant="ghost"
               disabled={busy}
               className={button}
-              onClick={() =>
-                command({ action: "settings", enabled: true, aiEnabled: false })
-              }
+              onClick={() => command({ action: "settings", enabled: true, aiEnabled: false })}
             >
               Enable Legal
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -275,42 +320,136 @@ export function LegalWorkspace({
       </div>
       <div className={s.toolBar} aria-label="Legal tools">
         <span className={s.toolLabel}>Workspace tools</span>
-        {([
-          ["reports", "Reports", BarChart3],
-          ["knowledge", "Knowledge search", BookOpen],
-          ["thailand", "Thailand starter pack", Globe2],
-          ["laws", "Official law sources", BookOpen],
-          ["release", "Company readiness", Scale],
-        ] as const).filter(([id]) => (id !== "thailand" || (can("create") && data.enabled)) && (id !== "release" || can("manage"))).map(([id, label, Icon]) => (
-          <button key={id} className={s.toolButton} aria-expanded={tool === id} aria-controls="legal-tool-panel" onClick={() => setTool(tool === id ? null : id)}>
-            <Icon size={16} aria-hidden="true" />{label}
-          </button>
-        ))}
+        {(
+          [
+            ["reports", "Reports", BarChart3],
+            ["knowledge", "Knowledge search", BookOpen],
+            ["thailand", "Thailand starter pack", Globe2],
+            ["laws", "Official law sources", BookOpen],
+            ["release", "Company readiness", Scale],
+          ] as const
+        )
+          .filter(
+            ([id]) =>
+              (id !== "thailand" || (can("create") && data.enabled)) &&
+              (id !== "release" || can("manage")),
+          )
+          .map(([id, label, Icon]) => (
+            <Button appearance="standard"
+              type="submit"
+              variant="ghost"
+              key={id}
+              className={s.toolButton}
+              aria-expanded={tool === id}
+              aria-controls="legal-tool-panel"
+              onClick={() => setTool(tool === id ? null : id)}
+            >
+              <Icon size={16} aria-hidden="true" />
+              {label}
+            </Button>
+          ))}
       </div>
-      {tool && <section id="legal-tool-panel" className={s.toolPanel} aria-label={tool === "reports" ? "Legal reports" : tool === "knowledge" ? "Knowledge search" : tool === "laws" ? "Official law sources" : tool === "release" ? "Company readiness" : "Thailand starter pack"}>
-        <div className={s.panelHeading}><div><span className={s.eyebrow}>Workspace tools</span><h2>{tool === "reports" ? "Reports & insights" : tool === "knowledge" ? "Search legal knowledge" : tool === "laws" ? "Official law sources" : tool === "release" ? "Company readiness" : "Thailand starter pack"}</h2></div>
-          <button className={s.iconButton} aria-label="Close workspace tool" onClick={() => setTool(null)}><X size={18} /></button>
-        </div>
-        {tool === "reports" && <LegalReports call={call} open={open} />}
-        {tool === "knowledge" && <LegalKnowledge call={call} open={open} base={base} />}
-        {tool === "thailand" && <LegalThailand people={data.people} call={call} refresh={() => load()} />}
-        {tool === "laws" && <LegalLawCorpus call={call} manage={can("manage")} canReview={can("approve")} userId={data.userId} />}
-        {tool === "release" && <LegalReleaseAcceptance call={call} userId={data.userId} />}
-      </section>}
+      {tool && (
+        <section
+          id="legal-tool-panel"
+          className={s.toolPanel}
+          aria-label={
+            tool === "reports"
+              ? "Legal reports"
+              : tool === "knowledge"
+                ? "Knowledge search"
+                : tool === "laws"
+                  ? "Official law sources"
+                  : tool === "release"
+                    ? "Company readiness"
+                    : "Thailand starter pack"
+          }
+        >
+          <div className={s.panelHeading}>
+            <div>
+              <span className={s.eyebrow}>Workspace tools</span>
+              <h2>
+                {tool === "reports"
+                  ? "Reports & insights"
+                  : tool === "knowledge"
+                    ? "Search legal knowledge"
+                    : tool === "laws"
+                      ? "Official law sources"
+                      : tool === "release"
+                        ? "Company readiness"
+                        : "Thailand starter pack"}
+              </h2>
+            </div>
+            <Button appearance="standard"
+              type="submit"
+              variant="ghost"
+              className={s.iconButton}
+              aria-label="Close workspace tool"
+              onClick={() => setTool(null)}
+            >
+              <X size={18} />
+            </Button>
+          </div>
+          {tool === "reports" && <LegalReports call={call} open={open} />}
+          {tool === "knowledge" && <LegalKnowledge call={call} open={open} base={base} />}
+          {tool === "thailand" && (
+            <LegalThailand people={data.people} call={call} refresh={() => load()} />
+          )}
+          {tool === "laws" && (
+            <LegalLawCorpus
+              call={call}
+              manage={can("manage")}
+              canReview={can("approve")}
+              userId={data.userId}
+            />
+          )}
+          {tool === "release" && <LegalReleaseAcceptance call={call} userId={data.userId} />}
+        </section>
+      )}
       <div className={s.layout}>
         <nav className={s.nav} aria-label="Legal registers">
           <span className={s.navLabel}>WORKSPACE</span>
-          <button aria-current={workView === "mine"} onClick={() => { setWorkView("mine"); setSelected(null); setCreating(false); setEditing(false); }}>My legal work</button>
-          <button aria-current={workView === "deadlines"} onClick={() => { setWorkView("deadlines"); setSelected(null); setCreating(false); setEditing(false); }}>Deadlines</button>
+          <Button appearance="standard"
+            type="submit"
+            variant="ghost"
+            aria-current={workView === "mine"}
+            onClick={() => {
+              setWorkView("mine");
+              setSelected(null);
+              setCreating(false);
+              setEditing(false);
+            }}
+          >
+            My legal work
+          </Button>
+          <Button appearance="standard"
+            type="submit"
+            variant="ghost"
+            aria-current={workView === "deadlines"}
+            onClick={() => {
+              setWorkView("deadlines");
+              setSelected(null);
+              setCreating(false);
+              setEditing(false);
+            }}
+          >
+            Deadlines
+          </Button>
           <span className={s.navLabel}>REGISTERS</span>
           {kinds.map((k) => (
-            <button key={k} aria-current={workView === "register" && k === kind} onClick={() => select(k)}>
+            <Button appearance="standard"
+              type="submit"
+              variant="ghost"
+              key={k}
+              aria-current={workView === "register" && k === kind}
+              onClick={() => select(k)}
+            >
               <span>{labels[k]}</span>
-            </button>
+            </Button>
           ))}
         </nav>
-        <section className={s.panel}>
-          {workView !== "register" && !selected && !creating ? <LegalWorkQueue key={workView} view={workView} people={data.people} call={call} open={open} /> : creating || editing ? (
+        <Card as="section" appearance="standard" className={s.panel}>
+          {(creating || editing) && (
             <ItemForm
               key={`${contextKey}:${selected?.item.id ?? kind}:${editing}`}
               kind={selected?.item.kind ?? kind}
@@ -323,26 +462,54 @@ export function LegalWorkspace({
                 setCreating(false);
                 setEditing(false);
               }}
-              onSave={(item) =>
-                command({ action: editing ? "update" : "create", item })
-              }
+              onSave={(item) => command({ action: editing ? "update" : "create", item })}
+            />
+          )}
+          {workView !== "register" && !selected && !creating ? (
+            <LegalWorkQueue
+              key={workView}
+              view={workView}
+              people={data.people}
+              call={call}
+              open={open}
             />
           ) : selected ? (
-            <div className={s.detail}>
+            <LocalTabs className={s.detail} value={tab} onValueChange={value => setTab(String(value))}>
               <div className={s.actions}>
-                <button className={button} onClick={() => setSelected(null)}>
+                <Button appearance="standard"
+                  type="submit"
+                  variant="ghost"
+                  className={button}
+                  onClick={() => setSelected(null)}
+                >
                   ← All records
-                </button>
+                </Button>
                 <span className={s.badge}>{selected.item.state}</span>
                 <span className={s.small}>
-                  Version {selected.item.version} ·{" "}
-                  {selected.item.classification}
+                  Version {selected.item.version} · {selected.item.classification}
                 </span>
               </div>
               <h2>{selected.item.title}</h2>
               <div className={s.small}>Record ID: {selected.item.id}</div>
-              <OperationSummary operation={{status:selected.item.state,responsible:data.people.find(person=>person.id===selected.item.owner_id)?.name??"Assigned Legal owner",currentStep:selected.item.state.replaceAll("_"," "),nextAction:allowedTransitions(selected.item.kind,selected.item.state).length?`Review ${selected.item.kind} and continue the current workflow`:"Review the recorded history",blockedReason:null,dueAt:null,recordHref:null,actionKind:selected.item.state==="approval"?"approval":"work"}}>{selected.item.due_date&&<p className="muted">Due {selected.item.due_date}</p>}</OperationSummary>
-              <div className={s.tabs}>
+              <OperationSummary
+                operation={{
+                  status: selected.item.state,
+                  responsible:
+                    data.people.find((person) => person.id === selected.item.owner_id)?.name ??
+                    "Assigned Legal owner",
+                  currentStep: selected.item.state.replaceAll("_", " "),
+                  nextAction: allowedTransitions(selected.item.kind, selected.item.state).length
+                    ? `Review ${selected.item.kind} and continue the current workflow`
+                    : "Review the recorded history",
+                  blockedReason: null,
+                  dueAt: null,
+                  recordHref: null,
+                  actionKind: selected.item.state === "approval" ? "approval" : "work",
+                }}
+              >
+                {selected.item.due_date && <p className="muted">Due {selected.item.due_date}</p>}
+              </OperationSummary>
+              <TabsList aria-label="Legal record sections">
                 {[
                   "Overview",
                   "Tasks & controls",
@@ -354,15 +521,14 @@ export function LegalWorkspace({
                   "AI",
                   "Activity",
                 ].map((t) => (
-                  <button
-                    className={t === tab ? primary : button}
+                  <TabsTrigger value={t}
                     key={t}
-                    onClick={() => setTab(t)}
                   >
                     {t}
-                  </button>
+                  </TabsTrigger>
                 ))}
-              </div>
+              </TabsList>
+              <TabsPanel value={tab} key={tab}>
               {tab === "Tasks & controls" && (
                 <>
                   <LegalDeadlines />
@@ -376,12 +542,7 @@ export function LegalWorkspace({
                 </>
               )}
               {tab === "Retention" && (
-                <LegalRetention
-                  detail={selected}
-                  call={call}
-                  command={command}
-                  busy={busy}
-                />
+                <LegalRetention detail={selected} call={call} command={command} busy={busy} />
               )}
               {tab === "Overview" && (
                 <>
@@ -394,38 +555,39 @@ export function LegalWorkspace({
                     busy={busy}
                     manage={can("manage")}
                   />
-                  <div className={s.body}>
-                    {selected.item.description || "No description yet."}
-                  </div>
+                  <div className={s.body}>{selected.item.description || "No description yet."}</div>
                   <div className={s.grid}>
                     {fields[selected.item.kind].map((f) => (
                       <div key={f.key}>
                         <span className={s.small}>{f.label}</span>
-                        <div className={s.body}>
-                          {String(selected.item.data[f.key] ?? "—")}
-                        </div>
+                        <div className={s.body}>{String(selected.item.data[f.key] ?? "—")}</div>
                       </div>
                     ))}
                   </div>
                   <div className={s.small}>
                     {selected.item.jurisdiction} · {selected.item.currency} ·{" "}
-                    {selected.item.timezone} · Due{" "}
-                    {selected.item.due_date ?? "not set"}
+                    {selected.item.timezone} · Due {selected.item.due_date ?? "not set"}
                   </div>
                   {can("edit") && data.enabled && (
-                    <button className={button} onClick={() => setEditing(true)}>
+                    <Button appearance="standard"
+                      type="submit"
+                      variant="ghost"
+                      className={button}
+                      onClick={() => setEditing(true)}
+                    >
                       Edit record
-                    </button>
+                    </Button>
                   )}
-                  {can("review") && data.enabled && <LegalAssignment detail={selected} call={call} command={command} busy={busy} />}
+                  {can("review") && data.enabled && (
+                    <LegalAssignment detail={selected} call={call} command={command} busy={busy} />
+                  )}
                   {selected.item.kind === "counsel" && (
                     <>
                       <h3>Spending handoff</h3>
                       <p className={s.small}>
-                        Only the summary you enter is copied into a draft
-                        purchase request. Confidential case documents stay in
-                        Legal. Submit and approve the request through the
-                        existing spending workflow.
+                        Only the summary you enter is copied into a draft purchase request.
+                        Confidential case documents stay in Legal. Submit and approve the request
+                        through the existing spending workflow.
                       </p>
                       <ActionForm
                         busy={busy}
@@ -441,21 +603,21 @@ export function LegalWorkspace({
                             label: `Estimated cost (${selected.item.currency})`,
                           },
                         ]}
-                        onSubmit={(v) =>
-                          command({ action: "finance.prepare", ...v })
-                        }
+                        onSubmit={(v) => command({ action: "finance.prepare", ...v })}
                       />
                     </>
                   )}
                   <h3>Linked records</h3>
                   {selected.links.map((l) => (
-                    <button
+                    <Button appearance="standard"
+                      type="submit"
+                      variant="ghost"
                       key={`${l.target_id}-${l.relation}`}
                       className={button}
                       onClick={() => open(l.target_id)}
                     >
                       {l.relation} · {l.title}
-                    </button>
+                    </Button>
                   ))}
                   <ActionForm
                     busy={busy}
@@ -465,13 +627,7 @@ export function LegalWorkspace({
                       {
                         name: "relation",
                         label: "Relationship",
-                        options: [
-                          "related",
-                          "evidence",
-                          "amends",
-                          "obligation",
-                          "derived",
-                        ],
+                        options: ["related", "evidence", "amends", "obligation", "derived"],
                       },
                     ]}
                     onSubmit={(v) => command({ action: "link", ...v })}
@@ -480,7 +636,9 @@ export function LegalWorkspace({
                   {selected.comments.map((c) => (
                     <div key={c.id} className={s.event}>
                       <span className={s.small}>
-                        {c.visibility} · {data.people.find(person => person.id === c.created_by)?.name ?? "Authorized colleague"}
+                        {c.visibility} ·{" "}
+                        {data.people.find((person) => person.id === c.created_by)?.name ??
+                          "Authorized colleague"}
                       </span>
                       <p className={s.body}>{c.body}</p>
                     </div>
@@ -519,8 +677,29 @@ export function LegalWorkspace({
               )}
               {tab === "Documents" && (
                 <>
-                  {selected.item.kind === "contract" && <LegalExecutedCopies detail={selected} api={api} call={call} command={command} busy={busy} userId={data.userId} canReview={can("approve")} onRefresh={refreshDetail} />}
-                  {selected.item.kind !== "rule" && can("edit") && <LegalDocumentTextReview detail={selected} call={call} command={command} busy={busy} userId={data.userId} canReview={can("approve")} inspection={inspection} />}
+                  {selected.item.kind === "contract" && (
+                    <LegalExecutedCopies
+                      detail={selected}
+                      api={api}
+                      call={call}
+                      command={command}
+                      busy={busy}
+                      userId={data.userId}
+                      canReview={can("approve")}
+                      onRefresh={refreshDetail}
+                    />
+                  )}
+                  {selected.item.kind !== "rule" && can("edit") && (
+                    <LegalDocumentTextReview
+                      detail={selected}
+                      call={call}
+                      command={command}
+                      busy={busy}
+                      userId={data.userId}
+                      canReview={can("approve")}
+                      inspection={inspection}
+                    />
+                  )}
                   {selected.item.state === "draft" && (
                     <ActionForm
                       busy={busy}
@@ -532,9 +711,7 @@ export function LegalWorkspace({
                             "Attachment ID from an accessible request, expense, payment, leave or task",
                         },
                       ]}
-                      onSubmit={(v) =>
-                        command({ action: "source.attach", ...v })
-                      }
+                      onSubmit={(v) => command({ action: "source.attach", ...v })}
                     />
                   )}
                   {selected.item.state === "draft" && (
@@ -559,27 +736,28 @@ export function LegalWorkspace({
                   {inspection !== null && (
                     <div className={s.notice}>
                       <strong>Document inspection</strong>
-                      <button
+                      <Button appearance="standard"
+                        type="submit"
+                        variant="ghost"
                         className={button}
                         disabled={busy}
                         onClick={async () => {
                           try {
                             const j = inspection as { jobId?: string };
-                            if (j.jobId)
-                              setInspection(
-                                await call(`/processing/${j.jobId}`),
-                              );
+                            if (j.jobId) setInspection(await call(`/processing/${j.jobId}`));
                           } catch (e) {
                             setError((e as Error).message);
                           }
                         }}
                       >
                         Refresh processing result
-                      </button>
+                      </Button>
                       {selected.item.state === "draft" &&
-                        typeof (inspection as { result?: { text?: unknown } })
-                          ?.result?.text === "string" && (
-                          <button
+                        typeof (inspection as { result?: { text?: unknown } })?.result?.text ===
+                          "string" && (
+                          <Button appearance="standard"
+                            type="submit"
+                            variant="ghost"
                             className={button}
                             disabled={busy}
                             onClick={() => {
@@ -594,15 +772,15 @@ export function LegalWorkspace({
                             }}
                           >
                             Accept extracted text as a new draft
-                          </button>
+                          </Button>
                         )}
                       <LegalEvidenceFields value={inspection} />
                     </div>
                   )}
                   {selected.item.state === "draft" && (
-                    <label className={s.field}>
+                    <Field appearance="standard" className={s.field}>
                       Upload PDF, DOCX or image (up to 10 MB)
-                      <input
+                      <TextInput appearance="standard"
                         type="file"
                         disabled={busy}
                         accept=".pdf,.docx,.png,.jpg,.jpeg"
@@ -611,11 +789,11 @@ export function LegalWorkspace({
                           if (file) void upload(file);
                         }}
                       />
-                    </label>
+                    </Field>
                   )}
                   <p className={s.small}>
-                    Each save creates an immutable version. Return the record to
-                    draft to add content.
+                    Each save creates an immutable version. Return the record to draft to add
+                    content.
                   </p>
                   {selected.submissions.length > 0 && (
                     <>
@@ -624,13 +802,12 @@ export function LegalWorkspace({
                         <div className={s.event} key={u.id}>
                           <a href={`${api}/submissions/${u.id}`}>{u.name}</a>
                           <div className={s.small}>
-                            {u.created_by} ·{" "}
-                            <TimeText value={u.created_at} /> · SHA-256{" "}
+                            {u.created_by} · <TimeText appearance="standard" value={u.created_at} /> · SHA-256{" "}
                             {u.checksum}
                           </div>
                           <p className={s.small}>
-                            Review this submission before uploading it as a new
-                            internal draft version.
+                            Review this submission before uploading it as a new internal draft
+                            version.
                           </p>
                         </div>
                       ))}
@@ -646,44 +823,40 @@ export function LegalWorkspace({
                         <br />
                         SHA-256: {d.checksum}
                       </div>
-                      <pre className={s.body}>
-                        {d.body || "Uploaded document"}
-                      </pre>
+                      <pre className={s.body}>{d.body || "Uploaded document"}</pre>
                       <div className={s.actions}>
-                        <a className={button} href={`${api}/documents/${d.id}`}>
+                        <a data-slot="button" className={['ui-standard-control', (button)].filter(Boolean).join(' ')} href={`${api}/documents/${d.id}`}>
                           Download original
                         </a>
                         {d.body && (
                           <>
-                            <a
-                              className={button}
-                              href={`${api}/documents/${d.id}?format=docx`}
-                            >
+                            <a data-slot="button" className={['ui-standard-control', (button)].filter(Boolean).join(' ')} href={`${api}/documents/${d.id}?format=docx`}>
                               DOCX
                             </a>
-                            <a
-                              className={button}
-                              href={`${api}/documents/${d.id}?format=pdf`}
-                            >
+                            <a data-slot="button" className={['ui-standard-control', (button)].filter(Boolean).join(' ')} href={`${api}/documents/${d.id}?format=pdf`}>
                               PDF
                             </a>
                           </>
                         )}
-                        <button
+                        <Button appearance="standard"
+                          type="submit"
+                          variant="ghost"
                           className={button}
                           disabled={busy}
                           onClick={() => inspect(d.id, "ocr")}
                         >
                           Extract text
-                        </button>
+                        </Button>
                         {d.media_type === "application/pdf" && (
-                          <button
+                          <Button appearance="standard"
+                            type="submit"
+                            variant="ghost"
                             className={button}
                             disabled={busy}
                             onClick={() => inspect(d.id, "verify")}
                           >
                             Inspect signatures
-                          </button>
+                          </Button>
                         )}
                       </div>
                     </details>
@@ -707,9 +880,7 @@ export function LegalWorkspace({
               )}
               {tab === "Workflow" && (
                 <>
-                  {["contract", "rule", "template"].includes(
-                    selected.item.kind,
-                  ) && (
+                  {["contract", "rule", "template"].includes(selected.item.kind) && (
                     <ActionForm
                       busy={busy}
                       label="Create amendment / renewal / replacement draft"
@@ -721,9 +892,7 @@ export function LegalWorkspace({
                           textarea: true,
                         },
                       ]}
-                      onSubmit={(v) =>
-                        command({ action: "revision.create", ...v })
-                      }
+                      onSubmit={(v) => command({ action: "revision.create", ...v })}
                     />
                   )}
                   <ActionForm
@@ -733,23 +902,20 @@ export function LegalWorkspace({
                       {
                         name: "state",
                         label: "Next state",
-                        options: allowedTransitions(
-                          selected.item.kind,
-                          selected.item.state,
-                        ),
+                        options: allowedTransitions(selected.item.kind, selected.item.state),
                       },
                       { name: "reason", label: "Reason", textarea: true },
                     ]}
                     onSubmit={(v) => command({ action: "transition", ...v })}
                   />
                   {selected.item.kind === "rule" && (
-                    <button
+                    <Button appearance="standard"
+                      type="submit"
+                      variant="ghost"
                       className={button}
                       onClick={async () => {
                         try {
-                          setInspection(
-                            await call(`/rule-impact/${selected.item.id}`),
-                          );
+                          setInspection(await call(`/rule-impact/${selected.item.id}`));
                           setTab("Documents");
                         } catch (e) {
                           setError((e as Error).message);
@@ -757,7 +923,7 @@ export function LegalWorkspace({
                       }}
                     >
                       Preview affected records
-                    </button>
+                    </Button>
                   )}
                   {selected.item.kind === "contract" && (
                     <LegalApproval
@@ -768,17 +934,23 @@ export function LegalWorkspace({
                       busy={busy}
                     />
                   )}
-                  {selected.item.kind === "contract" && <p className={s.notice}>Record an agreement signed outside ERPX in Documents. An independent reviewer must confirm the executed copy before activation.</p>}
+                  {selected.item.kind === "contract" && (
+                    <p className={s.notice}>
+                      Record an agreement signed outside ERPX in Documents. An independent reviewer
+                      must confirm the executed copy before activation.
+                    </p>
+                  )}
                   {selected.envelopes.map((e) => (
                     <div className={s.notice} key={e.id}>
                       <strong>Signing · {e.state}</strong>
                       <p className={s.body}>{e.consent}</p>
-                      <p>
-                        Expires {<TimeText value={e.expires_at} />}
-                      </p>
+                      <p>Expires {<TimeText appearance="standard" value={e.expires_at} />}</p>
                       {e.signers.map((p) => (
                         <div key={p.user_id}>
-                          {p.ordinal + 1}. {data.people.find(person => person.id === p.user_id)?.name ?? "Recorded signer"} · {p.state}
+                          {p.ordinal + 1}.{" "}
+                          {data.people.find((person) => person.id === p.user_id)?.name ??
+                            "Recorded signer"}{" "}
+                          · {p.state}
                         </div>
                       ))}
                     </div>
@@ -790,7 +962,9 @@ export function LegalWorkspace({
                   <h3>Internal membership</h3>
                   {selected.members.map((m) => (
                     <div key={m.user_id} className={s.event}>
-                      {data.people.find(person => person.id === m.user_id)?.name ?? "Authorized colleague"} · {m.access}
+                      {data.people.find((person) => person.id === m.user_id)?.name ??
+                        "Authorized colleague"}{" "}
+                      · {m.access}
                     </div>
                   ))}
                   <ActionForm
@@ -814,25 +988,20 @@ export function LegalWorkspace({
                     onSubmit={(v) => command({ action: "member", ...v })}
                   />
                   <h3>External shares</h3>
-                  <a
-                    href={`/legal-portal/${base.split("/")[2]}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
+                  <a href={`/legal-portal/${base.split("/")[2]}`} target="_blank" rel="noreferrer">
                     Open external portal
                   </a>
                   {selected.shares.map((share) => (
                     <div className={s.event} key={share.id}>
                       {share.email} ·{" "}
-                      {share.revoked_at
-                        ? "Revoked"
-                        : <TimeText value={share.expires_at} />}
+                      {share.revoked_at ? "Revoked" : <TimeText appearance="standard" value={share.expires_at} />}
                       <div className={s.small}>
-                        Accepted user:{" "}
-                        {share.user_id ?? "Invitation not accepted"}
+                        Accepted user: {share.user_id ?? "Invitation not accepted"}
                       </div>
                       {!share.revoked_at && (
-                        <button
+                        <Button appearance="standard"
+                          type="submit"
+                          variant="ghost"
                           className={button}
                           disabled={busy}
                           onClick={() =>
@@ -843,7 +1012,7 @@ export function LegalWorkspace({
                           }
                         >
                           Revoke share
-                        </button>
+                        </Button>
                       )}
                     </div>
                   ))}
@@ -875,16 +1044,16 @@ export function LegalWorkspace({
                     }
                   />
                   <p className={s.small}>
-                    Access expires after 30 days. The recipient signs in with
-                    the specified verified email.
+                    Access expires after 30 days. The recipient signs in with the specified verified
+                    email.
                   </p>
                 </>
               )}
               {tab === "Holds" && (
                 <>
                   <p>
-                    A preservation hold protects linked evidence. Release
-                    requires an independent reviewer.
+                    A preservation hold protects linked evidence. Release requires an independent
+                    reviewer.
                   </p>
                   {selected.holds.map((h) => (
                     <div className={s.hold} key={h.id}>
@@ -892,8 +1061,7 @@ export function LegalWorkspace({
                       <p>{h.reason}</p>
                       {h.acknowledged_at ? (
                         <p className={s.small}>
-                          Acknowledged{" "}
-                          <TimeText value={h.acknowledged_at} />
+                          Acknowledged <TimeText appearance="standard" value={h.acknowledged_at} />
                         </p>
                       ) : (
                         <ActionForm
@@ -902,8 +1070,7 @@ export function LegalWorkspace({
                           fields={[
                             {
                               name: "reason",
-                              label:
-                                "Confirm the preservation steps you have taken",
+                              label: "Confirm the preservation steps you have taken",
                               textarea: true,
                             },
                           ]}
@@ -918,25 +1085,17 @@ export function LegalWorkspace({
                       )}
 
                       {!h.direct && (
-                        <p className={s.small}>
-                          Release is managed on the source record.
-                        </p>
+                        <p className={s.small}>Release is managed on the source record.</p>
                       )}
                       {h.direct && (
                         <ActionForm
                           busy={busy}
-                          label={
-                            h.state === "active"
-                              ? "Request release"
-                              : "Approve release"
-                          }
+                          label={h.state === "active" ? "Request release" : "Approve release"}
                           fields={[{ name: "reason", label: "Release reason" }]}
                           onSubmit={(v) =>
                             command({
                               action:
-                                h.state === "active"
-                                  ? "hold.request-release"
-                                  : "hold.release",
+                                h.state === "active" ? "hold.request-release" : "hold.release",
                               holdId: h.id,
                               ...v,
                             })
@@ -962,10 +1121,13 @@ export function LegalWorkspace({
               {tab === "AI" && (
                 <>
                   <p>
-                    AI proposals use accessible documents and independently reviewed, applicable law sources. Review every statement and citation before accepting a draft.
+                    AI proposals use accessible documents and independently reviewed, applicable law
+                    sources. Review every statement and citation before accepting a draft.
                   </p>
                   {can("manage") && (
-                    <button
+                    <Button appearance="standard"
+                      type="submit"
+                      variant="ghost"
                       className={button}
                       disabled={busy}
                       onClick={() =>
@@ -977,7 +1139,7 @@ export function LegalWorkspace({
                       }
                     >
                       Enable Legal AI for this Company
-                    </button>
+                    </Button>
                   )}
                   <ActionForm
                     busy={busy}
@@ -991,7 +1153,9 @@ export function LegalWorkspace({
                     ]}
                     onSubmit={(v) => command({ action: "ai.generate", ...v })}
                   />
-                  <button
+                  <Button appearance="standard"
+                    type="submit"
+                    variant="ghost"
                     className={button}
                     onClick={() =>
                       call(`/ai/${selected.item.id}`)
@@ -1000,50 +1164,43 @@ export function LegalWorkspace({
                     }
                   >
                     Refresh proposals
-                  </button>
+                  </Button>
                   {proposals.map((p) => (
                     <div className={s.notice} key={String(p.id)}>
                       <strong>{String(p.state)}</strong>
                       <p>{String(p.question)}</p>
                       {p.error ? <p>{String(p.error)}</p> : null}
                       <LegalEvidenceFields value={p.proposal} />
-                      {p.state === "proposed" &&
-                        selected.item.state === "draft" &&
-                        can("edit") && (
-                          <ActionForm
-                            busy={busy}
-                            label="Accept reviewed draft as a new version"
-                            fields={[
-                              { name: "name", label: "Reviewed document name" },
-                              {
-                                name: "body",
-                                label:
-                                  "Review the content and remove unsupported portions",
-                                textarea: true,
-                                initial: String(
-                                  (p.proposal as { draft?: string } | null)
-                                    ?.draft ?? "",
-                                ),
-                              },
-                            ]}
-                            onSubmit={(v) =>
-                              command({
-                                action: "ai.apply",
-                                proposalId: p.id,
-                                ...v,
-                              })
-                            }
-                          />
-                        )}
+                      {p.state === "proposed" && selected.item.state === "draft" && can("edit") && (
+                        <ActionForm
+                          busy={busy}
+                          label="Accept reviewed draft as a new version"
+                          fields={[
+                            { name: "name", label: "Reviewed document name" },
+                            {
+                              name: "body",
+                              label: "Review the content and remove unsupported portions",
+                              textarea: true,
+                              initial: String(
+                                (p.proposal as { draft?: string } | null)?.draft ?? "",
+                              ),
+                            },
+                          ]}
+                          onSubmit={(v) =>
+                            command({
+                              action: "ai.apply",
+                              proposalId: p.id,
+                              ...v,
+                            })
+                          }
+                        />
+                      )}
                     </div>
                   ))}
                 </>
               )}
               {tab === "Activity" && can("export") && (
-                <a
-                  className={button}
-                  href={`${api}/evidence/${selected.item.id}`}
-                >
+                <a data-slot="button" className={['ui-standard-control', (button)].filter(Boolean).join(' ')} href={`${api}/evidence/${selected.item.id}`}>
                   Download evidence and access history
                 </a>
               )}
@@ -1059,22 +1216,29 @@ export function LegalWorkspace({
                       </details>
                     )}
                     <span className={s.small}>
-                      {data.people.find(person => person.id === e.actor_id)?.name ?? "Authorized colleague"} · <TimeText value={e.created_at} /> ·
-                      v{e.version}
+                      {data.people.find((person) => person.id === e.actor_id)?.name ??
+                        "Authorized colleague"}{" "}
+                      · <TimeText appearance="standard" value={e.created_at} /> · v{e.version}
                     </span>
                   </div>
                 ))}
-            </div>
+              </TabsPanel>
+            </LocalTabs>
           ) : (
             <>
-              <div className={s.registerHeading}><h2>{labels[kind]}</h2><span className={s.small}>Manage records, deadlines and decisions</span></div>
+              <div className={s.registerHeading}>
+                <h2>{labels[kind]}</h2>
+                <span className={s.small}>Manage records, deadlines and decisions</span>
+              </div>
               <div className={s.actions}>
                 {can("export") && (
-                  <a className={button} href={`${api}/export/${kind}`}>
+                  <a data-slot="button" className={['ui-standard-control', (button)].filter(Boolean).join(' ')} href={`${api}/export/${kind}`}>
                     Export register
                   </a>
                 )}
-                <button
+                <Button appearance="standard"
+                  type="submit"
+                  variant="ghost"
                   className={button}
                   onClick={() =>
                     call("/views")
@@ -1083,8 +1247,10 @@ export function LegalWorkspace({
                   }
                 >
                   Saved views
-                </button>
-                <button
+                </Button>
+                <Button appearance="standard"
+                  type="submit"
+                  variant="ghost"
                   className={button}
                   disabled={busy}
                   onClick={() =>
@@ -1096,35 +1262,34 @@ export function LegalWorkspace({
                   }
                 >
                   Save current view
-                </button>
+                </Button>
                 {saved.map((v) => (
-                  <button
+                  <Button appearance="standard"
+                    type="submit"
+                    variant="ghost"
                     key={v.name}
                     className={button}
                     onClick={() => {
                       setKind(v.query.kind);
                       setSearch(v.query.search);
                       setState(v.query.state);
-                      load(
-                        v.query.kind,
-                        1,
-                        v.query.search,
-                        v.query.state,
-                      ).catch((e) => setError(e.message));
+                      load(v.query.kind, 1, v.query.search, v.query.state).catch((e) =>
+                        setError(e.message),
+                      );
                     }}
                   >
                     {v.name}
-                  </button>
+                  </Button>
                 ))}
               </div>
               {can("create") && (
                 <details className={s.event}>
                   <summary>Import records</summary>
                   <p className={s.small}>
-                    Upload a JSON array of draft records. Preview validates
-                    every row before an atomic import.
+                    Upload a JSON array of draft records. Preview validates every row before an
+                    atomic import.
                   </p>
-                  <input
+                  <TextInput appearance="standard"
                     aria-label="Import records JSON"
                     type="file"
                     accept=".json,application/json"
@@ -1132,12 +1297,9 @@ export function LegalWorkspace({
                       const file = e.target.files?.[0];
                       if (!file) return;
                       try {
-                        if (file.size > 500000)
-                          throw new Error("Use a file below 500 KB.");
+                        if (file.size > 500000) throw new Error("Use a file below 500 KB.");
                         const rows = JSON.parse(await file.text());
-                        setImportData(
-                          await call("", { action: "import.preview", rows }),
-                        );
+                        setImportData(await call("", { action: "import.preview", rows }));
                       } catch (e) {
                         setError((e as Error).message);
                       }
@@ -1146,15 +1308,16 @@ export function LegalWorkspace({
                   {importData && (
                     <>
                       <p>
-                        {importData.count} rows · {importData.errors.length}{" "}
-                        errors
+                        {importData.count} rows · {importData.errors.length} errors
                       </p>
                       {importData.errors.map((e) => (
                         <p key={e.row}>
                           Row {e.row}: {e.message}
                         </p>
                       ))}
-                      <button
+                      <Button appearance="standard"
+                        type="submit"
+                        variant="ghost"
                         className={button}
                         disabled={busy || importData.errors.length > 0}
                         onClick={async () => {
@@ -1169,7 +1332,7 @@ export function LegalWorkspace({
                         }}
                       >
                         Import validated records
-                      </button>
+                      </Button>
                     </>
                   )}
                 </details>
@@ -1182,13 +1345,13 @@ export function LegalWorkspace({
                   load().catch((e) => setError(e.message));
                 }}
               >
-                <input
+                <TextInput appearance="standard"
                   aria-label="Search legal records"
                   placeholder="Search records…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
-                <select
+                <Select appearance="standard"
                   aria-label="State filter"
                   value={state}
                   onChange={(e) => setState(e.target.value)}
@@ -1208,11 +1371,13 @@ export function LegalWorkspace({
                   ].map((v) => (
                     <option key={v}>{v}</option>
                   ))}
-                </select>
-                <button className={button}>Search</button>
+                </Select>
+                <Button appearance="standard" clientManaged type="submit" variant="ghost" className={button}>
+                  Search
+                </Button>
               </form>
               {data.items.length ? (
-                <table className={s.list}>
+                <TableFrame appearance="standard" label="Records"><Table className={s.list}>
                   <thead>
                     <tr>
                       <th>Record</th>
@@ -1225,13 +1390,15 @@ export function LegalWorkspace({
                     {data.items.map((i) => (
                       <tr key={i.id}>
                         <td>
-                          <button
+                          <Button appearance="standard"
+                            type="submit"
+                            variant="ghost"
                             className={s.link}
                             disabled={busy}
                             onClick={() => open(i.id)}
                           >
                             {i.title}
-                          </button>
+                          </Button>
                           <div className={s.small}>{i.jurisdiction}</div>
                         </td>
                         <td>
@@ -1242,7 +1409,7 @@ export function LegalWorkspace({
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </Table></TableFrame>
               ) : (
                 <div className={s.empty}>
                   <h3>No records yet</h3>
@@ -1254,33 +1421,29 @@ export function LegalWorkspace({
                   {data.total} records · Page {data.page}
                 </span>
                 <div className={s.actions}>
-                  <button
+                  <Button appearance="standard"
+                    type="submit"
+                    variant="ghost"
                     className={button}
                     disabled={data.page <= 1}
-                    onClick={() =>
-                      load(kind, data.page - 1).catch((e) =>
-                        setError(e.message),
-                      )
-                    }
+                    onClick={() => load(kind, data.page - 1).catch((e) => setError(e.message))}
                   >
                     Previous
-                  </button>
-                  <button
+                  </Button>
+                  <Button appearance="standard"
+                    type="submit"
+                    variant="ghost"
                     className={button}
                     disabled={data.page * 30 >= data.total}
-                    onClick={() =>
-                      load(kind, data.page + 1).catch((e) =>
-                        setError(e.message),
-                      )
-                    }
+                    onClick={() => load(kind, data.page + 1).catch((e) => setError(e.message))}
                   >
                     Next
-                  </button>
+                  </Button>
                 </div>
               </div>
             </>
           )}
-        </section>
+        </Card>
       </div>
     </div>
   );
@@ -1307,6 +1470,8 @@ function ItemForm({
   const item = detail?.item;
   const formRef = useRef<HTMLFormElement>(null);
   const [restored, setRestored] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [ownerId, setOwnerId] = useState(item?.owner_id ?? data.userId);
   const { people, error: peopleError } = useLegalPeople(call, "owner");
   useEffect(() => {
     if (!formRef.current || !people.length) return;
@@ -1314,18 +1479,36 @@ function ItemForm({
       const saved = sessionStorage.getItem(draftKey);
       if (!saved) return;
       const draft = JSON.parse(saved) as { savedAt: number; values: Record<string, string> };
-      if (Date.now() - draft.savedAt > 24 * 60 * 60 * 1000) { sessionStorage.removeItem(draftKey); return; }
-      for (const [name, value] of Object.entries(draft.values)) {
-        const control = formRef.current.elements.namedItem(name);
-        if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement || control instanceof HTMLSelectElement) control.value = value;
+      if (Date.now() - draft.savedAt > 24 * 60 * 60 * 1000) {
+        sessionStorage.removeItem(draftKey);
+        return;
       }
-      const frame = requestAnimationFrame(() => setRestored(true));
+      for (const [name, value] of Object.entries(draft.values)) {
+        if (name === "ownerId") {
+          continue;
+        }
+        const control = formRef.current.elements.namedItem(name);
+        if (
+          control instanceof HTMLInputElement ||
+          control instanceof HTMLTextAreaElement ||
+          control instanceof HTMLSelectElement
+        )
+          control.value = value;
+      }
+      const frame = requestAnimationFrame(() => {
+        if (typeof draft.values.ownerId === "string") setOwnerId(draft.values.ownerId);
+        setRestored(true);
+        setDirty(true);
+      });
       return () => cancelAnimationFrame(frame);
     } catch {}
   }, [draftKey, people]);
-  function preserve(form: HTMLFormElement) {
-    const values = Object.fromEntries(new FormData(form).entries());
-    try { sessionStorage.setItem(draftKey, JSON.stringify({ savedAt: Date.now(), values })); } catch {}
+  function preserve(form: HTMLFormElement, selectedOwner = ownerId) {
+    setDirty(true);
+    const values = { ...Object.fromEntries(new FormData(form).entries()), ownerId: selectedOwner };
+    try {
+      sessionStorage.setItem(draftKey, JSON.stringify({ savedAt: Date.now(), values }));
+    } catch {}
   }
   async function save(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -1339,9 +1522,7 @@ function ItemForm({
       kind,
       title: String(f.get("title")),
       description: String(f.get("description")),
-      classification: String(
-        f.get("classification"),
-      ) as ItemInput["classification"],
+      classification: String(f.get("classification")) as ItemInput["classification"],
       country: String(f.get("country")),
       jurisdiction: String(f.get("jurisdiction")),
       language: String(f.get("language")),
@@ -1352,51 +1533,61 @@ function ItemForm({
       ownerId: String(f.get("ownerId")),
       data: values,
     });
-    if (saved) { try { sessionStorage.removeItem(draftKey); } catch {} }
+    if (saved) {
+      try {
+        sessionStorage.removeItem(draftKey);
+      } catch {}
+    }
   }
   return (
-    <form ref={formRef} onSubmit={save} onChange={event => preserve(event.currentTarget)}>
-      <h2>
-        {item ? "Edit" : "New"} {kind}
-      </h2>
-      <p className={s.small}>{restored ? "Your unsent details were restored in this tab. Review them before saving." : "Unsent details are preserved in this tab for up to 24 hours."}</p>
-      {peopleError && <p role="alert">{peopleError}</p>}
-      <div className={s.grid}>
-        <label className={`${s.field} ${s.wide}`}>
+    <DraftFormDrawer open title={`${item ? "Edit" : "New"} ${kind}`} dirty={dirty} dismissDisabled={busy} onClose={onCancel} onDiscard={() => {
+      try { sessionStorage.removeItem(draftKey); } catch {}
+      onCancel();
+    }}>
+    <FormLayout layout="stack" ref={formRef} onSubmit={save} onChange={(event) => preserve(event.currentTarget, event.target instanceof HTMLSelectElement && event.target.name === "ownerId" ? event.target.value : ownerId)}>
+      <p className={s.small}>
+        {restored
+          ? "Your unsent details were restored in this tab. Review them before saving."
+          : "Unsent details are preserved in this tab for up to 24 hours."}
+      </p>
+      {peopleError && <InlineNotice tone="danger" role="alert">{peopleError}</InlineNotice>}
+      <FormGrid as="div">
+        <Field appearance="standard" className={`${s.field} ${s.wide}`}>
           Title
-          <input
+          <TextInput appearance="standard"
             name="title"
             required
             minLength={2}
             maxLength={240}
             defaultValue={item?.title}
           />
-        </label>
-        <label className={`${s.field} ${s.wide}`}>
+        </Field>
+        <Field appearance="standard" className={`${s.field} ${s.wide}`}>
           Description
-          <textarea name="description" defaultValue={item?.description} />
-        </label>
-        <label className={s.field}>
+          <TextArea appearance="standard" name="description" defaultValue={item?.description} />
+        </Field>
+        <Field appearance="standard" className={s.field}>
           Owner
-          <select name="ownerId" defaultValue={item?.owner_id ?? data.userId}>
+          <Select appearance="standard" name="ownerId" required value={ownerId} onChange={(event) => setOwnerId(event.target.value)}>
+            <option value="">Choose an eligible owner</option>
             {people.map((p) => (
               <option value={p.id} key={p.id}>
                 {p.name}
               </option>
             ))}
-          </select>
-        </label>
-        <label className={s.field}>
+          </Select>
+          {people.length > 0 && ownerId && !people.some((person) => person.id === ownerId) && (
+            <span role="status">The selected owner is no longer eligible. Choose an available person.</span>
+          )}
+        </Field>
+        <Field appearance="standard" className={s.field}>
           Classification
-          <select
-            name="classification"
-            defaultValue={item?.classification ?? "confidential"}
-          >
+          <Select appearance="standard" name="classification" defaultValue={item?.classification ?? "confidential"}>
             {["internal", "confidential", "restricted"].map((v) => (
               <option key={v}>{v}</option>
             ))}
-          </select>
-        </label>
+          </Select>
+        </Field>
         {[
           {
             key: "country",
@@ -1420,44 +1611,43 @@ function ItemForm({
             value: item?.timezone ?? "Asia/Bangkok",
           },
         ].map((f) => (
-          <label key={f.key} className={s.field}>
+          <Field appearance="standard" key={f.key} className={s.field}>
             {f.label}
-            <input name={f.key} required defaultValue={f.value} />
-          </label>
+            <TextInput appearance="standard" name={f.key} required defaultValue={f.value} />
+          </Field>
         ))}
-        <label className={s.field}>
+        <Field appearance="standard" className={s.field}>
           Due date
-          <input
-            type="date"
-            name="dueDate"
-            defaultValue={item?.due_date ?? ""}
-          />
-        </label>
-        <label className={s.field}>
+          <TextInput appearance="standard" type="date" name="dueDate" defaultValue={item?.due_date ?? ""} />
+        </Field>
+        <Field appearance="standard" className={s.field}>
           Priority
-          <select name="priority" defaultValue={item?.priority ?? "normal"}>
+          <Select appearance="standard" name="priority" defaultValue={item?.priority ?? "normal"}>
             {["normal", "high", "urgent"].map((v) => (
               <option key={v}>{v}</option>
             ))}
-          </select>
-        </label>
+          </Select>
+        </Field>
         {fields[kind].map((f) => (
-          <label
-            className={`${s.field} ${f.type === "textarea" ? s.wide : ""}`}
-            key={f.key}
-          >
+          <Field appearance="standard" className={`${s.field} ${f.type === "textarea" ? s.wide : ""}`} key={f.key}>
             {f.label}
-            {f.key === "escalationOwner" ? <select name={`field:${f.key}`} defaultValue={item?.data[f.key] ?? ""}>
-              <option value="">Choose an escalation owner</option>
-              {people.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}
-            </select> : f.type === "textarea" ? (
-              <textarea
+            {f.key === "escalationOwner" ? (
+              <Select appearance="standard" name={`field:${f.key}`} defaultValue={item?.data[f.key] ?? ""}>
+                <option value="">Choose an escalation owner</option>
+                {people.map((person) => (
+                  <option key={person.id} value={person.id}>
+                    {person.name}
+                  </option>
+                ))}
+              </Select>
+            ) : f.type === "textarea" ? (
+              <TextArea appearance="standard"
                 name={`field:${f.key}`}
                 required={f.required}
                 defaultValue={item?.data[f.key] ?? ""}
               />
             ) : (
-              <input
+              <TextInput appearance="standard"
                 name={`field:${f.key}`}
                 type={f.type ?? "text"}
                 min={f.type === "number" ? 0 : undefined}
@@ -1465,19 +1655,33 @@ function ItemForm({
                 defaultValue={item?.data[f.key] ?? ""}
               />
             )}
-          </label>
+          </Field>
         ))}
-      </div>
-      <div className={s.footer}>
-        <button type="button" className={button} onClick={onCancel}>
-          Cancel
-        </button>
-        <button type="button" className={button} onClick={() => { try { sessionStorage.removeItem(draftKey); } catch {} formRef.current?.reset(); setRestored(false); }}>Clear unsent details</button>
-        <button className={primary} disabled={busy || !people.length}>
+      </FormGrid>
+      <div className="ui-form-actions">
+        <DialogClose render={<Button appearance="standard" variant="secondary" type="button" />}>Cancel</DialogClose>
+        <Button appearance="standard"
+          variant="ghost"
+          type="button"
+          className={button}
+          onClick={() => {
+            try {
+              sessionStorage.removeItem(draftKey);
+            } catch {}
+            formRef.current?.reset();
+            setOwnerId(item?.owner_id ?? data.userId);
+            setRestored(false);
+            setDirty(false);
+          }}
+        >
+          Clear unsent details
+        </Button>
+        <Button appearance="standard" clientManaged type="submit" variant="ghost" className={primary} disabled={busy || !people.some((person) => person.id === ownerId)}>
           {busy ? "Saving…" : "Save record"}
-        </button>
+        </Button>
       </div>
-    </form>
+    </FormLayout>
+    </DraftFormDrawer>
   );
 }
 function ActionForm({
@@ -1511,47 +1715,38 @@ function ActionForm({
       }}
     >
       {spec.map((f) => (
-        <label className={s.field} key={f.name}>
+        <Field appearance="standard" className={s.field} key={f.name}>
           {f.label}
           {f.choices ? (
-            <select name={f.name} required={!f.optional}>
+            <Select appearance="standard" name={f.name} required={!f.optional}>
               {f.choices.map((c) => (
                 <option key={c.value} value={c.value}>
                   {c.label}
                 </option>
               ))}
-            </select>
+            </Select>
           ) : f.options ? (
-            <select name={f.name} required>
+            <Select appearance="standard" name={f.name} required>
               {f.options.map((v) => (
                 <option key={v}>{v}</option>
               ))}
-            </select>
+            </Select>
           ) : f.textarea ? (
-            <textarea
-              name={f.name}
-              required={!f.optional}
-              defaultValue={f.initial}
-            />
+            <TextArea appearance="standard" name={f.name} required={!f.optional} defaultValue={f.initial} />
           ) : (
-            <input
-              name={f.name}
-              type={f.type ?? "text"}
-              required={!f.optional}
-            />
+            <TextInput appearance="standard" name={f.name} type={f.type ?? "text"} required={!f.optional} />
           )}
-        </label>
+        </Field>
       ))}
       <div>
-        <button
+        <Button appearance="standard"
+          clientManaged type="submit"
+          variant="ghost"
           className={button}
-          disabled={
-            busy ||
-            spec.some((f) => f.options?.length === 0 || f.choices?.length === 0)
-          }
+          disabled={busy || spec.some((f) => f.options?.length === 0 || f.choices?.length === 0)}
         >
           {label}
-        </button>
+        </Button>
       </div>
     </form>
   );
@@ -1573,9 +1768,7 @@ function TemplateComposer({
     ? [
         ...new Set(
           Array.from(
-            String(chosen.data.body ?? "").matchAll(
-              /\{\{([a-zA-Z][a-zA-Z0-9_]*)\}\}/g,
-            ),
+            String(chosen.data.body ?? "").matchAll(/\{\{([a-zA-Z][a-zA-Z0-9_]*)\}\}/g),
             (m) => m[1],
           ),
         ),
@@ -1584,8 +1777,9 @@ function TemplateComposer({
   return (
     <details className={s.event}>
       <summary>Prepare from an approved template</summary>
-      {error && <p role="alert">{error}</p>}
-      <button
+      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+      <Button appearance="standard"
+        variant="ghost"
         className={button}
         type="button"
         onClick={async () => {
@@ -1594,19 +1788,17 @@ function TemplateComposer({
               call("?kind=template&state=approved"),
               call("?kind=template&state=active"),
             ]);
-            setTemplates([
-              ...(a as LegalData).items,
-              ...(b as LegalData).items,
-            ]);
+            setTemplates([...(a as LegalData).items, ...(b as LegalData).items]);
           } catch (e) {
             setError((e as Error).message);
           }
         }}
       >
         Find approved templates
-      </button>
+      </Button>
       {templates.map((t) => (
-        <button
+        <Button appearance="standard"
+          variant="ghost"
           className={button}
           key={t.id}
           type="button"
@@ -1619,16 +1811,17 @@ function TemplateComposer({
           }}
         >
           {t.title}
-        </button>
+        </Button>
       ))}
       {chosen && (
         <form
           className={s.detail}
           onSubmit={async (e) => {
             e.preventDefault();
-            const values = Object.fromEntries(
-              new FormData(e.currentTarget),
-            ) as Record<string, string>;
+            const values = Object.fromEntries(new FormData(e.currentTarget)) as Record<
+              string,
+              string
+            >;
             if (await onApply(chosen.id, values)) setChosen(null);
           }}
         >
@@ -1636,15 +1829,15 @@ function TemplateComposer({
             {chosen.title} · v{chosen.version}
           </h4>
           {variables.map((v) => (
-            <label key={v} className={s.field}>
+            <Field appearance="standard" key={v} className={s.field}>
               {v}
-              <input name={v} required />
-            </label>
+              <TextInput appearance="standard" name={v} required />
+            </Field>
           ))}
           <pre className={s.body}>{String(chosen.data.body ?? "")}</pre>
-          <button className={button} disabled={busy}>
+          <Button appearance="standard" clientManaged type="submit" variant="ghost" className={button} disabled={busy}>
             Create document version
-          </button>
+          </Button>
         </form>
       )}
     </details>

@@ -1,8 +1,11 @@
+import { RecordSections } from "@/components/workplace/record-sections";
+import { InlineNotice } from "@/components/ui/foundation";
 import { TimeText } from "@/components/time/time-preference-context";
 import { FlowPanel } from "@/components/workplace/flow-panel";
 import { MoneyAmount } from "@/components/money/currency-provider";
 import { ExpensePostingPreview } from "./expense-posting-preview";
 import styles from "./expense.module.css";
+import { canManagePeople } from "@/server/people-directory";
 import { administrationAccess } from "@/server/administration";
 import Link from "next/link";
 import type { WorkContext } from "@/server/authorization";
@@ -23,6 +26,7 @@ import { ApprovalAdminLink } from "./approval-admin-link";
 import { StatusBadge } from "@/components/ui/primitives";
 import { ExpenseAiPanel } from "./expense-ai-panel";
 import { FinanceLegacyHeading } from "@/components/finance/finance-record-workspace";
+import { Stack, Card } from "@/components/ui/foundation";
 
 export async function ExpenseWorkflowPage({
   base,
@@ -52,7 +56,7 @@ export async function ExpenseWorkflowPage({
   const missing = JSON.parse(
     String(expense.setup_requirements_json ?? "[]"),
   ) as string[];
-  const profile = actor.beta
+  const profile = !canManagePeople(actor) ? `${base}/profiles/${encodeURIComponent(String(expense.claimant_user_id))}` : actor.beta
     ? `${base}/people?member=${encodeURIComponent(String(expense.claimant_user_id))}`
     : expense.employee_id
       ? `${base}/people/${expense.employee_id}`
@@ -62,11 +66,11 @@ export async function ExpenseWorkflowPage({
     note?: string;
   };
   return (
-    <div className="content-stack" data-source="live">
+    <Stack as="div" className="ui-stack" data-source="live">
       <FinanceLegacyHeading><Link className="back-link" href={`${base}/expenses`}>
         ← Expense claims
       </Link>
-      <header className="section-head">
+      <header className="ui-section-header">
         <div>
           <p className="eyebrow">{expense.request_kind==="payment"?"Payment request":"Expense claim"}</p>
           <h1>{String(expense.merchant || "New expense claim")}</h1>
@@ -75,12 +79,27 @@ export async function ExpenseWorkflowPage({
             {expense.expense_date ? ` · ${expense.expense_date}` : ""}
           </p>
         </div>
-        <StatusBadge status={String(expense.status)} />
+        <StatusBadge appearance="standard" status={String(expense.status)} />
       </header></FinanceLegacyHeading>
+      <RecordSections evidence={<ExpenseReceipts
+        base={base}
+        expense={expense}
+        attachments={attachments}
+        editable={editable}
+      />} history={<details className="ui-panel">
+        <summary>Completed stages and history</summary>
+        <ApprovalHistory approval={approval} />
+        {history.map((a) => (
+          <p key={String(a.id)}>
+            {String(a.action).replaceAll(".", " ")} · {String(a.actor_name)} ·{" "}
+            <TimeText appearance="standard" value={Number(a.created_at)} />
+          </p>
+        ))}
+      </details>}>
       {!!expense.spending_template_version&&<p className="muted">Submitted with company spending template version {String(expense.spending_template_version)}.</p>}
       <FlowPanel actor={actor} kind="expense" id={String(expense.id)} base={base}/>
       {["accounts_approval","gl_posting","payment","completed"].includes(stage) && <ExpensePostingPreview actor={actor} expense={expense} base={base}/>}
-      {stage !== "draft" && <section className="card">
+      {stage !== "draft" && <Card as="section" appearance="standard" className="ui-panel">
         <p className="eyebrow">Current stage</p>
         <h2>{expenseStageLabels[stage]}</h2>
         <p>
@@ -109,7 +128,7 @@ export async function ExpenseWorkflowPage({
           </p>
         )}
         {missing.length > 0 && (
-          <div className="notice" role="status">
+          <InlineNotice tone="info" className="notice" role="status">
             <strong>Before you submit</strong>
             <ul>
               {missing.map((m) => (
@@ -121,12 +140,12 @@ export async function ExpenseWorkflowPage({
               An owner or HR administrator can complete organization setup. Your
               draft is saved.
             </p>
-          </div>
+          </InlineNotice>
         )}
         {!missing.length && expense.approval_blocked_reason && (
-          <p className="notice" role="status">
+          <InlineNotice tone="info" className="notice" role="status">
             {String(expense.approval_blocked_reason)}
-          </p>
+          </InlineNotice>
         )}
         {canRepair && expense.approval_blocked_reason && (
           <ApprovalAdminLink
@@ -135,18 +154,12 @@ export async function ExpenseWorkflowPage({
             id={String(expense.id)}
           />
         )}
-      </section>}
+      </Card>}
       {stage === "draft" && expense.rejection_reason && <p className="notice">Review note: {String(expense.rejection_reason)}</p>}
       <div className={editable ? styles.claimGrid : undefined}>
       <div className={styles.evidenceColumn}>
-      <ExpenseReceipts
-        base={base}
-        expense={expense}
-        attachments={attachments}
-        editable={editable}
-      />
       {!editable && !["payment", "completed", "cancelled"].includes(stage) && (
-        <ExpenseAiPanel
+        <ExpenseAiPanel compact
           base={base}
           expenseId={String(expense.id)}
           canManageAi={aiAdmin}
@@ -158,7 +171,7 @@ export async function ExpenseWorkflowPage({
       {editable ? (
         <ExpenseEditor base={base} options={options} expense={expense} hasReceipt={attachments.length > 0} receiptAi={{ canManageAi: aiAdmin, evidenceKey: attachments.map(a => String(a.id)).sort().join(":") }} />
       ) : (
-        <section className="card">
+        <Card as="section" appearance="standard" className="ui-panel">
           <h2>Claim details</h2>
           <p>{String(expense.business_purpose)}</p>
           <dl>
@@ -178,7 +191,7 @@ export async function ExpenseWorkflowPage({
             )}
           </dl>
           {accounting.note && <p>{accounting.note}</p>}
-        </section>
+        </Card>
       )}
       </div>
       {stage === "accounts_review" && expense.can_decide === 1 && (
@@ -207,16 +220,7 @@ export async function ExpenseWorkflowPage({
           attachments={paymentAttachments}
         />
       )}
-      <details className="card">
-        <summary>Completed stages and history</summary>
-        <ApprovalHistory approval={approval} />
-        {history.map((a) => (
-          <p key={String(a.id)}>
-            {String(a.action).replaceAll(".", " ")} · {String(a.actor_name)} ·{" "}
-            <TimeText value={Number(a.created_at)} />
-          </p>
-        ))}
-      </details>
-    </div>
+      </RecordSections>
+    </Stack>
   );
 }

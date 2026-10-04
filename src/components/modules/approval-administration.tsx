@@ -1,3 +1,5 @@
+
+import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { SetupChecklist } from "@/components/ui/setup-checklist";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -11,6 +13,7 @@ import { getTask } from "@/server/staff-tasks";
 import { ApiError } from "@/server/http";
 import { approvalAdminHref } from "@/lib/administration";
 import { RerouteControl } from "./staff-work-controls";
+import { Card } from "@/components/ui/foundation";
 
 export async function ApprovalAdministration({
   actor,
@@ -73,31 +76,31 @@ export async function ApprovalAdministration({
   }
   if (record && !rows.length)
     return (
-      <section className="card">
+      <Card as="section" appearance="standard" className="ui-panel">
         <h2>Approval issue unavailable</h2>
         <p>This item may have moved on or may no longer be accessible.</p>
         <Link href={`${base}/settings?section=approvals`}>
           Back to approval issues
         </Link>
-      </section>
+      </Card>
     );
   return (
     <>
-      <div className="form-actions">
+      <div className="ui-form-actions">
         {!actor.beta && (
-          <Link className="button secondary" href={`${base}/routine-templates`}>
+          <UiActionLink appearance="standard" variant="secondary" href={`${base}/routine-templates`}>
             Routine templates
-          </Link>
+          </UiActionLink>
         )}
-        <Link
-          className="button secondary"
+        <UiActionLink appearance="standard" variant="secondary"
+
           href={`${base}/settings?section=organization`}
         >
           Organization settings
-        </Link>
+        </UiActionLink>
       </div>
       <SetupChecklist title="Approval readiness" items={rows.some(row=>row.approval.blockedReason) ? rows.filter(row=>row.approval.blockedReason).map(row=>({id:`${row.record_type}:${row.record_id}`,label:`${row.record_type} approval routing`,ready:false,owner:"Organization administrator",href:approvalAdminHref(base,row.record_type,row.record_id),detail:row.approval.blockedReason ?? "Assign an eligible independent approver"})) : [{id:"routing",label:"Approval routing",ready:true,owner:"Organization administrator",href:`${base}/people/organization`,detail:"No blocked approval routes in your visible queue"}]} />
-      <section className="card">
+      <Card as="section" appearance="standard" className="ui-panel">
         <h2>Approval issues</h2>
         <p className="muted">
           Resolve missing configuration or replace an unavailable approver.
@@ -124,7 +127,7 @@ export async function ApprovalAdministration({
                   : "No open approval step. Review the item and organization configuration.")}
             </p>
             {record ? (
-              <RerouteControl
+              <RerouteControl appearance="standard"
                 base={base}
                 approval={row.approval}
                 version={row.version}
@@ -139,7 +142,7 @@ export async function ApprovalAdministration({
             )}
           </article>
         ))}
-      </section>
+      </Card>
     </>
   );
 }

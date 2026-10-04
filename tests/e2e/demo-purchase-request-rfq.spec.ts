@@ -1,3 +1,4 @@
+import {createEngineeringBrowserContext} from './helpers/engineering-browser-evidence';
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -26,24 +27,30 @@ async function signInRole(context: BrowserContext, page: Page, credentials: Cred
 }
 
 async function requestCommand(page: Page, requestId: string, button: string, note: string) {
-  await page.getByLabel("Message or decision evidence", { exact: true }).fill(note);
+  await page.locator("#workspace-content").getByLabel("Message or decision evidence", { exact: true }).fill(note);
+  const action = page.locator("#workspace-content").getByRole("button", { name: button, exact: true });
+  await expect(action).toHaveCount(1);
+  await expect(action).toBeVisible();
   const response = page.waitForResponse((item) => item.request().method() === "POST" && item.url().includes(`/api/v1/holdings/simulation/requests/${requestId}/actions`));
-  await page.getByRole("button", { name: button, exact: true }).click();
+  await action.click();
   const result = await response;
   expect(result.ok(), await result.text()).toBe(true);
   await page.goto(`${page.url().split("?")[0]}?refresh=${Date.now()}`, { waitUntil: "domcontentloaded" });
 }
 
 async function submitRequest(page: Page, requestId: string) {
+  const editor = page.locator("#workspace-content").locator("section").filter({ has: page.getByRole("heading", { name: "Request details", exact: true }) });
+  await editor.getByRole("button", { name: "Review & submit", exact: true }).click();
+  await expect(editor.getByRole("button", { name: "Confirm & submit", exact: true })).toBeEnabled();
   const response = page.waitForResponse((item) => item.request().method() === "POST" && item.url().includes(`/api/v1/holdings/simulation/requests/${requestId}/actions`));
-  await page.getByRole("button", { name: "Submit request", exact: true }).click();
+  await editor.getByRole("button", { name: "Confirm & submit", exact: true }).click();
   const result = await response;
   expect(result.ok(), await result.text()).toBe(true);
   await page.goto(`${page.url().split("?")[0]}?refresh=${Date.now()}`, { waitUntil: "domcontentloaded" });
 }
 
 function actionSelect(page: Page) {
-  return page.locator("label").filter({ hasText: "Action" }).locator("select").first();
+  return page.locator("#workspace-content label").filter({ hasText: "Action" }).locator("select").first();
 }
 
 test("isolated demo carries an approved purchase request through split RFQs, receipts, one consolidated AP invoice and supplier payment", async ({ browser }, testInfo) => {
@@ -62,14 +69,14 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
   const awardApprover = credentials.users.find((user) => user.label === "Support manager");
   for (const [label, user] of Object.entries({ employee, manager, preparer, approver, buyer, awardApprover })) expect(user, `${label} demo account`).toBeTruthy();
   const path = `/holdings/simulation/requests/${requestId}`;
-  const employeeContext = await browser.newContext(testInfo.project.use);
-  const managerContext = await browser.newContext(testInfo.project.use);
-  const preparerContext = await browser.newContext(testInfo.project.use);
-  const approverContext = await browser.newContext(testInfo.project.use);
-  const buyerContext = await browser.newContext(testInfo.project.use);
-  const awardApproverContext = await browser.newContext(testInfo.project.use);
-  const warehouseContext = await browser.newContext(testInfo.project.use);
-  const treasuryContext = await browser.newContext(testInfo.project.use);
+  const employeeContext = await createEngineeringBrowserContext(browser,testInfo);
+  const managerContext = await createEngineeringBrowserContext(browser,testInfo);
+  const preparerContext = await createEngineeringBrowserContext(browser,testInfo);
+  const approverContext = await createEngineeringBrowserContext(browser,testInfo);
+  const buyerContext = await createEngineeringBrowserContext(browser,testInfo);
+  const awardApproverContext = await createEngineeringBrowserContext(browser,testInfo);
+  const warehouseContext = await createEngineeringBrowserContext(browser,testInfo);
+  const treasuryContext = await createEngineeringBrowserContext(browser,testInfo);
   try {
     const employeePage = await employeeContext.newPage();
     await signInRole(employeeContext, employeePage, credentials, "employee", employee!, path);
@@ -94,30 +101,30 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
     await requestCommand(buyerPage, requestId, "Start work", "Purchasing started sourcing against the approved request.");
     await buyerPage.goto(`/holdings/simulation/procurement-rfqs?request=${requestId}`, { waitUntil: "domcontentloaded" });
     await expect(buyerPage.getByRole("link", { name: /Approved requisition:/ }).first()).toBeVisible();
-    await buyerPage.locator("label").filter({ hasText: "Receiving warehouse" }).locator("select").selectOption({ index: 2 });
-    const productSelect = buyerPage.locator("label").filter({ hasText: "Demand product 1" }).locator("select");
+    await buyerPage.locator("#workspace-content label").filter({ hasText: "Receiving warehouse" }).locator("select").selectOption({ index: 2 });
+    const productSelect = buyerPage.locator("#workspace-content label").filter({ hasText: "Demand product 1" }).locator("select");
     const productValue = await productSelect.locator("option").filter({ hasText: "SIM-LAP-EACH" }).getAttribute("value");
     expect(productValue).toBeTruthy();
     await productSelect.selectOption(productValue!);
-    await buyerPage.getByLabel(/Allocate request quantity/).fill("6");
-    await buyerPage.getByLabel(/Purchase quantity/).fill("6");
-    await buyerPage.getByLabel(/each per one/).fill("1");
+    await buyerPage.locator("#workspace-content").getByLabel(/Allocate request quantity/).fill("6");
+    await buyerPage.locator("#workspace-content").getByLabel(/Purchase quantity/).fill("6");
+    await buyerPage.locator("#workspace-content").getByLabel(/each per one/).fill("1");
     await buyerPage.getByRole("button", { name: "Create quotation request", exact: true }).click();
     await buyerPage.waitForURL(/\/procurement-rfqs\/rfq-/);
     const rfqId = new URL(buyerPage.url()).pathname.split("/").at(-1)!;
-    await buyerPage.getByLabel("Supplier", { exact: false }).selectOption({ index: 1 });
-    await buyerPage.getByLabel("Quotation reference", { exact: true }).fill("DEMO-REQUEST-RFQ-6");
-    await buyerPage.getByLabel("Quoted arrival", { exact: true }).fill("2026-10-10");
-    await buyerPage.getByLabel("Quote valid through", { exact: true }).fill("2026-10-20");
-    await buyerPage.getByLabel("Quotation evidence and terms", { exact: true }).fill("Supplier quotation for six of the ten approved laptops.");
-    await buyerPage.locator('input[name^="price-"]').fill("25000");
+    await buyerPage.locator("#workspace-content").getByLabel("Supplier", { exact: false }).selectOption({ index: 1 });
+    await buyerPage.locator("#workspace-content").getByLabel("Quotation reference", { exact: true }).fill("DEMO-REQUEST-RFQ-6");
+    await buyerPage.locator("#workspace-content").getByLabel("Quoted arrival", { exact: true }).fill("2026-10-10");
+    await buyerPage.locator("#workspace-content").getByLabel("Quote valid through", { exact: true }).fill("2026-10-20");
+    await buyerPage.locator("#workspace-content").getByLabel("Quotation evidence and terms", { exact: true }).fill("Supplier quotation for six of the ten approved laptops.");
+    await buyerPage.locator("#workspace-content").locator('input[name^="price-"]').fill("25000");
     const offerResponse = buyerPage.waitForResponse((item) => item.request().method() === "POST" && item.url().includes(`/api/v1/holdings/simulation/procurement-rfqs/${rfqId}`));
     await buyerPage.getByRole("button", { name: "Record quotation", exact: true }).click();
     expect((await offerResponse).ok()).toBe(true);
     await buyerPage.reload({ waitUntil: "domcontentloaded" });
-    await expect(buyerPage.locator("td").filter({ hasText: "DEMO-REQUEST-RFQ-6" }).first()).toBeVisible();
+    await expect(buyerPage.locator("#workspace-content").locator("td").filter({ hasText: "DEMO-REQUEST-RFQ-6" }).first()).toBeVisible();
     await actionSelect(buyerPage).selectOption("submit");
-    await buyerPage.getByLabel("Decision and delivery exception reason", { exact: true }).first().fill("Awarded six units as a partial allocation of the approved request.");
+    await buyerPage.locator("#workspace-content").getByLabel("Decision and delivery exception reason", { exact: true }).first().fill("Awarded six units as a partial allocation of the approved request.");
     const submitResponse = buyerPage.waitForResponse((item) => item.request().method() === "POST" && item.url().includes(`/api/v1/holdings/simulation/procurement-rfqs/${rfqId}`));
     await buyerPage.getByRole("button", { name: "Record decision", exact: true }).click();
     expect((await submitResponse).ok()).toBe(true);
@@ -126,58 +133,58 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
     const awardPage = await awardApproverContext.newPage();
     await signInRole(awardApproverContext, awardPage, credentials, "purchasing_manager", awardApprover!, `/holdings/simulation/procurement-rfqs/${rfqId}`);
     await actionSelect(awardPage).selectOption("approve");
-    await awardPage.getByLabel("Decision and delivery exception reason", { exact: true }).first().fill("Independent purchasing manager approved the partial supplier award.");
+    await awardPage.locator("#workspace-content").getByLabel("Decision and delivery exception reason", { exact: true }).first().fill("Independent purchasing manager approved the partial supplier award.");
     const approveResponse = awardPage.waitForResponse((item) => item.request().method() === "POST" && item.url().includes(`/api/v1/holdings/simulation/procurement-rfqs/${rfqId}`));
     await awardPage.getByRole("button", { name: "Record decision", exact: true }).click();
     expect((await approveResponse).ok()).toBe(true);
     await awardPage.reload({ waitUntil: "domcontentloaded" });
-    await expect(awardPage.locator("p").filter({ hasText: "Required" }).first()).toContainText("approved");
+    await expect(awardPage.locator("#workspace-content").locator("p").filter({ hasText: "Required" }).first()).toContainText("approved");
 
     // Allocate the remaining four units as a second independently reviewed RFQ/PO.
     await buyerPage.goto(`/holdings/simulation/procurement-rfqs?request=${requestId}&refresh=${Date.now()}`, { waitUntil: "domcontentloaded" });
     await expect(buyerPage.getByRole("link", { name: /Approved requisition:/ }).first()).toBeVisible();
-    await expect(buyerPage.getByText("Already allocated", { exact: true }).first()).toBeVisible();
-    await buyerPage.locator("label").filter({ hasText: "Receiving warehouse" }).locator("select").selectOption({ index: 2 });
-    const secondProductSelect = buyerPage.locator("label").filter({ hasText: "Demand product 1" }).locator("select");
+    await expect(buyerPage.locator("#workspace-content").getByText("Already allocated", { exact: true }).first()).toBeVisible();
+    await buyerPage.locator("#workspace-content label").filter({ hasText: "Receiving warehouse" }).locator("select").selectOption({ index: 2 });
+    const secondProductSelect = buyerPage.locator("#workspace-content label").filter({ hasText: "Demand product 1" }).locator("select");
     const secondProductValue = await secondProductSelect.locator("option").filter({ hasText: "SIM-LAP-EACH" }).getAttribute("value");
     expect(secondProductValue).toBeTruthy();
     await secondProductSelect.selectOption(secondProductValue!);
-    await buyerPage.getByLabel(/Allocate request quantity/).fill("4");
-    await buyerPage.getByLabel(/Purchase quantity/).fill("4");
-    await buyerPage.getByLabel(/each per one/).fill("1");
+    await buyerPage.locator("#workspace-content").getByLabel(/Allocate request quantity/).fill("4");
+    await buyerPage.locator("#workspace-content").getByLabel(/Purchase quantity/).fill("4");
+    await buyerPage.locator("#workspace-content").getByLabel(/each per one/).fill("1");
     await buyerPage.getByRole("button", { name: "Create quotation request", exact: true }).click();
     await buyerPage.waitForURL(/\/procurement-rfqs\/rfq-/);
     const secondRfqId = new URL(buyerPage.url()).pathname.split("/").at(-1)!;
-    await buyerPage.getByLabel("Supplier", { exact: false }).selectOption({ index: 1 });
-    await buyerPage.getByLabel("Quotation reference", { exact: true }).fill("DEMO-REQUEST-RFQ-4");
-    await buyerPage.getByLabel("Quoted arrival", { exact: true }).fill("2026-10-10");
-    await buyerPage.getByLabel("Quote valid through", { exact: true }).fill("2026-10-20");
-    await buyerPage.getByLabel("Quotation evidence and terms", { exact: true }).fill("Supplier quotation for the remaining four of the ten approved laptops.");
-    await buyerPage.locator('input[name^="price-"]').fill("25000");
+    await buyerPage.locator("#workspace-content").getByLabel("Supplier", { exact: false }).selectOption({ index: 1 });
+    await buyerPage.locator("#workspace-content").getByLabel("Quotation reference", { exact: true }).fill("DEMO-REQUEST-RFQ-4");
+    await buyerPage.locator("#workspace-content").getByLabel("Quoted arrival", { exact: true }).fill("2026-10-10");
+    await buyerPage.locator("#workspace-content").getByLabel("Quote valid through", { exact: true }).fill("2026-10-20");
+    await buyerPage.locator("#workspace-content").getByLabel("Quotation evidence and terms", { exact: true }).fill("Supplier quotation for the remaining four of the ten approved laptops.");
+    await buyerPage.locator("#workspace-content").locator('input[name^="price-"]').fill("25000");
     const secondOfferResponse = buyerPage.waitForResponse((item) => item.request().method() === "POST" && item.url().includes(`/api/v1/holdings/simulation/procurement-rfqs/${secondRfqId}`));
     await buyerPage.getByRole("button", { name: "Record quotation", exact: true }).click();
     expect((await secondOfferResponse).ok()).toBe(true);
     await buyerPage.reload({ waitUntil: "domcontentloaded" });
-    await expect(buyerPage.locator("td").filter({ hasText: "DEMO-REQUEST-RFQ-4" }).first()).toBeVisible();
+    await expect(buyerPage.locator("#workspace-content").locator("td").filter({ hasText: "DEMO-REQUEST-RFQ-4" }).first()).toBeVisible();
     await actionSelect(buyerPage).selectOption("submit");
-    await buyerPage.getByLabel("Decision and delivery exception reason", { exact: true }).first().fill("Awarded the remaining four units as the second allocation of the approved request.");
+    await buyerPage.locator("#workspace-content").getByLabel("Decision and delivery exception reason", { exact: true }).first().fill("Awarded the remaining four units as the second allocation of the approved request.");
     const secondSubmitResponse = buyerPage.waitForResponse((item) => item.request().method() === "POST" && item.url().includes(`/api/v1/holdings/simulation/procurement-rfqs/${secondRfqId}`));
     await buyerPage.getByRole("button", { name: "Record decision", exact: true }).click();
     expect((await secondSubmitResponse).ok()).toBe(true);
     await buyerPage.reload({ waitUntil: "domcontentloaded" });
     await awardPage.goto(`/holdings/simulation/procurement-rfqs/${secondRfqId}`, { waitUntil: "domcontentloaded" });
     await actionSelect(awardPage).selectOption("approve");
-    await awardPage.getByLabel("Decision and delivery exception reason", { exact: true }).first().fill("Independent purchasing manager approved the remaining supplier award.");
+    await awardPage.locator("#workspace-content").getByLabel("Decision and delivery exception reason", { exact: true }).first().fill("Independent purchasing manager approved the remaining supplier award.");
     const secondApproveResponse = awardPage.waitForResponse((item) => item.request().method() === "POST" && item.url().includes(`/api/v1/holdings/simulation/procurement-rfqs/${secondRfqId}`));
     await awardPage.getByRole("button", { name: "Record decision", exact: true }).click();
     expect((await secondApproveResponse).ok()).toBe(true);
     await awardPage.reload({ waitUntil: "domcontentloaded" });
-    await expect(awardPage.locator("p").filter({ hasText: "Required" }).first()).toContainText("approved");
+    await expect(awardPage.locator("#workspace-content").locator("p").filter({ hasText: "Required" }).first()).toContainText("approved");
 
     const createApprovedOrder = async (rfqPath: string) => {
       await buyerPage.goto(`${rfqPath}?refresh=${Date.now()}`, { waitUntil: "domcontentloaded" });
       await expect(buyerPage.getByRole("heading", { name: "Create purchase order", exact: true })).toBeVisible();
-      await buyerPage.getByLabel("Purchase order date", { exact: true }).first().fill("2026-09-22");
+      await buyerPage.locator("#workspace-content").getByLabel("Purchase order date", { exact: true }).first().fill("2026-09-22");
       await Promise.all([buyerPage.waitForURL(/\/commerce\/orders\//), buyerPage.getByRole("button", { name: "Create awarded draft PO", exact: true }).click()]);
       const orderPath = new URL(buyerPage.url()).pathname;
       const orderSubmit = buyerPage.waitForResponse((item) => item.request().method() === "POST" && item.url().includes("/api/v1/holdings/simulation/commerce/orders/") && item.url().endsWith("/transition"));
@@ -196,13 +203,15 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
     const warehousePage = await warehouseContext.newPage();
     await signInRole(warehouseContext, warehousePage, credentials, "warehouse_manager", manager!, `${purchaseOrderPath}?refresh=${Date.now()}`);
     await expect(warehousePage.getByRole("heading", { name: "Receive goods", exact: true }).first()).toBeVisible();
-    await warehousePage.getByLabel("SIM-LAP-EACH quantity", { exact: true }).first().fill("6");
+    await warehousePage.locator("#workspace-content").getByLabel("Movement date", { exact: true }).fill("2026-09-22");
+    await warehousePage.locator("#workspace-content").getByLabel("SIM-LAP-EACH quantity", { exact: true }).first().fill("6");
     const firstReceipt = warehousePage.waitForResponse((item) => item.request().method() === "POST" && item.url().includes("/api/v1/holdings/simulation/commerce/orders/") && item.url().endsWith("/fulfill"));
     await warehousePage.getByRole("button", { name: "Record receipt", exact: true }).click();
     expect((await firstReceipt).ok()).toBe(true);
     await warehousePage.goto(`${secondPurchaseOrderPath}?refresh=${Date.now()}`, { waitUntil: "domcontentloaded" });
     await expect(warehousePage.getByRole("heading", { name: "Receive goods", exact: true }).first()).toBeVisible();
-    await warehousePage.getByLabel("SIM-LAP-EACH quantity", { exact: true }).first().fill("4");
+    await warehousePage.locator("#workspace-content").getByLabel("Movement date", { exact: true }).fill("2026-09-22");
+    await warehousePage.locator("#workspace-content").getByLabel("SIM-LAP-EACH quantity", { exact: true }).first().fill("4");
     const secondReceipt = warehousePage.waitForResponse((item) => item.request().method() === "POST" && item.url().includes("/api/v1/holdings/simulation/commerce/orders/") && item.url().endsWith("/fulfill"));
     await warehousePage.getByRole("button", { name: "Record receipt", exact: true }).click();
     expect((await secondReceipt).ok()).toBe(true);
@@ -222,17 +231,17 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
 
     const createAndPostBill = async () => {
       await preparerPage.goto(`/holdings/simulation/supplier-bills?refresh=${Date.now()}`, { waitUntil: "domcontentloaded" });
-      await preparerPage.getByText(/Match one supplier invoice to/, { exact: false }).first().click();
-      await preparerPage.getByLabel("Supplier invoice reference", { exact: true }).fill("DEMO-REQUEST-INVOICE-CONSOLIDATED");
-      await preparerPage.getByLabel("Invoice date", { exact: true }).fill("2026-09-22");
-      await preparerPage.getByLabel("Payment due date", { exact: true }).fill("2026-10-22");
-      const billQuantities = preparerPage.locator('input[name^="quantity-"]');
+      await preparerPage.locator("#workspace-content").getByText(/Match one supplier invoice to/, { exact: false }).first().click();
+      await preparerPage.locator("#workspace-content").getByLabel("Supplier invoice reference", { exact: true }).fill("DEMO-REQUEST-INVOICE-CONSOLIDATED");
+      await preparerPage.locator("#workspace-content").getByLabel("Invoice date", { exact: true }).fill("2026-09-22");
+      await preparerPage.locator("#workspace-content").getByLabel("Payment due date", { exact: true }).fill("2026-10-22");
+      const billQuantities = preparerPage.locator('#workspace-content input[name^="quantity-"]');
       await expect(billQuantities).toHaveCount(2);
       // The capture form is keyed by receipt-line id and may order lines by
       // database id. Its defaults are the exact posted receipt quantities and
       // unit prices, so keep those values instead of assuming PO order.
       expect((await billQuantities.evaluateAll((inputs) => inputs.map((input) => (input as HTMLInputElement).value).sort()))).toEqual(["4", "6"]);
-      await preparerPage.getByLabel("Supplier invoice evidence", { exact: true }).fill("One supplier invoice covers the six-unit and four-unit receipts from the approved request.");
+      await preparerPage.locator("#workspace-content").getByLabel("Supplier invoice evidence", { exact: true }).fill("One supplier invoice covers the six-unit and four-unit receipts from the approved request.");
       const billResponse = preparerPage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith("/api/v1/holdings/simulation/supplier-bills"));
       await preparerPage.getByRole("button", { name: "Send invoice for independent matching review", exact: true }).click();
       const billResult = await billResponse;
@@ -240,7 +249,7 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
       const billId = String((await billResult.json()).data.id);
       await approverPage.goto(`/holdings/simulation/supplier-bills/${billId}`, { waitUntil: "domcontentloaded" });
       await expect(approverPage.getByRole("button", { name: "Record review", exact: true })).toBeVisible();
-      await approverPage.getByLabel("Review reason", { exact: true }).first().fill("Finance independently matched the posted receipt and the supplier invoice.");
+      await approverPage.locator("#workspace-content").getByLabel("Review reason", { exact: true }).first().fill("Finance independently matched the posted receipt and the supplier invoice.");
       const billReview = approverPage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith(`/api/v1/holdings/simulation/supplier-bills/${billId}`));
       await approverPage.getByRole("button", { name: "Record review", exact: true }).click();
       expect((await billReview).ok()).toBe(true);
@@ -254,25 +263,31 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
       const invoicePath = `/holdings/simulation/finance/invoices/${invoiceId}`;
       await approverPage.goto(invoicePath, { waitUntil: "domcontentloaded" });
       await expect(approverPage.getByRole("button", { name: "Approve and post invoice", exact: true })).toBeVisible();
-      await approverPage.locator('select[name="period"]').selectOption({ label: "2026" });
+      const invoicePosting = approverPage.locator("#workspace-content").locator('form').filter({ has: approverPage.getByRole('button', { name: 'Approve and post invoice', exact: true }) });
+      await invoicePosting.locator('select[name="period"]').selectOption({ label: "2026" });
       const invoicePost = approverPage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith(`/api/v1/holdings/simulation/finance/invoices/${invoiceId}/post`));
       await approverPage.getByRole("button", { name: "Approve and post invoice", exact: true }).click();
       const invoicePostResult = await invoicePost;
       expect(invoicePostResult.ok(), await invoicePostResult.text()).toBe(true);
       await approverPage.reload({ waitUntil: "domcontentloaded" });
-      await expect(approverPage.getByText("posted", { exact: true }).first()).toBeVisible();
+      await expect(approverPage.locator("#workspace-content").getByText("posted", { exact: true }).first()).toBeVisible();
       return invoiceId;
     };
 
     const invoiceId = await createAndPostBill();
     // Continue the same source-linked obligation through the controlled supplier payment path.
     await preparerPage.goto("/holdings/simulation/finance/supplier-batches", { waitUntil: "domcontentloaded" });
+    await preparerPage.locator("#workspace-content").getByRole("link", { name: "Prepare batch", exact: true }).click();
     await expect(preparerPage.getByRole("heading", { name: "Prepare supplier instructions", exact: true })).toBeVisible();
-    const firstInvoiceRow = preparerPage.locator("fieldset").filter({ hasText: "Available THB 250000.00" }).first();
+    const firstInvoiceRow = preparerPage.locator("#workspace-content").locator("fieldset").filter({ hasText: "Available THB 250000.00" }).first();
     await expect(firstInvoiceRow).toBeVisible();
     await firstInvoiceRow.getByRole("checkbox").check();
-    await preparerPage.locator('select[name="bank"]').first().selectOption({ index: 1 });
-    await preparerPage.getByLabel("Planned payment date", { exact: true }).fill("2026-10-01");
+    const batchBank = preparerPage.locator('#workspace-content select[name="bank"]');
+    await expect(batchBank).toHaveCount(1);
+    await batchBank.selectOption({ index: 1 });
+    const supplierBankAccountId = await batchBank.inputValue();
+    expect(supplierBankAccountId).toBeTruthy();
+    await preparerPage.locator("#workspace-content").getByLabel("Planned payment date", { exact: true }).fill("2026-10-01");
     await firstInvoiceRow.getByLabel("Verified beneficiary account", { exact: true }).fill("SANDBOX-ACCOUNT-001");
     const batchCreate = preparerPage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith("/api/v1/holdings/simulation/finance/supplier-batches"));
     await preparerPage.getByRole("button", { name: "Reserve selected amounts", exact: true }).click();
@@ -283,11 +298,11 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
 
     await approverPage.goto(batchPath, { waitUntil: "domcontentloaded" });
     await expect(approverPage.getByRole("heading", { name: "Review the batch", exact: true })).toBeVisible();
-    await approverPage.getByLabel("Review evidence or cancellation reason", { exact: true }).first().fill("Finance independently reviewed the posted AP invoice, amount and beneficiary.");
+    await approverPage.locator("#workspace-content").getByLabel("Review evidence or cancellation reason", { exact: true }).first().fill("Finance independently reviewed the posted AP invoice, amount and beneficiary.");
     const batchApproval = approverPage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith("/approve"));
     await approverPage.getByRole("button", { name: "Record decision", exact: true }).click();
     expect((await batchApproval).ok()).toBe(true);
-    await expect(approverPage.getByText(/2026-10-01 · THB · approved/)).toBeVisible();
+    await expect(approverPage.locator("#workspace-content").getByText(/2026-10-01 · THB · approved/)).toBeVisible();
 
     const treasuryPage = await treasuryContext.newPage();
     const treasury = credentials.users.find((user) => user.role === "treasury" || user.roles?.includes("treasury"));
@@ -297,28 +312,29 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
     const batchExport = treasuryPage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith("/export"));
     await treasuryPage.getByRole("button", { name: "Export approved instructions", exact: true }).click();
     expect((await batchExport).ok()).toBe(true);
-    await expect(treasuryPage.getByText("Export SHA-256", { exact: false })).toBeVisible();
+    await expect(treasuryPage.locator("#workspace-content").getByText("Export SHA-256", { exact: false })).toBeVisible();
 
     await preparerPage.goto("/holdings/simulation/finance/bank?new=1", { waitUntil: "domcontentloaded" });
-    await preparerPage.getByRole("button", { name: "Import bank statement", exact: true }).click();
-    // Demo account labels are configured data (and can change with the
-    // chart fixture), so select the first real bank account after the
-    // placeholder rather than relying on a hard-coded code/name.
-    await preparerPage.locator('select[name="bankAccount"]:visible').first().selectOption({ index: 1 });
-    await preparerPage.getByLabel("Statement number", { exact: true }).fill("DEMO-SUPPLIER-PAY-2026");
-    await preparerPage.getByLabel("Statement date", { exact: true }).fill("2026-10-02");
-    await preparerPage.getByLabel("Opening balance", { exact: true }).fill("250000");
-    await preparerPage.getByLabel("Closing balance", { exact: true }).fill("0");
-    await preparerPage.getByLabel("Bank reference 1", { exact: true }).fill("DEMO-BANK-SUPPLIER-250000");
-    await preparerPage.getByLabel("Transaction date 1", { exact: true }).fill("2026-10-02");
-    await preparerPage.getByLabel("Description 1", { exact: true }).fill("Consolidated supplier payment for both approved laptop receipts");
-    await preparerPage.getByLabel("Signed amount 1", { exact: true }).fill("-250000");
+    await expect(preparerPage.getByRole("heading", { name: "Import bank statement", exact: true })).toBeVisible();
+    // Import the debit into the exact ledger selected for this batch. The
+    // bank workspace also lists other Company assets, in a different order.
+    const bankImportAccount = preparerPage.locator('#workspace-content select[name="bankAccount"]:visible');
+    await expect(bankImportAccount).toHaveCount(1);
+    await bankImportAccount.selectOption(supplierBankAccountId);
+    await preparerPage.locator("#workspace-content").getByLabel("Statement number", { exact: true }).fill("DEMO-SUPPLIER-PAY-2026");
+    await preparerPage.locator("#workspace-content").getByLabel("Statement date", { exact: true }).fill("2026-10-02");
+    await preparerPage.locator("#workspace-content").getByLabel("Opening balance", { exact: true }).fill("250000");
+    await preparerPage.locator("#workspace-content").getByLabel("Closing balance", { exact: true }).fill("0");
+    await preparerPage.locator("#workspace-content").getByLabel("Bank reference 1", { exact: true }).fill("DEMO-BANK-SUPPLIER-250000");
+    await preparerPage.locator("#workspace-content").getByLabel("Transaction date 1", { exact: true }).fill("2026-10-02");
+    await preparerPage.locator("#workspace-content").getByLabel("Description 1", { exact: true }).fill("Consolidated supplier payment for both approved laptop receipts");
+    await preparerPage.locator("#workspace-content").getByLabel("Signed amount 1", { exact: true }).fill("-250000");
     const bankImport = preparerPage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith("/api/v1/holdings/simulation/finance/bank/statements/import"));
     await preparerPage.getByRole("button", { name: "Validate and import", exact: true }).click();
     expect((await bankImport).ok()).toBe(true);
 
     await treasuryPage.goto(`${batchPath}?refresh=${Date.now()}`, { waitUntil: "commit" });
-    const instructionCards = treasuryPage.locator("section.card").filter({ hasText: /BILL-/ });
+    const instructionCards = treasuryPage.locator("#workspace-content section.card").filter({ hasText: /BILL-/ });
     await expect(instructionCards).toHaveCount(1, { timeout: 20_000 });
     const instructionCard = instructionCards.first();
     await instructionCard.locator('select[name="bank"]').selectOption({ index: 1 });
@@ -329,7 +345,7 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
     await instructionCard.getByRole("button", { name: "Confirm bank debit and settle invoice", exact: true }).click();
     expect((await settle).ok()).toBe(true);
     await treasuryPage.reload({ waitUntil: "commit" });
-    await expect(treasuryPage.getByText(/· confirmed$/)).toHaveCount(1);
+    await expect(treasuryPage.locator("#workspace-content").getByText(/· confirmed$/)).toHaveCount(1);
 
     const settledInvoice = await treasuryContext.request.get(`/api/v1/holdings/simulation/finance/invoices/${invoiceId}`);
     expect(settledInvoice.ok()).toBe(true);

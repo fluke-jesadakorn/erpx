@@ -16,10 +16,10 @@ The opaque-ID browser/API namespace was removed without redirects. Canonical imm
 
 Rust/Dioxus/Tonic/SQLx 137 crates 1321 rs 37 proto 28 SQL 8 apps removed and replaced by Next.js 16 App Router (`src/app/`, React19, Tailwind4, TS). Docs preserved, code not migrated.
 
-- Archive `f97b74d6` (`backup/rust-2026-09-02`), del `d15909bb`, scaffold `29136c81`, prune `99a66de7` (37 proto + 28 SQL briefly copied to `docs/` then pruned; `Plan.legacy-*` 43+40 pruned — see `docs/plan/ARCHIVE.md`)
+- Archive `f97b74d6` (`backup/rust-2026-09-02`), del `d15909bb`, scaffold `29136c81`, prune `99a66de7` (37 proto + 28 SQL briefly copied to `docs/` then pruned; `Plan.legacy-*` 43+40 pruned — see the recovery references below)
 - Tags: `rust-archive-2026-09-02` @`f97b74d6`, baseline `cc0887d`
 - Recovery: `git checkout backup/rust-2026-09-02; git show rust-archive-2026-09-02 --stat; git show cc0887d --stat`
-- Gate on this branch: `npm run lint` + `npm run build` (replaces `cargo xtask verify` on backup)
+- Gate on this branch: `bun run lint`, `bun run typecheck`, `bun run test:integration` and isolated `bun run deploy:build` (replaces `cargo xtask verify` on backup)
 
 ## 2026-07-31 Folio → Rust — bounded development reset
 
@@ -79,3 +79,21 @@ Finance is first production-real vertical (Holding/Group, international-only, `d
 ## Verification (archived)
 
 `cargo xtask verify` passed: fmt/clippy/workspace tests/SQLx acceptance/Dioxus web+desktop+mobile/build/descriptor/health+ready `:3004/:50051/:50052` (see backup `docs/archive/dioxus-2026-08-evidence/` 22 dirs).
+
+
+## 2026-10-03 Documentation consolidation and recovery
+
+This cleanup changes documentation and inventory projection, not domain interfaces, migrations or environment deployment. Surviving ownership/workflow controls from the removed Rust maps and September plans are consolidated in [the generated catalogue](docs/contracts/next/catalogue.md) and the current owner contracts. The dated engineering receipt retains its original source/candidate; cleanup is not a new whole-catalogue verification.
+
+Verified Git recovery points: current pre-cleanup HEAD `3fa064af7767debbb8a2a3f6085ced610f6286c5`; Rust archive tag `rust-archive-2026-09-02` resolves to `f97b74d63c11273a4ef241017411412bd797264a`; baseline `cc0887d` exists. Inspect historical files with `git show <commit>:<path>` or an isolated checkout. Never restore old contracts/runtime over a working development tree. Changes that were not present in Git were copied to ignored `.scratch/dev/documentation-cleanup/before/` before removal.
+
+
+## 2026-10-04 Unused legacy code cleanup
+
+Removed six unused People/Technology components and their five scoped stylesheets, the old Cloudflare provisioning/migration/restore scripts and inactive D1 test, the one-time SQLite baseline generator, and unused OpenNext/Workers beta/jobs configuration. The unused `@opennextjs/cloudflare` and `@tiptap/extension-image` dependencies were also removed. Current People and Technology workspaces, public routes/APIs, business data and PostgreSQL migrations are unchanged.
+
+The historical `local-review` E2E adapter still uses Wrangler; its main configuration, generated types and SQLite migration inputs remain. Runtime import adapters, canonical attachment compatibility and old browser move-tray state remain in use. UI inventories were regenerated; only entries for deleted files were removed from the frozen-boundary register, preserving every retained fingerprint.
+
+All removed files were verified recoverable from pre-cleanup HEAD `3fa064af7767debbb8a2a3f6085ced610f6286c5` with `git show <commit>:<path>`. Their current working-tree contents, including uncommitted changes, plus the original full diff and edit targets were saved under ignored `.scratch/dev/legacy-cleanup-20261004T144250Z/` before removal. Use that local snapshot to recover uncommitted versions; do not restore historical runtime files over the active workspace. This cleanup builds and verifies the development source without installing a release or changing staging.
+
+Validation: lint (zero errors, five existing warnings), typecheck, documentation checks and the isolated release build passed. Integration reported 2,320 passing tests, five failures and three skips; all five failures were reproduced against the saved pre-cleanup source and dependency snapshot. The UI guard has 13 pre-existing failures (14 before cleanup), with no new failure and all 107 retained frozen fingerprints unchanged. The current People/Technology workspaces and image insertion in the Home editor were checked through the authenticated development console; the image test was closed without saving or publishing. Development and private production health checks returned HTTP 200; the development server stays on port 3100.

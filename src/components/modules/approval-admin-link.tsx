@@ -1,4 +1,5 @@
-import Link from "next/link";
+
+import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { approvalAdminHref } from "@/lib/administration";
 export function ApprovalAdminLink({
   base,
@@ -10,8 +11,8 @@ export function ApprovalAdminLink({
   id: string;
 }) {
   return (
-    <Link className="button secondary" href={approvalAdminHref(base, kind, id)}>
+    <UiActionLink appearance="standard" variant="secondary" href={approvalAdminHref(base, kind, id)}>
       Resolve approval issue
-    </Link>
+    </UiActionLink>
   );
 }

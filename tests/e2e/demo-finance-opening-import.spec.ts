@@ -1,3 +1,4 @@
+import {createEngineeringBrowserContext} from './helpers/engineering-browser-evidence';
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -36,37 +37,37 @@ test("isolated demo imports and independently posts opening balances", async ({ 
   const credentials = JSON.parse(await readFile(resolve(directory, "credentials.json"), "utf8")) as Credentials;
   const state = JSON.parse(await readFile(resolve(directory, "state.json"), "utf8")) as { fixture: Fixture };
   const fixture = state.fixture;
-  const query = `?chart=${encodeURIComponent(fixture.browserOpeningChartId)}`;
-  const preparer = await browser.newContext(testInfo.project.use);
-  const approver = await browser.newContext(testInfo.project.use);
+  const query = `?step=opening&chart=${encodeURIComponent(fixture.browserOpeningChartId)}`;
+  const preparer = await createEngineeringBrowserContext(browser,testInfo);
+  const approver = await createEngineeringBrowserContext(browser,testInfo);
   try {
     const preparePage = await preparer.newPage();
     await signInAs(preparer, preparePage, credentials, "finance_preparer", `/holdings/simulation/finance/setup${query}`);
     await preparePage.getByRole("button", { name: "Import opening balances" }).click();
-    await preparePage.getByLabel("Opening period").selectOption(fixture.periodId);
-    await preparePage.getByLabel("Opening balance date").fill("2026-09-01");
-    await preparePage.getByLabel("Account 1").selectOption(fixture.browserOpeningCashId);
-    await preparePage.getByLabel("Debit 1").fill("100");
-    await preparePage.getByLabel("Credit 1").fill("0");
-    await preparePage.getByLabel("Account 2").selectOption(fixture.browserOpeningEquityId);
-    await preparePage.getByLabel("Debit 2").fill("0");
-    await preparePage.getByLabel("Credit 2").fill("100");
+    await preparePage.getByRole("combobox",{name:"Opening period",exact:true}).selectOption(fixture.periodId);
+    await preparePage.locator('#workspace-content').getByLabel("Opening balance date").fill("2026-09-01");
+    await preparePage.getByRole("combobox",{name:"Account 1",exact:true}).selectOption(fixture.browserOpeningCashId);
+    await preparePage.locator('#workspace-content').getByLabel("Debit 1").fill("100");
+    await preparePage.locator('#workspace-content').getByLabel("Credit 1").fill("0");
+    await preparePage.getByRole("combobox",{name:"Account 2",exact:true}).selectOption(fixture.browserOpeningEquityId);
+    await preparePage.locator('#workspace-content').getByLabel("Debit 2").fill("0");
+    await preparePage.locator('#workspace-content').getByLabel("Credit 2").fill("100");
     await preparePage.getByRole("button", { name: "Preview reconciliation" }).click();
     await expect(preparePage.getByRole("heading", { name: "Opening reconciliation" })).toBeVisible();
-    await expect(preparePage.getByText("THB 100.00", { exact: false }).first()).toBeVisible();
+    await expect(preparePage.locator('#workspace-content').getByText("THB 100.00", { exact: false }).first()).toBeVisible();
     await Promise.all([
       preparePage.waitForURL(/\/finance\/journals\//),
       preparePage.getByRole("button", { name: "Create reconciled opening journal" }).click(),
     ]);
     const journalPath = new URL(preparePage.url()).pathname;
-    await expect(preparePage.getByText("draft", { exact: true }).first()).toBeVisible();
+    await expect(preparePage.locator('#workspace-content').getByText("draft", { exact: true }).first()).toBeVisible();
 
     const journalId = journalPath.split("/").at(-1)!;
     const approvePage = await approver.newPage();
     await signInAs(approver, approvePage, credentials, "finance_approver", journalPath);
     await expect(approvePage.getByRole("button", { name: "Approve and post journal" })).toBeVisible();
     await approvePage.getByRole("button", { name: "Approve and post journal" }).click();
-    await expect(approvePage.getByText("posted", { exact: true }).first()).toBeVisible();
+    await expect(approvePage.locator('#workspace-content').getByText("posted", { exact: true }).first()).toBeVisible();
     const journalResponse = await approver.request.get("/api/v1/holdings/simulation/finance/journals?status=posted");
     expect(journalResponse.ok()).toBe(true);
     const postedJournals = (await journalResponse.json()).data as Array<{ id: string; status: string; source_type: string }>;

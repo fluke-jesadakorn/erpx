@@ -24,10 +24,10 @@
   min-width: 0;
   min-height: 44px;
   padding: 10px 12px;
-  border: 1px solid var(--control-border);
+  border: 1px solid var(--ui-control-border);
   border-radius: 9px;
-  background: var(--card);
-  color: var(--ink);
+  background: var(--ui-card);
+  color: var(--ui-ink);
   font: inherit;
 }
 .form textarea {
@@ -56,7 +56,7 @@
   gap: 12px;
   align-items: end;
   padding: 16px 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-line);
 }
 .catalog {
   display: grid;
@@ -65,7 +65,7 @@
 }
 .template {
   padding: 16px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 12px;
   display: grid;
   gap: 8px;
@@ -82,7 +82,7 @@
 .status small {
   display: block;
   margin-bottom: 6px;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .article {
   white-space: pre-wrap;
@@ -91,7 +91,7 @@
 }
 .history {
   padding: 14px 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-line);
   overflow-wrap: anywhere;
 }
 .history p {
@@ -104,7 +104,7 @@
   align-items: end;
 }
 .quiet {
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 0.875rem;
 }
 .details summary {
@@ -114,8 +114,13 @@
   align-items: center;
   font-weight: 600;
 }
-.details summary::after { content: "⌄"; margin-left: auto; }
-.details[open] summary::after { transform: rotate(180deg); }
+.details summary::after {
+  content: "⌄";
+  margin-left: auto;
+}
+.details[open] summary::after {
+  transform: rotate(180deg);
+}
 .details[open] summary {
   margin-bottom: 16px;
 }

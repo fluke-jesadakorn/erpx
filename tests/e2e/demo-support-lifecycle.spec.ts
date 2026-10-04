@@ -1,3 +1,4 @@
+import {createEngineeringBrowserContext} from './helpers/engineering-browser-evidence';
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -92,16 +93,18 @@ test("isolated demo completes a source-linked support case with independent conf
   const manager = credentials.users.find((user) => user.roles?.includes("support_manager"));
   expect(support, "support agent").toBeTruthy();
   expect(manager, "support manager").toBeTruthy();
-  const ownerContext = await browser.newContext(testInfo.project.use);
-  const supportContext = await browser.newContext(testInfo.project.use);
-  const salesContext = await browser.newContext(testInfo.project.use);
-  const managerContext = await browser.newContext(testInfo.project.use);
+  const ownerContext = await createEngineeringBrowserContext(browser,testInfo);
+  const supportContext = await createEngineeringBrowserContext(browser,testInfo);
+  const salesContext = await createEngineeringBrowserContext(browser,testInfo);
+  const managerContext = await createEngineeringBrowserContext(browser,testInfo);
   for (const context of [ownerContext, supportContext, salesContext, managerContext]) context.setDefaultTimeout(15_000);
   try {
     const ownerPage = await ownerContext.newPage();
     await signInRole(ownerContext, ownerPage, credentials, "holding_owner", `/holdings/simulation/support?orderId=${quoteId}`);
     const title = `Customer equipment replacement request ${Date.now()}`;
-    const create = ownerPage.locator("form").filter({ hasText: "Record customer issue" });
+    const create = ownerPage.locator("#workspace-content form").filter({
+      has: ownerPage.getByRole("heading", { name: "Record customer issue from order", exact: true }),
+    });
     await create.locator('input[name="title"]').fill(title);
     await create.locator('textarea[name="issue"]').fill("Customer reports a faulty unit and needs a replacement delivery date.");
     await create.locator('select[name="owner"]').selectOption(support!.userId);
@@ -109,7 +112,7 @@ test("isolated demo completes a source-linked support case with independent conf
     const createResponse = ownerPage.waitForResponse(
       (item) => item.request().method() === "POST" && item.url().endsWith("/api/v1/holdings/simulation/support"),
     );
-    await create.getByRole("button", { name: "Create support case", exact: true }).click();
+    await create.getByRole("button", { name: "Create linked support case", exact: true }).click();
     expect((await createResponse).status()).toBe(200);
     await expect(ownerPage.getByRole("heading", { name: title, exact: true })).toBeVisible();
     const ticketId = new URL(ownerPage.url()).pathname.split("/").at(-1);
@@ -140,14 +143,14 @@ test("isolated demo completes a source-linked support case with independent conf
     await salesPage.goto(`/holdings/simulation/commerce/orders/${quoteId}/notes`, { waitUntil: "domcontentloaded" });
     const noteBody = `Customer confirmed the replacement delivery window for ${title}.`;
     await expect(salesPage.locator("#workspace-content").getByRole("heading", { name: "Customer contact notes", exact: true })).toBeVisible();
-    const noteForm = salesPage.locator("form").filter({ has: salesPage.getByRole("button", { name: "Save internal note", exact: true }) });
+    const noteForm = salesPage.locator("#workspace-content form").filter({ has: salesPage.getByRole("button", { name: "Save internal note", exact: true }) });
     await expect.poll(() => Math.floor(Date.now() / 1000) * 1000).toBeGreaterThan(resolutionObservedAt);
     const contactTime = await salesPage.evaluate(() => {
       const date = new Date();
       const pad = (value: number) => String(value).padStart(2, "0");
       return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
     });
-    await noteForm.getByLabel("Contact time (your local time)", { exact: true }).fill(contactTime);
+    await noteForm.getByLabel("Contact time", { exact: true }).fill(contactTime);
     await noteForm.locator('textarea[name="body"]').fill(noteBody);
     const noteResponse = salesPage.waitForResponse(
       (item) => item.request().method() === "POST" && item.url().endsWith("/api/v1/holdings/simulation/customer-notes"),

@@ -1,20 +1,150 @@
-.page { min-height: 100dvh; display: grid; place-items: center; padding: max(28px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom)); background: var(--paper, #f5f6f8); color: var(--ink, #252936); }
-.embedded { min-height: 65dvh; background: transparent; }
-.card { width: min(100%, 600px); min-width: 0; padding: clamp(24px, 5vw, 48px); border: 1px solid var(--line, #dce0e8); border-radius: 20px; background: var(--card, #fff); box-shadow: 0 16px 50px #00000006; }
-.brand { display: inline-flex; align-items: center; margin-bottom: 36px; color: inherit; text-decoration: none; }
-.brand > span { display:flex; align-items:center; }
-.brand svg { display:block; width:116px; height:auto; }
-.icon { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 15px; background: var(--brand-soft, #eeeefa); color: var(--brand, #5557c2); margin-bottom: 22px; }
-.label { color: var(--muted, #626779); font-size: 12px; font-weight: 600; margin: 0 0 10px; }
-.card h1 { font-size: clamp(25px, 4vw, 34px); line-height: 1.18; letter-spacing: -.7px; margin: 0 0 16px; color: var(--ink-strong, #181c29); overflow-wrap: anywhere; }
-.description { color: var(--muted, #626779); line-height: 1.7; font-size: 15px; margin: 0 0 24px; }
-.next { padding: 18px; border: 1px solid var(--line, #dce0e8); border-radius: 12px; font-size: 14px; line-height: 1.65; }
-.next strong { display: block; margin-bottom: 5px; }
-.next p { margin: 0; color: var(--muted, #626779); }
-.identity { margin: 20px 0 0; font-size: 13px; color: var(--muted, #626779); overflow-wrap: anywhere; }
-.actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 25px; }
-.actions a, .actions button { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--line-strong, #c7cbd5); border-radius: 10px; padding: 11px 16px; background: transparent; color: inherit; font: inherit; font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; }
-.actions .primary { background: var(--brand, #5557c2); color: var(--on-brand, #fff); border-color: transparent; }
-.actions :focus-visible, .brand:focus-visible { outline: 3px solid var(--brand, #5557c2); outline-offset: 4px; }
-.reference { margin: 22px 0 0; color: var(--muted, #626779); font-size: 11px; overflow-wrap: anywhere; }
-@media(max-width: 520px) { .page { padding: 18px 14px; } .card { padding: 25px 21px; border-radius: 16px; } .brand { margin-bottom: 26px; } .actions { flex-direction: column; } .actions a, .actions button { width: 100%; } }
+.page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: max(28px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom));
+  background: var(--ui-paper, #f5f6f8);
+  color: var(--ui-ink, #252936);
+}
+.embedded {
+  min-height: 65dvh;
+  background: transparent;
+}
+.card {
+  width: min(100%, 600px);
+  min-width: 0;
+  padding: clamp(24px, 5vw, 48px);
+  border: 1px solid var(--ui-line, #dce0e8);
+  border-radius: 20px;
+  background: var(--ui-card, #fff);
+  box-shadow: 0 16px 50px #00000006;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 36px;
+  color: inherit;
+  text-decoration: none;
+}
+.brand > span {
+  display: flex;
+  align-items: center;
+}
+.brand svg {
+  display: block;
+  width: 116px;
+  height: auto;
+}
+.icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 15px;
+  background: var(--ui-brand-soft, #eeeefa);
+  color: var(--ui-brand, #5557c2);
+  margin-bottom: 22px;
+}
+.label {
+  color: var(--ui-muted, #626779);
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0 0 10px;
+}
+.card h1 {
+  font-size: clamp(25px, 4vw, 34px);
+  line-height: 1.18;
+  letter-spacing: -0.7px;
+  margin: 0 0 16px;
+  color: var(--ui-ink-strong, #181c29);
+  overflow-wrap: anywhere;
+}
+.description {
+  color: var(--ui-muted, #626779);
+  line-height: 1.7;
+  font-size: 15px;
+  margin: 0 0 24px;
+}
+.next {
+  padding: 18px;
+  border: 1px solid var(--ui-line, #dce0e8);
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.65;
+}
+.next strong {
+  display: block;
+  margin-bottom: 5px;
+}
+.next p {
+  margin: 0;
+  color: var(--ui-muted, #626779);
+}
+.identity {
+  margin: 20px 0 0;
+  font-size: 13px;
+  color: var(--ui-muted, #626779);
+  overflow-wrap: anywhere;
+}
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 25px;
+}
+.actions a,
+.actions button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--ui-line-strong, #c7cbd5);
+  border-radius: 10px;
+  padding: 11px 16px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.actions .primary {
+  background: var(--ui-brand, #5557c2);
+  color: var(--ui-on-brand, #fff);
+  border-color: transparent;
+}
+.actions :focus-visible,
+.brand:focus-visible {
+  outline: 3px solid var(--ui-brand, #5557c2);
+  outline-offset: 4px;
+}
+.reference {
+  margin: 22px 0 0;
+  color: var(--ui-muted, #626779);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 520px) {
+  .page {
+    padding: 18px 14px;
+  }
+  .card {
+    padding: 25px 21px;
+    border-radius: 16px;
+  }
+  .brand {
+    margin-bottom: 26px;
+  }
+  .actions {
+    flex-direction: column;
+  }
+  .actions a,
+  .actions button {
+    width: 100%;
+  }
+}
+
+/* Internal content shares the parent surface; use dividers for hierarchy. */
+.card .next { border: 0; border-inline-start: 3px solid var(--ui-brand); border-radius: 0; box-shadow: none; }

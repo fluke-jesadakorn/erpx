@@ -2,7 +2,7 @@ import { requireWorkContext } from '@/server/authorization';
 import { holdingResources } from '@/server/runtime';
 import { ApiError, errorResponse } from '@/server/http';
 import { requestPublicOrigin } from '@/server/public-origin';
-import { releaseAcceptance, submitReleaseAcceptance, reviewReleaseAcceptance, revokeReleaseAcceptance } from '@/server/release-acceptance';
+import { releaseAcceptance, submitReleaseAcceptance, reviewReleaseAcceptance, revokeReleaseAcceptance,bindReleaseEvidence } from '@/server/release-acceptance';
 
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
 const headers = { 'Cache-Control': 'private, no-store' };
@@ -29,6 +29,7 @@ export async function POST(request: Request, { params }: Context) {
     const data = path.length === 0 ? await submitReleaseAcceptance(write, actor, input, key)
       : path.length === 2 && path[1] === 'review' ? await reviewReleaseAcceptance(write, actor, path[0], input, key)
         : path.length === 2 && path[1] === 'revoke' ? await revokeReleaseAcceptance(write, actor, path[0], input, key)
+          : path.length===2&&path[1]==='evidence'?await bindReleaseEvidence(write,actor,path[0],input,key)
           : null;
     if (!data) throw new ApiError(404, 'NOT_FOUND', 'Release route not found.');
     return Response.json({ data }, { headers });

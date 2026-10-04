@@ -1,50 +1,58 @@
 "use client";
+import { FormDisclosure } from "@/components/ui/form-disclosure";
+import { ActionLink as UiActionLink } from "@/components/ui/foundation";
+
+import {
+  Button,
+  Field,
+  Select,
+  Table,
+  TableFrame,
+  TextArea,
+  TextInput,
+} from "@/components/ui/foundation";
+
 import { RosterWorkspace } from "@/components/people/roster-workspace";
 import { Dialog } from "@/components/ui/dialog";
 import { PageHeader } from "@/components/ui/primitives";
 import {
-calendarLayers,
-calendarQuerySchema,
-itemOnDate,
-today,
-type CalendarData,
-type CalendarHierarchy,
-type CalendarItem,
-type CalendarPerson,
-type CalendarQuery,
+  calendarLayers,
+  calendarQuerySchema,
+  itemOnDate,
+  today,
+  type CalendarData,
+  type CalendarHierarchy,
+  type CalendarItem,
+  type CalendarPerson,
+  type CalendarQuery,
 } from "@/lib/calendar";
-import { addDays,rosterMonday,type RosterData } from "@/lib/people-roster";
+import { addDays, rosterMonday, type RosterData } from "@/lib/people-roster";
 import { localDateTimeToInstant, localMinuteAt, moveInclusiveRange } from "@/lib/calendar-timeline";
 import { workFetch } from "@/lib/work-fetch";
 import { formatUiDateTime, uiLocale } from "@/lib/ui-format";
 import {
-CalendarDays,
-AlertCircle,
-ChevronLeft,
-ChevronDown,
-ChevronRight,
-Globe2,
-Plus,
-RefreshCw,
-Search,
-Users
+  CalendarDays,
+  AlertCircle,
+  ChevronLeft,
+  ChevronDown,
+  ChevronRight,
+  Globe2,
+  Plus,
+  RefreshCw,
+  Search,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
 import {
-useCallback,
-useEffect,
-useRef,
-useState,
-type ReactNode,
-type PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
-import {
-CalendarEvent,
-eventStyle,
-eventTime,
-layerNames,
-} from "./calendar-event";
-import { CalendarForm,type CalendarEditor } from "./calendar-forms";
+import { CalendarEvent, eventStyle, eventTime, layerNames } from "./calendar-event";
+import { CalendarForm, type CalendarEditor } from "./calendar-forms";
 import { CalendarDayTimeline } from "./calendar-day-timeline";
 import { PersonalTimeGrid } from "./personal-time-grid";
 import { MonthGrid } from "./month-grid";
@@ -83,29 +91,26 @@ function CalendarView({
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [message, setMessage] = useState("");
-  const [accounts,setAccounts]=useState<{id:string;name:string;email:string}[]>([]);
+  const [accounts, setAccounts] = useState<{ id: string; name: string; email: string }[]>([]);
   const [selected, setSelected] = useState<CalendarItem | null>(
-      initial.items.find(
-        (i) => i.id === initialEvent || i.sourceId === initialEvent,
-      ) ?? null,
+      initial.items.find((i) => i.id === initialEvent || i.sourceId === initialEvent) ?? null,
     ),
     [editor, setEditor] = useState<CalendarEditor | null>(null),
     [roster, setRoster] = useState<RosterData | null>(null),
     [rosterDate, setRosterDate] = useState(initial.query.date),
     [dateDrop, setDateDrop] = useState<string | null>(null),
     [dateDragging, setDateDragging] = useState<string | null>(null),
-    [pendingShift, setPendingShift] = useState<{ item: CalendarItem; change: { startsAt: number; endsAt: number } } | null>(null);
-  const [editScope,setEditScope]=useState<"single"|"future"|"series">("single");
+    [pendingShift, setPendingShift] = useState<{
+      item: CalendarItem;
+      change: { startsAt: number; endsAt: number };
+    } | null>(null);
+  const [editScope, setEditScope] = useState<"single" | "future" | "series">("single");
   const qRef = useRef(initial.query),
     receipt = useRef<{ body: string; key: string } | null>(null),
     requestSeq = useRef(0),
     api = `/api/v1${base}/calendar`;
   const load = useCallback(
-    async (
-      q: CalendarQuery,
-      append = false,
-      writeUrl: false | "push" | "replace" = false,
-    ) => {
+    async (q: CalendarQuery, append = false, writeUrl: false | "push" | "replace" = false) => {
       const seq = ++requestSeq.current;
       setBusy(true);
       setError("");
@@ -114,8 +119,7 @@ function CalendarView({
             cache: "no-store",
           }),
           j = await r.json();
-        if (!r.ok)
-          throw new Error(j.error?.message ?? "Calendar could not be loaded.");
+        if (!r.ok) throw new Error(j.error?.message ?? "Calendar could not be loaded.");
         if (seq !== requestSeq.current) return;
         const next = j.data as CalendarData;
         qRef.current = { ...next.query, cursor: 0 };
@@ -139,9 +143,7 @@ function CalendarView({
         setSelected(
           writeUrl === "push"
             ? null
-            : next.items.find(
-                (i) => i.id === eventId || i.sourceId === eventId,
-              ) ?? null,
+            : (next.items.find((i) => i.id === eventId || i.sourceId === eventId) ?? null),
         );
         if (writeUrl)
           window.history[`${writeUrl}State`](
@@ -151,9 +153,7 @@ function CalendarView({
           );
       } catch (e) {
         if (seq === requestSeq.current)
-          setError(
-            e instanceof Error ? e.message : "Calendar could not be loaded.",
-          );
+          setError(e instanceof Error ? e.message : "Calendar could not be loaded.");
       } finally {
         if (seq === requestSeq.current) setBusy(false);
       }
@@ -161,20 +161,20 @@ function CalendarView({
     [api, base],
   );
   useEffect(() => {
-    void workFetch(`/api/v1${base}/inbox/people`).then(r=>r.json()).then(j=>setAccounts(Array.isArray(j.data)?j.data:[])).catch(()=>{});
-  },[base]);
+    void workFetch(`/api/v1${base}/inbox/people`)
+      .then((r) => r.json())
+      .then((j) => setAccounts(Array.isArray(j.data) ? j.data : []))
+      .catch(() => {});
+  }, [base]);
   useEffect(() => {
     const refresh = () => {
-      if (document.visibilityState === "visible")
-        void load({ ...qRef.current, cursor: 0 });
+      if (document.visibilityState === "visible") void load({ ...qRef.current, cursor: 0 });
     };
     const pop = () => {
       const params = new URL(window.location.href).searchParams;
       const raw = Object.fromEntries(params);
-      if (!params.has("view"))
-        raw.view = params.get("preset") === "coverage" ? "week" : "month";
-      if (!params.has("layers") && params.get("preset") === "coverage")
-        raw.layers = "roster,leave";
+      if (!params.has("view")) raw.view = params.get("preset") === "coverage" ? "week" : "month";
+      if (!params.has("layers") && params.get("preset") === "coverage") raw.layers = "roster,leave";
       const parsed = calendarQuerySchema.safeParse(raw);
       if (parsed.success) void load(parsed.data, false, false);
     };
@@ -191,16 +191,14 @@ function CalendarView({
     activePreset = q.preset ?? (q.mode === "mine" ? "mine" : "team"),
     days = Array.from(
       {
-        length: Math.round(
-          (Date.parse(data.to) - Date.parse(data.from)) / 86400000,
-        ),
+        length: Math.round((Date.parse(data.to) - Date.parse(data.from)) / 86400000),
       },
       (_, i) => addDays(data.from, i),
     );
   function change(patch: Partial<CalendarQuery>) {
-    const query={ ...qRef.current, ...patch, cursor: 0 };
+    const query = { ...qRef.current, ...patch, cursor: 0 };
     qRef.current = query;
-    void load(query,false,"push");
+    void load(query, false, "push");
   }
   function changePreset(preset: "mine" | "team" | "coverage") {
     const query: CalendarQuery = {
@@ -208,10 +206,7 @@ function CalendarView({
       preset,
       mode: preset === "mine" ? "mine" : "team",
       view: preset === "coverage" ? "week" : "month",
-      layers:
-        preset === "coverage"
-          ? "roster,leave"
-          : calendarLayers.join(","),
+      layers: preset === "coverage" ? "roster,leave" : calendarLayers.join(","),
       person: undefined,
       search: "",
       cursor: 0,
@@ -221,7 +216,7 @@ function CalendarView({
   }
   function open(item: CalendarItem) {
     setSelected(item);
-    setEditScope(item.occurrenceId?"single":"series");
+    setEditScope(item.occurrenceId ? "single" : "series");
     setError("");
     setMessage("");
     const url = new URL(window.location.href);
@@ -241,8 +236,7 @@ function CalendarView({
     setMessage("");
     try {
       const body = JSON.stringify(input);
-      if (receipt.current?.body !== body)
-        receipt.current = { body, key: crypto.randomUUID() };
+      if (receipt.current?.body !== body) receipt.current = { body, key: crypto.randomUUID() };
       const r = await workFetch(api, {
           method: "POST",
           headers: {
@@ -252,15 +246,12 @@ function CalendarView({
           body,
         }),
         j = await r.json();
-      if (!r.ok)
-        throw new Error(j.error?.message ?? "Could not save this change.");
+      if (!r.ok) throw new Error(j.error?.message ?? "Could not save this change.");
       receipt.current = null;
       setEditor(null);
       await load({ ...qRef.current, cursor: 0 });
       setMessage(
-        j.data.warnings?.length
-          ? `Saved. ${j.data.warnings.join(" ")}`
-          : "Calendar updated.",
+        j.data.warnings?.length ? `Saved. ${j.data.warnings.join(" ")}` : "Calendar updated.",
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save this change.");
@@ -271,7 +262,7 @@ function CalendarView({
   const replaceItem = (replacement: CalendarItem) =>
     setData((current) => ({
       ...current,
-      items: current.items.map((item) => item.id === replacement.id ? replacement : item),
+      items: current.items.map((item) => (item.id === replacement.id ? replacement : item)),
     }));
   async function sendReschedule(item: CalendarItem, optimistic: CalendarItem, input: unknown) {
     replaceItem(optimistic);
@@ -289,8 +280,14 @@ function CalendarView({
       const json = await response.json();
       if (!response.ok) throw new Error(json.error?.message ?? "Could not reschedule this item.");
       receipt.current = null;
-      replaceItem({ ...optimistic, version: json.data.version, warnings: json.data.warnings ?? optimistic.warnings });
-      setMessage(json.data.warnings?.length ? `Saved. ${json.data.warnings.join(" ")}` : "Calendar updated.");
+      replaceItem({
+        ...optimistic,
+        version: json.data.version,
+        warnings: json.data.warnings ?? optimistic.warnings,
+      });
+      setMessage(
+        json.data.warnings?.length ? `Saved. ${json.data.warnings.join(" ")}` : "Calendar updated.",
+      );
       await load({ ...qRef.current, cursor: 0 });
     } catch (cause) {
       replaceItem(item);
@@ -299,7 +296,11 @@ function CalendarView({
       setBusy(false);
     }
   }
-  function rescheduleTimed(item: CalendarItem, change: { startsAt: number; endsAt: number }, reason = "") {
+  function rescheduleTimed(
+    item: CalendarItem,
+    change: { startsAt: number; endsAt: number },
+    reason = "",
+  ) {
     setError("");
     const optimistic = { ...item, startsAt: change.startsAt, endsAt: change.endsAt };
     if (item.kind === "shift" && item.details?.requiresReason && !reason) {
@@ -308,8 +309,9 @@ function CalendarView({
       return;
     }
     if (item.kind === "appointment") {
-      const zone=item.allDay?item.timezone:q.timezone;
-      const start = localMinuteAt(change.startsAt, zone), end = localMinuteAt(change.endsAt, zone);
+      const zone = item.allDay ? item.timezone : q.timezone;
+      const start = localMinuteAt(change.startsAt, zone),
+        end = localMinuteAt(change.endsAt, zone);
       void sendReschedule(item, optimistic, {
         action: "appointment.reschedule",
         id: item.sourceId,
@@ -317,10 +319,11 @@ function CalendarView({
         startLocal: `${start.date}T${start.time}`,
         endLocal: `${end.date}T${end.time}`,
         timezone: zone,
-        ...(item.occurrenceId?{occurrenceId:item.occurrenceId,scope:editScope}:{}),
+        ...(item.occurrenceId ? { occurrenceId: item.occurrenceId, scope: editScope } : {}),
       });
     } else if (item.kind === "shift") {
-      const start = localMinuteAt(change.startsAt, item.timezone), end = localMinuteAt(change.endsAt, item.timezone);
+      const start = localMinuteAt(change.startsAt, item.timezone),
+        end = localMinuteAt(change.endsAt, item.timezone);
       void sendReschedule(item, optimistic, {
         action: "shift.reschedule",
         id: item.sourceId,
@@ -334,24 +337,52 @@ function CalendarView({
   }
   function rescheduleDate(item: CalendarItem, target: string, edge?: "start" | "end") {
     if (item.kind === "task" && item.permittedActions.includes("task.reschedule")) {
-      void sendReschedule(item, { ...item, startDate: target, endDate: addDays(target, 1) }, {
-        action: "task.reschedule", id: item.sourceId, expectedVersion: item.version, dueDate: target,
-      });
+      void sendReschedule(
+        item,
+        { ...item, startDate: target, endDate: addDays(target, 1) },
+        {
+          action: "task.reschedule",
+          id: item.sourceId,
+          expectedVersion: item.version,
+          dueDate: target,
+        },
+      );
       return;
     }
-    if (item.kind === "announcement" && item.startDate && item.endDate && item.permittedActions.includes("announcement.reschedule")) {
+    if (
+      item.kind === "announcement" &&
+      item.startDate &&
+      item.endDate &&
+      item.permittedActions.includes("announcement.reschedule")
+    ) {
       const inclusiveEnd = addDays(item.endDate, -1);
-      const range = edge === "start"
-        ? { startDate: target <= inclusiveEnd ? target : inclusiveEnd, endDate: inclusiveEnd }
-        : edge === "end"
-          ? { startDate: item.startDate, endDate: target >= item.startDate ? target : item.startDate }
-          : moveInclusiveRange(item.startDate, inclusiveEnd, target);
-      void sendReschedule(item, { ...item, startDate: range.startDate, endDate: addDays(range.endDate, 1) }, {
-        action: "announcement.reschedule", id: item.sourceId, expectedVersion: item.version, ...range,
-      });
+      const range =
+        edge === "start"
+          ? { startDate: target <= inclusiveEnd ? target : inclusiveEnd, endDate: inclusiveEnd }
+          : edge === "end"
+            ? {
+                startDate: item.startDate,
+                endDate: target >= item.startDate ? target : item.startDate,
+              }
+            : moveInclusiveRange(item.startDate, inclusiveEnd, target);
+      void sendReschedule(
+        item,
+        { ...item, startDate: range.startDate, endDate: addDays(range.endDate, 1) },
+        {
+          action: "announcement.reschedule",
+          id: item.sourceId,
+          expectedVersion: item.version,
+          ...range,
+        },
+      );
       return;
     }
-    if ((item.kind === "appointment" || item.kind === "shift") && item.startsAt !== null && item.endsAt !== null && item.permittedActions.includes(`${item.kind}.reschedule`)) {
+    if (
+      (item.kind === "appointment" || item.kind === "shift") &&
+      item.startsAt !== null &&
+      item.endsAt !== null &&
+      item.permittedActions.includes(`${item.kind}.reschedule`)
+    ) {
       const displayed = localMinuteAt(item.startsAt, q.timezone);
       const startsAt = localDateTimeToInstant(`${target}T${displayed.time}`, q.timezone);
       rescheduleTimed(item, { startsAt, endsAt: startsAt + (item.endsAt - item.startsAt) });
@@ -361,14 +392,21 @@ function CalendarView({
     const movable = item.permittedActions.includes(`${item.kind}.reschedule`);
     if (!movable) return;
     event.stopPropagation();
-    const originX = event.clientX, originY = event.clientY;
-    let moved = false, target: string | null = null;
+    const originX = event.clientX,
+      originY = event.clientY;
+    let moved = false,
+      target: string | null = null;
     const onMove = (pointer: PointerEvent) => {
       moved ||= Math.hypot(pointer.clientX - originX, pointer.clientY - originY) >= 5;
       if (!moved) return;
       setDateDragging(item.id);
       pointer.preventDefault();
-      target = (document.elementFromPoint(pointer.clientX, pointer.clientY)?.closest("[data-calendar-date]") as HTMLElement | null)?.dataset.calendarDate ?? null;
+      target =
+        (
+          document
+            .elementFromPoint(pointer.clientX, pointer.clientY)
+            ?.closest("[data-calendar-date]") as HTMLElement | null
+        )?.dataset.calendarDate ?? null;
       setDateDrop(target);
     };
     const finish = () => {
@@ -391,21 +429,30 @@ function CalendarView({
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", finish, { once: true });
     window.addEventListener("pointercancel", cancel, { once: true });
-    const escape = (keyboard: KeyboardEvent) => { if (keyboard.key === "Escape") cancel(); };
+    const escape = (keyboard: KeyboardEvent) => {
+      if (keyboard.key === "Escape") cancel();
+    };
     window.addEventListener("keydown", escape);
   }
   async function openRoster(item?: CalendarItem) {
     setError("");
     setBusy(true);
     try {
-      const department = item?.departmentId ?? hierarchy.people.find(p=>p.id===q.person)?.departmentId ?? (q.node ? hierarchy.nodes.find(n=>n.kind==="department" && withinNode(n.id,q.node))?.id : undefined);
-      const params = new URLSearchParams({week:rosterMonday(item?.startDate ?? q.date),...(department ? {department} : {})});
+      const department =
+        item?.departmentId ??
+        hierarchy.people.find((p) => p.id === q.person)?.departmentId ??
+        (q.node
+          ? hierarchy.nodes.find((n) => n.kind === "department" && withinNode(n.id, q.node))?.id
+          : undefined);
+      const params = new URLSearchParams({
+        week: rosterMonday(item?.startDate ?? q.date),
+        ...(department ? { department } : {}),
+      });
       const r = await workFetch(`/api/v1${base}/people/roster?${params}`, {
           cache: "no-store",
         }),
         j = await r.json();
-      if (!r.ok)
-        throw new Error(j.error?.message ?? "Could not load roster planning.");
+      if (!r.ok) throw new Error(j.error?.message ?? "Could not load roster planning.");
       setRosterDate(item?.startDate ?? q.date);
       closeDetail();
       setRoster(j.data);
@@ -418,20 +465,14 @@ function CalendarView({
   async function morePeople() {
     setBusy(true);
     try {
-      const r = await workFetch(
-          `${api}/hierarchy?cursor=${hierarchy.nextCursor}`,
-        ),
+      const r = await workFetch(`${api}/hierarchy?cursor=${hierarchy.nextCursor}`),
         j = await r.json();
-      if (!r.ok)
-        throw new Error(j.error?.message ?? "People could not be loaded.");
+      if (!r.ok) throw new Error(j.error?.message ?? "People could not be loaded.");
       setHierarchy((old) => ({
         ...j.data,
         people: [
           ...new Map(
-            [...old.people, ...j.data.people].map((p: CalendarPerson) => [
-              p.id,
-              p,
-            ]),
+            [...old.people, ...j.data.people].map((p: CalendarPerson) => [p.id, p]),
           ).values(),
         ],
       }));
@@ -442,13 +483,13 @@ function CalendarView({
     }
   }
   const personButton = (p: CalendarPerson) => (
-    <button
+    <Button
+      type="submit"
+      variant="plain"
       key={p.id}
       className={styles.person}
       aria-pressed={q.person === p.id}
-      onClick={() =>
-        change({ person: q.person === p.id ? undefined : p.id, mode: "team" })
-      }
+      onClick={() => change({ person: q.person === p.id ? undefined : p.id, mode: "team" })}
     >
       <span className={styles.avatar}>
         {p.name
@@ -461,15 +502,14 @@ function CalendarView({
         {p.name}
         {p.id === data.selfPersonId && " · You"}
       </span>
-    </button>
+    </Button>
   );
   function orgTree(parent: string | null, seen = new Set<string>()): ReactNode {
     return hierarchy.nodes
       .filter(
         (n) =>
           n.parentId === parent ||
-          (parent === null &&
-            !hierarchy.nodes.some((x) => x.id === n.parentId)),
+          (parent === null && !hierarchy.nodes.some((x) => x.id === n.parentId)),
       )
       .filter((n) => !seen.has(n.id))
       .map((n) => {
@@ -484,7 +524,9 @@ function CalendarView({
           <details key={n.id}>
             <summary>{n.name}</summary>
             {n.inScope !== false && (
-              <button
+              <Button
+                type="submit"
+                variant="plain"
                 className={styles.person}
                 aria-pressed={q.node === n.id}
                 onClick={() =>
@@ -496,7 +538,7 @@ function CalendarView({
                 }
               >
                 View {n.name}
-              </button>
+              </Button>
             )}
             <div className={styles.treeChildren}>
               {people.map(personButton)}
@@ -506,10 +548,7 @@ function CalendarView({
         );
       });
   }
-  function reportTree(
-    manager: string | null,
-    seen = new Set<string>(),
-  ): ReactNode {
+  function reportTree(manager: string | null, seen = new Set<string>()): ReactNode {
     return hierarchy.people
       .filter((p) =>
         manager === null
@@ -520,16 +559,18 @@ function CalendarView({
       .map((p) => (
         <div key={p.id}>
           {personButton(p)}
-          <div className={styles.treeChildren}>
-            {reportTree(p.id, new Set([...seen, p.id]))}
-          </div>
+          <div className={styles.treeChildren}>{reportTree(p.id, new Set([...seen, p.id]))}</div>
         </div>
       ));
   }
-  function withinNode(id:string|null,node:string|undefined):boolean {
+  function withinNode(id: string | null, node: string | undefined): boolean {
     if (!node) return true;
-    const seen=new Set<string>();
-    while(id && !seen.has(id)) { if(id===node)return true; seen.add(id); id=hierarchy.nodes.find(n=>n.id===id)?.parentId??null; }
+    const seen = new Set<string>();
+    while (id && !seen.has(id)) {
+      if (id === node) return true;
+      seen.add(id);
+      id = hierarchy.nodes.find((n) => n.id === id)?.parentId ?? null;
+    }
     return false;
   }
   const eventPeople: CalendarPerson[] = data.items.flatMap((item) =>
@@ -544,23 +585,19 @@ function CalendarView({
     })),
   );
   const people = [
-    ...new Map(
-      [...eventPeople, ...hierarchy.people].map((p) => [p.id, p]),
-    ).values(),
+    ...new Map([...eventPeople, ...hierarchy.people].map((p) => [p.id, p])).values(),
   ].filter(
     (p) =>
       (!q.person || p.id === q.person) &&
       (q.mode !== "mine" || p.id === data.selfPersonId) &&
-      (q.preset === "coverage" || eventPeople.some(event => event.id === p.id)) &&
-      (!q.node || withinNode(p.departmentId,q.node) || withinNode(p.branchId,q.node)) &&
+      (q.preset === "coverage" || eventPeople.some((event) => event.id === p.id)) &&
+      (!q.node || withinNode(p.departmentId, q.node) || withinNode(p.branchId, q.node)) &&
       (!q.search ||
         p.name.toLocaleLowerCase().includes(q.search.toLocaleLowerCase()) ||
         data.items.some(
           (i) =>
             i.participants.some((x) => x.id === p.id) ||
-            (i.kind === "task" &&
-              !!p.userId &&
-              i.details?.assigneeId === p.userId),
+            (i.kind === "task" && !!p.userId && i.details?.assigneeId === p.userId),
         )),
   );
   const event = (item: CalendarItem, showPeople = false) => (
@@ -570,8 +607,16 @@ function CalendarView({
       zone={q.timezone}
       onOpen={open}
       showPeople={showPeople}
-      onPointerDown={q.view === "week" || q.view === "month" ? (pointer) => beginDateDrag(item, pointer) : undefined}
-      resizeHandles={(q.view === "week" || q.view === "month") && item.kind === "announcement" && item.permittedActions.includes("announcement.reschedule")}
+      onPointerDown={
+        q.view === "week" || q.view === "month"
+          ? (pointer) => beginDateDrag(item, pointer)
+          : undefined
+      }
+      resizeHandles={
+        (q.view === "week" || q.view === "month") &&
+        item.kind === "announcement" &&
+        item.permittedActions.includes("announcement.reschedule")
+      }
       onResizePointerDown={(edge, pointer) => beginDateDrag(item, pointer, edge)}
       dragging={dateDragging === item.id}
       compact={q.view === "week" || q.view === "month"}
@@ -580,19 +625,24 @@ function CalendarView({
   const itemsForDate = (date: string) =>
     data.items
       .filter((i) => itemOnDate(i, date, q.timezone))
-      .sort(
-        (a, b) =>
-          (a.startsAt ?? 0) - (b.startsAt ?? 0) ||
-          a.title.localeCompare(b.title),
-      );
+      .sort((a, b) => (a.startsAt ?? 0) - (b.startsAt ?? 0) || a.title.localeCompare(b.title));
   const byDate = new Map(days.map((day) => [day, itemsForDate(day)]));
   const daily = (date: string) => byDate.get(date) ?? [];
-  const attentionDateKey = (item: CalendarItem) => item.startDate ?? (item.startsAt === null ? "\uffff" : localMinuteAt(item.startsAt, q.timezone).date);
-  const attention = data.items.filter((i) => i.warnings.length).sort((a, b) => {
-    const aDate = attentionDateKey(a), bDate = attentionDateKey(b);
-    if (aDate !== bDate) return aDate.localeCompare(bDate);
-    return (a.startsAt ?? 0) - (b.startsAt ?? 0) || a.title.localeCompare(b.title) || a.id.localeCompare(b.id);
-  }),
+  const attentionDateKey = (item: CalendarItem) =>
+    item.startDate ??
+    (item.startsAt === null ? "\uffff" : localMinuteAt(item.startsAt, q.timezone).date);
+  const attention = data.items
+      .filter((i) => i.warnings.length)
+      .sort((a, b) => {
+        const aDate = attentionDateKey(a),
+          bDate = attentionDateKey(b);
+        if (aDate !== bDate) return aDate.localeCompare(bDate);
+        return (
+          (a.startsAt ?? 0) - (b.startsAt ?? 0) ||
+          a.title.localeCompare(b.title) ||
+          a.id.localeCompare(b.id)
+        );
+      }),
     unscheduled = data.items.filter((i) => !i.startDate && i.startsAt === null);
   const move = (direction: number) => {
     if (q.view === "month") {
@@ -600,7 +650,9 @@ function CalendarView({
       d.setUTCMonth(d.getUTCMonth() + direction);
       change({ date: d.toISOString().slice(0, 10) });
     } else
-      change({ date: addDays(q.date, direction * (q.view === "week" ? 7 : q.view === "day" ? 1 : 30)) });
+      change({
+        date: addDays(q.date, direction * (q.view === "week" ? 7 : q.view === "day" ? 1 : 30)),
+      });
   };
   const failedSources = data.sources.filter((source) => source.status === "error"),
     hasMoreResults = data.nextCursor !== null,
@@ -609,7 +661,7 @@ function CalendarView({
       `${q.layers.split(",").length} ${q.layers.split(",").length === 1 ? "layer" : "layers"}`,
       q.timezone,
       q.person ? "1 person selected" : "",
-      q.node ? hierarchy.nodes.find((node) => node.id === q.node)?.name ?? "Unit selected" : "",
+      q.node ? (hierarchy.nodes.find((node) => node.id === q.node)?.name ?? "Unit selected") : "",
       q.search ? `Search: ${q.search}` : "",
     ].filter(Boolean);
   return (
@@ -620,33 +672,65 @@ function CalendarView({
         action={
           <div className={styles.headerActions}>
             <div className={styles.presetSwitch} role="group" aria-label="Calendar view">
-              {([
-                ["mine", "My"],
-                ["team", "Team"],
-                ["coverage", "Coverage"],
-              ] as const).map(([preset, title]) => (
-                <button
+              {(
+                [
+                  ["mine", "My"],
+                  ["team", "Team"],
+                  ["coverage", "Coverage"],
+                ] as const
+              ).map(([preset, title]) => (
+                <Button
+                  variant="plain"
                   key={preset}
                   type="button"
                   aria-pressed={activePreset === preset}
                   onClick={() => changePreset(preset)}
                 >
                   {title}
-                </button>
+                </Button>
               ))}
             </div>
-            {(data.canSchedule || data.canAnnounce || data.canManageRoster || data.selfPersonId) && (
+            {(data.canSchedule ||
+              data.canAnnounce ||
+              data.canManageRoster ||
+              data.selfPersonId) && (
               <details className={styles.createMenu}>
                 <summary className={styles.primary}>
                   <Plus size={15} /> Create <ChevronDown size={14} />
                 </summary>
                 <div className={styles.createMenuItems}>
-                  {data.canSchedule && <>
-                    <button type="button" onClick={() => setEditor({kind:"appointment"})}>New appointment</button>
-                    {data.selfPersonId&&<Link href={`${base}/staff-tasks/new?dueDate=${encodeURIComponent(q.date)}`}>New task</Link>}
-                  </>}
-                  {data.canAnnounce && <button type="button" onClick={() => setEditor({kind:"announcement"})}>New announcement</button>}
-                  {data.canManageRoster && <button type="button" onClick={() => void openRoster()}>Plan roster</button>}
+                  {data.canSchedule && (
+                    <>
+                      <Button
+                        variant="plain"
+                        type="button"
+                        onClick={() => setEditor({ kind: "appointment" })}
+                      >
+                        New appointment
+                      </Button>
+                      {data.selfPersonId && (
+                        <Link
+                          href={`${base}/staff-tasks/new?dueDate=${encodeURIComponent(q.date)}`}
+                        >
+                          New task
+                        </Link>
+                      )}
+                    </>
+                  )}
+                  {data.canAnnounce && (
+                    <Button
+                      variant="plain"
+                      type="button"
+                      onClick={() => setEditor({ kind: "announcement" })}
+                    >
+                      New announcement
+                    </Button>
+                  )}
+                  {data.canManageRoster && (
+                    <Button variant="plain" type="button" onClick={() => void openRoster()}>
+                      Plan roster
+                    </Button>
+                  )}
                   {data.selfPersonId && <Link href={`${base}/leave/new`}>Request leave</Link>}
                 </div>
               </details>
@@ -658,14 +742,15 @@ function CalendarView({
         <div className={styles.toolbarCluster}>
           <div className={styles.views} role="group" aria-label="Calendar view">
             {(["day", "week", "month", "agenda"] as const).map((view) => (
-              <button
+              <Button
+                variant="plain"
                 key={view}
                 type="button"
                 aria-pressed={q.view === view}
                 onClick={() => change({ view })}
               >
                 {view[0].toUpperCase() + view.slice(1)}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -679,95 +764,117 @@ function CalendarView({
             onDateChange={(date) => change({ date })}
             onToday={() => change({ date: today(q.timezone) })}
           />
-        ) : <div className={`${styles.toolbarCluster} ${styles.datePicker}`}>
-          <button
-            className={styles.iconButton}
-            aria-label="Previous period"
-            onClick={() => move(-1)}
-          >
-            <ChevronLeft size={17} />
-          </button>
-          <input
-            aria-label="Calendar date"
-            type="date"
-            value={q.date}
-            onChange={(e) => e.target.value && change({ date: e.target.value })}
-          />
-          <button
-            className={styles.iconButton}
-            aria-label="Next period"
-            onClick={() => move(1)}
-          >
-            <ChevronRight size={17} />
-          </button>
-          <button
-            className={styles.button}
-            onClick={() => change({ date: today(q.timezone) })}
-          >
-            Today
-          </button>
-        </div>}
-        <button
+        ) : (
+          <div className={`${styles.toolbarCluster} ${styles.datePicker}`}>
+            <Button
+              type="submit"
+              variant="ghost"
+              className={styles.iconButton}
+              aria-label="Previous period"
+              onClick={() => move(-1)}
+            >
+              <ChevronLeft size={17} />
+            </Button>
+            <TextInput
+              aria-label="Calendar date"
+              type="date"
+              value={q.date}
+              onChange={(e) => e.target.value && change({ date: e.target.value })}
+            />
+            <Button
+              type="submit"
+              variant="ghost"
+              className={styles.iconButton}
+              aria-label="Next period"
+              onClick={() => move(1)}
+            >
+              <ChevronRight size={17} />
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              className={styles.button}
+              onClick={() => change({ date: today(q.timezone) })}
+            >
+              Today
+            </Button>
+          </div>
+        )}
+        <Button
+          type="submit"
+          variant="ghost"
           className={`${styles.iconButton} ${styles.refreshButton}`}
           aria-label="Refresh calendar"
           disabled={busy}
           onClick={() => void load({ ...qRef.current, cursor: 0 })}
         >
           <RefreshCw size={16} />
-        </button>
+        </Button>
       </section>
       <div className={styles.filterChips} aria-label="Active calendar filters">
-        <strong>{activePreset === "coverage" ? "Coverage" : activePreset === "mine" ? "My calendar" : "Team calendar"}</strong>
-        {filterSummary.map((item) => <span key={item}>{item}</span>)}
+        <strong>
+          {activePreset === "coverage"
+            ? "Coverage"
+            : activePreset === "mine"
+              ? "My calendar"
+              : "Team calendar"}
+        </strong>
+        {filterSummary.map((item) => (
+          <span key={item}>{item}</span>
+        ))}
       </div>
-      <details className={styles.filterPanel} data-calendar-filters>
-        <summary>Filters <span>{filterSummary.join(" · ")}</span></summary>
+      <FormDisclosure className={styles.filterPanel} data-calendar-filters>
+        <summary>
+          Filters <span>{filterSummary.join(" · ")}</span>
+        </summary>
         <div className={styles.filterControls}>
           <section className={styles.filterSection} aria-label="Calendar layers">
             <h2>Layers</h2>
             <div className={styles.layerBar}>
-        {calendarLayers.map((layer) => (
-          <label key={layer}>
-            <input
-              type="checkbox"
-              checked={q.layers.split(",").includes(layer)}
-              onChange={(e) => {
-                const next = e.target.checked
-                  ? [...q.layers.split(","), layer]
-                  : q.layers.split(",").filter((x) => x !== layer);
-                if (next.length) change({ layers: next.join(",") });
-              }}
-            />
-            <span className={styles.dot} style={eventStyle(layer)} />
-            {layerNames[layer]}
-          </label>
-        ))}
+              {calendarLayers.map((layer) => (
+                <Field orientation="inline" key={layer}>
+                  <TextInput
+                    type="checkbox"
+                    checked={q.layers.split(",").includes(layer)}
+                    onChange={(e) => {
+                      const next = e.target.checked
+                        ? [...q.layers.split(","), layer]
+                        : q.layers.split(",").filter((x) => x !== layer);
+                      if (next.length) change({ layers: next.join(",") });
+                    }}
+                  />
+                  <span className={styles.dot} style={eventStyle(layer)} />
+                  {layerNames[layer]}
+                </Field>
+              ))}
             </div>
-            <label className={styles.zone}>
+            <Field className={styles.zone}>
               <Globe2 size={13} />
               Display timezone
-          <select
-            aria-label="Display timezone"
-            value={q.timezone}
-            onChange={(e) => change({ timezone: e.target.value })}
-          >
-            {[
-              ...new Set([
-                q.timezone,
-                "Asia/Bangkok",
-                "UTC",
-                "Asia/Singapore",
-                "Europe/London",
-                "America/New_York",
-              ]),
-            ].map((z) => (
-              <option key={z}>{z}</option>
-            ))}
-          </select>
-        </label>
+              <Select
+                aria-label="Display timezone"
+                value={q.timezone}
+                onChange={(e) => change({ timezone: e.target.value })}
+              >
+                {[
+                  ...new Set([
+                    q.timezone,
+                    "Asia/Bangkok",
+                    "UTC",
+                    "Asia/Singapore",
+                    "Europe/London",
+                    "America/New_York",
+                  ]),
+                ].map((z) => (
+                  <option key={z}>{z}</option>
+                ))}
+              </Select>
+            </Field>
           </section>
           <section className={styles.peopleFilters} aria-label="People filters">
-            <h2><Users size={15} /> People</h2>
+            <h2>
+              <Users size={15} /> People
+            </h2>
             <form
               className={styles.search}
               onSubmit={(e) => {
@@ -776,39 +883,64 @@ function CalendarView({
               }}
             >
               <Search size={14} />
-              <input
+              <TextInput
                 aria-label="Search people or events"
                 name="search"
                 placeholder="Search people or events"
                 defaultValue={q.search}
                 key={q.search}
               />
-              <button type="submit" className={styles.iconButton} aria-label="Search">↵</button>
+              <Button
+                clientManaged variant="ghost"
+                type="submit"
+                className={styles.iconButton}
+                aria-label="Search"
+              >
+                ↵
+              </Button>
             </form>
-            <label className={styles.hierarchyPicker}>
+            <Field className={styles.hierarchyPicker}>
               People hierarchy
-              <select value={q.hierarchy} onChange={(e) => change({ hierarchy: e.target.value as "organization" | "reporting" })}>
+              <Select
+                value={q.hierarchy}
+                onChange={(e) =>
+                  change({ hierarchy: e.target.value as "organization" | "reporting" })
+                }
+              >
                 <option value="organization">Organization</option>
                 <option value="reporting">Reporting</option>
-              </select>
-            </label>
-            <button
+              </Select>
+            </Field>
+            <Button
+              type="submit"
+              variant="plain"
               className={styles.person}
               aria-pressed={!q.person && !q.node}
-              onClick={() => change({ person: undefined, node: undefined, search: "", mode: "team" })}
+              onClick={() =>
+                change({ person: undefined, node: undefined, search: "", mode: "team" })
+              }
             >
               All authorized people
-            </button>
+            </Button>
             <div className={styles.tree}>
               {q.hierarchy === "organization" ? orgTree(null) : reportTree(null)}
             </div>
             {hierarchy.nextCursor !== null && (
-              <button className={styles.button} onClick={() => void morePeople()}>Load more people</button>
+              <Button
+                type="submit"
+                variant="primary"
+                className={styles.button}
+                onClick={() => void morePeople()}
+              >
+                Load more people
+              </Button>
             )}
-            <p className={styles.muted}>Your selected Company and role determine what appears here.</p>
+            <p className={styles.muted}>
+              Your selected Company and role determine what appears here.
+            </p>
           </section>
         </div>
-      </details>
+      </FormDisclosure>
       {error && !editor && !selected && (
         <div className={styles.error} role="alert">
           {error}
@@ -822,19 +954,34 @@ function CalendarView({
       {failedSources.length > 0 && (
         <div className={styles.error} role="alert">
           <span>
-            Some calendar sources could not be loaded: {failedSources.map((source) => layerNames[source.source]).join(", ")}. Results are partial.
+            Some calendar sources could not be loaded:{" "}
+            {failedSources.map((source) => layerNames[source.source]).join(", ")}. Results are
+            partial.
           </span>{" "}
-          <button className={styles.button} onClick={() => void load({ ...qRef.current, cursor: 0 })}>
+          <Button
+            type="submit"
+            variant="primary"
+            className={styles.button}
+            onClick={() => void load({ ...qRef.current, cursor: 0 })}
+          >
             Retry calendar sources
-          </button>
+          </Button>
         </div>
       )}
       {activePreset === "coverage" && (
         <div className={styles.summary} aria-label="Coverage counts">
-          <span><strong>{data.coverage.shifts}</strong> shifts</span>
-          <span><strong>{data.coverage.assigned}</strong> assigned slots</span>
-          <span><strong>{data.coverage.open}</strong> open slots</span>
-          <span><strong>{attention.length}</strong> need attention</span>
+          <span>
+            <strong>{data.coverage.shifts}</strong> shifts
+          </span>
+          <span>
+            <strong>{data.coverage.assigned}</strong> assigned slots
+          </span>
+          <span>
+            <strong>{data.coverage.open}</strong> open slots
+          </span>
+          <span>
+            <strong>{attention.length}</strong> need attention
+          </span>
         </div>
       )}
       {hasMoreResults && (
@@ -843,245 +990,305 @@ function CalendarView({
         </p>
       )}
       <section className={styles.main} aria-label="Calendar events">
-          <div className={styles.period}>
-            <h2>
-              {q.view === "month"
-                ? label(q.date, { month: "long", year: "numeric" })
-                : q.view === "day"
-                  ? label(q.date, { weekday: "long", month: "long", day: "numeric", year: "numeric" })
+        <div className={styles.period}>
+          <h2>
+            {q.view === "month"
+              ? label(q.date, { month: "long", year: "numeric" })
+              : q.view === "day"
+                ? label(q.date, { weekday: "long", month: "long", day: "numeric", year: "numeric" })
                 : `${label(data.from)} – ${label(addDays(data.to, -1), { month: "short", day: "numeric", year: "numeric" })}`}
-            </h2>
-            {q.person && (
-              <button
-                className={styles.button}
-                onClick={() => change({ person: undefined })}
-              >
-                Clear person
-              </button>
-            )}
-          </div>
-          {attention.length > 0 && (
-            <details className={styles.attentionPanel} data-calendar-attention>
-              <summary>
-                <span className={styles.attentionIcon}><AlertCircle size={18} aria-hidden="true" /></span>
-                <span className={styles.attentionHeading}>
-                  <span className={styles.attentionTitle}>Needs attention <span className={styles.attentionCount}>{attention.length}{attentionIsPartial ? " loaded" : ""}</span></span>
-                  <span className={styles.attentionPreview}>{attention[0].title}{attention.length > 1 ? ` · +${attention.length - 1} more` : ""}</span>
+          </h2>
+          {q.person && (
+            <Button
+              type="submit"
+              variant="primary"
+              className={styles.button}
+              onClick={() => change({ person: undefined })}
+            >
+              Clear person
+            </Button>
+          )}
+        </div>
+        {attention.length > 0 && (
+          <details className={styles.attentionPanel} data-calendar-attention>
+            <summary>
+              <span className={styles.attentionIcon}>
+                <AlertCircle size={18} aria-hidden="true" />
+              </span>
+              <span className={styles.attentionHeading}>
+                <span className={styles.attentionTitle}>
+                  Needs attention{" "}
+                  <span className={styles.attentionCount}>
+                    {attention.length}
+                    {attentionIsPartial ? " loaded" : ""}
+                  </span>
                 </span>
-                <span className={styles.attentionToggle}><span className={styles.attentionViewAll}>View all</span><span className={styles.attentionHide}>Hide list</span><ChevronDown size={16} aria-hidden="true" /></span>
-              </summary>
-              <ul className={styles.attentionList}>
-                {attention.map((item) => {
-                  const date = item.startDate ?? (item.startsAt === null ? null : localMinuteAt(item.startsAt, q.timezone).date);
-                  const people = item.participants.map((person) => person.name).filter(Boolean);
-                  const context = [...people, ...(item.owner && !people.includes(item.owner) ? [item.owner] : [])].join(" · ");
-                  return <li key={item.id}>
-                    <button type="button" onClick={() => open(item)}>
+                <span className={styles.attentionPreview}>
+                  {attention[0].title}
+                  {attention.length > 1 ? ` · +${attention.length - 1} more` : ""}
+                </span>
+              </span>
+              <span className={styles.attentionToggle}>
+                <span className={styles.attentionViewAll}>View all</span>
+                <span className={styles.attentionHide}>Hide list</span>
+                <ChevronDown size={16} aria-hidden="true" />
+              </span>
+            </summary>
+            <ul className={styles.attentionList}>
+              {attention.map((item) => {
+                const date =
+                  item.startDate ??
+                  (item.startsAt === null ? null : localMinuteAt(item.startsAt, q.timezone).date);
+                const people = item.participants.map((person) => person.name).filter(Boolean);
+                const context = [
+                  ...people,
+                  ...(item.owner && !people.includes(item.owner) ? [item.owner] : []),
+                ].join(" · ");
+                return (
+                  <li key={item.id}>
+                    <Button variant="plain" type="button" onClick={() => open(item)}>
                       <span className={styles.attentionRowMain}>
                         <strong>{item.title}</strong>
                         <span className={styles.attentionReason}>{item.warnings.join(" · ")}</span>
                         {context && <span className={styles.attentionContext}>{context}</span>}
                       </span>
-                      <span className={styles.attentionDate}>{date ? label(date, { month: "short", day: "numeric", year: "numeric" }) : "Unscheduled"}</span>
-                    </button>
-                  </li>;
-                })}
-              </ul>
-              {attentionIsPartial && <p className={styles.attentionPartial}>Only loaded events are counted; more items may be available.</p>}
-            </details>
-          )}
-          {q.view === "week" && activePreset === "mine" && (
-            <PersonalTimeGrid days={days} zone={q.timezone} items={data.items} onOpen={open}
-              onCreate={(date,startLocal,endLocal)=>setEditor({kind:"appointment",startLocal,endLocal})}
-              onReschedule={rescheduleTimed}/>
-          )}
-          {q.view === "week" && activePreset !== "mine" && (
-            <div
-              className={`${styles.scroll} ${styles.weekScroll}`}
-              data-calendar-view="week"
-              tabIndex={0}
-              role="region"
-              aria-label="Weekly people grid"
-            >
-              <table className={styles.week}>
-                <thead>
-                  <tr>
-                    <th>People & coverage</th>
+                      <span className={styles.attentionDate}>
+                        {date
+                          ? label(date, { month: "short", day: "numeric", year: "numeric" })
+                          : "Unscheduled"}
+                      </span>
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+            {attentionIsPartial && (
+              <p className={styles.attentionPartial}>
+                Only loaded events are counted; more items may be available.
+              </p>
+            )}
+          </details>
+        )}
+        {q.view === "week" && activePreset === "mine" && (
+          <PersonalTimeGrid
+            days={days}
+            zone={q.timezone}
+            items={data.items}
+            onOpen={open}
+            onCreate={(date, startLocal, endLocal) =>
+              setEditor({ kind: "appointment", startLocal, endLocal })
+            }
+            onReschedule={rescheduleTimed}
+          />
+        )}
+        {q.view === "week" && activePreset !== "mine" && (
+          <TableFrame
+            label="Records"
+            className={`${styles.scroll} ${styles.weekScroll}`}
+            data-calendar-view="week"
+            tabIndex={0}
+            role="region"
+            aria-label="Weekly people grid"
+          >
+            <Table className={styles.week}>
+              <thead>
+                <tr>
+                  <th>People & coverage</th>
+                  {days.map((day) => (
+                    <th key={day} className={day === today(q.timezone) ? styles.today : undefined}>
+                      {label(day, { weekday: "short" })}
+                      <strong>{label(day, { day: "numeric" })}</strong>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Team events & open slots</th>
+                  {days.map((day) => (
+                    <td
+                      key={day}
+                      data-calendar-date={day}
+                      className={dateDrop === day ? styles.dateDropTarget : undefined}
+                    >
+                      <div className={styles.weekCellEvents}>
+                        {daily(day)
+                          .filter(
+                            (i) =>
+                              i.kind === "announcement" ||
+                              !i.participants.length ||
+                              !people.some((p) => i.participants.some((x) => x.id === p.id)) ||
+                              (i.capacity ?? 0) > (i.assigned ?? 0),
+                          )
+                          .map((i) => event(i))}
+                      </div>
+                    </td>
+                  ))}
+                </tr>
+                {people.map((p) => (
+                  <tr key={p.id}>
+                    <th scope="row">
+                      <span className={styles.avatar}>{p.name[0]}</span> {p.name}
+                    </th>
                     {days.map((day) => (
-                      <th
+                      <td
                         key={day}
-                        className={
-                          day === today(q.timezone) ? styles.today : undefined
-                        }
+                        data-calendar-date={day}
+                        className={dateDrop === day ? styles.dateDropTarget : undefined}
                       >
-                        {label(day, { weekday: "short" })}
-                        <strong>{label(day, { day: "numeric" })}</strong>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <th scope="row">Team events & open slots</th>
-                    {days.map((day) => (
-                      <td key={day} data-calendar-date={day} className={dateDrop === day ? styles.dateDropTarget : undefined}>
                         <div className={styles.weekCellEvents}>
                           {daily(day)
                             .filter(
                               (i) =>
-                                i.kind === "announcement" ||
-                                !i.participants.length ||
-                                !people.some((p) =>
-                                  i.participants.some((x) => x.id === p.id),
-                                ) ||
-                                (i.capacity ?? 0) > (i.assigned ?? 0),
+                                i.participants.some((x) => x.id === p.id) ||
+                                (i.kind === "task" &&
+                                  !!p.userId &&
+                                  i.details?.assigneeId === p.userId),
                             )
                             .map((i) => event(i))}
                         </div>
                       </td>
                     ))}
                   </tr>
-                  {people.map((p) => (
-                    <tr key={p.id}>
-                      <th scope="row">
-                        <span className={styles.avatar}>{p.name[0]}</span>{" "}
-                        {p.name}
-                      </th>
-                      {days.map((day) => (
-                        <td key={day} data-calendar-date={day} className={dateDrop === day ? styles.dateDropTarget : undefined}>
-                          <div className={styles.weekCellEvents}>
-                            {daily(day)
-                              .filter(
-                                (i) =>
-                                  i.participants.some((x) => x.id === p.id) ||
-                                  (i.kind === "task" &&
-                                    !!p.userId &&
-                                    i.details?.assigneeId === p.userId),
-                              )
-                              .map((i) => event(i))}
-                          </div>
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {q.view === "day" && activePreset === "mine" && (
-            <PersonalTimeGrid days={[q.date]} zone={q.timezone} items={data.items} onOpen={open}
-              onCreate={(date,startLocal,endLocal)=>setEditor({kind:"appointment",startLocal,endLocal})}
-              onReschedule={rescheduleTimed}/>
-          )}
-          {q.view === "day" && activePreset !== "mine" && (
-            <CalendarDayTimeline
-              date={q.date}
-              zone={q.timezone}
-              items={data.items}
-              people={people}
-              onOpen={open}
-              onReschedule={rescheduleTimed}
-            />
-          )}
-          {q.view === "month" && (
-            <div className={styles.monthLayout}>
-              <MonthGrid
-                month={data.from.slice(0, 7)}
-                currentDate={today(q.timezone)}
-                selectedDate={q.date}
-                dropTargetDate={dateDrop}
-                onSelectDate={(date) => change({ date })}
-                eventCount={(date) => daily(date).length}
-                renderDay={(day) => daily(day).slice(0, 2).map((i) => event(i))}
-                renderMore={(day, count) => (
-                  <button
-                    type="button"
-                    className={styles.morePreview}
-                    aria-label={`Show ${count} more loaded events for ${label(day, { month: "long", day: "numeric" })}`}
-                    onClick={() => change({ date: day })}
-                  >
-                    +{count} more
-                  </button>
-                )}
-              />
-              <section className={styles.monthSelectedDay} data-selected-calendar-day aria-labelledby="selected-calendar-day">
-                <header className={styles.monthSelectedHeader}>
-                  <div>
-                    <span>Selected day</span>
-                    <h3 id="selected-calendar-day">{label(q.date, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</h3>
-                  </div>
-                  <span>{daily(q.date).length} {daily(q.date).length === 1 ? "event" : "events"}</span>
-                </header>
-                {daily(q.date).length ? (
-                  <div className={styles.monthSelectedEvents}>
-                    {daily(q.date).map((item) => event(item))}
-                  </div>
-                ) : (
-                  <p className={styles.monthNoEvents}>No events scheduled for this day.</p>
-                )}
-              </section>
-            </div>
-          )}
-          {q.view === "agenda" && (
-            <div className={styles.agenda} data-calendar-view="agenda">
-              {days
-                .filter((day) => daily(day).length)
-                .map((day) => (
-                  <section key={day} className={styles.agendaDay}>
-                    <h3>
-                      {label(day, {
-                        weekday: "long",
-                        month: "long",
-                        day: "numeric",
-                      })}
-                    </h3>
-                    <div className={styles.agendaItems}>
-                      {daily(day).map((i) => event(i, true))}
-                    </div>
-                  </section>
                 ))}
+              </tbody>
+            </Table>
+          </TableFrame>
+        )}
+        {q.view === "day" && activePreset === "mine" && (
+          <PersonalTimeGrid
+            days={[q.date]}
+            zone={q.timezone}
+            items={data.items}
+            onOpen={open}
+            onCreate={(date, startLocal, endLocal) =>
+              setEditor({ kind: "appointment", startLocal, endLocal })
+            }
+            onReschedule={rescheduleTimed}
+          />
+        )}
+        {q.view === "day" && activePreset !== "mine" && (
+          <CalendarDayTimeline
+            date={q.date}
+            zone={q.timezone}
+            items={data.items}
+            people={people}
+            onOpen={open}
+            onReschedule={rescheduleTimed}
+          />
+        )}
+        {q.view === "month" && (
+          <div className={styles.monthLayout}>
+            <MonthGrid
+              month={data.from.slice(0, 7)}
+              currentDate={today(q.timezone)}
+              selectedDate={q.date}
+              dropTargetDate={dateDrop}
+              onSelectDate={(date) => change({ date })}
+              eventCount={(date) => daily(date).length}
+              renderDay={(day) =>
+                daily(day)
+                  .slice(0, 2)
+                  .map((i) => event(i))
+              }
+              renderMore={(day, count) => (
+                <Button
+                  variant="plain"
+                  type="button"
+                  className={styles.morePreview}
+                  aria-label={`Show ${count} more loaded events for ${label(day, { month: "long", day: "numeric" })}`}
+                  onClick={() => change({ date: day })}
+                >
+                  +{count} more
+                </Button>
+              )}
+            />
+            <section
+              className={styles.monthSelectedDay}
+              data-selected-calendar-day
+              aria-labelledby="selected-calendar-day"
+            >
+              <header className={styles.monthSelectedHeader}>
+                <div>
+                  <span>Selected day</span>
+                  <h3 id="selected-calendar-day">
+                    {label(q.date, {
+                      weekday: "long",
+                      month: "long",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </h3>
+                </div>
+                <span>
+                  {daily(q.date).length} {daily(q.date).length === 1 ? "event" : "events"}
+                </span>
+              </header>
+              {daily(q.date).length ? (
+                <div className={styles.monthSelectedEvents}>
+                  {daily(q.date).map((item) => event(item))}
+                </div>
+              ) : (
+                <p className={styles.monthNoEvents}>No events scheduled for this day.</p>
+              )}
+            </section>
+          </div>
+        )}
+        {q.view === "agenda" && (
+          <div className={styles.agenda} data-calendar-view="agenda">
+            {days
+              .filter((day) => daily(day).length)
+              .map((day) => (
+                <section key={day} className={styles.agendaDay}>
+                  <h3>
+                    {label(day, {
+                      weekday: "long",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </h3>
+                  <div className={styles.agendaItems}>{daily(day).map((i) => event(i, true))}</div>
+                </section>
+              ))}
+          </div>
+        )}
+        {q.view !== "month" &&
+          !data.items.length &&
+          data.sources.every((s) => s.status === "ready") && (
+            <div className={styles.empty}>
+              <CalendarDays size={30} />
+              <h3>Room for what’s next</h3>
+              <p>No events match these dates and filters.</p>
             </div>
           )}
-          {q.view !== "month" && !data.items.length &&
-            data.sources.every((s) => s.status === "ready") && (
-              <div className={styles.empty}>
-                <CalendarDays size={30} />
-                <h3>Room for what’s next</h3>
-                <p>No events match these dates and filters.</p>
-              </div>
-            )}
-          {!!unscheduled.length && (
-            <details className={`${styles.agendaDay} ${styles.unscheduled}`}>
-              <summary>Unscheduled preparation · {unscheduled.length}</summary>
-              <div className={styles.agendaItems}>
-                {unscheduled.map((i) => event(i, true))}
-              </div>
-            </details>
+        {!!unscheduled.length && (
+          <details className={`${styles.agendaDay} ${styles.unscheduled}`}>
+            <summary>Unscheduled preparation · {unscheduled.length}</summary>
+            <div className={styles.agendaItems}>{unscheduled.map((i) => event(i, true))}</div>
+          </details>
+        )}
+        <div className={styles.footer}>
+          {hasMoreResults && (
+            <Button
+              type="submit"
+              variant="primary"
+              className={styles.button}
+              disabled={busy}
+              onClick={() => void load({ ...qRef.current, cursor: data.nextCursor! }, true)}
+            >
+              Load more events
+            </Button>
           )}
-          <div className={styles.footer}>
-              {hasMoreResults && (
-                <button
-                  className={styles.button}
-                  disabled={busy}
-                  onClick={() =>
-                    void load({ ...qRef.current, cursor: data.nextCursor! }, true)
-                }
-              >
-                Load more events
-              </button>
-            )}
-            <span>
-              {busy
-                ? "Refreshing…"
-                : "Source records stay up to date when you return to this page."}
-            </span>
-          </div>
+          <span>
+            {busy ? "Refreshing…" : "Source records stay up to date when you return to this page."}
+          </span>
+        </div>
       </section>
       <Dialog
         open={!!selected && !editor}
         onClose={closeDetail}
         title={selected?.title ?? "Event"}
-        presentation="responsive-panel"
+        presentation="form-drawer"
       >
         {selected && (
           <div className={styles.detail}>
@@ -1125,9 +1332,21 @@ function CalendarView({
                   <dd>{selected.participants.map((p) => p.name).join(", ")}</dd>
                 </>
               )}
-              {!!selected.details?.attendees?.length&&<><dt>Invitations</dt><dd>{selected.details.attendees.map(attendee=><p key={attendee.userId}>
-                {attendee.name} · {attendee.attendance} · {attendee.response==="pending"?"Tentative (awaiting response)":attendee.response}
-              </p>)}</dd></>}
+              {!!selected.details?.attendees?.length && (
+                <>
+                  <dt>Invitations</dt>
+                  <dd>
+                    {selected.details.attendees.map((attendee) => (
+                      <p key={attendee.userId}>
+                        {attendee.name} · {attendee.attendance} ·{" "}
+                        {attendee.response === "pending"
+                          ? "Tentative (awaiting response)"
+                          : attendee.response}
+                      </p>
+                    ))}
+                  </dd>
+                </>
+              )}
               {selected.details?.location && (
                 <>
                   <dt>Location</dt>
@@ -1138,11 +1357,7 @@ function CalendarView({
                 <>
                   <dt>Meeting</dt>
                   <dd>
-                    <a
-                      href={selected.details.meetingUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
+                    <a href={selected.details.meetingUrl} target="_blank" rel="noreferrer">
                       Join meeting
                     </a>
                   </dd>
@@ -1173,39 +1388,172 @@ function CalendarView({
               </p>
             ))}
             <div className={styles.actions}>
-              {selected.kind==="appointment"&&selected.occurrenceId&&selected.permittedActions.includes("appointment.reschedule")&&<label>Edit scope<select value={editScope} onChange={e=>setEditScope(e.target.value as "single"|"future"|"series")}><option value="single">This occurrence</option><option value="future">This and future occurrences</option><option value="series">The series</option></select></label>}
-              {selected.kind==="appointment"&&selected.permittedActions.includes("appointment.reschedule")&&selected.startsAt!==null&&selected.endsAt!==null&&<form onSubmit={e=>{e.preventDefault();const form=new FormData(e.currentTarget);void send({action:"appointment.reschedule",id:selected.sourceId,expectedVersion:selected.version,startLocal:String(form.get("start")),endLocal:String(form.get("end")),timezone:selected.timezone,...(selected.occurrenceId?{occurrenceId:selected.occurrenceId,scope:editScope}:{})})}}>
-                <label>Starts<input type="datetime-local" name="start" step="900" defaultValue={`${localMinuteAt(selected.startsAt,selected.timezone).date}T${localMinuteAt(selected.startsAt,selected.timezone).time}`}/></label>
-                <label>Ends<input type="datetime-local" name="end" step="900" defaultValue={`${localMinuteAt(selected.endsAt,selected.timezone).date}T${localMinuteAt(selected.endsAt,selected.timezone).time}`}/></label>
-                <button className={styles.button} disabled={busy}>Save time</button>
-              </form>}
-              {selected.permittedActions.includes("appointment.respond")&&<div role="group" aria-label="Respond to invitation">
-                {(["accepted","tentative","declined"] as const).map(response=><button key={response} className={styles.button} disabled={busy} onClick={()=>void send({action:"appointment.respond",id:selected.sourceId,expectedVersion:selected.version,occurrenceId:selected.occurrenceId,scope:selected.occurrenceId?"single":"series",response})}>{response==="accepted"?"Accept":response==="tentative"?"Tentative":"Decline"}</button>)}
-              </div>}
-              {selected.permittedActions.includes("appointment.reminder.set")&&<label>My reminder<select defaultValue="15" onChange={e=>void send({action:"appointment.reminder.set",id:selected.sourceId,expectedVersion:selected.version,minutes:e.target.value==="off"?null:Number(e.target.value)})}><option value="off">Off</option><option value="0">At start</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option></select></label>}
+              {selected.kind === "appointment" &&
+                selected.occurrenceId &&
+                selected.permittedActions.includes("appointment.reschedule") && (
+                  <Field>
+                    Edit scope
+                    <Select
+                      value={editScope}
+                      onChange={(e) =>
+                        setEditScope(e.target.value as "single" | "future" | "series")
+                      }
+                    >
+                      <option value="single">This occurrence</option>
+                      <option value="future">This and future occurrences</option>
+                      <option value="series">The series</option>
+                    </Select>
+                  </Field>
+                )}
+              {selected.kind === "appointment" &&
+                selected.permittedActions.includes("appointment.reschedule") &&
+                selected.startsAt !== null &&
+                selected.endsAt !== null && (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const form = new FormData(e.currentTarget);
+                      void send({
+                        action: "appointment.reschedule",
+                        id: selected.sourceId,
+                        expectedVersion: selected.version,
+                        startLocal: String(form.get("start")),
+                        endLocal: String(form.get("end")),
+                        timezone: selected.timezone,
+                        ...(selected.occurrenceId
+                          ? { occurrenceId: selected.occurrenceId, scope: editScope }
+                          : {}),
+                      });
+                    }}
+                  >
+                    <Field>
+                      Starts
+                      <TextInput
+                        type="datetime-local"
+                        name="start"
+                        step="900"
+                        defaultValue={`${localMinuteAt(selected.startsAt, selected.timezone).date}T${localMinuteAt(selected.startsAt, selected.timezone).time}`}
+                      />
+                    </Field>
+                    <Field>
+                      Ends
+                      <TextInput
+                        type="datetime-local"
+                        name="end"
+                        step="900"
+                        defaultValue={`${localMinuteAt(selected.endsAt, selected.timezone).date}T${localMinuteAt(selected.endsAt, selected.timezone).time}`}
+                      />
+                    </Field>
+                    <Button
+                      clientManaged type="submit"
+                      variant="primary"
+                      className={styles.button}
+                      disabled={busy}
+                    >
+                      Save time
+                    </Button>
+                  </form>
+                )}
+              {selected.permittedActions.includes("appointment.respond") && (
+                <div role="group" aria-label="Respond to invitation">
+                  {(["accepted", "tentative", "declined"] as const).map((response) => (
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      key={response}
+                      className={styles.button}
+                      disabled={busy}
+                      onClick={() =>
+                        void send({
+                          action: "appointment.respond",
+                          id: selected.sourceId,
+                          expectedVersion: selected.version,
+                          occurrenceId: selected.occurrenceId,
+                          scope: selected.occurrenceId ? "single" : "series",
+                          response,
+                        })
+                      }
+                    >
+                      {response === "accepted"
+                        ? "Accept"
+                        : response === "tentative"
+                          ? "Tentative"
+                          : "Decline"}
+                    </Button>
+                  ))}
+                </div>
+              )}
+              {selected.permittedActions.includes("appointment.reminder.set") && (
+                <Field>
+                  My reminder
+                  <Select
+                    defaultValue="15"
+                    onChange={(e) =>
+                      void send({
+                        action: "appointment.reminder.set",
+                        id: selected.sourceId,
+                        expectedVersion: selected.version,
+                        minutes: e.target.value === "off" ? null : Number(e.target.value),
+                      })
+                    }
+                  >
+                    <option value="off">Off</option>
+                    <option value="0">At start</option>
+                    <option value="5">5 minutes</option>
+                    <option value="15">15 minutes</option>
+                    <option value="30">30 minutes</option>
+                    <option value="60">1 hour</option>
+                  </Select>
+                </Field>
+              )}
               {selected.permittedActions.includes("roster.open") && (
-                <button
+                <Button
+                  type="submit"
+                  variant="primary"
                   className={styles.primary}
                   onClick={() => void openRoster(selected)}
                 >
                   Open roster actions
-                </button>
+                </Button>
               )}
               {selected.href && selected.source !== "roster" && (
-                <Link
+                <UiActionLink
+                  variant="primary"
                   className={styles.button}
                   href={`${base}${selected.href}`}
                 >
-                  {selected.source === "support" ? "Open support case" : selected.source === "crm" ? "Open CRM record" : selected.source === "customer_followups" ? "Open customer follow-up" : selected.source === "supplier_bills" ? "Open supplier invoice review" : selected.source === "procurement_rfqs" ? "Open supplier quotation review" : selected.source === "supplier_promises" ? "Open supplier confirmation" : selected.source === "stock_transit" ? "Open transport record" : selected.source === "quality_holds" ? "Open quality hold" : selected.source === "supplier_batches" ? "Open supplier payment batch" : selected.source === "refunds" ? "Open refund obligation" : selected.source === "leave"
-                    ? "Open leave request"
-                    : "Open lifecycle case"}
-                </Link>
+                  {selected.source === "support"
+                    ? "Open support case"
+                    : selected.source === "crm"
+                      ? "Open CRM record"
+                      : selected.source === "customer_followups"
+                        ? "Open customer follow-up"
+                        : selected.source === "supplier_bills"
+                          ? "Open supplier invoice review"
+                          : selected.source === "procurement_rfqs"
+                            ? "Open supplier quotation review"
+                            : selected.source === "supplier_promises"
+                              ? "Open supplier confirmation"
+                              : selected.source === "stock_transit"
+                                ? "Open transport record"
+                                : selected.source === "quality_holds"
+                                  ? "Open quality hold"
+                                  : selected.source === "supplier_batches"
+                                    ? "Open supplier payment batch"
+                                    : selected.source === "refunds"
+                                      ? "Open refund obligation"
+                                      : selected.source === "leave"
+                                        ? "Open leave request"
+                                        : "Open lifecycle case"}
+                </UiActionLink>
               )}
               {selected.permittedActions.map((action) =>
                 action === "appointment.save" ||
                 action === "announcement.save" ||
                 action === "task.plan" ? (
-                  <button
+                  <Button
+                    type="submit"
+                    variant="primary"
                     key={action}
                     className={styles.primary}
                     onClick={() => {
@@ -1222,26 +1570,29 @@ function CalendarView({
                     }}
                   >
                     {action === "task.plan" ? "Assign & schedule" : "Edit"}
-                  </button>
-                ) : action==="appointment.respond" || action==="appointment.reminder.set" ? null : action.startsWith("appointment.") ||
+                  </Button>
+                ) : action === "appointment.respond" ||
+                  action === "appointment.reminder.set" ? null : action.startsWith(
+                    "appointment.",
+                  ) ||
                   action.startsWith("announcement.") ||
                   action === "task.complete" ? (
-                  <button
+                  <Button
+                    type="submit"
+                    variant="primary"
                     key={action}
                     className={styles.button}
                     disabled={busy}
                     onClick={() =>
                       void send({
                         action:
-                          action === "task.complete"
-                            ? action
-                            : `${action.split(".")[0]}.status`,
+                          action === "task.complete" ? action : `${action.split(".")[0]}.status`,
                         id: selected.sourceId,
                         expectedVersion: selected.version,
-                        ...(selected.occurrenceId&&action==="appointment.cancelled"?{occurrenceId:selected.occurrenceId,scope:editScope}:{}),
-                        ...(action !== "task.complete"
-                          ? { status: action.split(".")[1] }
+                        ...(selected.occurrenceId && action === "appointment.cancelled"
+                          ? { occurrenceId: selected.occurrenceId, scope: editScope }
                           : {}),
+                        ...(action !== "task.complete" ? { status: action.split(".")[1] } : {}),
                       })
                     }
                   >
@@ -1255,7 +1606,7 @@ function CalendarView({
                         complete: "Complete task",
                       }[action.split(".")[1]]
                     }
-                  </button>
+                  </Button>
                 ) : null,
               )}
             </div>
@@ -1266,7 +1617,9 @@ function CalendarView({
                   {selected.history.map((h, i) => (
                     <li key={i}>
                       {h.action.replaceAll(".", " ")} · {h.actor}
-                      <time dateTime={new Date(h.at).toISOString()}>{formatUiDateTime(h.at,q.timezone)}</time>
+                      <time dateTime={new Date(h.at).toISOString()}>
+                        {formatUiDateTime(h.at, q.timezone)}
+                      </time>
                     </li>
                   ))}
                 </ul>
@@ -1287,7 +1640,7 @@ function CalendarView({
               ? "Announcement"
               : "Assign & schedule task"
         }
-      >
+       presentation="form-drawer">
         {editor && (
           <>
             {error && (
@@ -1318,25 +1671,51 @@ function CalendarView({
         }}
         title="Explain published roster change"
       >
-        {pendingShift && <form
-          className={styles.form}
-          onSubmit={(formEvent) => {
-            formEvent.preventDefault();
-            const reason = String(new FormData(formEvent.currentTarget).get("reason") ?? "").trim();
-            if (reason.length < 3) { setError("Explain the change to this published roster."); return; }
-            const pending = pendingShift;
-            setPendingShift(null);
-            rescheduleTimed(pending.item, pending.change, reason);
-          }}
-        >
-          {error && <div className={styles.error} role="alert">{error}</div>}
-          <p>The shift stays at the proposed time while you provide the required audit reason.</p>
-          <label>Reason<textarea name="reason" required minLength={3} maxLength={1000} autoFocus /></label>
-          <div className={styles.actions}>
-            <button type="button" className={styles.button} onClick={() => { replaceItem(pendingShift.item); setPendingShift(null); }}>Cancel</button>
-            <button type="submit" className={styles.primary}>Save change</button>
-          </div>
-        </form>}
+        {pendingShift && (
+          <form
+            className={styles.form}
+            onSubmit={(formEvent) => {
+              formEvent.preventDefault();
+              const reason = String(
+                new FormData(formEvent.currentTarget).get("reason") ?? "",
+              ).trim();
+              if (reason.length < 3) {
+                setError("Explain the change to this published roster.");
+                return;
+              }
+              const pending = pendingShift;
+              setPendingShift(null);
+              rescheduleTimed(pending.item, pending.change, reason);
+            }}
+          >
+            {error && (
+              <div className={styles.error} role="alert">
+                {error}
+              </div>
+            )}
+            <p>The shift stays at the proposed time while you provide the required audit reason.</p>
+            <Field>
+              Reason
+              <TextArea name="reason" required minLength={3} maxLength={1000} autoFocus />
+            </Field>
+            <div className={styles.actions}>
+              <Button
+                variant="primary"
+                type="button"
+                className={styles.button}
+                onClick={() => {
+                  replaceItem(pendingShift.item);
+                  setPendingShift(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button clientManaged variant="primary" type="submit" className={styles.primary}>
+                Save change
+              </Button>
+            </div>
+          </form>
+        )}
       </Dialog>
       <Dialog
         open={!!roster}
@@ -1347,7 +1726,9 @@ function CalendarView({
         title="Roster planning"
         presentation="fullscreen"
       >
-        {roster && <RosterWorkspace base={base} initial={roster} initialDate={rosterDate} embedded />}
+        {roster && (
+          <RosterWorkspace base={base} initial={roster} initialDate={rosterDate} embedded />
+        )}
       </Dialog>
     </div>
   );

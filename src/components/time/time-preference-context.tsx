@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { defaultTimePreference, formatPreferredDateTime, resolvedTimeZone, systemTimeZone, type TimePreference } from "@/lib/ui-format";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { usePathname } from "next/navigation";
+import { type UiAppearance } from "@/components/ui/foundation";
 
 type TimeContextValue = {
   preference: TimePreference;
@@ -16,7 +17,7 @@ const TimeContext = createContext<TimeContextValue>({
   preference: defaultTimePreference, systemZone: "UTC", ready: false, setPreference: () => {},
 });
 
-export function TimePreferenceProvider({ children }: { children: React.ReactNode }) {
+export function TimePreferenceProvider({ children }: ({ children: React.ReactNode }) & { appearance?: UiAppearance }) {
   const pathname = usePathname();
   const hydrated = useHydrated();
   const [preference, setPreference] = useState<TimePreference>(defaultTimePreference);
@@ -46,14 +47,14 @@ export function TimePreferenceProvider({ children }: { children: React.ReactNode
 
 export function useTimePreference() { return useContext(TimeContext); }
 
-export function TimeText({ value, options, className }: {
+export function TimeText({ value, options, className, appearance = "legacy" }: ({
   value: Date | number | string;
   options?: Intl.DateTimeFormatOptions;
   className?: string;
-}) {
+}) & { appearance?: UiAppearance }) {
   const { preference, systemZone, ready } = useTimePreference();
   const date = value instanceof Date ? value : new Date(value);
-  return <time className={className} dateTime={Number.isFinite(date.getTime()) ? date.toISOString() : undefined}>
+  return <time data-ui-appearance={appearance} className={className} dateTime={Number.isFinite(date.getTime()) ? date.toISOString() : undefined}>
     {ready && Number.isFinite(date.getTime()) ? formatPreferredDateTime(date, preference, systemZone, options) : "…"}
   </time>;
 }

@@ -1,4 +1,7 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { Button } from "@/components/ui/foundation";
 
 import { workFetch } from "@/lib/work-fetch";
 import Link from "next/link";
@@ -74,8 +77,7 @@ export function ExpenseAiPanel({
         data: Status;
         error?: { message: string };
       };
-    if (!response.ok)
-      throw Error(body.error?.message ?? "AI preparation is unavailable.");
+    if (!response.ok) throw Error(body.error?.message ?? "AI preparation is unavailable.");
     setStatus(body.data);
     return body.data;
   }, [path, query]);
@@ -88,18 +90,13 @@ export function ExpenseAiPanel({
       try {
         for (const attachment of current.incomplete) {
           setProgress(`Preparing ${attachment.name}…`);
-          const response = await workFetch(
-            `/api/v1${base}/attachments/${attachment.id}/content`,
-          );
-          if (!response.ok)
-            throw Error("The original document is unavailable.");
+          const response = await workFetch(`/api/v1${base}/attachments/${attachment.id}/content`);
+          if (!response.ok) throw Error("The original document is unavailable.");
           const file = new File([await response.blob()], attachment.name, {
             type: attachment.type,
           });
           await prepareDocumentPages(file, async (page, total, image) => {
-            setProgress(
-              `Preparing ${attachment.name}: page ${page} of ${total}`,
-            );
+            setProgress(`Preparing ${attachment.name}: page ${page} of ${total}`);
             const response = await workFetch(
               `/api/v1${base}/attachments/${attachment.id}/derivatives?page=${page}&total=${total}&original=${attachment.checksum}`,
               {
@@ -114,10 +111,7 @@ export function ExpenseAiPanel({
             const data = (await response.json()) as {
               error?: { message: string };
             };
-            if (!response.ok)
-              throw Error(
-                data.error?.message ?? "Unable to prepare this page.",
-              );
+            if (!response.ok) throw Error(data.error?.message ?? "Unable to prepare this page.");
           });
         }
         const body = JSON.stringify({
@@ -126,8 +120,7 @@ export function ExpenseAiPanel({
           retry,
           contentAccessConsent: true,
         });
-        if (key.current?.body !== body)
-          key.current = { body, id: crypto.randomUUID() };
+        if (key.current?.body !== body) key.current = { body, id: crypto.randomUUID() };
         const response = await workFetch(path, {
           method: "POST",
           headers: {
@@ -137,8 +130,7 @@ export function ExpenseAiPanel({
           body,
         });
         const data = (await response.json()) as { error?: { message: string } };
-        if (!response.ok)
-          throw Error(data.error?.message ?? "AI could not start.");
+        if (!response.ok) throw Error(data.error?.message ?? "AI could not start.");
         key.current = null;
         await refresh();
       } catch (error) {
@@ -161,10 +153,7 @@ export function ExpenseAiPanel({
       try {
         await refresh();
       } catch (error) {
-        if (!stopped)
-          setError(
-            error instanceof Error ? error.message : "AI is unavailable.",
-          );
+        if (!stopped) setError(error instanceof Error ? error.message : "AI is unavailable.");
       }
     }
     void load();
@@ -173,15 +162,9 @@ export function ExpenseAiPanel({
     };
   }, [refresh, version, evidenceKey]);
   useEffect(() => {
-    if (
-      !status?.proposal ||
-      !["queued", "running"].includes(status.proposal.state)
-    )
-      return;
+    if (!status?.proposal || !["queued", "running"].includes(status.proposal.state)) return;
     const interval = window.setInterval(() => {
-      void refresh().catch(() =>
-        setError("Unable to check AI progress. Your draft is safe."),
-      );
+      void refresh().catch(() => setError("Unable to check AI progress. Your draft is safe."));
     }, 3000);
     return () => clearInterval(interval);
   }, [status?.proposal, refresh]);
@@ -200,11 +183,7 @@ export function ExpenseAiPanel({
           },
         }),
       );
-    if (
-      proposal?.state === "ready" &&
-      proposal.result &&
-      filled.current !== proposal.id
-    ) {
+    if (proposal?.state === "ready" && proposal.result && filled.current !== proposal.id) {
       filled.current = proposal.id;
       window.dispatchEvent(
         new CustomEvent<ExpenseAiSuggestionEvent>("erpx:expense-ai", {
@@ -230,47 +209,101 @@ export function ExpenseAiPanel({
       if (!["queued", "running"].includes(current.proposal?.state ?? "")) {
         await prepare(current, !!current.proposal);
       }
-    } catch (error) { setError(error instanceof Error ? error.message : "Unable to extract this receipt. Try again."); }
+    } catch (error) {
+      setError(
+        error instanceof Error ? error.message : "Unable to extract this receipt. Try again.",
+      );
+    }
   }
   return (
-    <section className={compact ? styles.aiExtract : "card"} aria-label="Receipt AI extraction" aria-busy={running}>
+    <section
+      className={compact ? styles.aiExtract : "card"}
+      aria-label="Receipt AI extraction"
+      aria-busy={running}
+    >
       <div className={styles.aiExtractHeader}>
-        <div><h2><Sparkles size={18} /> Fill from receipt</h2><p>Only after you choose AI extract, send the attached receipt to the configured AI provider and fill empty fields for review.</p></div>
-        <button type="button" className="button" disabled={running || !!status && (!status.allowed || !status.hasEvidence || !!status.unavailable)} onClick={() => void extract()}>
-          {running ? <LoaderCircle size={16} className={styles.aiSpinner} /> : <Sparkles size={16} />}
+        <div>
+          <h2>
+            <Sparkles size={18} /> Fill from receipt
+          </h2>
+          <p>
+            Only after you choose AI extract, send the attached receipt to the configured AI
+            provider and fill empty fields for review.
+          </p>
+        </div>
+        <Button appearance="standard"
+          variant="primary"
+          type="button"
+          disabled={
+            running ||
+            (!!status && (!status.allowed || !status.hasEvidence || !!status.unavailable))
+          }
+          onClick={() => void extract()}
+        >
+          {running ? (
+            <LoaderCircle size={16} className={styles.aiSpinner} />
+          ) : (
+            <Sparkles size={16} />
+          )}
           {running ? "Extracting…" : "AI extract"}
-        </button>
+        </Button>
       </div>
-      {!compact && <p className="muted">
-        Suggestions are based on attached evidence. Existing entries are
-        preserved. Review every field before saving or approving.
-      </p>}
-      {(error || status?.unavailable || status?.proposal?.error) && (
-        <p className="notice" role="status">
-          {error || status?.unavailable || status?.proposal?.error}
+      {!compact && (
+        <p className="muted">
+          Suggestions are based on attached evidence. Existing entries are preserved. Review every
+          field before saving or approving.
         </p>
       )}
-      {status?.unavailable && <p>{canManageAi ? <Link href={`${base}/settings?section=ai`}>Set up receipt reading in AI providers</Link> : "Ask your company owner or IT administrator to enable receipt reading."}</p>}
-      {status?.workerReady === false && status.proposal && ["queued", "running"].includes(status.proposal.state) && <p role="status">The AI worker is currently unavailable. Your receipt and draft are saved; processing will resume when it returns. You can complete the fields manually.</p>}
-      {result && <p role="status">AI has prepared the receipt details. Available fields are filled for review; your own edits are preserved.</p>}
-      {progress && <p role="status">{progress}</p>}
-      {!status?.hasEvidence && (
-        <p>Attach your receipt, then choose AI extract if you want to send its contents to the configured AI provider.</p>
+      {(error || status?.unavailable || status?.proposal?.error) && (
+        <InlineNotice tone="info" className="notice" role="status">
+          {error || status?.unavailable || status?.proposal?.error}
+        </InlineNotice>
       )}
-      {status?.proposal &&
+      {status?.unavailable && (
+        <p>
+          {canManageAi ? (
+            <Link href={`${base}/settings?section=ai`}>Set up receipt reading in AI providers</Link>
+          ) : (
+            "Ask your company owner or IT administrator to enable receipt reading."
+          )}
+        </p>
+      )}
+      {status?.workerReady === false &&
+        status.proposal &&
         ["queued", "running"].includes(status.proposal.state) && (
-          <p role="status">
-            {status.proposal.state === "queued"
-              ? "Queued for document preparation. You can continue editing."
-              : "Reading evidence and preparing suggestions…"}
-          </p>
+          <InlineNotice tone="info" role="status">
+            The AI worker is currently unavailable. Your receipt and draft are saved; processing
+            will resume when it returns. You can complete the fields manually.
+          </InlineNotice>
         )}
+      {result && (
+        <InlineNotice tone="info" role="status">
+          AI has prepared the receipt details. Available fields are filled for review; your own
+          edits are preserved.
+        </InlineNotice>
+      )}
+      {progress && <InlineNotice tone="info" role="status">{progress}</InlineNotice>}
+      {!status?.hasEvidence && (
+        <p>
+          Attach your receipt, then choose AI extract if you want to send its contents to the
+          configured AI provider.
+        </p>
+      )}
+      {status?.proposal && ["queued", "running"].includes(status.proposal.state) && (
+        <InlineNotice tone="info" role="status">
+          {status.proposal.state === "queued"
+            ? "Queued for document preparation. You can continue editing."
+            : "Reading evidence and preparing suggestions…"}
+        </InlineNotice>
+      )}
       {status?.stale && !result && (
         <p>The source changed. Earlier suggestions are no longer current.</p>
       )}
       {result && (
         <details className={styles.aiResult}>
-          <summary>Extraction details and sources{result.conflicts.length ? " · Needs review" : ""}</summary>
+          <summary>
+            Extraction details and sources{result.conflicts.length ? " · Needs review" : ""}
+          </summary>
           <p>
             <strong>AI summary:</strong> {result.summary}
           </p>
@@ -284,15 +317,13 @@ export function ExpenseAiPanel({
               </ul>
             </div>
           )}
-          {result.missing.length > 0 && (
-            <p>Still needed: {result.missing.join(" · ")}</p>
-          )}
+          {result.missing.length > 0 && <p>Still needed: {result.missing.join(" · ")}</p>}
           <details>
             <summary>Suggested fields and sources</summary>
             {result.fields
               .filter((f) => f.value !== null)
               .map((field) => (
-                <div className="row" key={field.name}>
+                <div className="ui-record-item" key={field.name}>
                   <div className="row-main">
                     <strong>{expenseAiFieldLabels[field.name]}</strong>
                     <p>{field.value}</p>
@@ -310,38 +341,43 @@ export function ExpenseAiPanel({
                     </div>
                   </div>
                   {status?.allowed && field.name !== "receiptTotal" && (
-                    <button
-                      className="button secondary"
+                    <Button appearance="standard"
+                      variant="secondary"
+
                       type="button"
                       onClick={() => fill({ ...result, fields: [field] }, true)}
                     >
                       Use suggestion
-                    </button>
+                    </Button>
                   )}
                 </div>
               ))}
           </details>
         </details>
       )}
-      {!compact && result && status?.allowed &&
+      {!compact &&
+        result &&
+        status?.allowed &&
         status.hasEvidence &&
         !status.unavailable &&
         !["queued", "running"].includes(status.proposal?.state ?? "") && (
-          <button
-            className="button secondary"
+          <Button appearance="standard"
+            type="submit"
+            variant="secondary"
+
             disabled={pending}
             onClick={() => {
               key.current = null;
-              void refresh().then(current => prepare(current, true)).catch(error => setError(error instanceof Error ? error.message : "Unable to extract receipt."));
+              void refresh()
+                .then((current) => prepare(current, true))
+                .catch((error) =>
+                  setError(error instanceof Error ? error.message : "Unable to extract receipt."),
+                );
               router.refresh();
             }}
           >
-            {pending
-              ? "Preparing…"
-              : result
-                ? "Extract again"
-                : "Retry AI preparation"}
-          </button>
+            {pending ? "Preparing…" : result ? "Extract again" : "Retry AI preparation"}
+          </Button>
         )}
     </section>
   );

@@ -1,13 +1,17 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { FormDisclosure } from "@/components/ui/form-disclosure";
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
+
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
 import { PreferredDateTimeField } from "@/components/time/preferred-date-time-field";
 import { minorToDecimal } from "@/lib/finance-money";
-import type {
-  fieldServiceDetail,
-  fieldServiceWorkspace,
-} from "@/server/field-service";
+import { ServiceSpareForm } from "./service-spare-form";
+import type { fieldServiceDetail, fieldServiceWorkspace } from "@/server/field-service";
+import { FormLayout, Card } from "@/components/ui/foundation";
 function useCommand(base: string) {
   const router = useRouter(),
     last = useRef<{ key: string; body: string } | null>(null),
@@ -18,8 +22,7 @@ function useCommand(base: string) {
     setBusy(true);
     setError("");
     const body = JSON.stringify(input);
-    if (last.current?.body !== body)
-      last.current = { key: crypto.randomUUID(), body };
+    if (last.current?.body !== body) last.current = { key: crypto.randomUUID(), body };
     try {
       const response = await workFetch(`/api/v1${base}/field-service`, {
           method: "POST",
@@ -32,9 +35,7 @@ function useCommand(base: string) {
         result = await response.json();
       if (!response.ok) {
         if (response.status < 500) last.current = null;
-        throw new Error(
-          result.error?.message ?? "Unable to record field service action.",
-        );
+        throw new Error(result.error?.message ?? "Unable to record field service action.");
       }
       last.current = null;
       router.push(
@@ -63,8 +64,8 @@ export function FieldServiceConsole({
     order = detail?.order;
   function action(name: string, title: string, extra?: React.ReactNode) {
     return (
-      <form
-        className="card business-form"
+      <FormLayout
+        className="ui-panel ui-form-grid"
         onSubmit={(e) => {
           e.preventDefault();
           const f = Object.fromEntries(new FormData(e.currentTarget));
@@ -73,53 +74,55 @@ export function FieldServiceConsole({
             id: order!.id,
             action: name,
             expectedVersion: Number(order!.version),
-            scheduledAt: f.scheduledAt
-              ? new Date(String(f.scheduledAt)).getTime()
-              : undefined,
-            expiresAt: f.expiresAt
-              ? new Date(String(f.expiresAt)).getTime()
-              : undefined,
-            quantityMilli: f.quantityMilli
-              ? Number(f.quantityMilli)
-              : undefined,
+            scheduledAt: f.scheduledAt ? new Date(String(f.scheduledAt)).getTime() : undefined,
+            expiresAt: f.expiresAt ? new Date(String(f.expiresAt)).getTime() : undefined,
+            quantityMilli: f.quantityMilli ? Number(f.quantityMilli) : undefined,
             laborMinutes: f.laborMinutes ? Number(f.laborMinutes) : undefined,
           });
         }}
       >
         <h2>{title}</h2>
         {extra}
-        <label>
+        <Field appearance="standard">
           Reason and evidence
-          <textarea name="reason" required minLength={3} />
-        </label>
-        <button className="button" disabled={busy}>
+          <TextArea appearance="standard" name="reason" required minLength={3} />
+        </Field>
+        <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
           {title}
-        </button>
-      </form>
+        </Button>
+      </FormLayout>
     );
   }
   return (
     <>
-      {error && <p role="alert">{error}</p>}
+      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
       {detail?.billing && (
-        <section className="card" aria-label="Billing handoff">
+        <Card as="section" appearance="standard" className="ui-panel" aria-label="Billing handoff">
           <h2>Billing handoff</h2>
           <p>
-            Finance obligation: {String(detail.billing.currency)} {minorToDecimal(Number(detail.billing.amount_minor))} · {String(detail.billing.status)}
+            Finance obligation: {String(detail.billing.currency)}{" "}
+            {minorToDecimal(Number(detail.billing.amount_minor))} · {String(detail.billing.status)}
           </p>
-          {Boolean(Number(detail.billing.warranty_applied) === 1 || String(detail.billing.warranty_applied) === "true") ? (
+          {Boolean(
+            Number(detail.billing.warranty_applied) === 1 ||
+            String(detail.billing.warranty_applied) === "true",
+          ) ? (
             <p className="muted">
-              Warranty pricing applied: {Number(detail.billing.warranty_discount_bps) / 100}% discount; coverage through {String(detail.billing.warranty_end_snapshot)} (calculated {String(detail.billing.pricing_date)}).
+              Warranty pricing applied: {Number(detail.billing.warranty_discount_bps) / 100}%
+              discount; coverage through {String(detail.billing.warranty_end_snapshot)} (calculated{" "}
+              {String(detail.billing.pricing_date)}).
             </p>
           ) : (
-            <p className="muted">Chargeable visit rate used; no active warranty discount was applied.</p>
+            <p className="muted">
+              Chargeable visit rate used; no active warranty discount was applied.
+            </p>
           )}
-        </section>
+        </Card>
       )}
       {data?.canWrite && (
         <>
-          <form
-            className="card business-form"
+          <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Draft service agreement</summary><FormLayout
+            className="ui-panel ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
               const f = Object.fromEntries(new FormData(e.currentTarget));
@@ -134,23 +137,21 @@ export function FieldServiceConsole({
             }}
           >
             <h2>Draft service agreement</h2>
-            <label>
+            <Field appearance="standard">
               Branch
-              <select name="branchId" required>
+              <Select appearance="standard" name="branchId" required>
                 {source.nodes
-                  .filter((n) =>
-                    ["branch", "headquarters"].includes(String(n.kind)),
-                  )
+                  .filter((n) => ["branch", "headquarters"].includes(String(n.kind)))
                   .map((n) => (
                     <option key={String(n.id)} value={String(n.id)}>
                       {String(n.display_name)}
                     </option>
                   ))}
-              </select>
-            </label>
-            <label>
+              </Select>
+            </Field>
+            <Field appearance="standard">
               Department
-              <select name="departmentId">
+              <Select appearance="standard" name="departmentId">
                 <option value="">No department</option>
                 {source.nodes
                   .filter((n) => n.kind === "department")
@@ -159,97 +160,98 @@ export function FieldServiceConsole({
                       {String(n.display_name)}
                     </option>
                   ))}
-              </select>
-            </label>
-            <label>
+              </Select>
+            </Field>
+            <Field appearance="standard">
               Customer
-              <select name="customerId" required>
+              <Select appearance="standard" name="customerId" required>
                 {source.customers.map((x) => (
                   <option key={String(x.id)} value={String(x.id)}>
                     {String(x.name)}
                   </option>
                 ))}
-              </select>
-            </label>
-            <label>
+              </Select>
+            </Field>
+            <Field appearance="standard">
               Asset
-              <select name="assetId">
+              <Select appearance="standard" name="assetId">
                 <option value="">Any covered asset</option>
                 {source.assets.map((x) => (
                   <option key={String(x.id)} value={String(x.id)}>
                     {String(x.code)} · {String(x.name)}
                   </option>
                 ))}
-              </select>
-            </label>
-            <label>
+              </Select>
+            </Field>
+            <Field appearance="standard">
               Title
-              <input name="title" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="title" required />
+            </Field>
+            <Field appearance="standard">
               Start
-              <input name="startDate" type="date" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="startDate" type="date" required />
+            </Field>
+            <Field appearance="standard">
               End
-              <input name="endDate" type="date" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="endDate" type="date" required />
+            </Field>
+            <Field appearance="standard">
               Currency
-              <input
-                name="currency"
-                defaultValue="THB"
-                maxLength={3}
+              <TextInput appearance="standard" name="currency" defaultValue="THB" maxLength={3} required />
+            </Field>
+            <Field appearance="standard">
+              Visit rate (minor units)
+              <TextInput appearance="standard" name="visitRateMinor" type="number" min="0" required />
+            </Field>
+            <Field appearance="standard">
+              Warranty discount (%)
+              <TextInput appearance="standard"
+                name="warrantyDiscountPercent"
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                defaultValue="0"
                 required
               />
-            </label>
-            <label>
-              Visit rate (minor units)
-              <input name="visitRateMinor" type="number" min="0" required />
-            </label>
-            <label>
-              Warranty discount (%)
-              <input name="warrantyDiscountPercent" type="number" min="0" max="100" step="1" defaultValue="0" required />
-              <small className="muted">0 = full rate; 100 = free while the linked asset is under warranty.</small>
-            </label>
-            <button className="button" disabled={busy}>
+              <small className="muted">
+                0 = full rate; 100 = free while the linked asset is under warranty.
+              </small>
+            </Field>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Draft agreement
-            </button>
-          </form>
-          <form
-            className="card business-form"
+            </Button>
+          </FormLayout></FormDisclosure>
+          <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Create service order</summary><FormLayout
+            className="ui-panel ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
               const f = Object.fromEntries(new FormData(e.currentTarget)),
                 ticket = source.tickets.find((x) => x.id === f.ticketId),
-                agreement = source.agreements.find(
-                  (x) => x.id === f.agreementId,
-                );
+                agreement = source.agreements.find((x) => x.id === f.agreementId);
               void send({
                 ...f,
                 ticketVersion: Number(ticket?.version),
                 agreementVersion: Number(agreement?.version),
                 assetId: f.assetId || null,
-                scheduledAt: f.scheduledAt
-                  ? new Date(String(f.scheduledAt)).getTime()
-                  : null,
+                scheduledAt: f.scheduledAt ? new Date(String(f.scheduledAt)).getTime() : null,
               });
             }}
           >
             <h2>Create service order</h2>
-            <label>
+            <Field appearance="standard">
               Support case
-              <select name="ticketId" required>
+              <Select appearance="standard" name="ticketId" required>
                 {source.tickets.map((x) => (
                   <option key={String(x.id)} value={String(x.id)}>
                     {String(x.title)}
                   </option>
                 ))}
-              </select>
-            </label>
-            <label>
+              </Select>
+            </Field>
+            <Field appearance="standard">
               Active agreement
-              <select name="agreementId" required>
+              <Select appearance="standard" name="agreementId" required>
                 {source.agreements
                   .filter((x) => x.status === "active")
                   .map((x) => (
@@ -257,49 +259,49 @@ export function FieldServiceConsole({
                       {String(x.title)}
                     </option>
                   ))}
-              </select>
-            </label>
-            <label>
+              </Select>
+            </Field>
+            <Field appearance="standard">
               Asset
-              <select name="assetId">
+              <Select appearance="standard" name="assetId">
                 <option value="">No linked asset</option>
                 {source.assets.map((x) => (
                   <option key={String(x.id)} value={String(x.id)}>
                     {String(x.code)}
                   </option>
                 ))}
-              </select>
-            </label>
-            <label>
+              </Select>
+            </Field>
+            <Field appearance="standard">
               Issue
-              <textarea name="issue" required minLength={3} />
-            </label>
-            <label>
+              <TextArea appearance="standard" name="issue" required minLength={3} />
+            </Field>
+            <Field appearance="standard">
               Site
-              <input name="site" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="site" required />
+            </Field>
+            <Field appearance="standard">
               Technician
-              <select name="technicianId" required>
+              <Select appearance="standard" name="technicianId" required>
                 {source.people.map((x) => (
                   <option key={String(x.id)} value={String(x.id)}>
                     {String(x.name)}
                   </option>
                 ))}
-              </select>
-            </label>
-            <PreferredDateTimeField name="scheduledAt" label="Schedule" />
-            <button className="button" disabled={busy}>
+              </Select>
+            </Field>
+            <PreferredDateTimeField appearance="standard" name="scheduledAt" label="Schedule" />
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Create service order
-            </button>
-          </form>
+            </Button>
+          </FormLayout></FormDisclosure>
         </>
       )}
       {data?.agreements
         .filter((x) => x.status === "draft")
         .map((x) => (
-          <form
-            className="card business-form"
+          <FormLayout
+            className="ui-panel ui-form-grid"
             key={String(x.id)}
             onSubmit={(e) => {
               e.preventDefault();
@@ -313,21 +315,21 @@ export function FieldServiceConsole({
             }}
           >
             <h2>Agreement review · {String(x.title)}</h2>
-            <label>
+            <Field appearance="standard">
               Decision
-              <select name="action">
+              <Select appearance="standard" name="action">
                 <option value="activate">Activate</option>
                 <option value="reject">Reject</option>
-              </select>
-            </label>
-            <label>
+              </Select>
+            </Field>
+            <Field appearance="standard">
               Reason
-              <textarea name="reason" required minLength={3} />
-            </label>
-            <button className="button" disabled={busy || !Number(x.can_review)}>
+              <TextArea appearance="standard" name="reason" required minLength={3} />
+            </Field>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy || !Number(x.can_review)}>
               Record decision
-            </button>
-          </form>
+            </Button>
+          </FormLayout>
         ))}
       {order &&
         ["open", "scheduled"].includes(String(order.status)) &&
@@ -335,20 +337,17 @@ export function FieldServiceConsole({
           "schedule",
           "Schedule or reassign",
           <>
-            <label>
+            <Field appearance="standard">
               Technician
-              <select
-                name="technicianId"
-                defaultValue={String(order.technician_id)}
-              >
+              <Select appearance="standard" name="technicianId" defaultValue={String(order.technician_id)}>
                 {source.people.map((x) => (
                   <option key={String(x.id)} value={String(x.id)}>
                     {String(x.name)}
                   </option>
                 ))}
-              </select>
-            </label>
-            <PreferredDateTimeField name="scheduledAt" label="Schedule" required />
+              </Select>
+            </Field>
+            <PreferredDateTimeField appearance="standard" name="scheduledAt" label="Schedule" required />
           </>,
         )}
       {order &&
@@ -357,87 +356,51 @@ export function FieldServiceConsole({
           "reserve-part",
           "Reserve part",
           <>
-            <label>
+            <Field appearance="standard">
               Warehouse id
-              <input name="warehouseId" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="warehouseId" required />
+            </Field>
+            <Field appearance="standard">
               Product id
-              <input name="productId" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="productId" required />
+            </Field>
+            <Field appearance="standard">
               Quantity milli
-              <input name="quantityMilli" type="number" min="1" required />
-            </label>
-            <PreferredDateTimeField name="expiresAt" label="Expires" required />
+              <TextInput appearance="standard" name="quantityMilli" type="number" min="1" required />
+            </Field>
+            <PreferredDateTimeField appearance="standard" name="expiresAt" label="Expires" required />
           </>,
         )}
-      {order &&
-        order.status === "scheduled" &&
-        action("dispatch", "Dispatch technician")}
+      {order && order.status === "scheduled" && action("dispatch", "Dispatch technician")}
       {order && order.status === "dispatched" && action("start", "Start visit")}
       {order &&
         ["dispatched", "in_visit"].includes(String(order.status)) &&
         action("exception", "Record exception")}
-      {order &&
-        order.status === "exception" &&
-        action("resume", "Resume visit")}
-      {order &&
-        order.status === "in_visit" &&
-        detail?.parts.some(
-          (x) =>
-            Number(x.quantity_milli) >
-            Number(x.consumed_milli) + Number(x.released_milli),
-        ) &&
-        action(
-          "issue-part",
-          "Issue reserved part",
-          <>
-            <label>
-              Reservation
-              <select name="reservationId">
-                {detail.parts
-                  .filter(
-                    (x) =>
-                      Number(x.quantity_milli) >
-                      Number(x.consumed_milli) + Number(x.released_milli),
-                  )
-                  .map((x) => (
-                    <option key={String(x.id)} value={String(x.id)}>
-                      {String(x.sku)} · {String(x.quantity_milli)}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            <label>
-              Quantity milli
-              <input name="quantityMilli" type="number" min="1" required />
-            </label>
-          </>,
-        )}
+      {order && order.status === "exception" && action("resume", "Resume visit")}
+      {order && detail && order.status === "in_visit" && <ServiceSpareForm spares={detail.spares}
+        reservations={detail.parts.filter(x => Number(x.quantity_milli)>Number(x.consumed_milli)+Number(x.released_milli)).map(x => ({ id:String(x.id),warehouseId:String(x.warehouse_id),productId:String(x.product_id),remainingMilli:Number(x.quantity_milli)-Number(x.consumed_milli)-Number(x.released_milli) }))}
+        busy={busy} onSubmit={input => { void send({ ...input,id:order.id,action:"issue-part",expectedVersion:Number(order.version) }); }} />}
       {order &&
         order.status === "in_visit" &&
         action(
           "complete",
           "Complete visit",
           <>
-            <label>
+            <Field appearance="standard">
               Labor minutes
-              <input name="laborMinutes" type="number" min="0" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="laborMinutes" type="number" min="0" required />
+            </Field>
+            <Field appearance="standard">
               Completion evidence
-              <textarea name="evidence" required minLength={3} />
-            </label>
-            <label>
+              <TextArea appearance="standard" name="evidence" required minLength={3} />
+            </Field>
+            <Field appearance="standard">
               Customer confirmation
-              <textarea name="customerConfirmation" required minLength={3} />
-            </label>
+              <TextArea appearance="standard" name="customerConfirmation" required minLength={3} />
+            </Field>
           </>,
         )}
-      {order &&
-        order.status === "completed" &&
-        action("release-billing", "Release billing")}
+      {order && order.status === "completed" && action("release-billing", "Release billing")}
       {order &&
         !["completed", "billed", "cancelled"].includes(String(order.status)) &&
         action("cancel", "Cancel service order")}

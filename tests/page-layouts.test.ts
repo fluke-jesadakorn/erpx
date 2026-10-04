@@ -1,6 +1,8 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import {
   allowedWidgets,
+  configurablePageKeys,
+  isConfigurablePage,
   defaultLayout,
   featureLocation,
   layoutDifferences,
@@ -10,30 +12,38 @@ import {
   resetWidgetToOrganization,
 } from "../src/lib/page-layouts";
 import { pageLayoutRequest } from "../src/server/page-layouts";
+import { seedExpenseCompany } from "../fixtures/expenses/company";
+import type { WorkContext } from "../src/server/authorization";
 import { applyMigrations, env } from "./runtime-env";
+let actor: WorkContext;
 let user = "",
   sessionId = "",
   assignment = "";
-vi.mock("../src/server/runtime", () => ({ runtimeEnv: async () => env }));
+vi.mock("../src/server/runtime", () => ({ runtimeEnv: async () => env, holdingResources: async () => ({ write: env.H001_DB }) }));
 vi.mock("../src/server/authorization", () => ({
   currentSession: async () => ({
-    session: { user: { id: user }, session: { id: sessionId } },
+    session: await env.CONTROL_DB.prepare("SELECT id FROM session WHERE id=?").bind(sessionId).first() ? { user: { id: user }, session: { id: sessionId } } : null,
   }),
   requirePlatformContext: async () => ({
     userId: user,
     assignmentId: assignment,
     role: "platform_admin",
   }),
-  requireWorkContext: async () => {
-    throw Error("Unexpected business authorization");
-  },
-  publicScope: () => {
-    throw Error("Unexpected business scope");
-  },
+  requireWorkContext: async () => actor,
+  publicScope: (work: WorkContext) => work.scope,
+
 }));
-beforeAll(() => applyMigrations(env.CONTROL_DB, env.CONTROL_TEST_MIGRATIONS));
+vi.mock("../src/server/navigation-context", () => ({ navigationContext: async () => ({
+  workspaceBase: "/holdings/test", scopeKind: "holding", role: actor.role,
+  adminSections: ["people", "organization"], executiveVisible: true,
+}) }));
+beforeAll(async () => {
+  await applyMigrations(env.CONTROL_DB, env.CONTROL_TEST_MIGRATIONS);
+  await applyMigrations(env.H001_DB, env.STAFF_TEST_MIGRATIONS);
+});
 beforeEach(async () => {
-  user = crypto.randomUUID();
+  actor = (await seedExpenseCompany(env.H001_DB, env.H001_FILES, false)).owner;
+  user = actor.userId;
   sessionId = crypto.randomUUID();
   assignment = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -70,14 +80,14 @@ beforeEach(async () => {
 const layout = (hidden = false) => ({
   schemaVersion: 1,
   widgets: [
-    { id: "account-security-controls", columns: 6, height: 320, hidden },
+    { id: "current-profiles", columns: 6, height: 320, hidden },
   ],
 });
 async function request(
   body?: unknown,
   key = crypto.randomUUID(),
-  page = "account-security",
-  account = true,
+  page = "people-directory",
+  account = false,
 ) {
   const response = await pageLayoutRequest(
     new Request(
@@ -94,7 +104,7 @@ async function request(
         : undefined,
     ),
     page,
-    undefined,
+    account ? undefined : "test",
     account,
   );
   return { status: response.status, ...(await response.json()) };
@@ -136,7 +146,7 @@ it("rejects concurrent saves, replays identical commands, and audits once", asyn
   expect((await request({ ...body, layout: layout(true) })).status).toBe(409);
   expect(
     (
-      await env.CONTROL_DB.prepare(
+      await env.H001_DB.prepare(
         "SELECT count(*) n FROM page_layout_receipts WHERE actor_id=?",
       )
         .bind(user)
@@ -161,18 +171,18 @@ it("isolates account owners and rejects unknown widgets and cross-scope pages", 
     ).status,
   ).toBe(403);
   expect((await request(undefined, undefined, "platform-home")).status).toBe(
-    403,
+    404,
   );
 });
 it("publishes organization revisions while retaining personal layouts until reset", async () => {
   const organization = {
     schemaVersion: 1,
     widgets: [
-      { id: "platform-workspaces", columns: 12, height: null, hidden: false },
+      { id: "current-profiles", columns: 12, height: null, hidden: false },
     ],
   };
   const call = (body?: unknown) =>
-    request(body, crypto.randomUUID(), "platform-home", false);
+    request(body, crypto.randomUUID(), "people-directory", false);
   expect(
     (
       await call({
@@ -252,7 +262,7 @@ it("keeps detail layouts record independent and legacy links focusable", () => {
     }).some((w) => w.id === "people-explorer"),
   ).toBe(false);
 });
-it("keeps saved commerce layouts after customer and supplier pages move", () => {
+it("keeps commerce links while retiring their configurable layouts", () => {
   const context = {
     workspaceBase: "/holdings/acme",
     role: "holding_owner",
@@ -265,9 +275,9 @@ it("keeps saved commerce layouts after customer and supplier pages move", () => 
       new URLSearchParams(`view=parties&kind=${kind}`),
     );
     expect(location.pageKey).toBe("operations-parties");
-    expect(allowedWidgets(location.pageKey, context).length).toBeGreaterThan(0);
+    expect(allowedWidgets(location.pageKey, context)).toEqual([]);
   }
-  expect(allowedWidgets("commerce-orders-detail", context).length).toBeGreaterThan(0);
+  expect(allowedWidgets("commerce-orders-detail", context)).toEqual([]);
 });
 it("keeps standard People in one workspace while leaving Beta People navigation unchanged", () => {
   const locate = (context: Parameters<typeof featureLocation>[0], path = "people") =>
@@ -345,4 +355,32 @@ it("describes personal layout changes and resets one widget to its organization 
   expect(reset.widgets.map((widget) => widget.id)).toEqual(["c", "b", "a"]);
   expect(reset.widgets.find((widget) => widget.id === "b")).toEqual(organization.widgets[1]);
   expect(reset.widgets.find((widget) => widget.id === "a")?.columns).toBe(12);
+});
+
+it("rejects GET and POST on retired page keys in all layout scopes", async () => {
+  for (const [page, holding, account] of [["work", "test", false], ["finance-bank", "test", false], ["handbook", "test", false], ["platform-home", undefined, false], ["account-security", undefined, true]] as const) {
+    for (const method of ["GET", "POST"]) {
+      const response = await pageLayoutRequest(new Request("http://localhost:3100/api/v1/page-layouts", { method }), page, holding, account);
+      expect(response.status).toBe(404);
+      expect((await response.json()).error.code).toBe("PAGE_LAYOUT_UNKNOWN");
+    }
+  }
+});
+it("keeps only the selected People and Executive pages configurable", () => {
+  const context = { workspaceBase: "/holdings/acme", scopeKind: "holding" as const, role: "holding_owner", adminSections: ["people", "organization"] as ("people" | "organization")[], executiveVisible: true };
+  for (const page of configurablePageKeys) {
+    expect(isConfigurablePage(page)).toBe(true);
+    expect(allowedWidgets(page, context).length, page).toBeGreaterThan(0);
+  }
+  for (const page of ["learn", "handbook", "technology-groups", "work", "pos-sale", "pms-dashboard", "account-my-access", "platform-billing"]) {
+    expect(isConfigurablePage(page)).toBe(false);
+    expect(allowedWidgets(page, context)).toEqual([]);
+  }
+});
+it("persists Executive layout geometry and visibility", async () => {
+  const widget = allowedWidgets("executive", { workspaceBase: "/holdings/test", scopeKind: "holding", role: "holding_owner", executiveVisible: true })[0];
+  const value = { schemaVersion: 1, widgets: [{ id: widget.id, columns: 6, height: 360, hidden: true }] };
+  const saved = await request({ action: "save", expectedVersion: 0, layout: value }, undefined, "executive");
+  expect(saved.status).toBe(200);
+  expect((await request(undefined, undefined, "executive")).data.personal).toEqual(value);
 });

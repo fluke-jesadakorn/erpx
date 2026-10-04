@@ -1,58 +1,48 @@
-# ADR — Index
+# Architecture decisions
 
-> **Single index for `docs/adr/`.** `docs/TOC.md:25` + `AGENTS.md:61` + `README.md:41` all count here.
+Reviewed 2026-10-03. Decisions retain their identifiers and original rationale; implementation acceptance is recorded separately. Current stack: ADR-020/024/032; configured file storage: ADR-035/036; Sandbox pricing: ADR-037; manual currencies and immutable money snapshots: ADR-038.
 
-## Status (2026-09-02 adjudication, wayfinder ticket 03)
+| Decision | Current disposition |
+| --- | --- |
+| [ADR-001: Holding isolation](ADR-001-holding-isolation.md) | Holding isolation retained; routing superseded by ADR-023; customer-hosted activation remains a separate architectural target |
+| [ADR-002: CQRS and replaceable read models](ADR-002-cqrs.md) | Superseded by ADR-020 |
+| [ADR-003: No long-term dual writes](ADR-003-no-long-term-dual-writes.md) | Retained decision; apply current owner contract |
+| [ADR-004: Universal expiring RBAC](ADR-004-expiring-rbac.md) | Retained decision; apply current owner contract |
+| [ADR-005: Audited global reads](ADR-005-global-read-auditing.md) | Retained decision; apply current owner contract |
+| [ADR-006: Customer-approved support capabilities](ADR-006-support-capabilities.md) | Retained decision; apply current owner contract |
+| [ADR-007: Stripe authority for commercial state](ADR-007-stripe-authority.md) | Stripe authority retained; offering narrowed to Sandbox by ADR-028/037 |
+| [ADR-008: Operations context boundaries](ADR-008-operations-boundaries.md) | Retained decision; apply current owner contract |
+| [ADR-009: Marketing and CRM boundaries](ADR-009-marketing-crm-boundaries.md) | Retained decision; apply current owner contract |
+| [ADR-010: Shared Dioxus target strategy](ADR-010-dioxus-target-strategy.md) | Deprecated Rust/Dioxus |
+| [ADR-011: Customer-hosted data plane and outbound agent](ADR-011-customer-data-plane-agent.md) | Architectural target; no current customer-agent runtime acceptance; directory boundary amended by ADR-025 |
+| [ADR-012: Governed Three-Layer Corporate Identity](ADR-012-three-layer-corporate-identity.md) | Retained decision; apply current owner contract |
+| [ADR-013: Holding-plus-branch database isolation and scoped directory authority](ADR-013-holding-branch-database-and-directory-authority.md) | Holding isolation retained; Rust physical branch-pair procedures archived; directory assumptions amended by ADR-025 |
+| [ADR-014: CQRS bounded-context modular monolith](ADR-014-cqrs-bounded-context-modular-monolith.md) | Deprecated Rust monolith; ADR-020 |
+| [ADR-015: Retire n8n as an ERPX runtime dependency](ADR-015-retire-n8n-and-unify-local-runtime.md) | Retained decision; apply current owner contract |
+| [ADR-016: Dioxus Native/Blitz atomic cutover](ADR-016-dioxus-native-atomic-cutover.md) | Deprecated Rust/Dioxus |
+| [ADR-017: Universal record collaboration and human-approved AI](ADR-017-universal-record-collaboration-and-human-approved-ai.md) | Retained decision; apply current owner contract |
+| [ADR-018: Modular AI and separately reviewed hosted commercial offerings](ADR-018-open-source-modular-ai-and-hosted-stepper-pricing.md) | Product boundaries retained; prices superseded by ADR-028/037 |
+| [ADR-019: Typed record mentions and human-reviewed field proposals](ADR-019-universal-record-mentions-and-per-module-field-ai.md) | Retained decision; apply current owner contract |
+| [ADR-020: Next.js App Router stack](ADR-020-nextjs-stack.md) | Retained decision; apply current owner contract |
+| [ADR-021: Social engagement layer (ERP as social network)](ADR-021-social-engagement-layer.md) | Retained decision; apply current owner contract |
+| [ADR-022: Cloudflare runtime and persistence](ADR-022-cloudflare-runtime.md) | Runtime superseded by ADR-024 |
+| [ADR-023: Three-level workspace authorization and canonical slug routing](ADR-023-three-level-workspace-routing.md) | Retained decision; apply current owner contract |
+| [ADR-024: Local Node.js and PostgreSQL behind Cloudflare Tunnel](ADR-024-local-postgresql-runtime.md) | Current runtime; topology/storage amended by ADR-032/035 |
+| [ADR-025: Multiple identity providers and scoped identity replacement](ADR-025-multiple-identity-providers-and-scoped-replacement.md) | Retained decision; apply current owner contract |
+| [ADR-026: Reviewed local access policies](ADR-026-reviewed-local-access-policies.md) | Retained decision; apply current owner contract |
+| [ADR-027: Separate product, workspace and legal document identity](ADR-027-workspace-and-document-branding.md) | Retained decision; apply current owner contract |
+| [ADR-028: Sandbox billing: reviewed actual costs plus Support](ADR-028-sandbox-cost-plus-support-billing.md) | Historical Support billing retained; future offering ADR-037 |
+| [ADR-029: POS separates bills, fulfillment and provider settlement](ADR-029-pos-fulfillment-and-direct-charges.md) | Retained decision; apply current owner contract |
+| [ADR-030: Temporary Samba directory authority on Apple Silicon](ADR-030-temporary-samba-directory-authority.md) | Retained decision; apply current owner contract |
+| [ADR-031: ERPX Holding and dual authority for ERPX Management](ADR-031-erpx-holding-and-dual-authority.md) | Retained decision; apply current owner contract |
+| [ADR-032: Shared local PostgreSQL cluster for ERPX environments](ADR-032-shared-local-postgresql-cluster.md) | Retained decision; apply current owner contract |
+| [ADR-033: Company scoped staff Inbox events and deliveries](ADR-033-company-scoped-staff-inbox-events.md) | Retained decision; apply current owner contract |
+| [ADR-034: Inherited GPO rules and atomic Position moves](ADR-034-inherited-gpo-and-atomic-position-moves.md) | Retained decision; apply current owner contract |
+| [ADR-035: MinIO for file content; PostgreSQL for configuration state](ADR-035-minio-object-and-configuration-boundary.md) | Retained decision; apply current owner contract |
+| [ADR-036: Canonical file sources with policy-bound links](ADR-036-canonical-file-sources-and-policy-bound-links.md) | Retained decision; apply current owner contract |
+| [ADR-037: Sandbox AI Gateway and rated Holding billing](ADR-037-sandbox-ai-gateway-and-rated-holding-billing.md) | Retained decision; apply current owner contract |
+| [ADR-038: Company manual currencies and immutable money snapshots](ADR-038-company-manual-currency-and-money-snapshots.md) | Retained decision; apply current owner contract |
 
-- **Reconfirmed 15 ✅ — still authoritative on `development` (Next.js era):** `001 holding-isolation`, `003 no-long-term-dual-writes`, `004 expiring-rbac`, `005 global-read-auditing`, `006 support-capabilities`, `007 stripe-authority`, `008 operations-boundaries`, `009 marketing-crm-boundaries`, `011 customer-data-plane-agent`, `012 three-layer-corporate-identity`, `013 holding-branch-database-and-directory-authority`, `015 retire-n8n`, `017 universal-record-collaboration-and-human-approved-ai` (475L), `018 open-source-modular-ai-and-hosted-stepper-pricing`, `019 universal-record-mentions-and-per-module-field-ai`
-- **Deprecated 3 — Archived (Dioxus/Rust era, see `backup/rust-2026-09-02`):** `010 dioxus-target-strategy`, `014 cqrs-bounded-context-modular-monolith`, `016 dioxus-native-atomic-cutover`
-- **Superseded 1 → 020:** `002 cqrs and replaceable read models` → `ADR-020 nextjs-stack`
-- **Living 4:** `020 nextjs-stack` (Next.js 16 App Router and React 19) + `021 social-engagement-layer` (posts/feed/hashtags/follow, reactions signal-only) + `022 cloudflare-runtime` (Bun, OpenNext Workers, D1, R2, Queues) + `023 three-level-workspace-routing` (Platform/Holding/Local authorization and immutable slug routes)
+Historical Rust terms and dated rollout evidence in older decisions apply to that archived implementation. Use [owner contracts](../contracts/next/README.md) and [catalogue workflows](../contracts/next/catalogue.md) for current coverage, not old phase or workspace counts.
 
-All 20 have banners `> **Next.js era: Reconfirmed (2026-09-02)` / `> **Deprecated — Archived` / `> **Superseded by ADR-020` (added `fe6c286e`).
-
-## Earlier files (2026-09-06 index)
-
-```
-ADR-001-holding-isolation.md (13L) — DB-per-Holding, opaque bindings
-ADR-002-cqrs.md (13L) — Superseded by 020
-ADR-003-no-long-term-dual-writes.md (13L)
-ADR-004-expiring-rbac.md (13L)
-ADR-005-global-read-auditing.md (13L)
-ADR-006-support-capabilities.md (15L)
-ADR-007-stripe-authority.md (13L) — Stripe authoritative
-ADR-008-operations-boundaries.md (13L)
-ADR-009-marketing-crm-boundaries.md (13L)
-ADR-010-dioxus-target-strategy.md (13L) — Deprecated Dioxus
-ADR-011-customer-data-plane-agent.md (17L)
-ADR-012-three-layer-corporate-identity.md (59L)
-ADR-013-holding-branch-database-and-directory-authority.md (134L)
-ADR-014-cqrs-bounded-context-modular-monolith.md (85L) — Deprecated Rust monolith
-ADR-015-retire-n8n-and-unify-local-runtime.md (35L)
-ADR-016-dioxus-native-atomic-cutover.md (31L) — Deprecated Native
-ADR-017-universal-record-collaboration-and-human-approved-ai.md (475L) — @ typed mentions + agent
-ADR-018-open-source-modular-ai-and-hosted-stepper-pricing.md (72L)
-ADR-019-universal-record-mentions-and-per-module-field-ai.md (25L)
-ADR-020-nextjs-stack.md (30L) — living (2026-09-02)
-ADR-021-social-engagement-layer.md — living (2026-09-03, speculative plan)
-ADR-022-cloudflare-runtime.md — accepted (2026-09-06)
-ADR-023-three-level-workspace-routing.md — accepted (2026-09-06)
-```
-
-## Change rule
-
-`CONTRACT_POLICY.md:13` — Breaking changes require a new ADR + `CUTOVER.md` entry. Edit rule `docs/plan/README.md:27 Q18=A` (`traceability.md` + code SHA).
-
-## Recovery
-
-`git checkout backup/rust-2026-09-02 -- docs/adr/` (19 files, no 020, no banners) vs `development` 20 files with banners at `f97b74d6`/`rust-archive-2026-09-02`/`cc0887d`
-
-- [ADR-024: Local PostgreSQL runtime](ADR-024-local-postgresql-runtime.md) — supersedes ADR-022 runtime/deployment.
-
-- [ADR-025: Multiple identity providers and scoped replacement](ADR-025-multiple-identity-providers-and-scoped-replacement.md) — supersedes ADR-013 single-provider and fallback assumptions.
-- [ADR-026: Reviewed local access policies](ADR-026-reviewed-local-access-policies.md) — Company-owned groups and attributes, independent review for every derived grant, and immediate source-specific invalidation.
-- [ADR-032: Shared local PostgreSQL cluster](ADR-032-shared-local-postgresql-cluster.md) — development, private production, and staging use scoped databases on `5432`.
-- [ADR-034: Inherited GPO rules and atomic Position moves](ADR-034-inherited-gpo-and-atomic-position-moves.md) — additive policy sources and reviewed, effective-dated moves of occupied Positions.
-- [ADR-035: MinIO object and configuration boundary](ADR-035-minio-object-and-configuration-boundary.md) — uploaded and generated file bytes in MinIO; business configuration and metadata in PostgreSQL.
-- [ADR-036: Canonical file sources and policy-bound links](ADR-036-canonical-file-sources-and-policy-bound-links.md) — private immutable originals, purpose-scoped links, quarantine, and separately approved public derivatives.
-- [ADR-037: Sandbox AI Gateway and rated Holding billing](ADR-037-sandbox-ai-gateway-and-rated-holding-billing.md) — effective-dated Holding pricing, evidence-based usage charges, and an isolated test ledger; existing invoices remain immutable.
+[Contract policy](../../CONTRACT_POLICY.md) requires a new ADR and [cutover](../../CUTOVER.md) entry for a breaking interface. Unrelated documentation changes do not require schema/traceability changes. Cutover retains verified recovery refs for the removed Rust maps and plans.

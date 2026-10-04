@@ -1,5 +1,7 @@
 # Development attachment reconciliation closeout — 2026-09-28
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 The user explicitly approved retirement of the 133 synthetic local development reconciliation blockers. This approval applied only to `erpx_dev_*` databases and the local development file namespace. Staging and private production were not changed. The global attachment feature gate remains closed; this is data readiness, not browser or deployment acceptance.
 
 ## Result

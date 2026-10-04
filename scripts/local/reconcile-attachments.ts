@@ -7,15 +7,24 @@ import { attachmentRuntimeReadiness } from "../../src/server/attachments/readine
 import { drainAttachmentScans } from "../../src/server/attachments/service";
 import { billingEvidenceReadiness,billingEvidenceReconciliationReady,drainBillingEvidenceScans,reconcileBillingEvidenceStorage,recordBillingEvidenceReconciliation } from "../../src/server/billing-attachments";
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { runtimeSourceFingerprint } from "./source-fingerprint";
 
 type ReconciliationResult={holdingId:string;scanned:number;backfill:Awaited<ReturnType<typeof backfillLegacyAttachments>>;specialized:Awaited<ReturnType<typeof backfillSpecializedAttachments>>;reconciliation:Awaited<ReturnType<typeof reconcileAttachmentStorage>>};
 const apply=process.argv.includes("--apply"),verifyChecksums=process.argv.includes("--checksum"),final=process.argv.includes("--final"),scan=process.argv.includes("--scan"),env=getRuntime(),results:ReconciliationResult[]=[];
 try{
+  const releasePath=join(process.cwd(),'release.json');
+  const sourceFingerprint=existsSync(releasePath)
+    ?JSON.parse(await readFile(releasePath,'utf8')).sourceFingerprint as string
+    :await runtimeSourceFingerprint(process.cwd());
+  if(!/^[a-f0-9]{64}$/.test(sourceFingerprint)||process.env.ERPX_ENGINEERING_SOURCE_FINGERPRINT&&process.env.ERPX_ENGINEERING_SOURCE_FINGERPRINT!==sourceFingerprint)throw new Error('RECONCILIATION_SOURCE_IDENTITY_MISMATCH');
   if(final&&attachmentsV2Enabled())throw new Error("FINAL_RECONCILIATION_REQUIRES_GATE_DISABLED");
   if(final&&(!apply||!verifyChecksums||!attachmentUploadsFrozen()))throw new Error("FINAL_RECONCILIATION_REQUIRES_APPLY_CHECKSUM_AND_UPLOAD_FREEZE");
   if(scan&&(!apply||!attachmentUploadsFrozen()))throw new Error("OFFLINE_SCAN_REQUIRES_APPLY_AND_UPLOAD_FREEZE");
   for(const slot of resourceSlots(env)){
-    const {write,files}=registeredResources(env,slot.id),backfill=await backfillLegacyAttachments(write,{apply}),specialized=await backfillSpecializedAttachments(write,{apply});let scanned=0;
+    const {write,files}=registeredResources(env,slot.id),backfill=await backfillLegacyAttachments(write,{apply}),specialized=await backfillSpecializedAttachments(write,{apply,files});let scanned=0;
     if(scan)while(await drainAttachmentScans(write,files,undefined,{offlineMigration:true}))scanned++;
     const reconciliation=await reconcileAttachmentStorage(write,files,{verifyChecksums});results.push({holdingId:slot.id,scanned,backfill,specialized,reconciliation});
   }
@@ -28,9 +37,9 @@ try{
   const billing=await billingEvidenceReadiness(env);
   const prerequisites=freezeConfirmed&&scanner.ready&&scanner.enabled&&preview.ready&&billing.ready;
   const gateReady=final&&prerequisites&&billingReconciliation.ready&&results.every(holdingAttachmentReconciliationReady);
-  const snapshot={apply,verifyChecksums,final,scan,freezeConfirmed,scanner,preview,billing,billingReconciliation,billingScanned,gateReady,results};
+  const snapshot={sourceFingerprint,reconciledAt:Date.now(),apply,verifyChecksums,final,scan,freezeConfirmed,scanner,preview,billing,billingReconciliation,billingScanned,gateReady,results};
   const adjudication=buildAttachmentAdjudicationManifest(snapshot);
   if(final)for(const result of results){const {write}=registeredResources(env,result.holdingId);await write.prepare(`INSERT INTO attachment_reconciliation_runs(id,mode,upload_frozen,checksums_verified,scanner_engine,scanner_definition_at,ready,report_json,created_at)
-    VALUES(?,'final',true,true,?,?,?,?,?)`).bind(`attachment-reconciliation-${randomUUID()}`,scanner.engine,scanner.definitionUpdatedAt,prerequisites&&billingReconciliation.ready&&holdingAttachmentReconciliationReady(result),JSON.stringify({scanned:result.scanned,backfill:result.backfill,specialized:result.specialized,reconciliation:result.reconciliation,billing,billingReconciliation,billingScanned,scanner,preview,adjudication}),Date.now()).run();}
+    VALUES(?,'final',true,true,?,?,?,?,?)`).bind(`attachment-reconciliation-${randomUUID()}`,scanner.engine,scanner.definitionUpdatedAt,prerequisites&&billingReconciliation.ready&&holdingAttachmentReconciliationReady(result),JSON.stringify({sourceFingerprint,scanned:result.scanned,backfill:result.backfill,specialized:result.specialized,reconciliation:result.reconciliation,billing,billingReconciliation,billingScanned,scanner,preview,adjudication}),Date.now()).run();}
   process.stdout.write(`${JSON.stringify({...snapshot,adjudication},null,2)}\n`);
 }finally{await closeRuntime();}

@@ -1,3 +1,5 @@
+
+import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { TimeText } from "@/components/time/time-preference-context";
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { PageHeader } from "@/components/ui/primitives";
@@ -53,7 +55,7 @@ export default async function Article({
       <Link href={`${base}/handbook${editing ? "?edit=1" : ""}`}>
         ← Company handbook
       </Link>
-      <PageHeader
+      <PageHeader appearance="standard"
         title={data.revision.title || "Untitled draft"}
         description={`${data.revision.category.replaceAll("_", " ")} · Revision ${data.revision.revision}`}
         action={
@@ -61,8 +63,8 @@ export default async function Article({
           (historyView ||
             !editing ||
             data.article.published_revision !== null) ? (
-            <Link
-              className="button secondary"
+            <UiActionLink appearance="standard" variant="secondary"
+
               href={`${base}/handbook/${id}${editing && !historyView ? "" : "?edit=1"}`}
             >
               {historyView
@@ -70,12 +72,12 @@ export default async function Article({
                 : editing
                   ? "View published article"
                   : "Edit article"}
-            </Link>
+            </UiActionLink>
           ) : undefined
         }
       /><FeatureTabs/><WidgetGrid pageKey="handbook-detail">
       {editing && !historyView ? (
-        <FeatureWidget id="handbook-detail-article" title="Article"><HandbookEditor
+        <FeatureWidget appearance="standard" id="handbook-detail-article" title="Article"><HandbookEditor
           base={base}
           companyId={actor.companyId}
           userId={actor.userId}
@@ -89,7 +91,7 @@ export default async function Article({
           {data.revision.body}
         </article>
       )}
-      <FeatureWidget id="handbook-detail-revision-history" title="Revision history"><details className={`card ${styles.details}`}>
+      <FeatureWidget appearance="standard" id="handbook-detail-revision-history" title="Revision history"><details className={`card ${styles.details}`}>
         <summary>Revision history</summary>
         {data.history.map((r) => (
           <p key={r.revision}>
@@ -99,7 +101,7 @@ export default async function Article({
               Revision {r.revision} · {r.title || "Untitled draft"}
             </Link>{" "}
             · {r.published_at ? "Published" : "Draft"} ·{" "}
-            <TimeText value={r.published_at ?? r.created_at} />
+            <TimeText appearance="standard" value={r.published_at ?? r.created_at} />
           </p>
         ))}
       </details></FeatureWidget>

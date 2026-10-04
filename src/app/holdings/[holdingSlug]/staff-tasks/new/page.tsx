@@ -1,3 +1,5 @@
+
+import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { FeaturePage } from "@/components/features/feature-page";
 import { TaskEditor } from "@/components/modules/staff-work-controls";
 import { getWorkCapabilities } from "@/server/work-capabilities";
@@ -19,21 +21,21 @@ export default async function NewTask({
   if (!capabilities.creation.some((item) => item.kind === "task")) {
     if (staff) notFound();
     return (
-      <FeaturePage className="content-stack" data-source="live">
+      <FeaturePage className="ui-page-content" data-source="live">
         <Link href={`${base}/home`}>← Today</Link>
         <h1>Connect your staff profile to create tasks</h1>
         <p>This account needs an active staff profile in this workspace before it can own a task.</p>
-        <Link className="button" href={`${base}/people/settings`}>Open People settings</Link>
+        <UiActionLink appearance="standard" variant="primary" href={`${base}/people/settings`}>Open People settings</UiActionLink>
       </FeaturePage>
     );
   }
 
   return (
-    <FeaturePage className="content-stack" data-source="live">
+    <FeaturePage className="ui-page-content" data-source="live">
       <Link href={`${base}/home`}>← Today</Link>
       <h1>Create a task</h1>
       <p>Give it a name and an owner. A deadline or review is only needed when the work calls for one.</p>
-      <TaskEditor
+      <TaskEditor appearance="standard"
         base={base}
         options={options}
         projects={projects}

@@ -1,10 +1,15 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
+
 import { BillingConsole } from "@/components/billing/billing-console";
 import betaStyles from "@/components/beta/beta.module.css";
 import { useEffect, useState, useRef } from "react";
 import { betaFetch } from "@/lib/beta-client";
 import { TimeText } from "@/components/time/time-preference-context";
 import type { AdminSection } from "@/lib/administration";
+import { Card } from "@/components/ui/foundation";
 type Settings = {
   policy: {
     member_limit: number;
@@ -88,12 +93,11 @@ export function BetaSettings({
   return (
     <div className={`beta-settings ${betaStyles.surface}`} data-section={section}>
       {section === "usage" && beta && (
-        <section className="card">
+        <Card as="section" appearance="standard" className="ui-panel">
           <h2>{beta ? "Free public beta" : "Workspace usage"}</h2>
           {beta && (
             <p>
-              No card required. Beta access never converts into a paid
-              subscription automatically.
+              No card required. Beta access never converts into a paid subscription automatically.
             </p>
           )}
           {settings && (
@@ -117,8 +121,7 @@ export function BetaSettings({
                 <div>
                   <dt>Workspace limits</dt>
                   <dd>
-                    {settings.policy.member_limit} members ·{" "}
-                    {settings.policy.branch_limit} branches
+                    {settings.policy.member_limit} members · {settings.policy.branch_limit} branches
                   </dd>
                 </div>
               )}
@@ -132,10 +135,10 @@ export function BetaSettings({
               </div>
             </dl>
           )}
-        </section>
+        </Card>
       )}
       {section === "feedback" && (
-        <section className="card">
+        <Card as="section" appearance="standard" className="ui-panel">
           <h2>Tell us what needs to improve</h2>
           <form
             className={`beta-form ${betaStyles.surface}`}
@@ -146,29 +149,28 @@ export function BetaSettings({
               });
             }}
           >
-            <label>
+            <Field appearance="standard">
               Your feedback
-              <textarea
+              <TextArea appearance="standard"
                 name="body"
                 placeholder="What were you trying to do? What got in the way?"
                 required
                 maxLength={3000}
               />
-            </label>
-            <button disabled={busy}>Send feedback</button>
+            </Field>
+            <Button appearance="standard" clientManaged type="submit" variant="ghost" disabled={busy}>
+              Send feedback
+            </Button>
           </form>
-        </section>
+        </Card>
       )}
-      {message && <p role="status">{message}</p>}
+      {message && <InlineNotice tone="info" role="status">{message}</InlineNotice>}
       {owner && (
         <>
           {section === "people" && beta && (
-            <section className="card">
+            <Card as="section" appearance="standard" className="ui-panel">
               <h2>Invite your team</h2>
-              <p>
-                They will receive an email and join using their own verified
-                account.
-              </p>
+              <p>They will receive an email and join using their own verified account.</p>
               <form
                 className={`beta-form ${betaStyles.surface}`}
                 onSubmit={(e) => {
@@ -181,41 +183,47 @@ export function BetaSettings({
                   });
                 }}
               >
-                <label>
+                <Field appearance="standard">
                   Email
-                  <input name="email" type="email" required />
-                </label>
-                <label>
+                  <TextInput appearance="standard" name="email" type="email" required />
+                </Field>
+                <Field appearance="standard">
                   Branch
-                  <select name="branchId" required>
+                  <Select appearance="standard" name="branchId" required>
                     {meta.branches.map((b) => (
                       <option key={b.id} value={b.id}>
                         {b.display_name}
                       </option>
                     ))}
-                  </select>
-                </label>
-                <label>
+                  </Select>
+                </Field>
+                <Field appearance="standard">
                   Company role
-                  <select name="role">
+                  <Select appearance="standard" name="role">
                     <option value="employee">Employee</option>
                     <option value="it_admin">IT administrator</option>
-                  </select>
-                </label>
-                <button disabled={busy}>Send invitation</button>
+                  </Select>
+                </Field>
+                <Button appearance="standard" clientManaged type="submit" variant="ghost" disabled={busy}>
+                  Send invitation
+                </Button>
               </form>
               {settings?.invites.map((i) => (
                 <p key={i.id}>
                   {i.email} ·{" "}
-                  {i.invitation_state === "Invited"
-                    ? <>Invited · expires <TimeText value={i.expires_at} /></>
-                    : i.invitation_state}
+                  {i.invitation_state === "Invited" ? (
+                    <>
+                      Invited · expires <TimeText appearance="standard" value={i.expires_at} />
+                    </>
+                  ) : (
+                    i.invitation_state
+                  )}
                 </p>
               ))}
-            </section>
+            </Card>
           )}
           {section === "organization" && beta && (
-            <section className="card">
+            <Card as="section" appearance="standard" className="ui-panel">
               <h2>Branches</h2>
               {meta.branches.map((b) => (
                 <p key={b.id}>{b.display_name}</p>
@@ -229,33 +237,39 @@ export function BetaSettings({
                   });
                 }}
               >
-                <label>
+                <Field appearance="standard">
                   New branch name
-                  <input name="name" required minLength={2} maxLength={100} />
-                </label>
-                <button disabled={busy}>Add branch</button>
+                  <TextInput appearance="standard" name="name" required minLength={2} maxLength={100} />
+                </Field>
+                <Button appearance="standard" clientManaged type="submit" variant="ghost" disabled={busy}>
+                  Add branch
+                </Button>
               </form>
-            </section>
+            </Card>
           )}
 
           {section === "feedback" && (
-            <section className="card">
+            <Card as="section" appearance="standard" className="ui-panel">
               <h2>Reports and feedback</h2>
               {settings?.reports.map((r) => (
                 <p key={r.id}>
-                  {r.state === "published" ? <a href={`${base}/posts/${r.post_id}`}>
-                    Reported conversation
-                  </a> : <span>{r.state === "archived" ? "Deleted by author" : "Hidden by moderator"} · audit retained</span>}{" "}
+                  {r.state === "published" ? (
+                    <a href={`${base}/posts/${r.post_id}`}>Reported conversation</a>
+                  ) : (
+                    <span>
+                      {r.state === "archived" ? "Deleted by author" : "Hidden by moderator"} · audit
+                      retained
+                    </span>
+                  )}{" "}
                   · {r.reason} · {r.state}
                 </p>
               ))}
               {settings?.feedback.map((f) => (
                 <p key={f.id}>{f.body}</p>
               ))}
-            </section>
+            </Card>
           )}
           {section === "usage" && <BillingConsole base={base} writable />}
-
         </>
       )}
     </div>

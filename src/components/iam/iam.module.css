@@ -2,7 +2,7 @@
   max-width: 1480px;
   margin: auto;
   padding: 30px 32px 60px;
-  color: var(--ink);
+  color: var(--ui-ink);
   display: grid;
   gap: 22px;
 }
@@ -19,7 +19,7 @@
   margin: 6px 0;
 }
 .header p {
-  color: var(--muted, #627084);
+  color: var(--ui-muted, #627084);
   margin: 6px 0;
 }
 .eyebrow {
@@ -32,8 +32,8 @@
   display: flex;
   gap: 8px;
   align-items: center;
-  background: var(--green-soft);
-  color: var(--green);
+  background: var(--ui-green-soft);
+  color: var(--ui-green);
   padding: 10px 14px;
   border-radius: 10px;
   font-size: 13px;
@@ -42,7 +42,7 @@
   display: flex;
   gap: 6px;
   overflow: auto;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-line);
   padding-bottom: 10px;
 }
 .tabs a {
@@ -52,11 +52,11 @@
   border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--muted, #627084);
+  color: var(--ui-muted, #627084);
 }
 .tabs a[aria-current="page"] {
-  color: var(--green);
-  background: var(--green-soft);
+  color: var(--ui-green);
+  background: var(--ui-green-soft);
 }
 .sectionHeading h2 {
   font-size: 20px;
@@ -66,8 +66,8 @@
   margin: 0;
 }
 .panel {
-  border: 1px solid var(--line);
-  background: var(--card);
+  border: 1px solid var(--ui-line);
+  background: var(--ui-card);
   border-radius: 13px;
   padding: 22px;
   min-width: 0;
@@ -79,13 +79,13 @@
 .panel p {
   line-height: 1.65;
   font-size: 14px;
-  color: var(--muted, #627084);
+  color: var(--ui-muted, #627084);
 }
 .panel small,
 .matrix small,
 .tableWrap small {
   display: block;
-  color: var(--muted, #627084);
+  color: var(--ui-muted, #627084);
   font-size: 11px;
   margin-top: 5px;
   line-height: 1.4;
@@ -99,13 +99,13 @@
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 10px;
-  border: 1px solid var(--line);
-  background: var(--card);
+  border: 1px solid var(--ui-line);
+  background: var(--ui-card);
   border-radius: 12px;
   padding: 20px;
 }
 .metric svg {
-  color: var(--green);
+  color: var(--ui-green);
 }
 .metric strong {
   font-size: 28px;
@@ -114,7 +114,7 @@
 }
 .metric span {
   font-size: 12px;
-  color: var(--muted, #627084);
+  color: var(--ui-muted, #627084);
   grid-column: 1/-1;
 }
 .item {
@@ -123,7 +123,7 @@
   justify-content: space-between;
   gap: 20px;
   padding: 16px 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-line);
 }
 .item:last-child {
   border: 0;
@@ -133,7 +133,7 @@
 }
 .badge {
   display: inline-block;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 6px;
   padding: 4px 8px;
   font-size: 11px;
@@ -142,9 +142,9 @@
 .empty {
   padding: 35px 22px;
   text-align: center;
-  background: var(--paper);
-  color: var(--muted, #627084);
-  border: 1px dashed var(--line);
+  background: var(--ui-paper);
+  color: var(--ui-muted, #627084);
+  border: 1px dashed var(--ui-line);
   border-radius: 10px;
   font-size: 14px;
   line-height: 1.7;
@@ -173,10 +173,10 @@
 .panel > label select {
   width: 100%;
   min-height: 40px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 7px;
   padding: 9px 11px;
-  background: var(--card);
+  background: var(--ui-card);
   color: inherit;
   font: inherit;
 }
@@ -204,7 +204,7 @@
   width: 16px;
   height: 16px;
   flex: 0 0 16px;
-  accent-color: var(--green);
+  accent-color: var(--ui-green);
 }
 .check small {
   display: block;
@@ -242,11 +242,11 @@
   grid-template-columns: 1fr auto;
   gap: 16px;
   padding: 10px 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-line);
 }
 .impact {
-  background: var(--paper);
-  border: 1px solid var(--line);
+  background: var(--ui-paper);
+  border: 1px solid var(--ui-line);
   padding: 15px;
   border-radius: 8px;
 }
@@ -255,7 +255,7 @@
 }
 .form fieldset,
 .selection {
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 8px;
   padding: 15px;
 }
@@ -265,7 +265,7 @@
   gap: 12px 25px;
   max-height: 230px;
   overflow: auto;
-  background: var(--card);
+  background: var(--ui-card);
 }
 .selection legend,
 .form legend {
@@ -275,7 +275,7 @@
 .matrixWrap {
   overflow: auto;
   max-height: 650px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 9px;
 }
 .matrix {
@@ -288,13 +288,13 @@
 .matrix caption {
   padding: 12px;
   text-align: left;
-  color: var(--muted, #627084);
+  color: var(--ui-muted, #627084);
 }
 .matrix th,
 .matrix td {
   padding: 12px;
-  border-right: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
+  border-right: 1px solid var(--ui-line);
+  border-bottom: 1px solid var(--ui-line);
   min-width: 145px;
 }
 .matrix th:first-child {
@@ -302,19 +302,19 @@
   max-width: 320px;
   position: sticky;
   left: 0;
-  background: var(--card);
+  background: var(--ui-card);
   z-index: 1;
 }
 .matrix thead th {
   position: sticky;
   top: 0;
-  background: var(--paper);
+  background: var(--ui-paper);
   z-index: 2;
   max-width: 200px;
 }
 .matrix thead th:first-child {
   z-index: 3;
-  background: var(--paper);
+  background: var(--ui-paper);
 }
 .decision {
   display: flex;
@@ -327,28 +327,28 @@
   padding: 6px;
   font-size: 12px;
   cursor: pointer;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .decision[data-result="allowed"] {
-  color: var(--green);
-  background: var(--green-soft);
+  color: var(--ui-green);
+  background: var(--ui-green-soft);
 }
 .decision[data-result="conditional"] {
-  color: var(--amber);
-  background: var(--amber-soft);
+  color: var(--ui-amber);
+  background: var(--ui-amber-soft);
 }
 .decision[data-result="denied"] {
-  color: var(--red);
+  color: var(--ui-red);
 }
 .decision:focus-visible {
-  outline: 3px solid var(--brand);
+  outline: 3px solid var(--ui-brand);
   outline-offset: 2px;
 }
 .detail {
-  border: 2px solid var(--green);
+  border: 2px solid var(--ui-green);
   padding: 22px;
   border-radius: 12px;
-  background: var(--card);
+  background: var(--ui-card);
 }
 .detail dl {
   display: grid;
@@ -357,7 +357,7 @@
   font-size: 13px;
 }
 .detail dt {
-  color: var(--muted, #627084);
+  color: var(--ui-muted, #627084);
 }
 .detail dd {
   margin: 0;
@@ -369,13 +369,13 @@
   overflow-wrap: anywhere;
   max-height: 420px;
   overflow: auto;
-  background: var(--paper);
+  background: var(--ui-paper);
   padding: 16px;
   border-radius: 8px;
 }
 .review {
   padding: 17px 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-line);
 }
 .review summary,
 .panel summary {
@@ -391,12 +391,12 @@
   padding: 0;
   font-size: 12px;
   font-weight: 650;
-  color: var(--green);
+  color: var(--ui-green);
 }
 .success {
-  background: var(--green-soft);
-  color: var(--green);
-  border: 1px solid var(--green);
+  background: var(--ui-green-soft);
+  color: var(--ui-green);
+  border: 1px solid var(--ui-green);
   padding: 12px 16px;
   border-radius: 8px;
   font-size: 14px;
@@ -475,3 +475,19 @@
     font-size: 12px;
   }
 }
+
+/* Internal content shares the parent surface; use dividers for hierarchy. */
+.panel .matrixWrap, .panel .selection { border: 0; border-radius: 0; box-shadow: none; }
+.panel .impact { border: 0; border-inline-start: 3px solid var(--ui-brand); border-radius: 0; }
+
+/* The enclosing widget already supplies this section's surface. */
+:global([data-slot="widget-content"]) > .panel {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+/* Use section dividers within the enclosing surface. */
+.panel .metric { border: 0; border-radius: 0; background: transparent; box-shadow: none; }

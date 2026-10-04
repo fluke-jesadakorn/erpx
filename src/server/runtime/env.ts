@@ -7,6 +7,7 @@ import { MinioFileStore } from './minio';
 import type { SqlDatabase, FileStore } from './types';
 import type { BetaEnvironment } from '../beta-config';
 import type { ResourceSlot } from '../../lib/holding-registry';
+import { engineeringVerificationContext,isEngineeringVerificationOrigin } from '../engineering-verification';
 
 export type DatabaseManifest = { version: 1; databases: Record<string, string>; slots: ResourceSlot[] };
 export type RuntimeEnv = BetaEnvironment & {
@@ -39,20 +40,35 @@ export function getRuntime(): RuntimeEnv {
     delete runtimeGlobal.erpxDevRuntime;
   }
   const production = process.env.NODE_ENV === 'production';
-  const deploymentEnvironment = production && process.env.ERPX_ENVIRONMENT !== 'staging'
-    ? 'production'
-    : process.env.ERPX_ENVIRONMENT ?? (production ? 'production' : 'local');
+  const engineering = production ? engineeringVerificationContext() : null;
   const data = resolve(/* turbopackIgnore: true */ process.env.ERPX_DATA_DIR ?? '.runtime/local');
   if (production && !isAbsolute(process.env.ERPX_DATA_DIR ?? '')) throw new Error('ERPX_DATA_DIR_REQUIRED');
+  // Parse before constructing any pool. A valid attestation can relax HTTPS
+  // only for the exact disposable database manifest and loopback 3104 hosts.
+  const manifestPath = process.env.ERPX_DATABASE_MANIFEST;
+  if (!manifestPath || !isAbsolute(manifestPath)) throw new Error('ERPX_DATABASE_MANIFEST_REQUIRED');
+  const manifest = manifestSchema.parse(JSON.parse(readFileSync(manifestPath, 'utf8')));
+  if(engineering){
+    if(resolve(manifestPath)!==join(data,'databases.json')||!Object.entries(manifest.databases).every(([binding,value])=>{
+      if(!/^(CONTROL|H00[1-3])(_READ)?_DB$/.test(binding))return false;
+      const url=new URL(value);
+      return ['postgres:','postgresql:'].includes(url.protocol)&&url.hostname==='127.0.0.1'&&url.port==='5432'&&url.username==='erpx_test_admin'&&url.pathname===`/erpx_browser_${engineering.run}_${binding.toLowerCase()}`;
+    })||Object.keys(manifest.databases).length!==8||!['CONTROL_DB','CONTROL_READ_DB','H001_DB','H001_READ_DB','H002_DB','H002_READ_DB','H003_DB','H003_READ_DB'].every(binding=>Boolean(manifest.databases[binding]))||manifest.slots.length!==3||new Set(manifest.slots.map(slot=>slot.id)).size!==3||manifest.slots.some(slot=>!/^h00[1-3]$/.test(slot.id)||slot.write!==`${slot.id.toUpperCase()}_DB`||slot.read!==`${slot.id.toUpperCase()}_READ_DB`||slot.files!==`${slot.id.toUpperCase()}_FILES`))throw new Error('ENGINEERING_DATABASE_MANIFEST_MISMATCH');
+    if(process.env.ERPX_MINIO_ENDPOINT||process.env.ERPX_MINIO_BUCKET)throw new Error('ENGINEERING_LOCAL_FILES_REQUIRED');
+  }
+  const deploymentEnvironment = engineering?'local':production && process.env.ERPX_ENVIRONMENT !== 'staging'
+    ? 'production'
+    : process.env.ERPX_ENVIRONMENT ?? (production ? 'production' : 'local');
+  const engineeringOrigin=(url:URL)=>isEngineeringVerificationOrigin(url,engineering);
   const origin = new URL(process.env.ERPX_PUBLIC_ORIGIN ?? 'http://localhost:3100');
-  if (origin.pathname !== '/' || origin.search || origin.hash || origin.username || origin.password || (production && origin.protocol !== 'https:')) throw new Error('INVALID_PUBLIC_ORIGIN');
+  if (origin.pathname !== '/' || origin.search || origin.hash || origin.username || origin.password || (production && origin.protocol !== 'https:'&&!engineeringOrigin(origin))||(engineering&&!engineeringOrigin(origin))) throw new Error('INVALID_PUBLIC_ORIGIN');
   const marketing = process.env.ERPX_MARKETING_ORIGIN ? new URL(process.env.ERPX_MARKETING_ORIGIN) : null;
-  if (marketing && (marketing.pathname !== '/' || marketing.search || marketing.hash || marketing.username || marketing.password || (production && marketing.protocol !== 'https:') || marketing.host === origin.host)) throw new Error('INVALID_MARKETING_ORIGIN');
+  if (marketing && (marketing.pathname !== '/' || marketing.search || marketing.hash || marketing.username || marketing.password || (production && marketing.protocol !== 'https:'&&!engineeringOrigin(marketing))||(engineering&&!engineeringOrigin(marketing)) || marketing.host === origin.host)) throw new Error('INVALID_MARKETING_ORIGIN');
   const frontOrigins = ['ERPX_FRONT_PMS_ORIGIN','ERPX_FRONT_POS_ORIGIN'].flatMap((key) => {
     const value=process.env[key];
     if(!value)return [];
     const url=new URL(value);
-    if(url.pathname!=='/'||url.search||url.hash||url.username||url.password||(production&&url.protocol!=='https:'))throw new Error('INVALID_FRONT_ORIGIN');
+    if(url.pathname!=='/'||url.search||url.hash||url.username||url.password||(production&&url.protocol!=='https:'&&!engineeringOrigin(url))||(engineering&&!engineeringOrigin(url)))throw new Error('INVALID_FRONT_ORIGIN');
     return [{key,url}];
   });
   if(new Set([origin.host,...(marketing ? [marketing.host] : []),...frontOrigins.map(({url})=>url.host)]).size!==frontOrigins.length+1+(marketing ? 1 : 0))throw new Error('DUPLICATE_PUBLIC_HOST');
@@ -60,9 +76,6 @@ export function getRuntime(): RuntimeEnv {
   if (secret.length < 32 || /^(generate-|local-development)/.test(secret)) throw new Error('BETTER_AUTH_SECRET_REQUIRED');
   // The manifest is installed outside the release. A mandatory environment path
   // also prevents Next's file tracer from including the development workspace.
-  const manifestPath = process.env.ERPX_DATABASE_MANIFEST;
-  if (!manifestPath || !isAbsolute(manifestPath)) throw new Error('ERPX_DATABASE_MANIFEST_REQUIRED');
-  const manifest = manifestSchema.parse(JSON.parse(readFileSync(manifestPath, 'utf8')));
   const publicBeta = process.env.ERPX_PUBLIC_BETA === 'true';
   if (production && publicBeta && (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM)) throw new Error('REGISTRATION_EMAIL_NOT_CONFIGURED');
   const env: Record<string, unknown> = {
@@ -96,9 +109,16 @@ export function getRuntime(): RuntimeEnv {
     try {
       const migrationManifestPath = process.env.ERPX_MIGRATION_DATABASE_MANIFEST ?? join(dirname(manifestPath), 'databases-migrations.json');
       if (!isAbsolute(migrationManifestPath)) throw new Error('ERPX_MIGRATION_DATABASE_MANIFEST_REQUIRED');
+      if(engineering&&resolve(migrationManifestPath)!==join(data,'databases-migrations.json'))throw new Error('ENGINEERING_MIGRATION_MANIFEST_MISMATCH');
       const migrationManifest = manifestSchema.parse(JSON.parse(readFileSync(/* turbopackIgnore: true */ migrationManifestPath, 'utf8')));
-      for (const [binding, connectionString] of Object.entries(migrationManifest.databases))
+      if(engineering&&(Object.keys(migrationManifest.databases).length!==8||Object.entries(manifest.databases).some(([binding,url])=>migrationManifest.databases[binding]!==url)||JSON.stringify(migrationManifest.slots)!==JSON.stringify(manifest.slots)))throw new Error('ENGINEERING_MIGRATION_MANIFEST_MISMATCH');
+      for (const [binding, connectionString] of Object.entries(migrationManifest.databases)){
+        if(engineering){
+          const url=new URL(connectionString);
+          if(!/^(CONTROL|H00[1-3])(_READ)?_DB$/.test(binding)||url.hostname!=='127.0.0.1'||url.port!=='5432'||url.username!=='erpx_test_admin'||url.pathname!==`/erpx_browser_${engineering.run}_${binding.toLowerCase()}`)throw new Error('ENGINEERING_MIGRATION_MANIFEST_MISMATCH');
+        }
         env[`MIGRATION_${binding}`] = new PostgresDatabase({ connectionString, application_name: 'erpx-migration', max: 1 });
+      }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     }

@@ -1,5 +1,7 @@
 # การจองสต็อกร่วม Sales / POS — ชุด C (จำลองบางส่วน)
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 ## พฤติกรรมที่เพิ่ม
 
 - Warehouse operator ใช้ `inventory.prepare` จองสินค้าตามบรรทัด Sales order ที่อนุมัติแล้ว พร้อมจำนวน วันหมดอายุไม่เกิน 30 วัน และเหตุผล ผ่านหน้าเอกสารขาย หรือ `POST /api/v1/holdings/{holdingSlug}/commerce/orders/{id}/reservations`.

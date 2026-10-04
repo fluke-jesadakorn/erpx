@@ -14,7 +14,7 @@
 }
 .header p,
 .empty {
-  color: var(--muted);
+  color: var(--ui-muted);
   margin: 0;
 }
 .buttons {
@@ -33,13 +33,13 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 12px;
-  background: var(--card);
+  background: var(--ui-card);
   overflow: hidden;
 }
 .card:hover {
-  border-color: var(--brand);
+  border-color: var(--ui-brand);
 }
 .mainLink {
   display: flex;
@@ -47,28 +47,28 @@
   gap: 10px;
   padding: 12px;
   flex: 1;
-  color: var(--ink);
+  color: var(--ui-ink);
   text-decoration: none;
   min-height: 110px;
 }
 .mainLink:focus-visible,
 .newLink:focus-visible {
-  outline: 3px solid var(--brand);
+  outline: 3px solid var(--ui-brand);
   outline-offset: -4px;
 }
 .cardHead {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .icon {
   display: grid;
   place-items: center;
   width: 28px;
   height: 28px;
-  background: var(--brand-soft);
-  color: var(--brand);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand);
   border-radius: 10px;
 }
 .card h3 {
@@ -82,11 +82,11 @@
   flex-wrap: wrap;
   gap: 4px 10px;
   margin: 0;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 13px;
 }
 .counts strong {
-  color: var(--ink);
+  color: var(--ui-ink);
   font-size: 14px;
   font-weight: 600;
 }
@@ -94,13 +94,13 @@
 .partial {
   font-size: 13px;
   margin: 0;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .openLabel {
   display: flex;
   gap: 8px;
   margin-top: auto;
-  color: var(--brand);
+  color: var(--ui-brand);
   font-size: 13px;
 }
 .newLink {
@@ -110,12 +110,12 @@
   justify-content: center;
   gap: 8px;
   padding: 10px 16px;
-  color: var(--brand);
-  border-top: 1px solid var(--line);
+  color: var(--ui-brand);
+  border-top: 1px solid var(--ui-line);
   text-decoration: none;
 }
 .newLink:hover {
-  background: var(--brand-soft);
+  background: var(--ui-brand-soft);
 }
 .mobileMore {
   display: none;
@@ -146,12 +146,12 @@
   justify-content: space-between;
   gap: 12px;
   align-items: center;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-line);
   padding: 10px 0;
 }
 .pinList small {
   display: block;
-  color: var(--muted);
+  color: var(--ui-muted);
   margin-top: 4px;
 }
 .choices {
@@ -162,7 +162,7 @@
 }
 .conflict {
   padding: 14px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 10px;
   display: grid;
   gap: 10px;
@@ -213,21 +213,77 @@
   }
 }
 
-.header p { font-size: 12px; }
-.icon svg { width: 17px; height: 17px; }
-.cardHead > svg, .openLabel { display: none; }
-.blocked { color: var(--amber); font-size: 12px; }
-.counts { font-size: 12px; }
-.newLink { font-size: 12px; padding: 6px 10px; }
-.mainLink { gap: 7px; }
-.card h3 { font-size: 13px; }
+.header p {
+  font-size: 12px;
+}
+.icon svg {
+  width: 17px;
+  height: 17px;
+}
+.cardHead > svg,
+.openLabel {
+  display: none;
+}
+.blocked {
+  color: var(--ui-amber);
+  font-size: 12px;
+}
+.counts {
+  font-size: 12px;
+}
+.newLink {
+  font-size: 12px;
+  padding: 6px 10px;
+}
+.mainLink {
+  gap: 7px;
+}
+.card h3 {
+  font-size: 13px;
+}
 
 /* Shortcuts stay available without competing with the work queue. */
-.shortcuts { margin-top:24px; }
-.grid { display:flex; flex-wrap:wrap; gap:8px; }
-.card { flex-direction:row; align-items:stretch; flex:0 1 auto; }
-.mainLink { min-height:44px; flex-direction:row; align-items:center; padding:8px 12px; gap:8px; }
-.cardHead { display:none; }
-.counts, .blocked { display:none; }
-.newLink { border-top:0; border-left:1px solid var(--line); }
-@media(max-width:639px) { .mainLink { min-height:44px; flex-direction:row; padding:8px 12px; } .collapsed > :nth-child(n+5) { display:flex; } .mobileMore { display:none; } }
+.shortcuts {
+  margin-top: 24px;
+}
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.card {
+  flex-direction: row;
+  align-items: stretch;
+  flex: 0 1 auto;
+}
+.mainLink {
+  min-height: 44px;
+  flex-direction: row;
+  align-items: center;
+  padding: 8px 12px;
+  gap: 8px;
+}
+.cardHead {
+  display: none;
+}
+.counts,
+.blocked {
+  display: none;
+}
+.newLink {
+  border-top: 0;
+  border-left: 1px solid var(--ui-line);
+}
+@media (max-width: 639px) {
+  .mainLink {
+    min-height: 44px;
+    flex-direction: row;
+    padding: 8px 12px;
+  }
+  .collapsed > :nth-child(n + 5) {
+    display: flex;
+  }
+  .mobileMore {
+    display: none;
+  }
+}

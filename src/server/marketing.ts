@@ -12,6 +12,9 @@ import { ApiError } from "./http";
 import { createCRMLead } from "./crm";
 import { marketingCampaigns, marketingCostSources } from './marketing-campaigns';
 import {hasPermission} from '@/lib/permissions';
+import {marketingFormReadiness,marketingPresentationAssertions,marketingPresentationReferences} from './marketing-public-form';
+import {listAttachmentPublications} from './attachments/service';
+import {attachmentsV2Readable} from './attachments/feature';
 const reason = z.string().trim().min(3).max(3000),
   version = z.number().int().positive();
 const assetSchema = z.object({
@@ -126,6 +129,8 @@ export async function marketingWorkspace(a: WorkContext) {
     campaigns: await marketingCampaigns(a),
     canLinkCost,
     costSources: canLinkCost ? await marketingCostSources(a) : [],
+    formReadiness:await Promise.all(assets.results.filter(asset=>asset.kind==='form').map(async asset=>({id:String(asset.id),...await marketingFormReadiness(write,a.companyId,asset.configuration_json)}))),
+    contentPublications:attachmentsV2Readable()?(await Promise.all(assets.results.filter(asset=>asset.kind==='content'&&asset.status==='active').map(async asset=>({assetId:String(asset.id),items:(await listAttachmentPublications(write,a,'marketing_asset',String(asset.id))).items.filter(publication=>publication.state==='approved')})))):[],
   };
 }
 export async function createMarketingAsset(
@@ -135,6 +140,7 @@ export async function createMarketingAsset(
 ) {
   access(a, true);
   const i = assetSchema.parse(raw);
+  if(i.kind==='form')marketingPresentationReferences(i.configuration);
   if (i.kind === "form" && !formRequiresConsent(i.configuration))
     throw new ApiError(
       422,
@@ -183,9 +189,12 @@ export async function createMarketingCandidate(
     op = "marketing.candidate.create",
     prior = await replayCommand(write, a, key, op, id, i);
   if (prior) return prior;
+  const sourceForm=await write.prepare("SELECT configuration_json FROM marketing_assets WHERE id=? AND company_id=? AND version=? AND kind='form' AND status='active'").bind(i.formId,a.companyId,i.formVersion).first<{configuration_json:string}>();
+  if(sourceForm&&!(await marketingFormReadiness(write,a.companyId,sourceForm.configuration_json)).ready)throw new ApiError(409,'MARKETING_FORM_NOT_READY','The approved form presentation is currently unavailable.');
   const now = Date.now(),
     result = { id, status: "pending", version: 1 };
   return executeCommand(write, a, key, op, i, id, 1, result, [
+    ...(sourceForm?marketingPresentationAssertions(write,key,a.companyId,sourceForm.configuration_json):[]),
     assertion(
       write,
       key,
@@ -283,6 +292,8 @@ export async function changeMarketing(
       prior = await replayCommand(write, a, key, op, id, i);
     if (prior) return prior;
     const now = Date.now();
+    const presentationSteps=i.action==='activate'&&row.kind==='form'?marketingPresentationAssertions(write,key,a.companyId,row.configuration_json):[];
+    if(i.action==='activate'&&row.kind==='form'&&!(await marketingFormReadiness(write,a.companyId,row.configuration_json)).ready)throw new ApiError(409,'MARKETING_FORM_NOT_READY','Independently approve the exact content and public creative before activating this form.');
     return executeCommand(
       write,
       a,
@@ -293,6 +304,7 @@ export async function changeMarketing(
       i.expectedVersion + 1,
       { id, status, version: i.expectedVersion + 1 },
       [
+        ...presentationSteps,
         assertion(
           write,
           key,

@@ -1,3 +1,5 @@
+
+import { PageContent } from "@/components/ui/patterns";
 import { requireWorkContext, publicScope } from "@/server/authorization";
 import { holdingResources } from "@/server/runtime";
 import { workspaceBase } from "@/lib/workspace";
@@ -16,7 +18,7 @@ export default async function LegalPage({
     { write } = await holdingResources(a.holdingId),
     q = await searchParams;
   return (
-    <div className="content" data-source="live">
+    <PageContent  data-source="live">
       <LegalWorkspace
         base={workspaceBase(publicScope(a))}
         initial={await legalData(write, a, { ...q, kind: q.kind ?? "request" })}
@@ -26,6 +28,6 @@ export default async function LegalPage({
           typeof q.record === "string" ? await detail(write, a, q.record) : null
         }
       />
-    </div>
+    </PageContent>
   );
 }

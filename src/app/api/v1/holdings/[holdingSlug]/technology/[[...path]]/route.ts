@@ -16,6 +16,7 @@ import { directoryOperationsApi } from "@/server/directory-operations-api";
 import { positionGpoOverview, previewPositionGpo, publishPositionGpo, previewUnmapPositionGpo, unmapPositionGpo, retryPositionGpo, retryPositionGpoConfig } from "@/server/position-gpo";
 import { gpoRulesOverview, previewGpoRule, publishGpoRule, previewRemoveGpoRule, removeGpoRule, retryGpoRuleConfig, markPositionGpoNotRequired } from "@/server/gpo-rules";
 import { organizationAccessData } from "@/server/organization-access";
+import {bindProvisioningEvidence} from '@/server/system-evidence';
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
 export const dynamic = "force-dynamic";
 export async function GET(_request: Request, context: Context) {
@@ -60,6 +61,8 @@ export async function POST(request: Request, context: Context) {
       { write } = await holdingResources(contextActor.holdingId),
       db = write as PostgresDatabase,
       raw = await request.json();
+    if(path[0]==='provisioning'&&path[1]&&path[2]==='evidence'&&path.length===3)
+      return Response.json({data:await bindProvisioningEvidence(db,contextActor,path[1],raw,key)});
     if (path[0] === "directory")
       return Response.json({
         data: await directoryOperationsApi(

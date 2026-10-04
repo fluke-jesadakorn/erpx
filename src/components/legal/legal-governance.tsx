@@ -1,4 +1,9 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { FormDisclosure } from "@/components/ui/form-disclosure";
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
+
 import { useEffect, useState } from "react";
 import type { LegalDetail } from "@/lib/legal/model";
 import s from "./legal.module.css";
@@ -62,29 +67,27 @@ export function LegalGovernance({
   const selected = data?.forms.find((f) => f.id === form);
   return (
     <section className={s.detail}>
-      {error && <p role="alert">{error}</p>}
+      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
       <details>
         <summary>References to existing ERPX records</summary>
         <p>
-          A reference keeps the source permissions. Use document preservation to
-          place source attachment bytes under a Legal hold.
+          A reference keeps the source permissions. Use document preservation to place source
+          attachment bytes under a Legal hold.
         </p>
-        <button
+        <Button appearance="standard"
+          type="submit"
+          variant="ghost"
           className={s.button}
           onClick={async () => {
             try {
-              setReferences(
-                (await call(
-                  `/references/${detail.item.id}`,
-                )) as typeof references,
-              );
+              setReferences((await call(`/references/${detail.item.id}`)) as typeof references);
             } catch (e) {
               setError((e as Error).message);
             }
           }}
         >
           Refresh accessible references
-        </button>
+        </Button>
         {references.map((r) => (
           <p key={`${r.kind}:${r.id}`}>
             <a href={`${base}/${r.path}`}>
@@ -102,31 +105,25 @@ export function LegalGovernance({
                 ...Object.fromEntries(new FormData(e.currentTarget)),
               })
             )
-              setReferences(
-                (await call(
-                  `/references/${detail.item.id}`,
-                )) as typeof references,
-              );
+              setReferences((await call(`/references/${detail.item.id}`)) as typeof references);
           }}
         >
-          <label className={s.field}>
+          <Field appearance="standard" className={s.field}>
             Record type
-            <select name="targetKind">
+            <Select appearance="standard" name="targetKind">
               <option value="commerce_order">Sales / purchase order</option>
               <option value="person">People directory</option>
-              <option value="employee_request">
-                Employee / purchase request
-              </option>
+              <option value="employee_request">Employee / purchase request</option>
               <option value="expense">Finance expense</option>
-            </select>
-          </label>
-          <label className={s.field}>
+            </Select>
+          </Field>
+          <Field appearance="standard" className={s.field}>
             Record ID
-            <input name="targetId" required />
-          </label>
-          <button className={s.button} disabled={busy}>
+            <TextInput appearance="standard" name="targetId" required />
+          </Field>
+          <Button appearance="standard" clientManaged type="submit" variant="ghost" className={s.button} disabled={busy}>
             Link accessible source
-          </button>
+          </Button>
         </form>
       </details>
       {detail.item.kind === "request" && (
@@ -144,19 +141,13 @@ export function LegalGovernance({
                   (selected?.fields ?? []).map((f) => [f.key, v[f.key] ?? ""]),
                 ),
                 reason: v.reason,
-                ...(v.escalationOwner
-                  ? { escalationOwner: v.escalationOwner }
-                  : {}),
+                ...(v.escalationOwner ? { escalationOwner: v.escalationOwner } : {}),
               });
             }}
           >
-            <label className={s.field}>
+            <Field appearance="standard" className={s.field}>
               Approved form
-              <select
-                value={form}
-                required
-                onChange={(e) => setForm(e.target.value)}
-              >
+              <Select appearance="standard" value={form} required onChange={(e) => setForm(e.target.value)}>
                 <option value="">Select</option>
                 {data?.forms
                   .filter((f) => f.state === "approved")
@@ -165,35 +156,32 @@ export function LegalGovernance({
                       {f.name} · SLA {f.sla_days} calendar days
                     </option>
                   ))}
-              </select>
-            </label>
+              </Select>
+            </Field>
             {selected?.fields.map((f) => (
-              <label className={s.field} key={f.key}>
+              <Field appearance="standard" className={s.field} key={f.key}>
                 {f.label}
-                <input name={f.key} type={f.type} required={f.required} />
-              </label>
+                <TextInput appearance="standard" name={f.key} type={f.type} required={f.required} />
+              </Field>
             ))}
-            <label className={s.field}>
+            <Field appearance="standard" className={s.field}>
               Escalation owner user ID
-              <input name="escalationOwner" />
-            </label>
-            <label className={s.field}>
+              <TextInput appearance="standard" name="escalationOwner" />
+            </Field>
+            <Field appearance="standard" className={s.field}>
               Reason
-              <input name="reason" required minLength={3} />
-            </label>
-            <button className={s.button} disabled={busy || !selected}>
+              <TextInput appearance="standard" name="reason" required minLength={3} />
+            </Field>
+            <Button appearance="standard" clientManaged type="submit" variant="ghost" className={s.button} disabled={busy || !selected}>
               Validate intake and start SLA
-            </button>
+            </Button>
           </form>
         </>
       )}
       {["contract", "corporate"].includes(detail.item.kind) && (
         <>
           <h3>Signing authority</h3>
-          <p>
-            Record the signer’s authority separately from approval of contract
-            wording.
-          </p>
+          <p>Record the signer’s authority separately from approval of contract wording.</p>
           <form
             className={s.detail}
             onSubmit={(e) => {
@@ -212,31 +200,29 @@ export function LegalGovernance({
               ["validUntil", "Valid until", "date"],
               ["reason", "Authority basis", "text"],
             ].map(([name, label, type]) => (
-              <label key={name} className={s.field}>
+              <Field appearance="standard" key={name} className={s.field}>
                 {label}
-                <input
+                <TextInput appearance="standard"
                   name={name}
                   type={type}
                   required
-                  defaultValue={
-                    name === "currency" ? detail.item.currency : undefined
-                  }
+                  defaultValue={name === "currency" ? detail.item.currency : undefined}
                 />
-              </label>
+              </Field>
             ))}
-            <label className={s.field}>
+            <Field appearance="standard" className={s.field}>
               Authority evidence
-              <select name="documentId" required>
+              <Select appearance="standard" name="documentId" required>
                 {detail.documents.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name} · v{d.version}
                   </option>
                 ))}
-              </select>
-            </label>
-            <button className={s.button} disabled={busy}>
+              </Select>
+            </Field>
+            <Button appearance="standard" clientManaged type="submit" variant="ghost" className={s.button} disabled={busy}>
               Propose authority
-            </button>
+            </Button>
           </form>
           {data?.authorities.map((r) => (
             <form
@@ -245,10 +231,7 @@ export function LegalGovernance({
               onSubmit={(e) => {
                 e.preventDefault();
                 void command({
-                  action:
-                    r.state === "proposed"
-                      ? "authority.approve"
-                      : "authority.revoke",
+                  action: r.state === "proposed" ? "authority.approve" : "authority.revoke",
                   authorityId: r.id,
                   authorityVersion: r.version,
                   ...Object.fromEntries(new FormData(e.currentTarget)),
@@ -256,23 +239,21 @@ export function LegalGovernance({
               }}
             >
               <p>
-                {r.user_id} · {r.state} · {r.currency} {r.limit_minor} ·{" "}
-                {r.valid_from} to {r.valid_until}
+                {r.user_id} · {r.state} · {r.currency} {r.limit_minor} · {r.valid_from} to{" "}
+                {r.valid_until}
               </p>
               {r.state !== "revoked" && (
                 <>
-                  <input
+                  <TextInput appearance="standard"
                     name="reason"
                     aria-label="Authority decision reason"
                     placeholder="Decision reason"
                     required
                     minLength={3}
                   />
-                  <button className={s.button} disabled={busy}>
-                    {r.state === "proposed"
-                      ? "Approve independently"
-                      : "Revoke authority"}
-                  </button>
+                  <Button appearance="standard" clientManaged type="submit" variant="ghost" className={s.button} disabled={busy}>
+                    {r.state === "proposed" ? "Approve independently" : "Revoke authority"}
+                  </Button>
                 </>
               )}
             </form>
@@ -281,7 +262,7 @@ export function LegalGovernance({
       )}
       {manage && (
         <>
-          <details>
+          <FormDisclosure appearance="standard">
             <summary>Company reminders and rollout</summary>
             <form
               key={JSON.stringify(data?.settings)}
@@ -299,9 +280,9 @@ export function LegalGovernance({
                 });
               }}
             >
-              <label className={s.field}>
+              <Field appearance="standard" className={s.field}>
                 Reminder days before due date
-                <input
+                <TextInput appearance="standard"
                   name="days"
                   defaultValue={
                     data?.settings
@@ -313,29 +294,29 @@ export function LegalGovernance({
                   }
                   required
                 />
-              </label>
-              <label>
-                <input
+              </Field>
+              <Field appearance="standard" orientation="inline">
+                <TextInput appearance="standard"
                   type="checkbox"
                   name="enabled"
                   defaultChecked={data?.settings?.enabled ?? false}
                 />
                 Accept new Legal work for this Company
-              </label>
-              <label>
-                <input
+              </Field>
+              <Field appearance="standard" orientation="inline">
+                <TextInput appearance="standard"
                   type="checkbox"
                   name="aiEnabled"
                   defaultChecked={data?.settings?.ai_enabled ?? false}
                 />
                 Allow Legal content to use the configured Company AI provider
-              </label>
-              <button className={s.button} disabled={busy}>
+              </Field>
+              <Button appearance="standard" clientManaged type="submit" variant="ghost" className={s.button} disabled={busy}>
                 Save Company settings
-              </button>
+              </Button>
             </form>
-          </details>
-          <details>
+          </FormDisclosure>
+          <FormDisclosure appearance="standard">
             <summary>Manage intake forms</summary>
             <form
               className={s.detail}
@@ -351,8 +332,9 @@ export function LegalGovernance({
                     .split("\n")
                     .filter(Boolean)
                     .map((line) => {
-                      const [key, label, type = "text", required = "true"] =
-                        line.split("|").map((s) => s.trim());
+                      const [key, label, type = "text", required = "true"] = line
+                        .split("|")
+                        .map((s) => s.trim());
                       return {
                         key,
                         label,
@@ -363,41 +345,37 @@ export function LegalGovernance({
                 });
               }}
             >
-              <label className={s.field}>
+              <Field appearance="standard" className={s.field}>
                 Name
-                <input name="name" required />
-              </label>
-              <label className={s.field}>
+                <TextInput appearance="standard" name="name" required />
+              </Field>
+              <Field appearance="standard" className={s.field}>
                 SLA calendar days
-                <input
-                  name="slaDays"
-                  type="number"
-                  min={1}
-                  max={365}
-                  defaultValue={7}
-                />
-              </label>
-              <label className={s.field}>
+                <TextInput appearance="standard" name="slaDays" type="number" min={1} max={365} defaultValue={7} />
+              </Field>
+              <Field appearance="standard" className={s.field}>
                 Fields: key | label | text/date/number | true/false
-                <textarea
+                <TextArea appearance="standard"
                   name="fields"
                   required
                   defaultValue="question | Legal question | text | true"
                 />
-              </label>
-              <label className={s.field}>
+              </Field>
+              <Field appearance="standard" className={s.field}>
                 Reason
-                <input name="reason" required minLength={3} />
-              </label>
-              <button className={s.button} disabled={busy}>
+                <TextInput appearance="standard" name="reason" required minLength={3} />
+              </Field>
+              <Button appearance="standard" clientManaged type="submit" variant="ghost" className={s.button} disabled={busy}>
                 Create form draft
-              </button>
+              </Button>
             </form>
             {data?.forms.map((f) => (
               <div key={String(f.id)} className={s.event}>
                 {f.name} · {f.state}
                 {f.state === "draft" && (
-                  <button
+                  <Button appearance="standard"
+                    type="submit"
+                    variant="ghost"
                     className={s.button}
                     disabled={busy}
                     onClick={() =>
@@ -410,18 +388,20 @@ export function LegalGovernance({
                     }
                   >
                     Approve independently
-                  </button>
+                  </Button>
                 )}
               </div>
             ))}
-          </details>
-          <details>
+          </FormDisclosure>
+          <FormDisclosure appearance="standard">
             <summary>Certificate trust store</summary>
             <p>
-              Approve roots and revocation evidence only after checking their
-              official source and fingerprint.
+              Approve roots and revocation evidence only after checking their official source and
+              fingerprint.
             </p>
-            <button
+            <Button appearance="standard"
+              type="submit"
+              variant="ghost"
               className={s.button}
               onClick={async () => {
                 try {
@@ -432,7 +412,7 @@ export function LegalGovernance({
               }}
             >
               Refresh trust materials
-            </button>
+            </Button>
             <form
               className={s.detail}
               onSubmit={async (e) => {
@@ -446,30 +426,30 @@ export function LegalGovernance({
                   setTrust((await call("/trust")) as Row[]);
               }}
             >
-              <label className={s.field}>
+              <Field appearance="standard" className={s.field}>
                 Type
-                <select name="kind">
+                <Select appearance="standard" name="kind">
                   {["root", "intermediate", "crl", "ocsp"].map((k) => (
                     <option key={k}>{k}</option>
                   ))}
-                </select>
-              </label>
+                </Select>
+              </Field>
               {[
                 ["name", "Name"],
                 ["source", "Official HTTPS source"],
               ].map(([name, label]) => (
-                <label key={name} className={s.field}>
+                <Field appearance="standard" key={name} className={s.field}>
                   {label}
-                  <input name={name} required />
-                </label>
+                  <TextInput appearance="standard" name={name} required />
+                </Field>
               ))}
-              <label className={s.field}>
+              <Field appearance="standard" className={s.field}>
                 PEM certificate or base64 DER revocation evidence
-                <textarea name="content" required />
-              </label>
-              <button className={s.button} disabled={busy}>
+                <TextArea appearance="standard" name="content" required />
+              </Field>
+              <Button appearance="standard" clientManaged type="submit" variant="ghost" className={s.button} disabled={busy}>
                 Propose trust material
-              </button>
+              </Button>
             </form>
             {trust.map((r) => (
               <div key={String(r.id)} className={s.event}>
@@ -481,16 +461,15 @@ export function LegalGovernance({
                   Official source
                 </a>
                 {r.state !== "retired" && (
-                  <button
+                  <Button appearance="standard"
+                    type="submit"
+                    variant="ghost"
                     className={s.button}
                     disabled={busy}
                     onClick={async () => {
                       if (
                         await command({
-                          action:
-                            r.state === "proposed"
-                              ? "trust.approve"
-                              : "trust.retire",
+                          action: r.state === "proposed" ? "trust.approve" : "trust.retire",
                           materialId: r.id,
                           materialVersion: r.version,
                         })
@@ -498,14 +477,12 @@ export function LegalGovernance({
                         setTrust((await call("/trust")) as Row[]);
                     }}
                   >
-                    {r.state === "proposed"
-                      ? "Approve independently"
-                      : "Retire"}
-                  </button>
+                    {r.state === "proposed" ? "Approve independently" : "Retire"}
+                  </Button>
                 )}
               </div>
             ))}
-          </details>
+          </FormDisclosure>
         </>
       )}
     </section>

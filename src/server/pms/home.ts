@@ -78,6 +78,7 @@ function taskView(row: TaskRow, actor: WorkContext): PmsHomeTask {
   const room=row.room_number??(row.kind==="room"?row.data.number:undefined);
   const assigned="assigneeId" in row.data&&row.data.assigneeId===actor.userId;
   return {id:row.id,type:"pms",sourceKind:"pms_record",sourceVersion:Number(row.version),propertyId:row.property_id,
+    source: {kind:row.kind,id:row.id,version:Number(row.version),href,label:link.label},actionKind:approval?"approval":"work",
     propertyName:row.property_name,businessDate:row.business_date,section:link.section,label:row.label,urgent:row.urgent,
     title:`${row.property_name}${room?" · "+room:""} · ${action}`,
     detail:`Business date ${row.business_date}`,href,status:row.data.state??("cleanliness" in row.data?String(row.data.cleanliness):"pending"),

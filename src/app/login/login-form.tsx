@@ -2,12 +2,12 @@
 import { useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
-import { Alert, Button, Field, TextInput } from "@/components/ui/foundation";
+import { Alert, Button, Field, FormLayout, TextInput, type UiAppearance } from "@/components/ui/foundation";
 const subscribeHydration = () => () => {};
 const clientHydrated = () => true;
 const serverHydrated = () => false;
 
-export function LoginForm({ next, frontMode = false }: { next?: string; frontMode?: boolean }) {
+export function LoginForm({ next, frontMode = false, appearance = "legacy" }: { next?: string; frontMode?: boolean; appearance?: UiAppearance }) {
   const router = useRouter();
   const hydrated = useSyncExternalStore(subscribeHydration, clientHydrated, serverHydrated);
   const [error, setError] = useState("");
@@ -36,13 +36,13 @@ export function LoginForm({ next, frontMode = false }: { next?: string; frontMod
       setPending(false);
     }
   }
-  return (
-    <form className="form" method="post" onSubmit={submit}>
-      <Field label={frontMode ? "อีเมลพนักงาน" : "Work email"} required>
-        <TextInput name="email" type="email" autoComplete="username" required />
+  const content = (
+    <>
+      <Field appearance={appearance} label={frontMode ? "อีเมลพนักงาน" : "Work email"} required>
+        <TextInput appearance={appearance} name="email" type="email" autoComplete="username" required />
       </Field>
-      <Field label={frontMode ? "รหัสผ่าน" : "Password"} required>
-        <TextInput
+      <Field appearance={appearance} label={frontMode ? "รหัสผ่าน" : "Password"} required>
+        <TextInput appearance={appearance}
           name="password"
           type="password"
           autoComplete="current-password"
@@ -50,7 +50,8 @@ export function LoginForm({ next, frontMode = false }: { next?: string; frontMod
         />
       </Field>
       {error && <Alert tone="danger" title={frontMode ? "เข้าสู่ระบบไม่สำเร็จ" : "Sign in failed"} live>{error}</Alert>}
-      <Button type="submit" pending={pending} disabled={!hydrated}>{frontMode ? "เข้าสู่ระบบ" : "Sign in"}</Button>
-    </form>
+      <Button appearance={appearance} clientManaged type="submit" pending={pending} disabled={!hydrated}>{frontMode ? "เข้าสู่ระบบ" : "Sign in"}</Button>
+    </>
   );
+  return appearance === "standard" ? <FormLayout layout="stack" method="post" onSubmit={submit}>{content}</FormLayout> : <form className="form" method="post" onSubmit={submit}>{content}</form>;
 }

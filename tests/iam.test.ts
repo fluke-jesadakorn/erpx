@@ -45,6 +45,7 @@ import { executeCommand } from "../src/server/commands";
 import { selectWorkRole } from "../src/server/work-role-store";
 import type { IamActor } from "../src/server/iam-context";
 import type { WorkContext } from "../src/server/authorization";
+import {workspaceCompaniesForAccount} from "../src/server/authorization";
 import { escalateAccessReviews } from "../src/server/iam-access-review-alerts";
 import { listStaffNotifications } from "../src/server/staff-notifications";
 import {
@@ -462,6 +463,29 @@ it("publishes only independently reviewed immutable role revisions and uses them
   expect(
     hasPermission({ role: proposal.roleId, iam: authority }, "finance.write"),
   ).toBe(false);
+});
+it("offers Companies to the current published Legal, Support and Quality holding roles and immediately removes a revoked grant",async()=>{
+ const f=await fixture(),other=await fixture(),roles=["legal_manager","legal_counsel","legal_requester","support_agent","support_manager","quality_inspector","quality_manager"],people=[];
+ for(const role of roles){const person=await f.user(role);people.push(person);expect(await workspaceCompaniesForAccount(db,person.userId)).toEqual([{id:f.companyId,name:"IAM rehearsal"}]);}
+ const person=people[0];await revokeIamAssignment(db,f.owner,person.assignmentId,1,"Withdraw only this exact Legal holding grant",key());
+ expect(await workspaceCompaniesForAccount(db,person.userId)).toEqual([]);
+ expect(await workspaceCompaniesForAccount(db,people[1].userId)).toEqual([{id:f.companyId,name:"IAM rehearsal"}]);
+ expect((await workspaceCompaniesForAccount(db,f.owner.userId)).map(row=>row.id)).not.toContain(other.companyId);
+ expect(await workspaceCompaniesForAccount(db,"unassigned-account")).toEqual([]);
+});
+it("uses independently published custom-role scopes for Company choices without extending the existing assignment scope",async()=>{
+ const f=await fixture(),permissions=["records.read","iam.self"],reason="Independently reviewed native Company chooser scope",first=await saveIamRole(db,f.owner,roleInput.parse({name:"Scoped Company reader",expectedVersion:0,permissions,scopes:["holding"],reason}),key());
+ await decideIamReview(db,f.reviewer,first.id,{expectedVersion:1,decision:"approve",reason},key());
+ const proposed=await grantIamAccess(db,f.owner,grantInput.parse({userId:f.employee.userId,roleId:first.roleId,scopeKind:"holding",validUntil:now()+86400000,reason}),key());
+ await decideIamReview(db,f.reviewer,proposed.id,{expectedVersion:1,decision:"approve",reason},key());
+ await revokeIamAssignment(db,f.owner,f.employee.assignmentId,1,"Keep only the independently reviewed custom grant",key());
+ const grant=(await db.prepare("SELECT id,scope_kind,scope_node_id,version FROM assignments WHERE company_id=? AND user_id=? AND role=? AND revoked_at IS NULL").bind(f.companyId,f.employee.userId,first.roleId).first<{id:string;scope_kind:string;scope_node_id:string|null;version:number}>())!;
+ expect(await workspaceCompaniesForAccount(db,f.employee.userId)).toEqual([{id:f.companyId,name:"IAM rehearsal"}]);
+ const narrowed=await saveIamRole(db,f.owner,roleInput.parse({id:first.roleId,name:"Scoped Company reader",expectedVersion:1,permissions,scopes:["branch"],reason:"Publish the current branch-only role scope without moving a grant"}),key());
+ await decideIamReview(db,f.reviewer,narrowed.id,{expectedVersion:1,decision:"approve",reason},key());
+ expect(await workspaceCompaniesForAccount(db,f.employee.userId)).toEqual([]);
+ expect(await db.prepare("SELECT id,scope_kind,scope_node_id,version FROM assignments WHERE id=?").bind(grant.id).first()).toEqual({...grant,version:grant.version+1});
+ expect((await iamRole(db,f.companyId,first.roleId))?.scopes).toEqual(["branch"]);
 });
 it("enforces MFA freshness, grant ceilings, parent expiry, and revoked proposer authority", async () => {
   const f = await fixture(),

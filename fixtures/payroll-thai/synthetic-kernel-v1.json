@@ -43,10 +43,10 @@
       },
       "expected": {
         "grossMinor": 11000,
-        "taxWithheldMinor": 2116,
+        "taxWithheldMinor": 1016,
         "employeeSsoMinor": 550,
         "employerSsoMinor": 550,
-        "netMinor": 8334
+        "netMinor": 9434
       }
     },
     {

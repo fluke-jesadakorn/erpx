@@ -1,5 +1,7 @@
 # ชุดจ่ายเจ้าหนี้ — การจำลอง S02 / ช่วง 1
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 สถานะ: implement flow จ่ายเจ้าหนี้ที่ผูก invoice และทดสอบอัตโนมัติแล้วบางส่วนของ capability; ยังไม่ใช่ production sign-off หรือการปิดช่วง 1 ทั้งหมด
 
 ## ขอบเขตและผู้รับช่วง

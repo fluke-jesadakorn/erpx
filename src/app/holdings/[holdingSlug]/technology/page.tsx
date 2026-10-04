@@ -64,7 +64,7 @@ export default async function TechnologyPage({
         : query.view === "employees" && organization.people.length ? { kind: "employee", id: organization.people[0].engagement_id }
         : { kind: "company", id: "company" };
       return <div className={`content-stack ${styles.consolePage}`} data-source="live">
-        <PageHeader eyebrow="Technology" title="Organization & Access" description="Organize people, positions, and policies in one workspace." />
+        <PageHeader appearance="standard" eyebrow="Technology" title="Organization & Access" description="Organize people, positions, and policies in one workspace." />
         <OrganizationAccessWorkspace base={base} companyName={organization.nodes.find(node => node.kind === "company")?.display_name ?? localContext.holdingName} organization={organization} lifecycle={lifecycle} automation={automation} technology={technology} gpoRules={gpoRules} canApply={canReadDirectory && hasPermission(actor, "iam.directory.apply")} initialSelection={initialSelection} initialSection={query.section} />
       </div>;
   }
@@ -78,7 +78,7 @@ export default async function TechnologyPage({
       base = workspaceBase(scope),
       meta = accessMetadata(access);
     return <div className={`content-stack ${styles.consolePage}`} data-source="live">
-      <PageHeader eyebrow="Technology" title="Custom attributes" description="Define additional fields for people, groups, and organizational units." />
+      <PageHeader appearance="standard" eyebrow="Technology" title="Custom attributes" description="Define additional fields for people, groups, and organizational units." />
       <nav className={styles.tabs} data-feature-tabs aria-label="Technology views">{views.map(([id, name]) => <Link key={id} href={`${base}/technology?view=${id}`} aria-current={id === "attributes" ? "page" : undefined}>{name}</Link>)}</nav>
       <UserManagement compactConsole initial={management} initialView="attributes" views={["attributes"]} roles={meta.roles} base={base} api={workspaceApiHref(scope, "people/access")} accounts={{ meta, initialEntries: accessEntries(access, new URLSearchParams()) }} />
     </div>;
@@ -113,7 +113,7 @@ export default async function TechnologyPage({
     meta = accessMetadata(access);
   return (
     <div className={`content-stack ${styles.consolePage}`} data-source="live">
-      <PageHeader
+      <PageHeader appearance="standard"
         eyebrow="Technology"
         title="Resources"
         description="Create packages, manage access policies, and track preparation tasks."

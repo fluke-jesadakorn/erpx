@@ -82,6 +82,13 @@ export async function executeCommand<T>(db: SqlDatabase, actor: Actor, id: strin
     ]);
     return result;
   } catch (error) {
+    // A caller may compose several owner commands inside one transaction.
+    // PostgreSQL aborts that transaction after a failed statement: replay or
+    // authority reads would then hide the original failure behind 25P02.
+    // Leave serialization/deadlock errors intact for the owning transaction's
+    // whole-workflow retry rather than retrying only this command.
+    if (['40001','40P01'].includes((error as {code?:string}).code??'')) throw error;
+    try {
     if(actor.authority){
      const active=await db.prepare('SELECT revision,assignment_id,assignment_version FROM active_work_contexts WHERE session_id=? AND company_id=?').bind(actor.authority.sessionId,actor.companyId).first<{revision:number;assignment_id:string;assignment_version:number}>();
      if(!active || active.revision!==actor.authority.revision || active.assignment_id!==actor.assignmentId || active.assignment_version!==actor.authority.assignmentVersion)throw new ApiError(409,'WORK_CONTEXT_CHANGED','Your work role changed. Reload and review before submitting.');
@@ -90,6 +97,9 @@ export async function executeCommand<T>(db: SqlDatabase, actor: Actor, id: strin
     }
     const committed = await prior();
     if (committed) return committed;
+    } catch (inspectionError) {
+      if ((inspectionError as {code?:string}).code!=='25P02') throw inspectionError;
+    }
     if (/constraint|UNIQUE/i.test(String(error))) {
       const conflict = new ApiError(409,"CONFLICT","The record changed, a reference is unavailable, or this value already exists. Refresh and review again.");
       conflict.cause = error;

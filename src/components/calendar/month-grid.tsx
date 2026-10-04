@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/foundation";
 import type { ReactNode } from "react";
 import { addDays, rosterMonday } from "@/lib/people-roster";
 import styles from "./calendar.module.css";
@@ -45,49 +46,62 @@ export function MonthGrid({
             {day}
           </div>
         ))}
-        {Array.from({ length: cellCount }, (_, index) => addDays(firstCell, index)).map(
-          (date) => {
-            const inMonth = date.slice(0, 7) === month;
-            const count = eventCount?.(date) ?? 0;
-            return (
-              <section
-                key={date}
-                data-calendar-date={date}
-                data-selected={selectedDate === date || undefined}
-                data-event-count={count}
-                className={styles.monthDay + " " + (!inMonth ? styles.outside : "") + " " + (date === currentDate ? styles.today : "") + " " + (date === dropTargetDate ? styles.dateDropTarget : "")}
-              >
-                <header>
-                  {onSelectDate ? (
-                    <button
-                      type="button"
-                      aria-label={`Show ${new Intl.DateTimeFormat("en", { dateStyle: "full", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`))}`}
-                      aria-pressed={selectedDate === date}
-                      onClick={() => onSelectDate(date)}
-                    >
-                      {formatDay(date)}
-                    </button>
-                  ) : (
-                    formatDay(date)
-                  )}
-                  {count > 0 && (
-                    <span className={styles.monthEventCount} data-calendar-event-count aria-label={`${count} loaded ${count === 1 ? "event" : "events"}`}>
-                      {count}
-                    </span>
-                  )}
-                </header>
-                <div className={styles.monthContents}>
-                  {eventCount ? (
-                    <div className={styles.monthPreviews} data-month-event-previews>{renderDay(date)}</div>
-                  ) : (
-                    renderDay(date)
-                  )}
-                  {renderMore && count > 2 && renderMore(date, count - 2)}
-                </div>
-              </section>
-            );
-          },
-        )}
+        {Array.from({ length: cellCount }, (_, index) => addDays(firstCell, index)).map((date) => {
+          const inMonth = date.slice(0, 7) === month;
+          const count = eventCount?.(date) ?? 0;
+          return (
+            <section
+              key={date}
+              data-calendar-date={date}
+              data-selected={selectedDate === date || undefined}
+              data-event-count={count}
+              className={
+                styles.monthDay +
+                " " +
+                (!inMonth ? styles.outside : "") +
+                " " +
+                (date === currentDate ? styles.today : "") +
+                " " +
+                (date === dropTargetDate ? styles.dateDropTarget : "")
+              }
+            >
+              <header>
+                {onSelectDate ? (
+                  <Button
+                    variant="plain"
+                    type="button"
+                    aria-label={`Show ${new Intl.DateTimeFormat("en", { dateStyle: "full", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`))}`}
+                    aria-pressed={selectedDate === date}
+                    onClick={() => onSelectDate(date)}
+                  >
+                    {formatDay(date)}
+                  </Button>
+                ) : (
+                  formatDay(date)
+                )}
+                {count > 0 && (
+                  <span
+                    className={styles.monthEventCount}
+                    data-calendar-event-count
+                    aria-label={`${count} loaded ${count === 1 ? "event" : "events"}`}
+                  >
+                    {count}
+                  </span>
+                )}
+              </header>
+              <div className={styles.monthContents}>
+                {eventCount ? (
+                  <div className={styles.monthPreviews} data-month-event-previews>
+                    {renderDay(date)}
+                  </div>
+                ) : (
+                  renderDay(date)
+                )}
+                {renderMore && count > 2 && renderMore(date, count - 2)}
+              </div>
+            </section>
+          );
+        })}
       </div>
     </div>
   );

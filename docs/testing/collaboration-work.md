@@ -1,5 +1,7 @@
 # Collaboration — files, typed relations และ action cards
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 ## พฤติกรรมที่ทำงานแล้ว
 
 - Conversation files ใช้ private draft upload, ตรวจ media/size, bind ได้ครั้งเดียวกับ message และดาวน์โหลดได้เฉพาะสมาชิก room ที่ยังมีสิทธิ์; การถอนสมาชิกทำให้ไฟล์เดิมอ่านไม่ได้ทันที

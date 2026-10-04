@@ -1,4 +1,7 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { Button, Field, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { workFetch } from "@/lib/work-fetch";
 import { useHydrated } from "@/components/ui/use-hydrated";
@@ -85,8 +88,7 @@ export function LeaveTaskForm({
           );
         else
           setError(
-            data.error?.message ??
-              "We couldn’t save this request. Your details are still here.",
+            data.error?.message ?? "We couldn’t save this request. Your details are still here.",
           );
         return;
       }
@@ -158,9 +160,7 @@ export function LeaveTaskForm({
       startRefresh(() => router.refresh());
     } catch (cause) {
       setUpload("Upload incomplete. Choose the file again to retry.");
-      setError(
-        cause instanceof Error ? cause.message : "The upload was interrupted.",
-      );
+      setError(cause instanceof Error ? cause.message : "The upload was interrupted.");
     } finally {
       setPending(false);
     }
@@ -170,18 +170,14 @@ export function LeaveTaskForm({
   return (
     <>
       {message && (
-        <div
-          className="notice success-notice"
-          role="status"
-          style={{ marginTop: 18 }}
-        >
+        <InlineNotice tone="info" className="notice success-notice" role="status" style={{ marginTop: 18 }}>
           {message}
-        </div>
+        </InlineNotice>
       )}
       {draft || approval ? (
         <form
           ref={formRef}
-          className="form card"
+          className="form ui-panel"
           onSubmit={(event) => {
             event.preventDefault();
             const form = new FormData(event.currentTarget);
@@ -212,9 +208,9 @@ export function LeaveTaskForm({
           {draft ? (
             <>
               <div className="field-grid">
-                <label className="field">
+                <Field appearance="standard" className="field">
                   First day
-                  <input
+                  <TextInput appearance="standard"
                     disabled={working}
                     name="startDate"
                     type="date"
@@ -227,10 +223,10 @@ export function LeaveTaskForm({
                     }
                     required
                   />
-                </label>
-                <label className="field">
+                </Field>
+                <Field appearance="standard" className="field">
                   Leave days
-                  <input
+                  <TextInput appearance="standard"
                     disabled={working}
                     name="days"
                     type="number"
@@ -245,11 +241,11 @@ export function LeaveTaskForm({
                     }
                     required
                   />
-                </label>
+                </Field>
               </div>
-              <label className="field">
+              <Field appearance="standard" className="field">
                 Handover note
-                <textarea
+                <TextArea appearance="standard"
                   disabled={working}
                   name="handoverNote"
                   value={draftValues.handoverNote}
@@ -261,15 +257,13 @@ export function LeaveTaskForm({
                   }
                   maxLength={2048}
                 />
-              </label>
-              <label className="field">
+              </Field>
+              <Field appearance="standard" className="field">
                 <span>
                   <FileUp size={14} /> Supporting evidence
                 </span>
-                <small>
-                  JPEG, PNG, WebP, HEIC, HEIF or PDF · Up to 10 MiB per file
-                </small>
-                <input
+                <small>JPEG, PNG, WebP, HEIC, HEIF or PDF · Up to 10 MiB per file</small>
+                <TextInput appearance="standard"
                   type="file"
                   aria-label="Supporting evidence"
                   disabled={working}
@@ -280,39 +274,40 @@ export function LeaveTaskForm({
                     if (file) void uploadEvidence(file);
                   }}
                 />
-              </label>
+              </Field>
               {upload && (
-                <div className={styles.uploadState} role="status">
+                <InlineNotice tone="info" className={styles.uploadState} role="status">
                   {upload}
-                </div>
+                </InlineNotice>
               )}
             </>
           ) : (
-            <label className="field">
+            <Field appearance="standard" className="field">
               Decision note
-              <textarea
+              <TextArea appearance="standard"
                 disabled={working}
                 name="note"
                 maxLength={2048}
                 placeholder="Add context for the requester (optional)…"
               />
-            </label>
+            </Field>
           )}
           {error && !review && (
-            <div className="error" role="alert">
+            <InlineNotice tone="danger" className="error" role="alert">
               {error}
-            </div>
+            </InlineNotice>
           )}
-          <div className="form-actions" data-task-actions>
+          <div className="ui-form-actions" data-task-actions>
             <span>
               {draft
                 ? "You’ll review the details before submitting."
                 : "Your decision will be recorded with this request."}
             </span>
             {draft && (
-              <button
+              <Button appearance="standard"
+                variant="secondary"
                 type="button"
-                className="button secondary"
+
                 disabled={working}
                 onClick={async () => {
                   setPending(true);
@@ -327,57 +322,44 @@ export function LeaveTaskForm({
                     const signature = "save" + body;
                     if (attempt.current?.signature !== signature)
                       attempt.current = { signature, key: crypto.randomUUID() };
-                    const r = await workFetch(
-                      `${base}/leave-requests/${request.id}`,
-                      {
-                        method: "PATCH",
-                        headers: {
-                          "Content-Type": "application/json",
-                          "Idempotency-Key": attempt.current.key,
-                        },
-                        body,
+                    const r = await workFetch(`${base}/leave-requests/${request.id}`, {
+                      method: "PATCH",
+                      headers: {
+                        "Content-Type": "application/json",
+                        "Idempotency-Key": attempt.current.key,
                       },
-                    );
+                      body,
+                    });
                     const data = (await r.json()) as {
                       error?: { message: string };
                     };
-                    if (!r.ok)
-                      throw new Error(
-                        data.error?.message ?? "Unable to save draft.",
-                      );
+                    if (!r.ok) throw new Error(data.error?.message ?? "Unable to save draft.");
                     attempt.current = null;
                     startRefresh(() => router.refresh());
                   } catch (e) {
-                    setError(
-                      e instanceof Error ? e.message : "Unable to save draft.",
-                    );
+                    setError(e instanceof Error ? e.message : "Unable to save draft.");
                   } finally {
                     setPending(false);
                   }
                 }}
               >
                 Save draft
-              </button>
+              </Button>
             )}
-            <button
-              className="button"
+            <Button appearance="standard"
+              clientManaged type="submit"
+              variant="primary"
+
               disabled={working || (draft && !!blockedReason)}
             >
-              {pending
-                ? "Working…"
-                : draft
-                  ? "Review request"
-                  : "Review approval"}
+              {pending ? "Working…" : draft ? "Review request" : "Review approval"}
               <ArrowRight size={14} />
-            </button>
+            </Button>
           </div>
         </form>
       ) : (
         <div className="notice" style={{ marginTop: 20 }}>
-          <CheckCircle2
-            size={15}
-            style={{ verticalAlign: "middle", marginRight: 8 }}
-          />
+          <CheckCircle2 size={15} style={{ verticalAlign: "middle", marginRight: 8 }} />
           {request.state === "pending_approval"
             ? "Waiting for the named approver of the current stage."
             : request.state === "draft"
@@ -385,23 +367,18 @@ export function LeaveTaskForm({
               : `This request is ${request.state}.`}
         </div>
       )}
-      <Dialog
+      <Dialog appearance="standard"
         open={!!review}
         title={draft ? "Submit leave request" : "Approve leave"}
         onClose={() => {
           if (!working) setReview(null);
         }}
       >
-        <p>
-          Confirm these details before completing your{" "}
-          {draft ? "request" : "decision"}.
-        </p>
+        <p>Confirm these details before completing your {draft ? "request" : "decision"}.</p>
         <div className={styles.reviewSummary}>
           <div>
             <small>First day</small>
-            {review && "startDate" in review
-              ? review.startDate
-              : request.start_date}
+            {review && "startDate" in review ? review.startDate : request.start_date}
           </div>
           <div>
             <small>Duration</small>
@@ -419,10 +396,12 @@ export function LeaveTaskForm({
           </div>
         </div>
         {error && (
-          <div className="error" role="alert" style={{ marginBottom: 16 }}>
+          <InlineNotice tone="danger" className="error" role="alert" style={{ marginBottom: 16 }}>
             {error}{" "}
-            <button
-              className="button secondary"
+            <Button appearance="standard"
+              type="submit"
+              variant="secondary"
+
               onClick={() => {
                 setReview(null);
                 startRefresh(() => router.refresh());
@@ -430,28 +409,28 @@ export function LeaveTaskForm({
               disabled={working}
             >
               Refresh record
-            </button>
-          </div>
+            </Button>
+          </InlineNotice>
         )}
         <div className={styles.reviewActions}>
-          <button
-            className="button secondary"
+          <Button appearance="standard"
+            type="submit"
+            variant="secondary"
+
             disabled={working}
             onClick={() => setReview(null)}
           >
             Back to details
-          </button>
-          <button
-            className="button"
+          </Button>
+          <Button appearance="standard"
+            type="submit"
+            variant="primary"
+
             disabled={working}
             onClick={() => void confirm()}
           >
-            {pending
-              ? "Saving…"
-              : draft
-                ? "Submit leave request"
-                : "Approve leave"}
-          </button>
+            {pending ? "Saving…" : draft ? "Submit leave request" : "Approve leave"}
+          </Button>
         </div>
       </Dialog>
     </>

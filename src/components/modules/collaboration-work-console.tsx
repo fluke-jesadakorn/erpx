@@ -1,9 +1,15 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { FormDisclosure } from "@/components/ui/form-disclosure";
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
+
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
 import { PreferredDateTimeField } from "@/components/time/preferred-date-time-field";
 import type { collaborationWorkspace } from "@/server/collaboration-work";
+import { FormLayout } from "@/components/ui/foundation";
 export function CollaborationWorkConsole({
   base,
   data,
@@ -17,8 +23,7 @@ export function CollaborationWorkConsole({
     [error, setError] = useState("");
   async function send(input: unknown) {
     const body = JSON.stringify(input);
-    if (last.current?.body !== body)
-      last.current = { key: crypto.randomUUID(), body };
+    if (last.current?.body !== body) last.current = { key: crypto.randomUUID(), body };
     setBusy(true);
     setError("");
     try {
@@ -33,9 +38,7 @@ export function CollaborationWorkConsole({
         result = await response.json();
       if (!response.ok) {
         if (response.status < 500) last.current = null;
-        throw new Error(
-          result.error?.message ?? "Unable to update collaboration work.",
-        );
+        throw new Error(result.error?.message ?? "Unable to update collaboration work.");
       }
       last.current = null;
       router.refresh();
@@ -48,11 +51,9 @@ export function CollaborationWorkConsole({
   const types = data.sourceTypes;
   return (
     <>
-      {error && <p role="alert">{error}</p>}
+      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
       <p>
-        <a href={`${base}/inbox`}>
-          Open conversations and authorized thread files
-        </a>
+        <a href={`${base}/inbox`}>Open conversations and authorized thread files</a>
       </p>
       <p>
         <a href={`/api/v1${base}/collaboration?format=csv`} download>
@@ -61,8 +62,8 @@ export function CollaborationWorkConsole({
       </p>
       {data.canWrite && (
         <>
-          <form
-            className="card business-form"
+          <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Link records</summary><FormLayout
+            className="ui-panel ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
               void send({
@@ -72,49 +73,49 @@ export function CollaborationWorkConsole({
             }}
           >
             <h2>Link records</h2>
-            <label>
+            <Field appearance="standard">
               Source type
-              <select name="sourceType">
+              <Select appearance="standard" name="sourceType">
                 {types.map((x) => (
                   <option key={x}>{x}</option>
                 ))}
-              </select>
-            </label>
-            <label>
+              </Select>
+            </Field>
+            <Field appearance="standard">
               Source id
-              <input name="sourceId" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="sourceId" required />
+            </Field>
+            <Field appearance="standard">
               Target type
-              <select name="targetType">
+              <Select appearance="standard" name="targetType">
                 {types.map((x) => (
                   <option key={x}>{x}</option>
                 ))}
-              </select>
-            </label>
-            <label>
+              </Select>
+            </Field>
+            <Field appearance="standard">
               Target id
-              <input name="targetId" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="targetId" required />
+            </Field>
+            <Field appearance="standard">
               Relation
-              <select name="relation">
+              <Select appearance="standard" name="relation">
                 <option value="related">Related</option>
                 <option value="blocks">Blocks</option>
                 <option value="depends_on">Depends on</option>
                 <option value="duplicates">Duplicates</option>
-              </select>
-            </label>
-            <label>
+              </Select>
+            </Field>
+            <Field appearance="standard">
               Reason
-              <textarea name="reason" required minLength={3} />
-            </label>
-            <button className="button" disabled={busy}>
+              <TextArea appearance="standard" name="reason" required minLength={3} />
+            </Field>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Create typed relation
-            </button>
-          </form>
-          <form
-            className="card business-form"
+            </Button>
+          </FormLayout></FormDisclosure>
+          <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Create action card</summary><FormLayout
+            className="ui-panel ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
               const f = Object.fromEntries(new FormData(e.currentTarget));
@@ -122,46 +123,46 @@ export function CollaborationWorkConsole({
             }}
           >
             <h2>Create action card</h2>
-            <label>
+            <Field appearance="standard">
               Source type
-              <select name="sourceType">
+              <Select appearance="standard" name="sourceType">
                 {types.map((x) => (
                   <option key={x}>{x}</option>
                 ))}
-              </select>
-            </label>
-            <label>
+              </Select>
+            </Field>
+            <Field appearance="standard">
               Source id
-              <input name="sourceId" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="sourceId" required />
+            </Field>
+            <Field appearance="standard">
               Title
-              <input name="title" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="title" required />
+            </Field>
+            <Field appearance="standard">
               Owner
-              <select name="ownerId">
+              <Select appearance="standard" name="ownerId">
                 {data.people.map((x) => (
                   <option key={String(x.id)} value={String(x.id)}>
                     {String(x.name)}
                   </option>
                 ))}
-              </select>
-            </label>
-            <PreferredDateTimeField name="dueAt" label="Due" required />
-            <label>
+              </Select>
+            </Field>
+            <PreferredDateTimeField appearance="standard" name="dueAt" label="Due" required />
+            <Field appearance="standard">
               Reason
-              <textarea name="reason" required minLength={3} />
-            </label>
-            <button className="button" disabled={busy}>
+              <TextArea appearance="standard" name="reason" required minLength={3} />
+            </Field>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Create action card
-            </button>
-          </form>
+            </Button>
+          </FormLayout></FormDisclosure>
         </>
       )}
       {data.relations.map((x) => (
-        <form
-          className="card business-form"
+        <FormLayout
+          className="ui-panel ui-form-grid"
           key={String(x.id)}
           onSubmit={(e) => {
             e.preventDefault();
@@ -175,21 +176,21 @@ export function CollaborationWorkConsole({
           }}
         >
           <h2>
-            {String(x.source_type)} {String(x.source_id)} · {String(x.relation)}{" "}
-            · {String(x.target_type)} {String(x.target_id)}
+            {String(x.source_type)} {String(x.source_id)} · {String(x.relation)} ·{" "}
+            {String(x.target_type)} {String(x.target_id)}
           </h2>
-          <label>
+          <Field appearance="standard">
             Removal reason
-            <textarea name="reason" required minLength={3} />
-          </label>
-          <button className="button" disabled={busy}>
+            <TextArea appearance="standard" name="reason" required minLength={3} />
+          </Field>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Remove relation
-          </button>
-        </form>
+          </Button>
+        </FormLayout>
       ))}
       {data.cards.map((x) => (
-        <form
-          className="card business-form"
+        <FormDisclosure key={String(x.id)} appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>{String(x.title)}</summary><FormLayout
+          className="ui-panel ui-form-grid"
           key={String(x.id)}
           onSubmit={(e) => {
             e.preventDefault();
@@ -199,10 +200,7 @@ export function CollaborationWorkConsole({
               ...f,
               id: x.id,
               expectedVersion: Number(x.version),
-              dueAt:
-                action === "reassign"
-                  ? new Date(String(f.dueAt)).getTime()
-                  : undefined,
+              dueAt: action === "reassign" ? new Date(String(f.dueAt)).getTime() : undefined,
             });
           }}
         >
@@ -213,40 +211,40 @@ export function CollaborationWorkConsole({
           </p>
           {x.status === "open" && (
             <>
-              <label>
+              <Field appearance="standard">
                 Action
-                <select name="action">
+                <Select appearance="standard" name="action">
                   <option value="complete">Complete</option>
                   {data.canReview && <option value="reassign">Reassign</option>}
                   {data.canReview && <option value="cancel">Cancel</option>}
-                </select>
-              </label>
-              <label>
+                </Select>
+              </Field>
+              <Field appearance="standard">
                 New owner
-                <select name="ownerId">
+                <Select appearance="standard" name="ownerId">
                   <option value={String(x.owner_id)}>Keep current owner</option>
                   {data.people.map((p) => (
                     <option key={String(p.id)} value={String(p.id)}>
                       {String(p.name)}
                     </option>
                   ))}
-                </select>
-              </label>
-              <PreferredDateTimeField name="dueAt" label="New due" />
-              <label>
+                </Select>
+              </Field>
+              <PreferredDateTimeField appearance="standard" name="dueAt" label="New due" />
+              <Field appearance="standard">
                 Completion evidence
-                <textarea name="evidence" />
-              </label>
-              <label>
+                <TextArea appearance="standard" name="evidence" />
+              </Field>
+              <Field appearance="standard">
                 Reason
-                <textarea name="reason" required minLength={3} />
-              </label>
-              <button className="button" disabled={busy}>
+                <TextArea appearance="standard" name="reason" required minLength={3} />
+              </Field>
+              <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
                 Record action
-              </button>
+              </Button>
             </>
           )}
-        </form>
+        </FormLayout></FormDisclosure>
       ))}
     </>
   );

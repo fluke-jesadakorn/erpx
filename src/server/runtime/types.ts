@@ -42,11 +42,13 @@ export type StoredFile = FileMetadata & {
   text(): Promise<string>;
 };
 export interface FileStore {
+  /** Protected stores can reuse an active transaction from their owning database. */
+  readonly supportsTransactionDeletion?: boolean;
   put(key: string, value: string | ArrayBuffer | ArrayBufferView | ReadableStream<Uint8Array> | Blob,
     options?: { onlyIf?: { etagDoesNotMatch: string }; httpMetadata?: FileMetadata['httpMetadata']; customMetadata?: Record<string, string> }): Promise<FileMetadata | null>;
   get(key: string, options?: { range?: { offset?: number; length?: number; suffix?: number } }): Promise<StoredFile | null>;
   head(key: string): Promise<FileMetadata | null>;
-  delete(key: string | string[]): Promise<void>;
+  delete(key: string | string[], authorization?: { database: SqlDatabase }): Promise<void>;
   destroyPreserved?(keys:string[], authorization:{database:SqlDatabase;destructionId:string}):Promise<void>;
   list(options?: { prefix?: string; cursor?: string; limit?: number }): Promise<{ objects: FileMetadata[]; truncated: boolean; cursor?: string }>;
 }

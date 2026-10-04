@@ -1,5 +1,7 @@
 # Temporary emergency access
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 Account Security now closes the self-service emergency-access lifecycle. A designated recovery administrator must complete fresh MFA before activating a temporary elevation, which is scoped to one Platform or Holding company and expires no later than one hour or the authorizing assignment's expiry. The page lists only elevations attached to the signed-in user and current browser session; each entry shows its scope, reason and expiry. The same session can revoke its elevation early, and the authorization lookup rejects that session immediately after the revocation commits.
 
 Activation and revocation write immutable IAM audit evidence and an idempotency receipt in the same PostgreSQL transaction as the session change. Reusing a key with the same request returns the committed result, including when duplicate requests arrive concurrently. Reusing that key for a different operation or payload fails with a conflict. Revocation cannot target another user or another browser session. Account Security reports Holding scopes whose status could not be checked instead of treating an incomplete check as an empty list.

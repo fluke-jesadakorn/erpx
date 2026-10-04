@@ -1,15 +1,11 @@
 "use client";
+import { Button, TextInput, type UiAppearance } from "@/components/ui/foundation";
 
 import { AppNavigation } from "./app-navigation";
 import { useHydrated } from "@/components/ui/use-hydrated";
+import { navigationSearch } from "@/lib/navigation-catalog";
 import Link from "next/link";
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { useCallback, useEffect, useId, useState, useSyncExternalStore } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   ArrowLeftRight,
@@ -139,9 +135,11 @@ const subscribeHydration = () => () => {};
 
 export function Appearance({
   initialTheme,
+  appearance = "legacy",
   compact = false,
 }: {
   initialTheme: string;
+  appearance?: UiAppearance;
   compact?: boolean;
 }) {
   const theme = useSyncExternalStore(
@@ -162,7 +160,8 @@ export function Appearance({
           ["system", "System", Monitor],
         ] as const
       ).map(([value, label, Icon]) => (
-        <button
+        <Button appearance={appearance}
+          variant={appearance === "standard" ? "ghost" : "plain"}
           type="button"
           key={value}
           aria-label={label}
@@ -172,7 +171,7 @@ export function Appearance({
         >
           <Icon size={13} />
           {!compact && label}
-        </button>
+        </Button>
       ))}
     </div>
   );
@@ -191,31 +190,28 @@ function readCollapsed(value: string) {
   }
 }
 
-export function WorkplaceNavigation(props: NavigationContext & { mobile?: boolean; theme?: string }) {
-  return props.scopeKind === "platform" || props.workspaceBase === "/platform"
-    ? <LegacyWorkplaceNavigation {...props}/>
-    : <AppNavigation context={props} mobile={props.mobile} Icon={NavigationIcon}/>;
+export function WorkplaceNavigation(
+  props: NavigationContext & { mobile?: boolean; theme?: string; appearance?: UiAppearance },
+) {
+  return props.scopeKind === "platform" || props.workspaceBase === "/platform" ? (
+    <LegacyWorkplaceNavigation {...props} />
+  ) : (
+    <AppNavigation appearance={props.appearance} context={props} mobile={props.mobile} Icon={NavigationIcon} />
+  );
 }
 
 function LegacyWorkplaceNavigation(
-  props: NavigationContext & { mobile?: boolean; theme?: string },
+  props: NavigationContext & { mobile?: boolean; theme?: string; appearance?: UiAppearance },
 ) {
-  const { workspaceBase, mobile = false } = props;
+  const { workspaceBase, mobile = false, appearance = "legacy" } = props;
   const { counts, readHome } = useNavigationCounts();
   const ready = useHydrated();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const model = workplaceNavigation(props);
-  const resolved = resolveNavigation(
-    model,
-    workspaceBase,
-    pathname,
-    searchParams,
-  );
+  const resolved = resolveNavigation(model, workspaceBase, pathname, searchParams);
   const business = model.apps.filter((group) => group.placement === "business");
-  const secondary = model.apps.filter(
-    (group) => group.placement === "secondary",
-  );
+  const secondary = model.apps.filter((group) => group.placement === "secondary");
   const standard = !props.beta && props.scopeKind !== "platform" && workspaceBase !== "/platform";
   const legacyStorageKey = `erpx-navigation-collapsed:v2:${workspaceBase}`;
   const storageKey = standard ? `erpx-navigation-collapsed:v3:${workspaceBase}` : legacyStorageKey;
@@ -245,9 +241,15 @@ function LegacyWorkplaceNavigation(
       try {
         const saved = window.localStorage.getItem(storageKey);
         return standard
-          ? navigationCollapsedValue(saved, window.localStorage.getItem(legacyStorageKey), model.apps.map((group) => group.id))
-          : saved ?? defaultCollapsed;
-      } catch { return defaultCollapsed; }
+          ? navigationCollapsedValue(
+              saved,
+              window.localStorage.getItem(legacyStorageKey),
+              model.apps.map((group) => group.id),
+            )
+          : (saved ?? defaultCollapsed);
+      } catch {
+        return defaultCollapsed;
+      }
     },
     () => defaultCollapsed,
   );
@@ -262,8 +264,7 @@ function LegacyWorkplaceNavigation(
     }
   };
   const expanded = (id: string) =>
-    (resolved.groupId === id && activeCollapse !== `${location}:${id}`) ||
-    !collapsed.has(id);
+    (resolved.groupId === id && activeCollapse !== `${location}:${id}`) || !collapsed.has(id);
   const toggleExpanded = (id: string) => {
     const next = new Set(collapsed);
     const open = expanded(id);
@@ -302,24 +303,21 @@ function LegacyWorkplaceNavigation(
         )}
         <span>{item.label}</span>
         {item.openInNewTab && <ArrowUpRight size={14} aria-hidden="true" />}
-        {(item.id === "home" || item.id === "work") &&
-          workspaceBase !== "/platform" && (
-            <span
-              className={styles.navBadge}
-              title={
-                item.id === "home"
-                  ? "Unread team updates"
-                  : "Unfinished work, including waiting"
-              }
-              aria-label={
-                count === null
-                  ? "Count unavailable"
-                  : `${count} ${item.id === "home" ? "unread updates" : "unfinished work items"}`
-              }
-            >
-              {count ?? "–"}
-            </span>
-          )}
+        {(item.id === "home" || item.id === "work") && workspaceBase !== "/platform" && (
+          <span
+            className={styles.navBadge}
+            title={
+              item.id === "home" ? "Unread team updates" : "Unfinished work, including waiting"
+            }
+            aria-label={
+              count === null
+                ? "Count unavailable"
+                : `${count} ${item.id === "home" ? "unread updates" : "unfinished work items"}`
+            }
+          >
+            {count ?? "–"}
+          </span>
+        )}
       </Link>
     );
   };
@@ -328,13 +326,10 @@ function LegacyWorkplaceNavigation(
     const childrenId = `${treeId}-${group.id}`;
     const groupActive = resolved.groupId === group.id;
     return (
-      <section
-        className={styles.navGroup}
-        data-active={groupActive || undefined}
-        key={group.id}
-      >
+      <section className={styles.navGroup} data-active={groupActive || undefined} key={group.id}>
         <div className={styles.navGroupHead}>
-          <button
+          <Button appearance={appearance}
+            variant={appearance === "standard" ? "ghost" : "plain"}
             type="button"
             className={styles.navGroupLabel}
             onClick={() => toggleExpanded(group.id)}
@@ -345,14 +340,9 @@ function LegacyWorkplaceNavigation(
             <NavigationIcon id={group.icon} />
             <span>{group.label}</span>
             <ChevronDown className={styles.navGroupChevron} size={15} aria-hidden="true" />
-          </button>
+          </Button>
         </div>
-        <div
-          id={childrenId}
-          className={styles.navChildren}
-          data-expanded={open}
-          hidden={!open}
-        >
+        <div id={childrenId} className={styles.navChildren} data-expanded={open} hidden={!open}>
           {group.items.map((item) => link(item, true))}
         </div>
       </section>
@@ -373,9 +363,7 @@ function LegacyWorkplaceNavigation(
         aria-label={mobile ? "Mobile navigation" : "Primary"}
       >
         {model.primary.map((item) => link(item))}
-        {!mobile && !!business.length && (
-          <span className={styles.navLabel}>Business</span>
-        )}
+        {!mobile && !!business.length && <span className={styles.navLabel}>Business</span>}
         {!mobile && business.map(renderGroup)}
         {!mobile && (secondary.length > 0 || model.standalone.length > 0) && (
           <div className={styles.secondaryNav} data-expanded="true">
@@ -384,15 +372,15 @@ function LegacyWorkplaceNavigation(
           </div>
         )}
         {mobile && (
-          <button
+          <Button appearance={appearance}
+            variant={appearance === "standard" ? "ghost" : "plain"}
             type="button"
             className={styles.moreButton}
             disabled={!ready}
             onClick={() => setMobileOpen(true)}
             aria-expanded={mobileOpen}
             aria-current={
-              resolved.groupId ||
-              model.standalone.some((item) => item.id === resolved.activeId)
+              resolved.groupId || model.standalone.some((item) => item.id === resolved.activeId)
                 ? "page"
                 : undefined
             }
@@ -400,11 +388,11 @@ function LegacyWorkplaceNavigation(
           >
             <Menu size={18} aria-hidden="true" />
             <span>More</span>
-          </button>
+          </Button>
         )}
       </nav>
       {mobile && (
-        <Dialog
+        <Dialog appearance={appearance}
           title="More"
           open={mobileOpen}
           onClose={() => setMobileOpen(false)}
@@ -420,7 +408,8 @@ function LegacyWorkplaceNavigation(
   );
 }
 
-export function CommandSearch(props: NavigationContext) {
+export function CommandSearch(props: NavigationContext & { appearance?: UiAppearance }) {
+  const appearance = props.appearance ?? "legacy";
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const ready = useSyncExternalStore(
@@ -439,17 +428,11 @@ export function CommandSearch(props: NavigationContext) {
     document.addEventListener("keydown", handle);
     return () => document.removeEventListener("keydown", handle);
   }, []);
-  const normalized = query.trim().toLowerCase();
-  const results = workplaceNavigation(props)
-    .search.filter((item) =>
-      `${item.label} ${item.group} ${(item.keywords ?? []).join(" ")}`
-        .toLowerCase()
-        .includes(normalized),
-    )
-    .slice(0, 40);
+  const results = navigationSearch(workplaceNavigation(props), query).slice(0, 40);
   return (
     <>
-      <button
+      <Button appearance={appearance}
+        variant={appearance === "standard" ? "ghost" : "plain"}
         type="button"
         className={styles.searchButton}
         onClick={() => {
@@ -462,11 +445,11 @@ export function CommandSearch(props: NavigationContext) {
         <Search size={16} />
         <span>Go to</span>
         <kbd>⌘ K</kbd>
-      </button>
-      <Dialog title="Go to…" open={open} onClose={() => setOpen(false)}>
+      </Button>
+      <Dialog appearance={appearance} title="Go to…" open={open} onClose={() => setOpen(false)}>
         <div className={styles.commandSearch}>
           <Search size={17} />
-          <input
+          <TextInput appearance={appearance}
             data-autofocus
             className="input"
             aria-label="Search workspace destinations"
@@ -476,12 +459,19 @@ export function CommandSearch(props: NavigationContext) {
           />
         </div>
         <div className={styles.commandResults}>
-          {results.map((item) => (
-            <Link key={item.id} href={item.href} target={item.openInNewTab ? "_blank" : undefined} rel={item.openInNewTab ? "noopener noreferrer" : undefined} aria-label={item.openInNewTab ? `${item.label}, opens in a new tab` : undefined} onClick={() => setOpen(false)}>
+          {results.map(({ item, context }) => (
+            <Link
+              key={item.id}
+              href={item.href}
+              target={item.openInNewTab ? "_blank" : undefined}
+              rel={item.openInNewTab ? "noopener noreferrer" : undefined}
+              aria-label={item.openInNewTab ? `${item.label}, opens in a new tab` : undefined}
+              onClick={() => setOpen(false)}
+            >
               <NavigationIcon id={item.icon} />
               <span>
                 <strong>{item.label}</strong>
-                <small>{item.group}</small>
+                <small>{context}</small>
               </span>
               <ArrowUpRight size={14} aria-hidden="true" />
             </Link>

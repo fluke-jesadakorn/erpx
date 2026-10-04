@@ -213,20 +213,26 @@ async function validateNodeLineage(
 export type WorkspaceCompany = { id: string; name: string };
 export type WorkspaceResolutionOptions = { companyId?: string };
 
-export const listWorkspaceCompanies = cache(async (holdingId: HoldingId) => {
-  const { write } = await holdingResources(holdingId);
-  const { session } = await currentSession();
-  const now = Date.now();
+/** Current published IAM scopes determine Company choices, including reviewed custom roles. */
+export async function workspaceCompaniesForAccount(write: SqlDatabase, userId: string, now = Date.now()): Promise<WorkspaceCompany[]> {
   const rows = (await write.prepare(
-    `SELECT n.id,n.display_name,a.role FROM organization_nodes n
+    `SELECT n.id,n.display_name FROM organization_nodes n
      JOIN assignments a ON a.company_id=n.id
      WHERE n.kind='company' AND n.status='active' AND a.user_id=?
        AND a.scope_kind='holding' AND a.revoked_at IS NULL AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
        AND a.valid_from<=? AND a.valid_until>?
+       AND EXISTS(SELECT 1 FROM iam_roles role_row JOIN iam_role_revisions role_revision
+         ON role_revision.company_id=role_row.company_id AND role_revision.role_id=role_row.id AND role_revision.revision=role_row.published_revision
+         WHERE role_row.id=a.role AND role_row.company_id IN ('*',a.company_id) AND role_row.status='active'
+           AND role_revision.scopes_json @> '["holding"]'::jsonb)
      ORDER BY n.display_name,n.id`,
-  ).bind(session.user.id, now, now).all<{id:string;display_name:string;role:string}>()).results;
-  return [...new Map(rows.filter(row => isRoleValidAtScope(row.role, "holding"))
-    .map(row => [row.id, { id: row.id, name: row.display_name }])).values()];
+  ).bind(userId, now, now).all<{id:string;display_name:string}>()).results;
+  return [...new Map(rows.map(row => [row.id, { id: row.id, name: row.display_name }])).values()];
+}
+export const listWorkspaceCompanies = cache(async (holdingId: HoldingId) => {
+  const { write } = await holdingResources(holdingId);
+  const { session } = await currentSession();
+  return workspaceCompaniesForAccount(write, session.user.id);
 });
 
 export async function resolveWorkspaceScope(

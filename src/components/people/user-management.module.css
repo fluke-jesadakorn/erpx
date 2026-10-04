@@ -27,16 +27,16 @@
   display: grid;
   gap: 5px;
   margin: 10px 0;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 12px;
 }
 .targetFilter select {
   min-height: 38px;
   padding: 8px 10px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 8px;
-  background: var(--card);
-  color: var(--ink);
+  background: var(--ui-card);
+  color: var(--ui-ink);
 }
 .topbar,
 .intro,
@@ -49,7 +49,7 @@
 }
 .topbar {
   justify-content: space-between;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-line);
   padding-bottom: 12px;
 }
 .topbar nav {
@@ -64,7 +64,7 @@
 .branch button {
   border: 0;
   background: transparent;
-  color: var(--ink);
+  color: var(--ui-ink);
   text-align: left;
   cursor: pointer;
 }
@@ -79,12 +79,12 @@
 .topbar nav button[aria-current],
 .item[aria-pressed="true"],
 .personRow button[aria-pressed="true"] {
-  background: var(--brand-soft);
-  color: var(--brand);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand);
 }
 .workspace button:focus-visible,
 .workspace summary:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--ui-brand);
   outline-offset: 2px;
 }
 .advanced {
@@ -98,8 +98,8 @@
   cursor: pointer;
 }
 .advanced[open] {
-  background: var(--card);
-  border: 1px solid var(--line);
+  background: var(--ui-card);
+  border: 1px solid var(--ui-line);
   padding: 12px;
   border-radius: 10px;
 }
@@ -116,13 +116,13 @@
 .intro h2 {
   font-size: 20px;
   margin: 0 0 7px;
-  color: var(--ink-strong);
+  color: var(--ui-ink-strong);
 }
 .intro p,
 .tree p,
 .detail p,
 .reviewPanel p {
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 13px;
   line-height: 1.6;
 }
@@ -132,13 +132,10 @@
 }
 .panes {
   display: grid;
-  grid-template-columns: minmax(170px, 0.75fr) minmax(240px, 1fr) minmax(
-      290px,
-      1.2fr
-    );
-  border: 1px solid var(--line);
+  grid-template-columns: minmax(170px, 0.75fr) minmax(240px, 1fr) minmax(290px, 1.2fr);
+  border: 1px solid var(--ui-line);
   border-radius: 14px;
-  background: var(--card);
+  background: var(--ui-card);
   overflow: hidden;
   min-height: 560px;
 }
@@ -153,13 +150,13 @@
 }
 .results,
 .detail {
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--ui-line);
 }
 .tree h3 {
   text-transform: uppercase;
   letter-spacing: 0.09em;
   font-size: 10px;
-  color: var(--muted);
+  color: var(--ui-muted);
   margin: 24px 0 10px;
 }
 .all {
@@ -172,7 +169,7 @@
 }
 .branch .branch {
   margin-left: 12px;
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--ui-line);
   padding-left: 6px;
 }
 .branch summary {
@@ -184,7 +181,7 @@
 }
 .branch summary::before {
   content: "›";
-  color: var(--muted);
+  color: var(--ui-muted);
   cursor: pointer;
 }
 .branch[open] > summary::before {
@@ -202,14 +199,14 @@
 }
 .branch svg {
   flex-shrink: 0;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .branch small,
 .item small,
 .personRow small,
 .candidate small {
   display: block;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 11px;
   line-height: 1.6;
   font-weight: 400;
@@ -218,17 +215,17 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 8px;
   padding: 8px 10px;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .search input {
   border: 0;
   background: transparent;
   min-width: 0;
   width: 100%;
-  color: var(--ink);
+  color: var(--ui-ink);
   outline: none;
 }
 .bulk {
@@ -269,17 +266,17 @@
 .item svg,
 .personRow svg {
   flex-shrink: 0;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .item:hover,
 .personRow button:hover,
 .branch button:hover {
-  background: var(--surface-2, var(--brand-soft));
+  background: var(--surface-2, var(--ui-brand-soft));
 }
 .detail h2 {
   font-size: 18px;
   margin-top: 0;
-  color: var(--ink-strong);
+  color: var(--ui-ink-strong);
 }
 .detail h3,
 .reviewPanel h3 {
@@ -291,7 +288,7 @@
   line-height: 1.8;
 }
 .ruleSummary {
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 8px;
   padding: 12px;
   margin: 10px 0;
@@ -310,14 +307,14 @@
   text-align: center;
   gap: 10px;
   padding: 35px 15px;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .reviewPanel {
   margin-top: 24px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 14px;
   padding: 20px;
-  background: var(--card);
+  background: var(--ui-card);
 }
 .reviewPanel .intro {
   margin-top: 0;
@@ -327,7 +324,7 @@
   gap: 12px;
   align-items: center;
   padding: 13px 0;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--ui-line);
   font-size: 13px;
 }
 .candidate > span:first-of-type {
@@ -337,17 +334,17 @@
 }
 .status {
   font-size: 11px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 20px;
   padding: 4px 9px;
   text-transform: capitalize;
 }
 .status[data-status="active"] {
-  color: var(--brand);
-  background: var(--brand-soft);
+  color: var(--ui-brand);
+  background: var(--ui-brand-soft);
 }
 .notice {
-  background: var(--brand-soft);
+  background: var(--ui-brand-soft);
   padding: 12px 15px;
   border-radius: 8px;
   font-size: 13px;
@@ -356,7 +353,7 @@
   display: grid;
   gap: 16px;
   min-width: 0;
-  color: var(--ink);
+  color: var(--ui-ink);
 }
 .form label {
   display: grid;
@@ -369,10 +366,10 @@
 .form textarea {
   width: 100%;
   min-width: 0;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 8px;
-  background: var(--card);
-  color: var(--ink);
+  background: var(--ui-card);
+  color: var(--ui-ink);
   padding: 10px;
   font: inherit;
   box-sizing: border-box;
@@ -382,13 +379,13 @@
 }
 .form small,
 .form p {
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 12px;
   font-weight: 400;
   line-height: 1.6;
 }
 .form fieldset {
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 10px;
   display: grid;
   gap: 12px;
@@ -402,7 +399,7 @@
 .condition {
   display: grid;
   gap: 10px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-line);
   padding-bottom: 12px;
 }
 .form textarea {
@@ -426,7 +423,7 @@
   .workspace[data-compact-console="true"] .detail {
     grid-column: auto;
     border-top: 0;
-    border-left: 1px solid var(--line);
+    border-left: 1px solid var(--ui-line);
   }
   .workspace[data-compact-console="true"] .results {
     max-height: none;
@@ -437,7 +434,7 @@
   .detail {
     grid-column: 1/-1;
     border-left: 0;
-    border-top: 1px solid var(--line);
+    border-top: 1px solid var(--ui-line);
     max-height: none;
   }
   .tree,
@@ -508,8 +505,22 @@
     overflow: hidden;
   }
   .workspace[data-compact-console="true"] .results,
-  .workspace[data-compact-console="true"] .detail { display: none; border: 0; max-height: none; height: 100%; overflow: auto; }
+  .workspace[data-compact-console="true"] .detail {
+    display: none;
+    border: 0;
+    max-height: none;
+    height: 100%;
+    overflow: auto;
+  }
   .workspace[data-compact-console="true"] .panes[data-screen="results"] .results,
-  .workspace[data-compact-console="true"] .panes[data-screen="detail"] .detail { display: block; }
-  .workspace[data-compact-console="true"] .mobileSteps { display: flex; margin-bottom: 12px; }
+  .workspace[data-compact-console="true"] .panes[data-screen="detail"] .detail {
+    display: block;
+  }
+  .workspace[data-compact-console="true"] .mobileSteps {
+    display: flex;
+    margin-bottom: 12px;
+  }
 }
+
+/* Internal content shares the parent surface; use dividers for hierarchy. */
+.panes .ruleSummary { border: 0; border-inline-start: 3px solid var(--ui-brand); border-radius: 0; box-shadow: none; }

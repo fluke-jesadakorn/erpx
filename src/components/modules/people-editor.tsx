@@ -1,4 +1,6 @@
 "use client";
+import { FormDrawer } from "@/components/ui/dialog";
+import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
 import { workFetch } from "@/lib/work-fetch";
 
@@ -8,8 +10,9 @@ import { useRouter } from "next/navigation";
 import type { OrganizationOverview } from "@/lib/organization";
 import type { PeopleLifecycleData } from "@/lib/people-lifecycle";
 import { positionGpoStatus } from "@/components/people/gpo-status";
+import { type UiAppearance } from "@/components/ui/foundation";
 type Row = Record<string, unknown>;
-export function PeopleEditor({
+export function PeopleEditor({ appearance = "legacy",
   base,
   person,
   nodes,
@@ -24,7 +27,7 @@ export function PeopleEditor({
   lifecycleManaged = false,
   initialOpen = false,
   alwaysOpen = false,
-}: {
+}: ({
   base: string;
   person?: Row;
   nodes: Row[];
@@ -35,11 +38,11 @@ export function PeopleEditor({
   returnTo?: string;
   organization?: OrganizationOverview;
   gpoPositions?: Pick<PeopleLifecycleData["positions"][number], "id" | "gpo">[];
-  initialPositionId?:string;
+  initialPositionId?: string;
   lifecycleManaged?: boolean;
   initialOpen?: boolean;
   alwaysOpen?: boolean;
-}) {
+}) & { appearance?: UiAppearance }) {
   const ready = useHydrated();
   const router = useRouter();
   const [open, setOpen] = useState(initialOpen || !!initialPositionId);
@@ -47,18 +50,33 @@ export function PeopleEditor({
   const [pending, setPending] = useState(false);
   const [branch, setBranch] = useState(
     String(
-      person?.branch_id ?? organization?.positions.find(p=>p.id===initialPositionId)?.branch_id ?? nodes.find((n) => n.kind === "branch")?.id ?? "",
+      person?.branch_id ??
+        organization?.positions.find((p) => p.id === initialPositionId)?.branch_id ??
+        nodes.find((n) => n.kind === "branch")?.id ??
+        "",
     ),
   );
   const command = useRef<{ payload: string; key: string } | null>(null);
-  const [positionId,setPositionId]=useState(String(person?.position_id??initialPositionId??""));
-  const [levelId,setLevelId]=useState(String(person?.level_id??organization?.positions.find(p=>p.id===initialPositionId)?.level_id??""));
-  const selectedPosition=organization?.positions.find(p=>p.id===positionId);
-  const selectedGpo=gpoPositions?.find(p=>p.id===positionId)?.gpo;
-  const selectedLevel=organization?.levels.find(l=>l.id===levelId)?.level_number;
-  const suggestedPay=organization?.defaults?.pay.find(item=>item.position_id===positionId);
-  const suggestedLeave=organization?.defaults?.leave.find(item=>item.level_id===levelId);
-  const managerPeople=[...new Map([...people,...(organization?.people??[])].map(p=>[String(p.person_id),p])).values()];
+  const [positionId, setPositionId] = useState(
+    String(person?.position_id ?? initialPositionId ?? ""),
+  );
+  const [levelId, setLevelId] = useState(
+    String(
+      person?.level_id ??
+        organization?.positions.find((p) => p.id === initialPositionId)?.level_id ??
+        "",
+    ),
+  );
+  const selectedPosition = organization?.positions.find((p) => p.id === positionId);
+  const selectedGpo = gpoPositions?.find((p) => p.id === positionId)?.gpo;
+  const selectedLevel = organization?.levels.find((l) => l.id === levelId)?.level_number;
+  const suggestedPay = organization?.defaults?.pay.find((item) => item.position_id === positionId);
+  const suggestedLeave = organization?.defaults?.leave.find((item) => item.level_id === levelId);
+  const managerPeople = [
+    ...new Map(
+      [...people, ...(organization?.people ?? [])].map((p) => [String(p.person_id), p]),
+    ).values(),
+  ];
   async function send(path: string, input: unknown) {
     const payload = JSON.stringify(input);
     if (command.current?.payload !== payload)
@@ -81,8 +99,7 @@ export function PeopleEditor({
         data: { id: string };
         error?: { message: string };
       };
-      if (!response.ok)
-        throw new Error(result.error?.message ?? "Unable to save.");
+      if (!response.ok) throw new Error(result.error?.message ?? "Unable to save.");
       command.current = null;
       setOpen(false);
       router.push(returnTo ?? `${base}/people/${result.data.id}`);
@@ -94,27 +111,29 @@ export function PeopleEditor({
     }
   }
   return (
-    <section className="card">
-      <div className="section-head">
-        <h2>{person ? "Manage employee" : "Add a person"}</h2>
+    <section data-ui-appearance={appearance} className={appearance === "standard" ? "ui-panel" : "card"}>
+      <div data-ui-appearance={appearance} className={appearance === "standard" ? "ui-section-header" : "section-head"}>
+        <h2 data-ui-appearance={appearance}>{person ? "Manage employee" : "Add a person"}</h2>
         {!alwaysOpen && (
-          <button
-            className="button"
+          <Button appearance={appearance}
+            type="submit"
+            variant="primary"
+
             disabled={!ready}
             onClick={() => setOpen(!open)}
           >
             {open ? "Close form" : person ? "Edit employee" : "Add person"}
-          </button>
+          </Button>
         )}
       </div>
       {error && (
-        <p role="alert" className="error">
+        <p data-ui-appearance={appearance} role="alert" className="error">
           {error}
         </p>
       )}
       {(open || alwaysOpen) && (
-        <form
-          className="business-form"
+        <FormDrawer appearance={appearance} inline={alwaysOpen || initialOpen} open={open} onClose={() => setOpen(false)} title={person ? "Edit employee" : "Add a person"} dismissDisabled={pending}><form data-ui-appearance={appearance}
+          className={appearance === "standard" ? "ui-form-grid" : "business-form"}
           onSubmit={(e) => {
             e.preventDefault();
             const f = new FormData(e.currentTarget);
@@ -129,90 +148,93 @@ export function PeopleEditor({
               branchId: branch,
               departmentId: f.get("departmentId") || null,
               jobTitle: f.get("jobTitle"),
-              workerType:
-                f.get("employmentType") === "contractor"
-                  ? "contractor"
-                  : "employee",
+              workerType: f.get("employmentType") === "contractor" ? "contractor" : "employee",
               employmentType: f.get("employmentType"),
               startDate: f.get("startDate"),
               currency: f.get("currency"),
               managerPersonId: f.get("managerPersonId") || null,
               levelId: f.get("levelId") || null,
               positionId: positionId || null,
-              acceptRecommendedPay: f.get("acceptRecommendedPay")==="on",
-              acceptRecommendedLeave: f.get("acceptRecommendedLeave")==="on",
+              acceptRecommendedPay: f.get("acceptRecommendedPay") === "on",
+              acceptRecommendedLeave: f.get("acceptRecommendedLeave") === "on",
               reason: f.get("reason") || "Staff profile updated",
               ...(member ? { linkedMemberUserId: member.id } : {}),
-              ...(person ? { expectedVersion: person.version, ...(person.engagement_id ? { engagementId: person.engagement_id, expectedEngagementVersion: person.engagement_version } : {}) } : {}),
+              ...(person
+                ? {
+                    expectedVersion: person.version,
+                    ...(person.engagement_id
+                      ? {
+                          engagementId: person.engagement_id,
+                          expectedEngagementVersion: person.engagement_version,
+                        }
+                      : {}),
+                  }
+                : {}),
             });
           }}
         >
-          <label>
+          <Field appearance={appearance}>
             Legal name
-            <input
+            <TextInput appearance={appearance}
               name="legalName"
               required
               minLength={2}
               maxLength={200}
               defaultValue={String(person?.legal_name ?? member?.name ?? "")}
             />
-          </label>
-          <label>
+          </Field>
+          <Field appearance={appearance}>
             Preferred name
-            <input
+            <TextInput appearance={appearance}
               name="preferredName"
               maxLength={160}
               defaultValue={String(person?.preferred_name ?? "")}
             />
-          </label>
-          <label>
+          </Field>
+          <Field appearance={appearance}>
             Private email (HR)
-            <input
+            <TextInput appearance={appearance}
               name="email"
               type="email"
               required
               defaultValue={String(person?.email ?? member?.email ?? "")}
               readOnly={!!member}
             />
-          </label>
-          <label>
+          </Field>
+          <Field appearance={appearance}>
             Private phone (HR)
-            <input
-              name="phone"
-              type="tel"
-              defaultValue={String(person?.phone ?? "")}
-            />
-          </label>
-          <p className="muted">Published work contacts are visible to everyone in this Holding.</p>
-          <label>
+            <TextInput appearance={appearance} name="phone" type="tel" defaultValue={String(person?.phone ?? "")} />
+          </Field>
+          <p data-ui-appearance={appearance} className="muted">Published work contacts are visible to everyone in this Holding.</p>
+          <Field appearance={appearance}>
             Published work email
-            <input
+            <TextInput appearance={appearance}
               name="workEmail"
               type="email"
               defaultValue={String(person?.work_email ?? "")}
             />
-          </label>
-          <label>
+          </Field>
+          <Field appearance={appearance}>
             Published work phone
-            <input
+            <TextInput appearance={appearance}
               name="workPhone"
               type="tel"
               defaultValue={String(person?.work_phone ?? "")}
             />
-          </label>
-          <label>
+          </Field>
+          <Field appearance={appearance}>
             Country code
-            <input
+            <TextInput appearance={appearance}
               name="countryCode"
               required
               pattern="[A-Z]{2}"
               maxLength={2}
               defaultValue={String(person?.country_code ?? "")}
             />
-          </label>
-          <label>
+          </Field>
+          <Field appearance={appearance}>
             Branch
-            <select
+            <Select appearance={appearance}
               name="branchId"
               value={branch}
               onChange={(e) => setBranch(e.target.value)}
@@ -221,159 +243,257 @@ export function PeopleEditor({
               {nodes
                 .filter((n) => n.kind === "branch")
                 .map((n) => (
-                  <option key={String(n.id)} value={String(n.id)}>
+                  <option data-ui-appearance={appearance} key={String(n.id)} value={String(n.id)}>
                     {String(n.display_name)}
                   </option>
                 ))}
-            </select>
-          </label>
-          <label>
+            </Select>
+          </Field>
+          <Field appearance={appearance}>
             Department
-            <select
+            <Select appearance={appearance}
               name="departmentId"
               key={branch}
               defaultValue={String(person?.department_id ?? selectedPosition?.department_id ?? "")}
             >
-              <option value="">No department</option>
+              <option data-ui-appearance={appearance} value="">No department</option>
               {nodes
-                .filter(
-                  (n) => n.kind === "department" && n.branch_id === branch,
-                )
+                .filter((n) => n.kind === "department" && n.branch_id === branch)
                 .map((n) => (
-                  <option key={String(n.id)} value={String(n.id)}>
+                  <option data-ui-appearance={appearance} key={String(n.id)} value={String(n.id)}>
                     {String(n.display_name)}
                   </option>
                 ))}
-            </select>
-          </label>
-          {organization&&<label>Position<select value={positionId} onChange={e=>{setPositionId(e.target.value);const p=organization.positions.find(p=>p.id===e.target.value);if(p)setLevelId(p.level_id);}}><option value="">Not assigned — onboarding draft</option>{organization.positions.filter(p=>p.active===1&&(!p.branch_id||p.branch_id===branch)).map(p=><option key={p.id} value={p.id}>{p.title} · Level {p.level_number}</option>)}</select><small>Positions supply a default level. Confirm the staff level and actual manager below.</small>{positionId&&<small>{selectedGpo?positionGpoStatus(selectedGpo):"GPO preparation is tracked separately by IT."} HR can save this placement now.</small>}</label>}
-          {organization&&positionId&&<section className="card position-recommendations" aria-label="Position recommendations"><strong>Recommendations for {selectedPosition?.title}</strong><p>Level {selectedLevel??"not set"}</p>{suggestedPay&&<p>Default pay: {suggestedPay.currency} {(suggestedPay.monthly_amount_minor/100).toLocaleString()} / month · v{suggestedPay.version}</p>}{suggestedLeave&&<p>Leave: {suggestedLeave.annual_days} annual days · {suggestedLeave.sick_days} sick days / year · policy v{suggestedLeave.version}</p>}{suggestedPay&&<label><input type="checkbox" name="acceptRecommendedPay" defaultChecked={!person} /> Create pay draft from this recommendation (independent approval required)</label>}{suggestedLeave&&<label><input type="checkbox" name="acceptRecommendedLeave" defaultChecked={!person} /> Assign recommended leave policy</label>}</section>}
-          {levelManagedSeparately && !organization ? (
-            <input
-              type="hidden"
-              name="levelId"
-              value={String(person?.level_id ?? "")}
-            />
-          ) : (
-            <label>
-              Staff level
-              <select
-                name="levelId"
-                value={levelId}
-                onChange={e=>setLevelId(e.target.value)}
-                required={person?.engagement_status === "active"}
+            </Select>
+          </Field>
+          {organization && (
+            <Field appearance={appearance}>
+              Position
+              <Select appearance={appearance}
+                value={positionId}
+                onChange={(e) => {
+                  setPositionId(e.target.value);
+                  const p = organization.positions.find((p) => p.id === e.target.value);
+                  if (p) setLevelId(p.level_id);
+                }}
               >
-                <option value="">Not set</option>
-                {levels
-                  .filter((l) => (l.active === 1 && l.level_number != null) || l.id === person?.level_id)
-                  .map((l) => (
-                    <option key={String(l.id)} value={String(l.id)}>
-                      {String(l.name)} · {l.level_number?`Level ${l.level_number}`:"Legacy level — map to numbered catalog"}
+                <option data-ui-appearance={appearance} value="">Not assigned — onboarding draft</option>
+                {organization.positions
+                  .filter((p) => p.active === 1 && (!p.branch_id || p.branch_id === branch))
+                  .map((p) => (
+                    <option data-ui-appearance={appearance} key={p.id} value={p.id}>
+                      {p.title} · Level {p.level_number}
                     </option>
                   ))}
-              </select>
-            </label>
+              </Select>
+              <small data-ui-appearance={appearance}>
+                Positions supply a default level. Confirm the staff level and actual manager below.
+              </small>
+              {positionId && (
+                <small data-ui-appearance={appearance}>
+                  {selectedGpo
+                    ? positionGpoStatus(selectedGpo)
+                    : "GPO preparation is tracked separately by IT."}{" "}
+                  HR can save this placement now.
+                </small>
+              )}
+            </Field>
           )}
-          <label>
+          {organization && positionId && (
+            <section data-ui-appearance={appearance}
+              className={appearance === "standard" ? "ui-panel position-recommendations" : "card position-recommendations"}
+              aria-label="Position recommendations"
+            >
+              <strong data-ui-appearance={appearance}>Recommendations for {selectedPosition?.title}</strong>
+              <p data-ui-appearance={appearance}>Level {selectedLevel ?? "not set"}</p>
+              {suggestedPay && (
+                <p data-ui-appearance={appearance}>
+                  Default pay: {suggestedPay.currency}{" "}
+                  {(suggestedPay.monthly_amount_minor / 100).toLocaleString()} / month · v
+                  {suggestedPay.version}
+                </p>
+              )}
+              {suggestedLeave && (
+                <p data-ui-appearance={appearance}>
+                  Leave: {suggestedLeave.annual_days} annual days · {suggestedLeave.sick_days} sick
+                  days / year · policy v{suggestedLeave.version}
+                </p>
+              )}
+              {suggestedPay && (
+                <Field appearance={appearance} orientation="inline">
+                  <TextInput appearance={appearance} type="checkbox" name="acceptRecommendedPay" defaultChecked={!person} />{" "}
+                  Create pay draft from this recommendation (independent approval required)
+                </Field>
+              )}
+              {suggestedLeave && (
+                <Field appearance={appearance} orientation="inline">
+                  <TextInput appearance={appearance}
+                    type="checkbox"
+                    name="acceptRecommendedLeave"
+                    defaultChecked={!person}
+                  />{" "}
+                  Assign recommended leave policy
+                </Field>
+              )}
+            </section>
+          )}
+          {levelManagedSeparately && !organization ? (
+            <TextInput appearance={appearance} type="hidden" name="levelId" value={String(person?.level_id ?? "")} />
+          ) : (
+            <Field appearance={appearance}>
+              Staff level
+              <Select appearance={appearance}
+                name="levelId"
+                value={levelId}
+                onChange={(e) => setLevelId(e.target.value)}
+                required={person?.engagement_status === "active"}
+              >
+                <option data-ui-appearance={appearance} value="">Not set</option>
+                {levels
+                  .filter(
+                    (l) => (l.active === 1 && l.level_number != null) || l.id === person?.level_id,
+                  )
+                  .map((l) => (
+                    <option data-ui-appearance={appearance} key={String(l.id)} value={String(l.id)}>
+                      {String(l.name)} ·{" "}
+                      {l.level_number
+                        ? `Level ${l.level_number}`
+                        : "Legacy level — map to numbered catalog"}
+                    </option>
+                  ))}
+              </Select>
+            </Field>
+          )}
+          <Field appearance={appearance}>
             Reporting manager
-            <select
+            <Select appearance={appearance}
               name="managerPersonId"
               key={`${positionId}-${levelId}`}
-              defaultValue={selectedPosition?.is_ceo?"":String(person?.manager_person_id ?? "")}
+              defaultValue={selectedPosition?.is_ceo ? "" : String(person?.manager_person_id ?? "")}
               disabled={Boolean(selectedPosition?.is_ceo)}
             >
-              <option value="">{selectedPosition?.is_ceo?"CEO — no reporting manager":"Choose a manager before activation"}</option>
+              <option data-ui-appearance={appearance} value="">
+                {selectedPosition?.is_ceo
+                  ? "CEO — no reporting manager"
+                  : "Choose a manager before activation"}
+              </option>
               {managerPeople
-                .filter((p) => p.person_id !== person?.id && (!selectedLevel || (p.level_number != null && Number(p.level_number)<selectedLevel)) && (!p.status || p.status === "active"))
+                .filter(
+                  (p) =>
+                    p.person_id !== person?.id &&
+                    (!selectedLevel ||
+                      (p.level_number != null && Number(p.level_number) < selectedLevel)) &&
+                    (!p.status || p.status === "active"),
+                )
                 .map((p) => (
-                  <option
-                    key={String(p.engagement_id)}
-                    value={String(p.person_id)}
-                  >
-                    {String(p.legal_name)}{p.level_number?` · Level ${p.level_number}`:""}
+                  <option data-ui-appearance={appearance} key={String(p.engagement_id)} value={String(p.person_id)}>
+                    {String(p.legal_name)}
+                    {p.level_number ? ` · Level ${p.level_number}` : ""}
                   </option>
                 ))}
-            </select>
-          </label>
-          <label>
+            </Select>
+          </Field>
+          <Field appearance={appearance}>
             Job title
-            <input
+            <TextInput appearance={appearance}
               name="jobTitle"
               key={positionId}
               required
               minLength={2}
-              defaultValue={selectedPosition?.title??String(person?.job_title ?? selectedPosition?.title ?? "")}
+              defaultValue={
+                selectedPosition?.title ??
+                String(person?.job_title ?? selectedPosition?.title ?? "")
+              }
             />
-          </label>
-          <label>
+          </Field>
+          <Field appearance={appearance}>
             Employment type
-            <select
+            <Select appearance={appearance}
               name="employmentType"
               defaultValue={String(person?.employment_type ?? "salaried")}
             >
-              <option value="salaried">Salaried employee</option>
-              <option value="hourly">Hourly employee</option>
-              <option value="shift">Shift employee</option>
-              <option value="contractor">Contractor</option>
-            </select>
-          </label>
-          <label>
+              <option data-ui-appearance={appearance} value="salaried">Salaried employee</option>
+              <option data-ui-appearance={appearance} value="daily">Daily employee</option>
+              <option data-ui-appearance={appearance} value="hourly">Hourly employee</option>
+              <option data-ui-appearance={appearance} value="shift">Shift employee</option>
+              <option data-ui-appearance={appearance} value="contractor">Contractor</option>
+            </Select>
+          </Field>
+          <Field appearance={appearance}>
             Start date
-            <input
+            <TextInput appearance={appearance}
               name="startDate"
               type="date"
               required
-              defaultValue={String(
-                person?.start_date ?? new Date().toISOString().slice(0, 10),
-              )}
+              defaultValue={String(person?.start_date ?? new Date().toISOString().slice(0, 10))}
             />
-          </label>
-          <label>
+          </Field>
+          <Field appearance={appearance}>
             Pay currency
-            <select
-              name="currency"
-              defaultValue={String(person?.currency ?? "USD")}
-            >
+            <Select appearance={appearance} name="currency" defaultValue={String(person?.currency ?? "USD")}>
               {["THB", "USD", "EUR", "GBP", "SGD", "CAD"].map((c) => (
-                <option key={c}>{c}</option>
+                <option data-ui-appearance={appearance} key={c}>{c}</option>
               ))}
-            </select>
-          </label>
-          <label>Change reason<input name="reason" minLength={3} maxLength={1000} defaultValue={person?"":"Initial onboarding"} placeholder="Describe a transfer, promotion or reporting change" required={!!person}/></label>
-          <div className="form-actions">
-            <button
-              className="button"
+            </Select>
+          </Field>
+          <Field appearance={appearance}>
+            Change reason
+            <TextInput appearance={appearance}
+              name="reason"
+              minLength={3}
+              maxLength={1000}
+              defaultValue={person ? "" : "Initial onboarding"}
+              placeholder="Describe a transfer, promotion or reporting change"
+              required={!!person}
+            />
+          </Field>
+          <div data-ui-appearance={appearance} className={appearance === "standard" ? "ui-form-actions" : "form-actions"}>
+            <Button appearance={appearance}
+              clientManaged variant="primary"
+
               type="submit"
               disabled={pending || !ready}
             >
               {pending ? "Saving…" : "Save employee"}
-            </button>
+            </Button>
           </div>
-        </form>
+        </form></FormDrawer>
       )}
       {person && (
-        <div className="form-actions">
-          {(!lifecycleManaged || person.status === "archived" || person.engagement_status === "onboarding") && <button
-            className="button secondary"
-            disabled={pending || !ready}
-            onClick={() =>
-              void send(`/${person.id}/status`, {
-                status:
-                  person.status === "active" &&
-                  person.engagement_status === "active"
-                    ? "inactive"
-                    : "active",
-                expectedVersion: person.version,
-              })
+        <div data-ui-appearance={appearance} className={appearance === "standard" ? "ui-form-actions" : "form-actions"}>
+          {(!lifecycleManaged ||
+            person.status === "archived" ||
+            person.engagement_status === "onboarding") && (
+            <Button appearance={appearance}
+              type="submit"
+              variant="secondary"
+
+              disabled={pending || !ready}
+              onClick={() =>
+                void send(`/${person.id}/status`, {
+                  status:
+                    person.status === "active" && person.engagement_status === "active"
+                      ? "inactive"
+                      : "active",
+                  expectedVersion: person.version,
+                })
+              }
+            >
+              {person.status === "active" && person.engagement_status === "active"
+                ? "Deactivate employee"
+                : "Activate employee"}
+            </Button>
+          )}
+          <Button appearance={appearance}
+            type="submit"
+            variant="secondary"
+
+            disabled={
+              pending ||
+              !ready ||
+              person.status === "archived" ||
+              (lifecycleManaged && person.engagement_status !== "ended")
             }
-          >
-            {person.status === "active" && person.engagement_status === "active"
-              ? "Deactivate employee"
-              : "Activate employee"}
-          </button>}
-          <button
-            className="button secondary"
-            disabled={pending || !ready || person.status === "archived" || (lifecycleManaged && person.engagement_status !== "ended")}
             onClick={() =>
               void send(`/${person.id}/status`, {
                 status: "archived",
@@ -382,9 +502,11 @@ export function PeopleEditor({
             }
           >
             Archive employee
-          </button>
-          <p className="muted">
-            {lifecycleManaged ? "Use the lifecycle panel to suspend access or end employment. Archive retains history after employment ends." : "Deactivation revokes this company’s role assignments. Archived profiles retain their history and can be restored."}
+          </Button>
+          <p data-ui-appearance={appearance} className="muted">
+            {lifecycleManaged
+              ? "Use the lifecycle panel to suspend access or end employment. Archive retains history after employment ends."
+              : "Deactivation revokes this company’s role assignments. Archived profiles retain their history and can be restored."}
           </p>
         </div>
       )}

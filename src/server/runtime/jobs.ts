@@ -75,10 +75,8 @@ export async function scheduledWork(env: JobEnv) {
     }
     if (!slot.beta) await (await import("../people-roster")).escalateRosterCoverage(write);
     await (await import("../leave-self-service")).runLeaveAccruals(write,new Date().toISOString().slice(0,10));
-    if(process.env.NODE_ENV!=='production') {
-      await (await import("../inventory-reservation-alerts")).escalateInventoryReservations(write);
-      await (await import("../quality-alerts")).drainQualityAlerts(write);
-    }
+    await (await import("../inventory-reservation-alerts")).escalateInventoryReservations(write);
+    await (await import("../quality-alerts")).drainQualityAlerts(write);
     await (await import("../iam-access-review-alerts")).escalateAccessReviews(write);
     await (await import("../staff-task-alerts")).escalateStaffTasks(write);
     await (await import("../inbox")).drainInboxNotices(write);
@@ -95,10 +93,8 @@ export async function scheduledWork(env: JobEnv) {
     await generateOccurrences(write);
     await drainRequestAi(write,env);
     if(!slot.beta) { const financeAi=await import("../finance-ai");await financeAi.scanFinanceAi(write,env);await financeAi.drainFinanceAi(write,env); }
-    if(process.env.NODE_ENV!=='production') {
-      await (await import("../executive/generation")).drainExecutiveGeneration(write,env);
-      await drainSocialAgent(write,env,undefined,undefined,files,slot.id);
-    }
+    await (await import("../executive/generation")).drainExecutiveGeneration(write,env);
+    await drainSocialAgent(write,env,undefined,undefined,files,slot.id);
     if(slot.beta) await cleanupBetaResources(write,files,slot.id);
   }
 }
@@ -222,11 +218,9 @@ export async function legalWork(env: JobEnv) {
 }
 
 export async function supportWork(env:JobEnv) {
- if(process.env.NODE_ENV==='production')return;
  for(const slot of await activeSlots(env)) await (await import('../support-sla-alerts')).drainSupportSla(registeredResources(env,slot.id).write);
 }
 
 export async function customerNotificationWork(env:JobEnv) {
- if(process.env.NODE_ENV==='production')return;
  for(const slot of await activeSlots(env)) await (await import('../sales-customer-notifications')).drainCustomerNotifications(registeredResources(env,slot.id).write,env);
 }

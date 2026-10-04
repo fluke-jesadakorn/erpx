@@ -64,7 +64,7 @@ import {
   listPayments,
   getInvoice,
   getPayment,
-  postInvoice,
+  postInvoice,invoicePostingSchema,
   postJournal,
   postJournalBatch,
   journalBatchSchema,
@@ -83,11 +83,17 @@ import {
   decideFxRevaluationSchema,
 } from "@/server/finance";
 import { z } from "zod";
+import { activateAsset,assetActivationSchema,assetDecisionSchema,assetDepreciationSchema,assetDetail,assetDisposalSchema,assetEditSchema,assetPage,cancelDraftAsset,decideAssetDisposal,editAsset,prepareAssetDisposal } from "@/server/finance-assets";
 import { calculationDecisionSchema, calculationRunDetail, calculationRunSchema, createCalculationRun, decideCalculationRun, financeEngineWorkspace, snapshotCloseChecks } from "@/server/finance-engines";
 import { consolidationDecisionSchema, consolidationEliminationDecisionSchema, consolidationEliminationSchema, consolidationRunSchema, consolidationRunWorkspace, createConsolidationElimination, createConsolidationRun, decideConsolidationElimination, decideConsolidationRun } from "@/server/finance-consolidation";
 import { accrualRunPostSchema, accrualScheduleDecisionSchema, accrualSchedulePage, accrualScheduleSchema, createAccrualSchedule, decideAccrualSchedule, postAccrualRun, prepareAccrualRun } from "@/server/finance-accruals";
 import { createGroupEntity, createIntercompany, decideIntercompany, groupEntitySchema, intercompanyDecisionSchema, intercompanyTransactionSchema, intercompanyWorkspace } from "@/server/finance-intercompany";
 import { createProjectCostAllocation, decideProjectCostAllocation, listProjectCostAllocations, listProjectCostSources, projectCostAllocationDecisionSchema, projectCostAllocationSchema } from "@/server/project-actuals";
+import { decideStatementPackage, decideYearClosing, prepareStatementPackage, prepareYearClosing, reportingDecisionSchema, reportingWorkspace, statementPackageDetail, statementPackageExport, statementPackageSchema, yearClosingSchema } from "@/server/finance-reporting";
+import {decideTaxIdentity,prepareTaxIdentity,taxIdentityDecisionSchema,taxIdentitySchema,taxIdentityWorkspace} from "@/server/finance-tax-identities";
+import {decideWithholdingPackage,prepareWithholdingPackage,remitWithholdingPackage,reverseWithholdingRemittance,withholdingMonthlyWorkspace,withholdingPackageExport,withholdingPackageSchema,withholdingPackageDecisionSchema,withholdingRemittanceSchema,withholdingRemittanceReversalSchema} from "@/server/finance-withholding-remittance";
+import {decideWithholdingAssessment,prepareWithholdingAssessment,withholdingAssessmentSchema,withholdingDecisionSchema,withholdingWorkspace} from "@/server/finance-withholding";
+import {decideThaiDocumentChange,issueThaiTaxInvoice,prepareThaiDocumentChange,thaiDocumentChangeSchema,thaiDocumentDecisionSchema,thaiDocumentDetail,thaiDocumentExport,thaiInvoiceIssueSchema} from "@/server/finance-thai-documents";
 
 function command(request: Request) {
   return request.headers.get("Idempotency-Key");
@@ -127,9 +133,27 @@ export async function GET(request: Request, context: FinanceRouteContext) {
     const { holdingSlug, path } = await context.params;
     const actor = requirePermission(await requireWorkContext(holdingSlug),"finance.read");
     const parts = segments(path); const search = new URL(request.url).searchParams;
+    if((parts[0]==="statement-packages"||parts[0]==="year-closings")&&parts.length===1)return Response.json({data:await reportingWorkspace(actor,search.get("chartId")??"")});
+    if(parts[0]==="statement-packages"&&parts.length===2)return Response.json({data:await statementPackageDetail(actor,parts[1])});
+    if(parts[0]==="statement-packages"&&parts.length===3&&parts[2]==="export"){
+      const exported=await statementPackageExport(actor,parts[1]);
+      return new Response(exported.content,{headers:{"Content-Type":"text/html; charset=utf-8","Content-Disposition":`attachment; filename="financial-statements-edition-${exported.edition}.html"`,"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff","X-Content-SHA256":exported.sha256}});
+    }
+    if(parts[0]==="assets"&&parts.length===1)return Response.json({data:await assetPage(actor)});
+    if(parts[0]==="assets"&&parts.length===2)return Response.json({data:await assetDetail(actor,parts[1])});
     if(parts[0]==="ai"&&parts.length===1)return Response.json({data:await financeAiWorkspace((await holdingResources(actor.holdingId)).write,actor,await runtimeEnv())});
     if(parts[0]==="accounting-profiles")return Response.json({data:await accountingProfiles(actor)});
     if(parts[0]==="financial-events")return Response.json({data:await financialEvents(actor,{chartId:search.get("chartId")??"",startDate:search.get("startDate")??undefined,endDate:search.get("endDate")??undefined})});
+    if(parts[0]==="tax-identities"&&parts.length===1)return Response.json({data:await taxIdentityWorkspace(actor)});
+    if(parts[0]==="withholding-months"&&parts.length===1)return Response.json({data:await withholdingMonthlyWorkspace(actor)});
+    if(parts[0]==="withholding-months"&&parts.length===3&&parts[2]==="export"){
+      const exported=await withholdingPackageExport(actor,parts[1]);return new Response(exported.content,{headers:{"Content-Type":"text/csv; charset=utf-8","Content-Disposition":`attachment; filename="${exported.formKind}-${exported.month}-manual-workpaper.csv"`,"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff","X-Content-SHA256":exported.sha256}});
+    }
+    if(parts[0]==="withholding"&&parts.length===1)return Response.json({data:await withholdingWorkspace(actor,search.get("paymentId")??undefined)});
+    if(parts[0]==="thai-documents"&&parts.length===2)return Response.json({data:await thaiDocumentDetail(actor,parts[1])});
+    if(parts[0]==="thai-documents"&&parts.length===3&&parts[2]==="export"){
+      const exported=await thaiDocumentExport(actor,parts[1]);return new Response(exported.content,{headers:{"Content-Type":"text/html; charset=utf-8","Content-Disposition":`attachment; filename="${exported.filename}"`,"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff","X-Content-SHA256":exported.sha256}});
+    }
     if(parts[0]==="tax-register"&&parts.length===1)return Response.json({data:await vatWorkspace(actor,{chartId:search.get("chartId")??undefined,filingMonth:search.get("filingMonth")??undefined})});
     if(parts[0]==="tax-entries"&&parts.length===2)return Response.json({data:await taxEntryDetail(actor,parts[1])});
     if(parts[0]==="vat-corrections"&&parts.length===2)return Response.json({data:await vatCorrectionDetail(actor,parts[1])});
@@ -179,6 +203,22 @@ export async function POST(request: Request, context: FinanceRouteContext) {
     const { holdingSlug, path } = await context.params;
     const actor = requirePermission(await requireWorkContext(holdingSlug),"finance.read");
     const parts = segments(path); const input = await body(request);
+    if(parts[0]==="tax-identities"&&parts.length===1)return Response.json({data:await prepareTaxIdentity(actor,taxIdentitySchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="tax-identities"&&parts.length===2)return Response.json({data:await prepareTaxIdentity(actor,taxIdentitySchema.parse(input),needCommand(request),parts[1])});
+    if(parts[0]==="tax-identities"&&parts.length===3&&parts[2]==="decide")return Response.json({data:await decideTaxIdentity(actor,parts[1],taxIdentityDecisionSchema.parse(input),needCommand(request))});
+    if(parts[0]==="withholding-months"&&parts.length===1)return Response.json({data:await prepareWithholdingPackage(actor,withholdingPackageSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="withholding-months"&&parts.length===3&&parts[2]==="decide")return Response.json({data:await decideWithholdingPackage(actor,parts[1],withholdingPackageDecisionSchema.parse(input),needCommand(request))});
+    if(parts[0]==="withholding-months"&&parts.length===3&&parts[2]==="remit")return Response.json({data:await remitWithholdingPackage(actor,parts[1],withholdingRemittanceSchema.parse(input),needCommand(request))});
+    if(parts[0]==="withholding-remittances"&&parts.length===3&&parts[2]==="reverse")return Response.json({data:await reverseWithholdingRemittance(actor,parts[1],withholdingRemittanceReversalSchema.parse(input),needCommand(request))});
+    if(parts[0]==="payments"&&parts.length===3&&parts[2]==="withholding")return Response.json({data:await prepareWithholdingAssessment(actor,parts[1],withholdingAssessmentSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="withholding"&&parts.length===3&&parts[2]==="decide")return Response.json({data:await decideWithholdingAssessment(actor,parts[1],withholdingDecisionSchema.parse(input),needCommand(request))});
+    if(parts[0]==="invoices"&&parts.length===3&&parts[2]==="issue-thai-tax-invoice")return Response.json({data:await issueThaiTaxInvoice(actor,parts[1],thaiInvoiceIssueSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="thai-documents"&&parts.length===3&&parts[2]==="changes")return Response.json({data:await prepareThaiDocumentChange(actor,parts[1],thaiDocumentChangeSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="thai-document-changes"&&parts.length===3&&parts[2]==="decide")return Response.json({data:await decideThaiDocumentChange(actor,parts[1],thaiDocumentDecisionSchema.parse(input),needCommand(request))});
+    if(parts[0]==="statement-packages"&&parts.length===1)return Response.json({data:await prepareStatementPackage(actor,statementPackageSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="statement-packages"&&parts.length===3&&["issue","reject","cancel"].includes(parts[2]))return Response.json({data:await decideStatementPackage(actor,parts[1],parts[2] as "issue"|"reject"|"cancel",reportingDecisionSchema.parse(input),needCommand(request))});
+    if(parts[0]==="year-closings"&&parts.length===1)return Response.json({data:await prepareYearClosing(actor,yearClosingSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="year-closings"&&parts.length===3&&["post","reject","cancel"].includes(parts[2]))return Response.json({data:await decideYearClosing(actor,parts[1],parts[2] as "post"|"reject"|"cancel",reportingDecisionSchema.parse(input),needCommand(request))});
     if(parts[0]==="ai") {
       const {write}=await holdingResources(actor.holdingId),env=await runtimeEnv(),key=needCommand(request);
       if(parts.length===2&&parts[1]==="policy")return Response.json({data:await saveFinanceAiPolicy(write,actor,env,input,key)});
@@ -252,7 +292,7 @@ export async function POST(request: Request, context: FinanceRouteContext) {
     if (parts[0] === "invoices" && parts.length === 1) { const parsed = invoiceSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid invoice."); return Response.json({ data: await createInvoice(actor, parsed.data, needCommand(request)) }, { status: 201 }); }
     if(parts[0]==="invoices"&&parts.length===2){const parsed=invoiceSchema.safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0].message);return Response.json({data:await createInvoice(actor,parsed.data,needCommand(request),parts[1])});}
     if(parts[0]==="invoices"&&parts[2]==="void"){const data=z.object({expectedVersion:z.number().int().positive()}).parse(input);return Response.json({data:await voidDraftInvoice(actor,parts[1],data.expectedVersion,needCommand(request))});}
-    if (parts[0] === "invoices" && parts[2] === "post") { const parsed = z.object({ expectedVersion:z.number().int().positive(), periodId: z.string(), entryDate: z.string().date(), fxRate:z.string().optional() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Posting period, date and a valid exchange rate are required."); return Response.json({ data: await postInvoice(actor, parts[1], parsed.data, needCommand(request)) }); }
+    if (parts[0] === "invoices" && parts[2] === "post") { const parsed = invoicePostingSchema.extend({expectedVersion:z.number().int().positive()}).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Posting period, date and a valid exchange rate are required."); return Response.json({ data: await postInvoice(actor, parts[1], parsed.data, needCommand(request)) }); }
     if (parts[0] === "payments" && parts.length === 1) { const parsed = z.object({ partyId: z.string().optional(), kind: z.enum(["payment", "receipt", "refund"]), paymentNumber: z.string(), paymentDate: z.string().date(), currency: z.string().length(3), amount: z.string(), bankAccount: z.string().optional() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Invalid payment."); return Response.json({ data: await createPayment(actor, parsed.data, needCommand(request)) }, { status: 201 }); }
     if (parts[0] === "payments" && parts[2] === "approve") { const parsed = z.object({ expectedVersion: z.number().int().positive(), proof: z.string() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Payment approval evidence is required."); return Response.json({ data: await approvePayment(actor, parts[1], parsed.data, needCommand(request)) }); }
     if (parts[0] === "payments" && parts[2] === "release") { const parsed = z.object({ expectedVersion: z.number().int().positive(), proof: z.string() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Payment release evidence is required."); return Response.json({ data: await releasePayment(actor, parts[1], parsed.data, needCommand(request)) }); }
@@ -262,7 +302,12 @@ export async function POST(request: Request, context: FinanceRouteContext) {
     if (parts[0] === "payments" && parts[1] === "export") { const parsed = z.object({ paymentIds: z.array(z.string()).min(1) }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Select released payments."); return Response.json({ data: await exportPaymentFile(actor, parsed.data.paymentIds, needCommand(request)) }); }
     if (parts[0] === "tax-codes" && parts.length === 1) { const parsed = taxCodeSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Invalid tax code."); return Response.json({ data: await createTaxCode(actor, parsed.data, needCommand(request)) }, { status: 201 }); }
     if (parts[0] === "assets" && parts.length === 1) { const parsed = assetSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Invalid asset."); return Response.json({ data: await createAsset(actor, parsed.data, needCommand(request)) }, { status: 201 }); }
-    if (parts[0] === "assets" && parts[2] === "depreciate") { const parsed = z.object({ periodId: z.string(), entryDate: z.string().date() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Depreciation period and date are required."); return Response.json({ data: await depreciateAsset(actor, parts[1], parsed.data, needCommand(request)) }); }
+    if(parts[0]==="assets"&&parts.length===3&&parts[2]==="edit")return Response.json({data:await editAsset(actor,parts[1],assetEditSchema.parse(input),needCommand(request))});
+    if(parts[0]==="assets"&&parts.length===3&&parts[2]==="cancel")return Response.json({data:await cancelDraftAsset(actor,parts[1],assetDecisionSchema.parse(input),needCommand(request))});
+    if(parts[0]==="assets"&&parts.length===3&&parts[2]==="activate")return Response.json({data:await activateAsset(actor,parts[1],assetActivationSchema.parse(input),needCommand(request))});
+    if(parts[0]==="assets"&&parts.length===3&&parts[2]==="depreciate")return Response.json({data:await depreciateAsset(actor,parts[1],assetDepreciationSchema.parse(input),needCommand(request))});
+    if(parts[0]==="assets"&&parts.length===3&&parts[2]==="disposals")return Response.json({data:await prepareAssetDisposal(actor,parts[1],assetDisposalSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="asset-disposals"&&parts.length===3&&(parts[2]==="post"||parts[2]==="cancel"))return Response.json({data:await decideAssetDisposal(actor,parts[1],parts[2],assetDecisionSchema.parse(input),needCommand(request))});
     if (parts[0] === "budgets" && parts.length === 1) { const parsed = budgetSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Invalid budget."); return Response.json({ data: await createBudget(actor, parsed.data, needCommand(request)) }, { status: 201 }); }
     if (parts[0] === "expenses") throw new ApiError(410,"EXPENSE_API_MOVED","Use the /expenses workflow for employee obligations.");
     if (parts[0] === "leases" && parts.length === 1) { const parsed = leaseSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Invalid lease."); return Response.json({ data: await createLease(actor, parsed.data, needCommand(request)) }, { status: 201 }); }

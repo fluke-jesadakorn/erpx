@@ -22,6 +22,8 @@ No Live keys, Live events, taxes, coupons, annual billing, automated refunds, ac
 
 ## Verification recorded 2026-09-17
 
+> Recorded observations apply to their stated date/environment. Current coverage and remaining acceptance are in the [verification inventory](../../status/capability-delivery-matrix.md); old gaps do not override current owner behavior.
+
 - Isolated PostgreSQL integration tests cover Bangkok proration/leap months, month-end changes/withdrawal/Hosted termination, late costs, revision history, approval races, lost Stripe responses, void/reissue, paid adjustments, cross-Holding rejection, Platform permissions and private evidence reads/uploads. `tests/beta-auth-billing.test.ts` also verifies signed event rejection and legacy Checkout removal.
 - Opt-in actual Stripe Sandbox acceptance: `ERPX_TEST_STRIPE_SANDBOX=1 bun --env-file=.env.local run test:integration tests/billing-stripe-sandbox.test.ts`. Requires a test key. Each run creates a disposable Stripe customer and an isolated local database; the service clock is injected, never changed on the host. The harness explicitly triggers payment to avoid waiting for Stripe's automatic collection scheduler; application workers do not call `/pay`.
 - Verified real Sandbox invoices `in_1UGNJV3OQCGbSE2F936pIbot` (manual) and `in_1UGNJl3OQCGbSE2FbzjojogU` (automatic collection configured): THB 925, paid. Manual decline followed by successful recovery was verified. Authentication-required transitions are covered by deterministic integration fixtures.

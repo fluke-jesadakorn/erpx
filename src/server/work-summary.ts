@@ -4,13 +4,14 @@ import { holdingResources } from "./runtime";
 import { workspaceBase } from "@/lib/workspace";
 import { workSnapshot, nextWorkSteps, type WorkSnapshot } from "./work-items";
 import { getWorkCapabilities } from "./work-capabilities";
-import { buildWorkCards } from "./work-cards";
+import { buildWorkCards, buildDestinationCards } from "./work-cards";
+import { navigationContext } from "./navigation-context";
 import { readWorkCardPreferences } from "./work-card-preferences";
 import { projectWorkPage, type WorkPageQuery } from "@/lib/work-page";
 
 export async function getWorkCardProjection(actor: WorkContext, work: WorkSnapshot | Promise<WorkSnapshot>) {
   const { write } = await holdingResources(actor.holdingId);
-  const [snapshot, capabilities, saved] = await Promise.all([
+  const [snapshot, capabilities, saved, navigation] = await Promise.all([
     work,
     getWorkCapabilities(write, actor),
     readWorkCardPreferences(write, actor)
@@ -19,15 +20,16 @@ export async function getWorkCardProjection(actor: WorkContext, work: WorkSnapsh
         preferences: { pinnedIds: null, version: 0 },
         preferencesUnavailable: true,
       })),
+    navigationContext(actor),
   ]);
   return {
     ...saved,
     capabilities,
-    cards: buildWorkCards(
+    cards: [...buildWorkCards(
       workspaceBase(publicScope(actor)),
       snapshot,
       capabilities,
-    ),
+    ), ...buildDestinationCards(navigation)],
   };
 }
 export async function getWorkSummary(actor: WorkContext) {

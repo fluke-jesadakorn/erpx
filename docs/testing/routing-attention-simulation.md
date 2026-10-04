@@ -1,5 +1,7 @@
 # Company routing review — ชุด A (บางส่วน)
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 เพิ่มหน้าตรวจ `/holdings/{holdingSlug}/work/routing` และ API `GET /api/v1/holdings/{holdingSlug}/routing-attention` สำหรับ Company organization-management assignment ปัจจุบัน
 
 ## พฤติกรรมที่เพิ่ม

@@ -12,6 +12,7 @@ import { ApiError } from "./http";
 import { decimalToMinor } from "@/lib/finance-money";
 import type { SqlDatabase, SqlStatement } from "./runtime/types";
 import { prepareAttachmentBinding } from "./attachments/service";
+import { prepareLearningBenefitConsumption,validateBenefitLearning } from "./learning-eligibility";
 
 const reason = z.string().trim().min(3).max(3000),
   version = z.number().int().positive(),
@@ -29,6 +30,7 @@ const planSchema = z.object({
   employerCost: z.string().regex(/^\d+(\.\d{1,2})?$/),
   effectiveFrom: date,
   effectiveTo: date.nullable().optional(),
+  requiredEligibilityCode:z.string().trim().min(2).max(120).nullable().optional(),
 });
 const windowSchema = z.object({
   name: z.string().trim().min(2).max(160),
@@ -84,7 +86,7 @@ async function personForActor(a: WorkContext, write: SqlDatabase) {
     .bind(a.companyId, a.userId)
     .first<Row>();
 }
-export async function benefitsWorkspace(a: WorkContext) {
+export async function benefitsWorkspace(a: WorkContext, personal = false) {
   access(a);
   const { write } = await holdingResources(a.holdingId),
     p = await personForActor(a, write);
@@ -113,7 +115,7 @@ export async function benefitsWorkspace(a: WorkContext) {
       .prepare(
         "SELECT e.*,p.name plan_name,(SELECT legal_name FROM hr_people WHERE id=e.person_id) employee_name FROM benefit_elections e JOIN benefit_plans p ON p.id=e.plan_id WHERE e.company_id=? AND (? OR e.person_id=?) ORDER BY e.updated_at DESC",
       )
-      .bind(a.companyId, hasPermission(a, "benefits.review"), p?.id ?? "")
+      .bind(a.companyId, !personal && hasPermission(a, "benefits.review"), p?.id ?? "")
       .all<Row>(),
   ]);
   return {
@@ -151,7 +153,7 @@ export async function createBenefitPlan(
   return executeCommand(write, a, key, op, i, id, 1, result, [
     write
       .prepare(
-        "INSERT INTO benefit_plans VALUES(?,?,?,?,?,?,?,?,?,?, 'draft',?,NULL,1,?,?)",
+        "INSERT INTO benefit_plans(id,company_id,name,provider,coverage_type,currency,employee_deduction_minor,employer_cost_minor,effective_from,effective_to,status,created_by,reviewed_by,version,created_at,updated_at,required_eligibility_code) VALUES(?,?,?,?,?,?,?,?,?,?, 'draft',?,NULL,1,?,?,?)",
       )
       .bind(
         id,
@@ -167,6 +169,7 @@ export async function createBenefitPlan(
         a.userId,
         now,
         now,
+        i.requiredEligibilityCode??null,
       ),
     write
       .prepare(
@@ -271,7 +274,11 @@ export async function createBenefitElection(
   access(a, true);
   const i = electionSchema.parse(raw),
     { write } = await holdingResources(a.holdingId),
-    p = await personForActor(a, write);
+    id = `benefit-election-${key}`,
+    op = "benefits.election.create",
+    prior = await replayCommand(write, a, key, op, id, i);
+  if (prior) return prior;
+  const p = await personForActor(a, write);
   if (!p)
     throw new ApiError(
       422,
@@ -329,13 +336,11 @@ export async function createBenefitElection(
         "Every selected dependent must be verified.",
       );
   }
-  const id = `benefit-election-${key}`,
-    op = "benefits.election.create",
-    prior = await replayCommand(write, a, key, op, id, i);
-  if (prior) return prior;
   const now = Date.now(),
     result = { id, status: "elected", version: 1 };
+  const eligibility=plan.required_eligibility_code?await prepareLearningBenefitConsumption(write,a,{personId:String(p.id),requiredCode:String(plan.required_eligibility_code),effectiveDate:String(win.effective_on),electionId:id,key}):null;
   return executeCommand(write, a, key, op, i, id, 1, result, [
+    ...(eligibility?.guards??[]),
     write
       .prepare(
         "INSERT INTO benefit_elections(id,company_id,person_id,engagement_id,plan_id,plan_version,window_id,window_version,coverage_type,dependent_ids_json,currency,employee_deduction_minor,employer_cost_minor,effective_from,effective_to,status,created_by,version,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'elected',?,1,?,?)",
@@ -365,6 +370,7 @@ export async function createBenefitElection(
         "INSERT INTO benefit_election_events VALUES(?,?,1,'elect',?,'Employee elected reviewed coverage','elected',?)",
       )
       .bind(`benefit-election-event-${key}`, id, a.userId, now),
+    ...(eligibility?[write.prepare("UPDATE benefit_elections SET learning_certificate_id=? WHERE id=?").bind(eligibility.certificateId,id),eligibility.receipt]:[]),
   ]);
 }
 export async function changeBenefitRecord(
@@ -377,6 +383,11 @@ export async function changeBenefitRecord(
   access(a, true);
   const i = transitionSchema.parse(raw),
     { write } = await holdingResources(a.holdingId),
+    op = `benefits.${kind}.${i.action}`,
+    prior = await replayCommand(write, a, key, op, id, i);
+  if (kind !== "election" || i.action !== "submit") requirePermission(a, "benefits.review");
+  if (prior) return prior;
+  const
     table =
       kind === "plan"
         ? "benefit_plans"
@@ -469,9 +480,6 @@ export async function changeBenefitRecord(
       "CONFLICT",
       "Payroll release must be independent from provider acknowledgement.",
     );
-  const op = `benefits.${kind}.${i.action}`,
-    prior = await replayCommand(write, a, key, op, id, i);
-  if (prior) return prior;
   const attachmentPurpose =
       kind === "dependent" && i.action === "verify"
         ? "dependent_proof"
@@ -537,6 +545,7 @@ export async function changeBenefitRecord(
   }
   bind.push(id);
   const statements: SqlStatement[] = [
+    ...(kind==="election"&&i.action!=="cancel"?await validateBenefitLearning(write,a,{id,person_id:String(row.person_id),learning_certificate_id:row.learning_certificate_id?String(row.learning_certificate_id):null,effective_from:String(row.effective_from),plan_id:String(row.plan_id)},key):[]),
     ...(attachmentBinding?.guards ?? []),
     assertion(
       write,

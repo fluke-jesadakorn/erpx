@@ -12,7 +12,7 @@
   gap: 12px;
   align-items: center;
   padding: 14px 0 14px 22px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-line);
   position: relative;
 }
 
@@ -22,37 +22,47 @@
   left: 0;
   width: 10px;
   height: 10px;
-  border: 2px solid var(--muted);
+  border: 2px solid var(--ui-muted);
   border-radius: 50%;
-  background: var(--card);
+  background: var(--ui-card);
 }
 
 .list li[data-state="complete"]::before {
-  border-color: var(--green);
-  background: var(--green);
+  border-color: var(--ui-green);
+  background: var(--ui-green);
 }
 
 .list li[data-state="current"]::before {
-  border-color: var(--brand);
-  background: var(--brand-soft);
+  border-color: var(--ui-brand);
+  background: var(--ui-brand-soft);
 }
 
 .list li[data-state="blocked"]::before {
-  border-color: var(--red);
-  background: var(--red-soft);
+  border-color: var(--ui-red);
+  background: var(--ui-red-soft);
 }
 
-.list li:last-child { border-bottom: 0; }
-.list p { margin: 4px 0 0; color: var(--muted); }
+.list li:last-child {
+  border-bottom: 0;
+}
+.list p {
+  margin: 4px 0 0;
+  color: var(--ui-muted);
+}
 .list span {
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 11px;
   font-weight: 650;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 @media (max-width: 650px) {
-  .list li { grid-template-columns: minmax(0, 1fr) auto; }
-  .list a { grid-column: 1 / -1; justify-self: start; }
+  .list li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .list a {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
 }

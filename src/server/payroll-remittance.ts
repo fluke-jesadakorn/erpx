@@ -9,6 +9,7 @@ import type { SqlDatabase } from "./runtime/types";
 import { assertion, executeCommand, replayCommand } from "./commands";
 import { prepareJournal } from "./finance";
 import { minorToDecimal } from "@/lib/finance-money";
+import { assertStatutoryRunReady } from "./payroll-statutory";
 
 export const payrollRemittanceSchema = z.object({
   kind: z.enum(["withholding_tax", "social_security"]),
@@ -63,11 +64,11 @@ export async function getPayrollLiabilities(actor: WorkContext, runId: string) {
 export async function remitPayrollLiability(actor: WorkContext, runId: string, input: z.infer<typeof payrollRemittanceSchema>, key: string) {
   actor=requirePermission(actor,"finance.pay");
   if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Use a company Treasury assignment to remit payroll liabilities.");
-  if((await runtimeEnv()).ERPX_ENVIRONMENT==="production")throw new ApiError(409,"PAYROLL_ENGINE_UNAVAILABLE","Certified Thai payroll is required before production remittance.");
   const {write}=await holdingResources(actor.holdingId);
   const previous=await replayCommand(write,actor,key,"payroll.liability.remit",runId,input);
   if(previous)return previous;
   const run=await postedRun(write,actor.companyId,runId);
+  if((await runtimeEnv()).ERPX_ENVIRONMENT==="production")await assertStatutoryRunReady(write,runId);
   if(run.version!==input.expectedRunVersion)throw new ApiError(409,"PAYROLL_RUN_CHANGED","Refresh the payroll run before remitting its liability.");
   const due=await obligation(write,run,input.kind);
   if(!due.accountId||input.amountMinor>due.outstandingMinor)throw new ApiError(422,"PAYROLL_LIABILITY_EXCEEDED","Remittance must not exceed the outstanding statutory liability.");

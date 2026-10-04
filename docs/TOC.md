@@ -1,34 +1,32 @@
 # ERPX documentation index
 
-[Current production plan](production-plan.md) is the sole active delivery plan for the Thai-first Today workplace across all business groups, released one accepted flow at a time. The earlier hotel and restaurant track remains a separate business acceptance track inside that plan. Read it for scope, owners, criteria, evidence and blockers; its ten-working-day checkpoint is not a launch date. The [workplace journey inventory](journeys/2026-09-26-workplace-journey-inventory.md) maps current routes to owners, handoffs and remaining gaps.
+Reviewed 2026-10-03. This is the single entry point. [Production plan](production-plan.md) owns delivery scope; contracts own current behavior; recorded evidence identifies the source, environment and date it actually verified.
 
-## Current behavior and decisions
+## Current system
 
-- [Contracts](contracts/next/README.md), including [attachments](contracts/next/attachments.md), [release acceptance](contracts/next/business-readiness.md), [PMS](contracts/next/pms.md), [POS](contracts/next/pos.md), [Finance](contracts/next/finance.md), [Payroll](contracts/next/payroll-core.md)
-- [Business glossary](../CONTEXT.md), [architecture decisions](adr/README.md), [contract policy](../CONTRACT_POLICY.md)
-- [Runtime / operations](../ops/macos/README.md), [local seed](local-seed.md), [developer instructions](../AGENTS.md)
+- [Start and verify](../README.md), [developer instructions](../AGENTS.md), [local development seed](local-seed.md)
+- [Current owner contracts](contracts/next/README.md), [33-module catalogue workflows](contracts/next/catalogue.md), [route reference](contracts/next/route-table.md)
+- [Business glossary](../CONTEXT.md), [architecture decisions](adr/README.md), [contract compatibility policy](../CONTRACT_POLICY.md)
+- [Operations](../ops/README.md), [private production runtime](../ops/macos/README.md), [incident](../ops/runbooks/nextjs-incident.md), [recovery](../ops/runbooks/nextjs-recovery.md)
+- [Workplace routes and handoffs](journeys/2026-09-26-workplace-journey-inventory.md), [UI components](ux-ui/component-inventory.md), [UI migration evidence](ux-ui/ui-migration-2026-10-02.md), [UI standardization status and coverage](ux-ui/ui-standardization.md)
+- [Product brand guide](brand/ERPX-brand-guide.md), [design references](../Designed/README.md)
 
-## Evidence and verification
+## Verification and acceptance
 
-Evidence establishes only the behavior and environment stated in each record. Historical reports do not promote release gates or expand the current scope.
+- [Independent engineering/provider/release inventory](status/capability-delivery-matrix.md)
+- [Dated engineering completion receipt — 2026-10-03](testing/evidence/2026-10-03-engineering-completion.json): recorded 33/33 modules, 187/187 capabilities and 12/12 engineering gates; scoped to its original source/candidate
+- [Engineering scenario register](testing/engineering-scenarios.json), [required gate scenarios](testing/engineering-gate-scenarios.json), [Legal engineering UAT](testing/legal-uat-engineering-cases.json), [attachment owner cases](testing/engineering-attachment-owner-cases.json)
+- [Company release acceptance](contracts/next/business-readiness.md), [explicit inventory reviews](status/capability-gate-reviews.json), [generated inventory manifest](status/business-acceptance-manifest.json)
+- [Checksum evidence ledger](status/business-acceptance-evidence.json), [verification guide](testing/README.md), [durable evidence](testing/evidence/)
+- [E2E specification](testing/e2e-specification.md), [isolated browser simulation](testing/isolated-browser-simulation.md), [working demo](testing/working-demo-company.md), [generated source-route inventory](testing/uat-route-inventory.md)
+- Dated official-source reviews: [Thai payroll](testing/thai-payroll-rules-2026-10-02.md), [Thai Finance tax](testing/thai-finance-tax-rules-2026-10-03.md), [Thai accounting](testing/thai-accounting-research-2026-09-30.md), [NPAEs reporting](testing/npaes-reporting-2026-10-03.md)
 
-- [Capability inventory](status/capability-delivery-matrix.md), [generated manifest](status/business-acceptance-manifest.json), [review source](status/capability-gate-reviews.json)
-- [Checksum evidence ledger](status/business-acceptance-evidence.json); durable files stay in `testing/evidence/`
-- [E2E cases](testing/e2e-specification.md), [isolated browser simulation](testing/isolated-browser-simulation.md), [working demo](testing/working-demo-company.md)
-- [Backend/API performance research](testing/backend-performance-2026-09-30.md); the proposed refactor sequence remains in the [current production plan](production-plan.md#backendapi-architecture-and-development-performance--2026-09-30).
-- [Thai accounting official research](testing/thai-accounting-research-2026-09-30.md), [development foundation evidence](testing/evidence/2026-09-30-thai-accounting-foundation.md)
-- [VAT correction lifecycle — 2026-09-30](testing/evidence/2026-09-30-vat-correction-lifecycle.md); delivery remains in the [current production plan](production-plan.md#บัญชีไทยตั้งแต่เอกสารถึงปิดปี--2026-09-30).
-- [Generated page-route inventory](testing/uat-route-inventory.md) lists source routes and their acceptance boundary; it does not prove user journeys passed.
-- [Recovery simulation](testing/recovery-simulation.md), [stock reservations](testing/shared-stock-reservation-simulation.md), [routing review](testing/routing-attention-simulation.md)
-- [Supplier payment](testing/supplier-payment-simulation.md), [RFQ](testing/procurement-rfq-simulation.md), [supplier promises](testing/supplier-delivery-promises.md)
-- [Returns/refunds](testing/return-refund-simulation.md), [inventory transit](testing/inventory-transit-simulation.md), [quality holds](testing/quality-hold-simulation.md)
-- [Hospitality implementation report](testing/hospitality-pilot-implementation-2026-09-23.md), [rollout report](testing/hospitality-feature-rollout-2026-09-23.md), [first-time setup verification](testing/evidence/2026-09-30-hospitality-setup.md)
-- [Cross-department scenarios](testing/cross-department-business-scenarios.md), [historical progress/evidence](testing/cross-department-implementation-progress.md)
+Engineering results do not certify a provider, Company release, statutory filing, bank/device or production operation. A later documentation or generator revision does not restamp the earlier engineering run. Reports under `testing/` retain dated findings; their old gaps and hostname observations are not current delivery instructions.
 
-## History and broader product references
+## Maintenance and recovery
 
-- [Archived September plans and requirement retention](archive/planning-2026-09/README.md)
-- [Domain maps](plan/README.md), [historical traceability](plan/traceability.md), [archive recovery](plan/ARCHIVE.md), [cutover](../CUTOVER.md)
-- [Mockup](../Designed/mockup/README.md) is a design reference, not the current application or a completeness claim.
+Edit the owner contract and the production plan when their facts change. Regenerate catalogue/status artifacts with `bun run status:capabilities`; verify with `bun scripts/generate-capability-matrix.ts --check`. Run `bun run docs:check` for links, anchors and source references. Do not hand-edit generated artifacts or infer gate reviews from observations.
 
-Reports elsewhere under `testing/` retain their date-specific findings, including modules deferred from the hotel release. Do not create a competing daily plan; update `production-plan.md` and the affected contract/evidence only.
+Superseded plans, duplicated Rust maps and completed documentation-triage tickets were removed after consolidating surviving ownership/control requirements into the catalogue and owner contracts. [Cutover and verified Git recovery references](../CUTOVER.md) retain their recovery boundary. [Archived immutable Rust evidence](archive/README.md) remains date-scoped; it does not describe the current stack.
+
+Staging operations are documented in the [staging runbook](../ops/macos/staging.md) and require an explicit staging request. Normal development verification uses [the development console](https://console-dev-erpx.jesadakorn.com/).

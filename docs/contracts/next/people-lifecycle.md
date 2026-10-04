@@ -94,6 +94,8 @@ Windows write operations are not enabled in the current lab profile. Actual Wind
 
 ## Verification and development availability
 
+> Recorded observations apply to their stated date/environment. Current coverage and remaining acceptance are in the [verification inventory](../../status/capability-delivery-matrix.md); old gaps do not override current owner behavior.
+
 The final integration suite passed 422 tests in 48 files, with the opt-in live provider test skipped in that run. The opt-in real UCS test passed after package installation finished (65 seconds): create/retry, update/conflict, membership, enable, move/retry and disable read-back. Typecheck, lint and the isolated release build passed. The final release build is recorded under ignored `.scratch/dev/people-release-build.log`.
 
 The authenticated public browser verified the tested UCS LDAPS connection, UDM schema read, account-preparation impact preview, directory inventory and the mobile Holding-template/field editor. The lab connection was saved inactive; no employee grants or directory writes were submitted through the public browser. The real adapter test writes only isolated lab fixtures. Temporary viewport overrides were reset. The previously reported `ERPX_UNAVAILABLE` state did not recur on the verified People pages.

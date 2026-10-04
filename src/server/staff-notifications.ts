@@ -5,6 +5,7 @@ import { rosterNotificationLink } from "./people-roster";
 import type { SqlDatabase } from "./runtime/types";
 import { getEmployeeRequest } from "./employee-requests";
 import { readablePost } from "./social-source";
+import { sourceRecordLabel } from "@/lib/source-record";
 import type { WorkContext } from "./authorization";
 import { getLeave } from "./leave";
 import { getExpense } from "./expenses";
@@ -14,8 +15,8 @@ import { ApiError } from "./http";
 export const staffNotificationSourceTypes=[
   "organization_change","company_business_acceptance","customer_identity","customer_duplicate","customer_access",
   "support_sla_alert","support_incident","support_policy","support_ticket","support_session",
-  "iam_access_review","payroll_correction","payroll_advance","staff_task_alert","maintenance_work",
-  "field_service_order","commerce_order","collaboration_action","learning_assignment","benefit_election",
+  "iam_access_review","payroll_correction","payroll_advance","staff_task_alert","maintenance_work","maintenance_plan","project_handoff",
+  "field_service_order","commerce_order","collaboration_action","operational_exception","learning_assignment","benefit_election",
   "talent_application","marketing_candidate","manufacturing_order","crm_lead","crm_activity","landed_cost",
   "stock_count","customer_followup","supplier_bill","procurement_rfq","supplier_promise","inventory_transit",
   "quality_hold","quality_alert","supplier_batch","refund","legal","retirement_clearance",
@@ -31,6 +32,7 @@ export type StaffNotification = {
   created_at: number;
   read_at: number | null;
   href: string;
+  source?: import("@/lib/source-record").SourceRecordReference;
 };
 export async function listStaffNotifications(
   db: SqlDatabase,
@@ -47,6 +49,9 @@ export async function listStaffNotifications(
   return visibleNotifications(db,actor,rows);
 }
 export async function visibleNotifications(db:SqlDatabase,actor:WorkContext,rows:Omit<StaffNotification,"href">[]) {
+  // A denied source disappears from this projection; it must not interrupt
+  // the whole Inbox page. Owner readers still enforce the current authority.
+  actor = { ...actor, pageRequest: undefined };
   let retirement: ReturnType<typeof retirementWork> | undefined;
   const visible: StaffNotification[] = [];
   for (const row of rows) {
@@ -68,6 +73,7 @@ export async function visibleNotifications(db:SqlDatabase,actor:WorkContext,rows
       if(row.record_type === "support_incident") {await (await import("./support-incidents")).getSupportIncident(actor,row.record_id);visible.push({...row,href:`/support/incidents/${row.record_id}`});continue;}
       if(row.record_type === "support_policy") {await (await import("./support-sla")).getSupportPolicy(actor,row.record_id);visible.push({...row,href:"/support/sla"});continue;}
       if(row.record_type === "support_ticket") {await (await import("./support")).getSupportTicket(actor,row.record_id);visible.push({...row,href:`/support/${encodeURIComponent(row.record_id)}`});continue;}
+      if(row.record_type === "operational_exception") {await (await import("./operations-exceptions")).operationsExceptionDetail(actor,row.record_id);visible.push({...row,href:`/operations/${encodeURIComponent(row.record_id)}`});continue;}
       if(row.record_type === "support_session") {await (await import("./support-sessions")).supportSessionDetail(actor,row.record_id);visible.push({...row,href:`/support/sessions/${encodeURIComponent(row.record_id)}`});continue;}
       if(row.record_type === "iam_access_review") {
         if(await (await import("./iam-access-review-alerts")).canReadAccessReviewAlert(db,actor.companyId,actor.userId,row.record_id))visible.push({...row,href:`/people/settings?section=reviews#${encodeURIComponent(row.record_id)}`});
@@ -89,6 +95,8 @@ export async function visibleNotifications(db:SqlDatabase,actor:WorkContext,rows
         continue;
       }
       if(row.record_type === "maintenance_work") {await (await import("./asset-maintenance")).maintenanceDetail(actor,row.record_id);visible.push({...row,href:`/maintenance/${encodeURIComponent(row.record_id)}`});continue;}
+      if(row.record_type === "maintenance_plan") {await (await import("./maintenance-preventive")).preventivePlanDetail(actor,row.record_id);visible.push({...row,href:`/maintenance/plans/${encodeURIComponent(row.record_id)}`});continue;}
+      if(row.record_type === "project_handoff") {visible.push({...row,href:await (await import('./project-structure')).projectHandoffTarget(db,actor,row.record_id)});continue;}
       if(row.record_type === "field_service_order") {await (await import("./field-service")).fieldServiceDetail(actor,row.record_id);visible.push({...row,href:`/field-service/${encodeURIComponent(row.record_id)}`});continue;}
       if(row.record_type === "commerce_order") {await (await import("./commerce")).getOrder(actor,row.record_id);visible.push({...row,href:`/commerce/orders/${encodeURIComponent(row.record_id)}`});continue;}
       if(row.record_type === "collaboration_action") {await (await import("./collaboration-work")).collaborationActionDetail(actor,row.record_id);visible.push({...row,href:"/collaboration"});continue;}
@@ -114,7 +122,7 @@ export async function visibleNotifications(db:SqlDatabase,actor:WorkContext,rows
       if(row.record_type === "supplier_promise") {await (await import("./supplier-promises")).getSupplierPromiseOrder(actor,row.record_id);visible.push({...row,href:`/commerce/orders/${encodeURIComponent(row.record_id)}#supplier-promises`});continue;}
       if(row.record_type === "inventory_transit") {await (await import("./inventory-transit")).getTransit(actor,row.record_id);visible.push({...row,href:`/stock-transit/${encodeURIComponent(row.record_id)}`});continue;}
       if(row.record_type === "quality_hold") {await (await import("./quality")).getQualityHold(actor,row.record_id);visible.push({...row,href:`/quality/${encodeURIComponent(row.record_id)}`});continue;}
-      if(row.record_type === "quality_alert") {const alert=await (await import("./quality-alerts")).getQualityAlert(actor,row.record_id);visible.push({...row,href:`/quality/${encodeURIComponent(alert.hold_id)}`});continue;}
+      if(row.record_type === "quality_alert") {const alert=await (await import("./quality-alerts")).getQualityAlert(actor,row.record_id);const href=`/quality/${encodeURIComponent(alert.hold_id)}`;visible.push({...row,href,source:{kind:"quality_hold",id:alert.hold_id,href,label:sourceRecordLabel("quality_hold")}});continue;}
       if(row.record_type === "supplier_batch") {await (await import("./supplier-payments")).getSupplierBatch(actor,row.record_id);visible.push({...row,href:`/finance/supplier-batches/${encodeURIComponent(row.record_id)}`});continue;}
       if(row.record_type === "refund") {await (await import("./refunds")).getRefund(actor,row.record_id);visible.push({...row,href:`/finance/refunds/${encodeURIComponent(row.record_id)}`});continue;}
       if(row.record_type === "legal") {await (await import("./legal/access")).access(db,actor,row.record_id);visible.push({...row,href:`/legal?record=${encodeURIComponent(row.record_id)}`});continue;}
@@ -134,30 +142,33 @@ export async function visibleNotifications(db:SqlDatabase,actor:WorkContext,rows
         continue;
       }
       if(row.record_type === "overtime") {await getOvertime(actor,row.record_id);visible.push({...row,href:`/overtime/${row.record_id}`});continue;}
-      if (["leave","leave_cancellation"].includes(row.record_type))
-        await getLeave(actor.holdingId, row.record_id, actor);
-      else if (row.record_type === "expense")
-        await getExpense(actor, row.record_id);
-      else if (row.record_type === "request") await getEmployeeRequest(db,actor,row.record_id);
-      else if (row.record_type === "task")
-        await getTask(db, actor, row.record_id);
-      else if (row.record_type === "post") await readablePost(db,actor,row.record_id);
+      let sourceKind = row.record_type, sourceVersion: number | undefined;
+      if (["leave","leave_cancellation"].includes(row.record_type)) {
+        const record = await getLeave(actor.holdingId, row.record_id, actor); sourceKind="leave"; sourceVersion=record.version;
+      } else if (row.record_type === "expense") {
+        const record = await getExpense(actor, row.record_id); sourceVersion=Number(record.version);
+      } else if (row.record_type === "request") {
+        const record = await getEmployeeRequest(db,actor,row.record_id); sourceKind=`${record.kind}_request`; sourceVersion=record.version;
+      } else if (row.record_type === "task") {
+        const record = await getTask(db, actor, row.record_id); sourceKind="staff_task"; sourceVersion=record.version;
+      } else if (row.record_type === "post") {
+        const record = await readablePost(db,actor,row.record_id); sourceVersion=record.version;
+      }
       else continue;
-      visible.push({
-        ...row,
-        href: row.record_type === "request" ? `/requests/${row.record_id}` : row.record_type === "post" ? `/posts/${row.record_id}` :
+      const href = row.record_type === "request" ? `/requests/${row.record_id}` : row.record_type === "post" ? `/posts/${row.record_id}` :
           ["leave","leave_cancellation"].includes(row.record_type)
             ? `/tasks/people_payroll/${row.record_id}`
             : row.record_type === "expense"
               ? `/expenses/${row.record_id}`
-              : `/staff-tasks/${row.record_id}`,
-      });
+              : `/staff-tasks/${row.record_id}`;
+      visible.push({...row,href,source:{kind:sourceKind,id:row.record_id,version:sourceVersion,href,label:sourceRecordLabel(sourceKind)}});
     } catch (error) {
       if (!(error instanceof ApiError) || ![403, 404].includes(error.status))
         throw error;
     }
   }
-  return visible;
+  return visible.map(row=>({...row,source:row.source ?? { kind:row.record_type === "task" ? "staff_task" : row.record_type, id:row.record_id, href:row.href,
+    label:sourceRecordLabel(row.record_type === "task" ? "staff_task" : row.record_type) }}));
 }
 
 export async function notificationsPage(db:SqlDatabase,actor:WorkContext,query:{view?:string;cursor?:string}) {

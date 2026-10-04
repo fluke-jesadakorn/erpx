@@ -1,8 +1,14 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { FormDisclosure } from "@/components/ui/form-disclosure";
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
+
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
 import type { talentDetail, talentWorkspace } from "@/server/talent";
+import { FormLayout } from "@/components/ui/foundation";
 function useCommand(base: string) {
   const router = useRouter(),
     last = useRef<{ body: string; key: string } | null>(null),
@@ -10,8 +16,7 @@ function useCommand(base: string) {
     [error, setError] = useState("");
   async function send(input: unknown) {
     const body = JSON.stringify(input);
-    if (last.current?.body !== body)
-      last.current = { body, key: crypto.randomUUID() };
+    if (last.current?.body !== body) last.current = { body, key: crypto.randomUUID() };
     setBusy(true);
     setError("");
     try {
@@ -58,11 +63,11 @@ export function TalentConsole({
     Object.fromEntries(new FormData(e.currentTarget));
   return (
     <>
-      {error && <p role="alert">{error}</p>}
+      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
       {data && (
         <>
-          <form
-            className="card business-form"
+          <FormLayout
+            className="ui-panel ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
               const f = form(e);
@@ -74,31 +79,31 @@ export function TalentConsole({
             }}
           >
             <h2>Draft requisition</h2>
-            <label>
+            <Field appearance="standard">
               Job title
-              <input name="jobTitle" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="jobTitle" required />
+            </Field>
+            <Field appearance="standard">
               Openings
-              <input name="openings" type="number" min="1" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="openings" type="number" min="1" required />
+            </Field>
+            <Field appearance="standard">
               Target start
-              <input name="targetStartDate" type="date" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="targetStartDate" type="date" required />
+            </Field>
+            <Field appearance="standard">
               Description
-              <textarea name="description" required minLength={3} />
-            </label>
-            <button className="button" disabled={busy}>
+              <TextArea appearance="standard" name="description" required minLength={3} />
+            </Field>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Draft requisition
-            </button>
-          </form>
+            </Button>
+          </FormLayout>
           {data.requisitions
             .filter((x) => ["draft", "approved"].includes(String(x.status)))
             .map((x) => (
-              <form
-                className="card business-form"
+              <FormLayout
+                className="ui-panel ui-form-grid"
                 key={String(x.id)}
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -112,52 +117,51 @@ export function TalentConsole({
                 }}
               >
                 <h2>
-                  {x.status === "draft" ? "Review" : "Open"} ·{" "}
-                  {String(x.job_title)}
+                  {x.status === "draft" ? "Review" : "Open"} · {String(x.job_title)}
                 </h2>
-                <label>
+                <Field appearance="standard">
                   Reason
-                  <textarea name="reason" required minLength={3} />
-                </label>
-                <button className="button" disabled={busy}>
+                  <TextArea appearance="standard" name="reason" required minLength={3} />
+                </Field>
+                <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
                   Continue
-                </button>
-              </form>
+                </Button>
+              </FormLayout>
             ))}
-          <form
-            className="card business-form"
+          <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Record candidate consent</summary><FormLayout
+            className="ui-panel ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
               void send({ ...form(e), entity: "candidate" });
             }}
           >
             <h2>Record candidate consent</h2>
-            <label>
+            <Field appearance="standard">
               Legal name
-              <input name="legalName" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="legalName" required />
+            </Field>
+            <Field appearance="standard">
               Email
-              <input name="email" type="email" required />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="email" type="email" required />
+            </Field>
+            <Field appearance="standard">
               Phone
-              <input name="phone" />
-            </label>
-            <label>
+              <TextInput appearance="standard" name="phone" />
+            </Field>
+            <Field appearance="standard">
               Consent evidence
-              <textarea name="consentEvidence" required minLength={3} />
-            </label>
-            <label>
+              <TextArea appearance="standard" name="consentEvidence" required minLength={3} />
+            </Field>
+            <Field appearance="standard">
               Retain until
-              <input name="retentionUntil" type="date" required />
-            </label>
-            <button className="button" disabled={busy}>
+              <TextInput appearance="standard" name="retentionUntil" type="date" required />
+            </Field>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Create private candidate
-            </button>
-          </form>
-          <form
-            className="card business-form"
+            </Button>
+          </FormLayout></FormDisclosure>
+          <FormLayout
+            className="ui-panel ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
               const f = form(e),
@@ -170,9 +174,9 @@ export function TalentConsole({
             }}
           >
             <h2>Create application</h2>
-            <label>
+            <Field appearance="standard">
               Open requisition
-              <select name="requisitionId">
+              <Select appearance="standard" name="requisitionId">
                 {data.requisitions
                   .filter((x) => x.status === "open")
                   .map((x) => (
@@ -180,11 +184,11 @@ export function TalentConsole({
                       {String(x.job_title)}
                     </option>
                   ))}
-              </select>
-            </label>
-            <label>
+              </Select>
+            </Field>
+            <Field appearance="standard">
               Candidate
-              <select name="candidateId">
+              <Select appearance="standard" name="candidateId">
                 {data.candidates
                   .filter((x) => x.status === "active")
                   .map((x) => (
@@ -192,22 +196,22 @@ export function TalentConsole({
                       {String(x.legal_name)}
                     </option>
                   ))}
-              </select>
-            </label>
-            <label>
+              </Select>
+            </Field>
+            <Field appearance="standard">
               Owner
-              <select name="ownerId">
+              <Select appearance="standard" name="ownerId">
                 {data.people.map((x) => (
                   <option key={String(x.id)} value={String(x.id)}>
                     {String(x.name)}
                   </option>
                 ))}
-              </select>
-            </label>
-            <button className="button" disabled={busy}>
+              </Select>
+            </Field>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Create application
-            </button>
-          </form>
+            </Button>
+          </FormLayout>
         </>
       )}
       {a && a.status === "applied" && (
@@ -220,8 +224,8 @@ export function TalentConsole({
         />
       )}
       {a && a.status === "interview" && !p && (
-        <form
-          className="card business-form"
+        <FormLayout
+          className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
             const f = form(e);
@@ -235,26 +239,26 @@ export function TalentConsole({
           }}
         >
           <h2>Interview proposal</h2>
-          <label>
+          <Field appearance="standard">
             Recommendation
-            <select name="recommendation">
+            <Select appearance="standard" name="recommendation">
               <option value="hire">Hire</option>
               <option value="hold">Hold</option>
               <option value="reject">Reject</option>
-            </select>
-          </label>
-          <label>
+            </Select>
+          </Field>
+          <Field appearance="standard">
             Score bps
-            <input name="scoreBps" type="number" min="0" max="10000" required />
-          </label>
-          <label>
+            <TextInput appearance="standard" name="scoreBps" type="number" min="0" max="10000" required />
+          </Field>
+          <Field appearance="standard">
             Evidence
-            <textarea name="evidence" required minLength={3} />
-          </label>
-          <button className="button" disabled={busy}>
+            <TextArea appearance="standard" name="evidence" required minLength={3} />
+          </Field>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Submit proposal
-          </button>
-        </form>
+          </Button>
+        </FormLayout>
       )}
       {a && p?.status === "submitted" && (
         <Action
@@ -277,8 +281,8 @@ export function TalentConsole({
         />
       )}
       {a && a.status === "selected" && !o && (
-        <form
-          className="card business-form"
+        <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Draft offer</summary><FormLayout
+          className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
             void send({
@@ -290,30 +294,30 @@ export function TalentConsole({
           }}
         >
           <h2>Draft offer</h2>
-          <label>
+          <Field appearance="standard">
             Currency
-            <input name="currency" defaultValue="THB" required />
-          </label>
-          <label>
+            <TextInput appearance="standard" name="currency" defaultValue="THB" required />
+          </Field>
+          <Field appearance="standard">
             Base amount
-            <input name="baseAmount" required />
-          </label>
-          <label>
+            <TextInput appearance="standard" name="baseAmount" required />
+          </Field>
+          <Field appearance="standard">
             Start date
-            <input name="startDate" type="date" required />
-          </label>
-          <label>
+            <TextInput appearance="standard" name="startDate" type="date" required />
+          </Field>
+          <Field appearance="standard">
             Expires on
-            <input name="expiresOn" type="date" required />
-          </label>
-          <label>
+            <TextInput appearance="standard" name="expiresOn" type="date" required />
+          </Field>
+          <Field appearance="standard">
             Terms
-            <textarea name="terms" required minLength={3} />
-          </label>
-          <button className="button" disabled={busy}>
+            <TextArea appearance="standard" name="terms" required minLength={3} />
+          </Field>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Draft offer
-          </button>
-        </form>
+          </Button>
+        </FormLayout></FormDisclosure>
       )}
       {o && o.status === "draft" && (
         <Action
@@ -338,8 +342,8 @@ export function TalentConsole({
         />
       )}{" "}
       {o && o.status === "sent" && (
-        <form
-          className="card business-form"
+        <FormLayout
+          className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
             const f = form(e);
@@ -354,18 +358,18 @@ export function TalentConsole({
           }}
         >
           <h2>Record candidate acceptance</h2>
-          <label>
+          <Field appearance="standard">
             Evidence
-            <textarea name="acceptanceEvidence" required minLength={3} />
-          </label>
-          <label>
+            <TextArea appearance="standard" name="acceptanceEvidence" required minLength={3} />
+          </Field>
+          <Field appearance="standard">
             Reason
-            <textarea name="reason" required minLength={3} />
-          </label>
-          <button className="button" disabled={busy}>
+            <TextArea appearance="standard" name="reason" required minLength={3} />
+          </Field>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Accept and hand off
-          </button>
-        </form>
+          </Button>
+        </FormLayout>
       )}
     </>
   );
@@ -388,8 +392,8 @@ function Action({
   busy: boolean;
 }) {
   return (
-    <form
-      className="card business-form"
+    <FormLayout
+      className="ui-panel ui-form-grid"
       onSubmit={(e) => {
         e.preventDefault();
         void send({
@@ -402,13 +406,13 @@ function Action({
       }}
     >
       <h2>{title}</h2>
-      <label>
+      <Field appearance="standard">
         Reason
-        <textarea name="reason" required minLength={3} />
-      </label>
-      <button className="button" disabled={busy}>
+        <TextArea appearance="standard" name="reason" required minLength={3} />
+      </Field>
+      <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
         Continue
-      </button>
-    </form>
+      </Button>
+    </FormLayout>
   );
 }

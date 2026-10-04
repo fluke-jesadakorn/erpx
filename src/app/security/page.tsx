@@ -25,18 +25,18 @@ export default async function SecurityPage() {
     <a href="#security-content" className="skip-link">Skip to account security</a>
     <main>
     <FeaturePage
-      className="content-stack"
+      className="ui-page-content"
       style={{ maxWidth: 1360, margin: "40px auto", padding: 24 }}
     >
       <h1>Account security</h1>
       <div className={rail.layout}>
       <aside className={rail.rail} aria-label="Quick access">
-        <QuickAccessShelf items={items} initialPreferences={preferences} defaultIds={items.map(item => item.id)} endpoint="/api/v1/account/quick-access/security" requestMode="plain" embedded placement="rail" />
+        <QuickAccessShelf appearance="standard" items={items} initialPreferences={preferences} defaultIds={items.map(item => item.id)} endpoint="/api/v1/account/quick-access/security" requestMode="plain" embedded placement="rail" />
       </aside>
       <div id="security-content" tabIndex={-1} className={rail.content}>
       <FeatureTabs/><WidgetGrid pageKey="account-security">
       <p>Manage your authenticator and activate protected emergency access.</p>
-      <Link href="/my-access">View all my access</Link><FeatureWidget id="account-security-controls" title="Account security"><AccountSecurity /></FeatureWidget>
+      <Link href="/my-access">View all my access</Link><FeatureWidget appearance="standard" id="account-security-controls" title="Account security"><AccountSecurity /></FeatureWidget>
       <Link href="/">Return to your workspace</Link>
     </WidgetGrid>
       </div>

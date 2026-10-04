@@ -7,6 +7,7 @@ import { LearningConsole } from "@/components/modules/learning-console";
 import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
 import { samePerson } from "@/lib/iam";
 import { hasPermission } from "@/lib/permissions";
+import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Page({
   params,
@@ -24,7 +25,7 @@ export default async function Page({
     canManageDocuments = hasPermission(a, "learning.documents.manage"),
     learner = samePerson(a, x.learner_id);
   return (
-    <div className="content-stack">
+    <PageContent as="div" className="ui-page-content">
       <Link href={`${base}/learning`}>Learning</Link>
       <h1>{String(x.course_title)}</h1>
       <p>
@@ -32,7 +33,7 @@ export default async function Page({
       </p>
       <LearningConsole base={base} detail={data} />
       {course && (
-        <RecordDocumentPanel
+        <RecordDocumentPanel appearance="standard"
           base={base}
           targetType="learning_course"
           targetId={String(course.id)}
@@ -52,7 +53,7 @@ export default async function Page({
         />
       )}
       {String(x.status) === "completed" && (canManageDocuments || learner) && (
-        <RecordDocumentPanel
+        <RecordDocumentPanel appearance="standard"
           base={base}
           targetType="learning_assignment"
           targetId={String(x.id)}
@@ -71,7 +72,7 @@ export default async function Page({
           ]}
         />
       )}
-      <section className="card">
+      <Card as="section" appearance="standard" className="ui-panel">
         <h2>History</h2>
         {data.history.map((e) => (
           <p key={String(e.id)}>
@@ -79,16 +80,16 @@ export default async function Page({
             {String(e.reason)}
           </p>
         ))}
-      </section>
+      </Card>
       {data.handoff && (
-        <section className="card">
+        <Card as="section" appearance="standard" className="ui-panel">
           <h2>Eligibility handoff</h2>
           <p>
             {String(data.handoff.eligibility_code)} · source version{" "}
             {String(data.handoff.source_assignment_version)}
           </p>
-        </section>
+        </Card>
       )}
-    </div>
+    </PageContent>
   );
 }

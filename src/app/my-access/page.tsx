@@ -1,3 +1,5 @@
+
+import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { TimeText } from "@/components/time/time-preference-context";
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { permissionDefinition } from "@/lib/permissions";
@@ -8,8 +10,8 @@ import { accountQuickAccessItems } from "@/server/account-quick-access";
 import { readQuickAccessPreferences } from "@/server/quick-access-preferences";
 import { QuickAccessShelf } from "@/components/quick-access/shelf";
 import rail from "@/components/quick-access/area-rail.module.css";
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Card } from "@/components/ui/foundation";
 export default async function MyAccessPage() {
   const session = await currentSession().catch(() =>
     redirect("/login?next=/my-access"),
@@ -25,13 +27,13 @@ export default async function MyAccessPage() {
     <a href="#my-access-content" className="skip-link">Skip to account access</a>
     <main>
     <FeaturePage
-      className="content-stack"
+      className="ui-page-content"
       style={{ maxWidth: 1360, margin: "40px auto", padding: 24 }}
     >
       <h1>My access</h1>
       <div className={rail.layout}>
       <aside className={rail.rail} aria-label="Quick access">
-        <QuickAccessShelf items={items} initialPreferences={preferences} defaultIds={items.map(item => item.id)} endpoint="/api/v1/account/quick-access/my-access" requestMode="plain" embedded placement="rail" />
+        <QuickAccessShelf appearance="standard" items={items} initialPreferences={preferences} defaultIds={items.map(item => item.id)} endpoint="/api/v1/account/quick-access/my-access" requestMode="plain" embedded placement="rail" />
       </aside>
       <div id="my-access-content" tabIndex={-1} className={rail.content}>
       <FeatureTabs/><WidgetGrid pageKey="account-my-access">
@@ -40,31 +42,31 @@ export default async function MyAccessPage() {
         to use its permissions.
       </p>
       <div className="button-row">
-        <Link className="button secondary" href="/">
+        <UiActionLink appearance="standard" variant="secondary" href="/">
           Open workspace
-        </Link>
-        <Link className="button secondary" href="/security">
+        </UiActionLink>
+        <UiActionLink appearance="standard" variant="secondary" href="/security">
           Authenticator & sessions
-        </Link>
+        </UiActionLink>
       </div>
       {!access.length && (
-        <FeatureWidget id="account-my-access-no-assignments-yet" title="No assignments yet"><section className="card">
+        <FeatureWidget appearance="standard" id="account-my-access-no-assignments-yet" title="No assignments yet"><Card as="section" appearance="standard" className="ui-panel">
           
           <p>
             Your account is signed in. Ask your company administrator to arrange
             reviewed access.
           </p>
-        </section></FeatureWidget>
+        </Card></FeatureWidget>
       )}
-      <FeatureWidget id="account-roles" title="Roles & permissions">{access.map((a) => (
-        <section className="card" key={a.id}>
+      <FeatureWidget appearance="standard" id="account-roles" title="Roles & permissions">{access.map((a) => (
+        <Card as="section" appearance="standard" className="ui-panel" key={a.id}>
           <h2>{a.role}</h2>
           <p>
             {a.company} · {a.scope}
           </p>
           <p>
             {a.active ? "Active" : "Unavailable"} · {a.identity} · expires{" "}
-            <TimeText value={a.expiresAt} />
+            <TimeText appearance="standard" value={a.expiresAt} />
           </p>
           <details>
             <summary>Permissions and explanations</summary>
@@ -80,7 +82,7 @@ export default async function MyAccessPage() {
                 ))}
             </ul>
           </details>
-        </section>
+        </Card>
       ))}</FeatureWidget>
     </WidgetGrid>
       </div>

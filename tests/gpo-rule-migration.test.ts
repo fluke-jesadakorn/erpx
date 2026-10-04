@@ -21,7 +21,7 @@ it("bridges direct mappings and every owned legacy claim without issuing Directo
     // deliberately holds back the legacy GPO bridge migration.
     await copyFile(join(source,"0347_position_roster_required.sql"),join(track,"0347_position_roster_required.sql"));
     await migrateDatabase(db,"holding-write",root);
-    const f=await seedExpenseCompany(db,env.H002_FILES);await mapSpendingOrganization(f);
+    const f=await seedExpenseCompany(db,env.H002_FILES,false);await mapSpendingOrganization(f);
     const person=`person-${f.head.userId}`,engagement=await db.prepare("SELECT id,position_id FROM hr_engagements WHERE person_id=?").bind(person).first<{id:string;position_id:string}>();
     const connection=`migration-connection-${crypto.randomUUID()}`;
     await db.prepare("INSERT INTO iam_connections(id,company_id,name,provider,config,status,created_by,created_at) VALUES(?,?,'Migration fixture','active_directory','{}','active',?,1)").bind(connection,f.company,f.it.userId).run();

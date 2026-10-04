@@ -1,5 +1,7 @@
 # Supplier invoice matching — simulation scope
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 เพิ่ม PO → receipt ที่ post goods GL แล้ว → supplier invoice evidence → independent Finance review → AP draft → independent GL posting. เริ่มที่ใบรับสินค้าในหน้ารายละเอียด PO; คิว `/supplier-bills`, Work, Inbox และ Calendar ใช้ scope บริษัท/สาขา/แผนกจาก source เดิม.
 
 ## วิธีทำงานแยกบทบาท

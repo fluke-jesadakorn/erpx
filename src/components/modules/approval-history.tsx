@@ -1,5 +1,7 @@
+import { InlineNotice } from "@/components/ui/foundation";
 import { TimeText } from "@/components/time/time-preference-context";
 import type { ApprovalView } from "@/server/approvals";
+import { Card } from "@/components/ui/foundation";
 function source(snapshotText: string | null | undefined) {
   if (!snapshotText) return null;
   try {
@@ -19,13 +21,13 @@ export function ApprovalHistory({
   title?: string;
 }) {
   return (
-    <section className="card">
+    <Card as="section" appearance="standard" className="ui-panel">
       <h2>{title}</h2>
       {(blockedReason || approval.blockedReason) && (
-        <p role="status" className="notice">
+        <InlineNotice tone="info" role="status" className="notice">
           Blocked:{" "}
           {blockedReason || approval.blockedReason}
-        </p>
+        </InlineNotice>
       )}
       {approval.currentApprover && (
         <p>
@@ -67,7 +69,7 @@ export function ApprovalHistory({
           <p className="muted">The route is captured when submitted.</p>
         )}
         {approval.history.map((d) => (
-          <article className="row" key={d.id}>
+          <article className="ui-record-item" key={d.id}>
             <div className="row-main">
               <strong>
                 {d.action === "override" ? "Decision on behalf of assigned approver" : d.action === "reroute" ? "Approver changed" : d.action} · {d.actor_name}
@@ -75,7 +77,7 @@ export function ApprovalHistory({
               <p>{d.reason || "No additional note"}</p>
               <small>
                 Reviewed version {d.reviewed_version} ·{" "}
-                <TimeText value={d.created_at} />
+                <TimeText appearance="standard" value={d.created_at} />
               </small>
               {(d.action === "reroute" || d.action === "override") && (
                 <p>
@@ -86,6 +88,6 @@ export function ApprovalHistory({
           </article>
         ))}
       </details>
-    </section>
+    </Card>
   );
 }

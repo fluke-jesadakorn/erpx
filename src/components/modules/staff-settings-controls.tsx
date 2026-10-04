@@ -1,40 +1,37 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { FormDisclosure } from "@/components/ui/form-disclosure";
+import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
+
 import { useState } from "react";
-import {
-  StaffPicker,
-  useStaffCommand,
-  type StaffOptions,
-} from "./staff-work-controls";
-export function StaffSettingsControls({
-  base,
-  options,
-}: {
-  base: string;
-  options: StaffOptions;
-}) {
+import { StaffPicker, useStaffCommand, type StaffOptions } from "./staff-work-controls";
+import { Card, FormLayout } from "@/components/ui/foundation";
+export function StaffSettingsControls({ base, options }: { base: string; options: StaffOptions }) {
   const { send, busy, error } = useStaffCommand(base),
     [head, setHead] = useState("");
   return (
     <>
       {error && (
-        <p role="alert" className="error">
+        <InlineNotice tone="danger" role="alert" className="error">
           {error}
-        </p>
+        </InlineNotice>
       )}
-      <section className="card">
+      <Card as="section" appearance="standard" className="ui-panel">
         <h2>Company level catalog</h2>
         <p className="muted">
-          Level 1 is most senior; Level 6 is staff. Explicitly map staff in People. Legacy ranks remain for historical workflows. Levels do not grant access.
+          Level 1 is most senior; Level 6 is staff. Explicitly map staff in People. Legacy ranks
+          remain for historical workflows. Levels do not grant access.
         </p>
         {[...options.levels, null].map((level) => (
-          <details key={level?.id ?? "new"}>
+          <FormDisclosure appearance="standard" key={level?.id ?? "new"}>
             <summary>
               {level
                 ? `${level.code} · ${level.name} · ${level.level_number ? `Level ${level.level_number}` : `legacy rank ${level.rank}`} · ${level.active ? "active" : "inactive"}`
                 : "Add staff level"}
             </summary>
-            <form
-              className="business-form"
+            <FormLayout
+              className="ui-form-grid"
               onSubmit={(e) => {
                 e.preventDefault();
                 const f = new FormData(e.currentTarget);
@@ -42,33 +39,23 @@ export function StaffSettingsControls({
                   code: f.get("code"),
                   name: f.get("name"),
                   rank: Number(f.get("rank")),
-                  ...(level?.level_number?{levelNumber:level.level_number}:{}),
+                  ...(level?.level_number ? { levelNumber: level.level_number } : {}),
                   active: f.get("active") === "on",
                   expectedVersion: level?.version ?? 0,
                 });
               }}
             >
-              <label>
+              <Field appearance="standard">
                 Code
-                <input
-                  name="code"
-                  required
-                  maxLength={30}
-                  defaultValue={level?.code ?? ""}
-                />
-              </label>
-              <label>
+                <TextInput appearance="standard" name="code" required maxLength={30} defaultValue={level?.code ?? ""} />
+              </Field>
+              <Field appearance="standard">
                 Name
-                <input
-                  name="name"
-                  required
-                  maxLength={100}
-                  defaultValue={level?.name ?? ""}
-                />
-              </label>
-              <label>
+                <TextInput appearance="standard" name="name" required maxLength={100} defaultValue={level?.name ?? ""} />
+              </Field>
+              <Field appearance="standard">
                 Legacy rank (historical workflows)
-                <input
+                <TextInput appearance="standard"
                   name="rank"
                   type="number"
                   required
@@ -76,38 +63,36 @@ export function StaffSettingsControls({
                   max={10000}
                   defaultValue={level?.rank ?? 1}
                 />
-              </label>
-              <label className="staff-check">
-                <input
+              </Field>
+              <Field appearance="standard" orientation="inline" className="staff-check">
+                <TextInput appearance="standard"
                   name="active"
                   type="checkbox"
                   defaultChecked={level ? !!level.active : true}
                 />
                 Active
-              </label>
-              <button className="button" disabled={busy}>
+              </Field>
+              <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
                 Save level
-              </button>
-            </form>
-          </details>
+              </Button>
+            </FormLayout>
+          </FormDisclosure>
         ))}
-      </section>
-      <section className="card">
+      </Card>
+      <Card as="section" appearance="standard" className="ui-panel">
         <h2>Named department heads</h2>
         {options.departments.map((d) => (
           <p key={d.id}>
             <strong>{d.display_name}</strong> · {d.head_name}
           </p>
         ))}
-        <details>
+        <FormDisclosure appearance="standard">
           <summary>Change department head</summary>
           <form
             onSubmit={(e) => {
               e.preventDefault();
               const f = new FormData(e.currentTarget),
-                department = options.departments.find(
-                  (d) => d.id === f.get("departmentId"),
-                ),
+                department = options.departments.find((d) => d.id === f.get("departmentId")),
                 person = options.people.find((p) => p.user_id === head);
               if (!department || !person) return;
               void send(`staff/departments/${department.id}/head`, {
@@ -117,33 +102,33 @@ export function StaffSettingsControls({
               });
             }}
           >
-            <label>
+            <Field appearance="standard">
               Department
-              <select name="departmentId" required>
+              <Select appearance="standard" name="departmentId" required>
                 <option value="">Choose department</option>
                 {options.departments.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.display_name}
                   </option>
                 ))}
-              </select>
-            </label>
-            <StaffPicker
+              </Select>
+            </Field>
+            <StaffPicker appearance="standard"
               label="Named department head"
               value={head}
               onChange={setHead}
               options={options}
             />
-            <label>
+            <Field appearance="standard">
               Configuration reason
-              <input name="reason" required minLength={3} maxLength={1000} />
-            </label>
-            <button className="button" disabled={busy}>
+              <TextInput appearance="standard" name="reason" required minLength={3} maxLength={1000} />
+            </Field>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Save department head
-            </button>
+            </Button>
           </form>
-        </details>
-      </section>
+        </FormDisclosure>
+      </Card>
     </>
   );
 }

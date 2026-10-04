@@ -32,12 +32,17 @@ export const incidentChangeSchema=z.discriminatedUnion('action',[
  z.object({action:z.literal('link'),expectedVersion:version,reason,ticketId:id,ticketVersion:version,attachmentSetIds}),
 ]);
 const terminal=(s:unknown)=>['closed','cancelled'].includes(String(s));
+export function supportIncidentReadPredicate(a:WorkContext,alias='t') {
+ return {sql:`EXISTS(SELECT 1 FROM assignments g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=${alias}.company_id
+  AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
+  AND iam_role_allows(g.role,g.company_id,'support.read') AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=${alias}.branch_id OR g.scope_kind='department' AND g.scope_node_id=${alias}.department_id))`,bindings:[a.assignmentId,a.userId,a.role]};
+}
 export async function getSupportIncident(a:WorkContext,id:string) {
- requirePermission(a,'support.read');const {write}=await holdingResources(a.holdingId);
+ requirePermission(a,'support.read');const {write}=await holdingResources(a.holdingId),permission=supportIncidentReadPredicate(a);
  const r=await write.prepare(`SELECT t.*,CASE WHEN ${eligible} THEN 1 ELSE 0 END owner_eligible,
   CASE WHEN EXISTS(SELECT 1 FROM assignments m WHERE ${reviewer} AND m.user_id=?) THEN 1 ELSE 0 END reviewer_eligible,
   (SELECT COUNT(DISTINCT m.user_id) FROM assignments m WHERE ${reviewer}) reviewer_count
-  FROM support_incidents t WHERE t.id=? AND ${scope}`).bind(a.userId,id,...args(a)).first<Row>();
+  FROM support_incidents t WHERE t.id=? AND ${scope} AND ${permission.sql}`).bind(a.userId,id,...args(a),...permission.bindings).first<Row>();
  if(!r)throw new ApiError(404,'SUPPORT_INCIDENT_NOT_FOUND','Incident is not available in this scope.');return r;
 }
 function notify(db:SqlDatabase,id:string,key:string) {
@@ -47,7 +52,7 @@ function notify(db:SqlDatabase,id:string,key:string) {
   WHERE t.id=? ON CONFLICT DO NOTHING`).bind(`incident-notice-${key}-`,id);
 }
 export async function createSupportIncident(a:WorkContext,raw:unknown,key:string) {
- requirePermission(a,'support.manage');const input=incidentCreateSchema.parse(raw),{write}=await holdingResources(a.holdingId),id=`incident-${key}`,op='support.incident.create',prior=await replayCommand(write,a,key,op,id,input);if(prior)return prior;
+ requirePermission(a,'support.manage');const input=incidentCreateSchema.parse(raw),{write}=await holdingResources(a.holdingId),id=`incident-${key}`,op='support.incident.create',prior=await replayCommand(write,a,key,op,id,input);if(prior){await getSupportIncident(a,id);return prior;}
  const source=await getSupportTicket(a,input.ticketId),now=Date.now();
  if(source.source_kind!=='sales_order')throw new ApiError(422,'SUPPORT_INCIDENT_SOURCE_REQUIRED','Shared customer incidents require a linked customer order.');
  return executeCommand(write,a,key,op,input,id,1,{id,version:1},[
@@ -60,7 +65,7 @@ export async function createSupportIncident(a:WorkContext,raw:unknown,key:string
 }
 export async function changeSupportIncident(a:WorkContext,id:string,raw:unknown,key:string) {
  const input=incidentChangeSchema.parse(raw),manage=['close','reject','reopen','cancel','reassign','link','unlink'].includes(input.action);requirePermission(a,manage?'support.manage':'support.work');
- const {write}=await holdingResources(a.holdingId),op=`support.incident.${input.action}`,prior=await replayCommand(write,a,key,op,id,input);if(prior)return prior;
+ const {write}=await holdingResources(a.holdingId),op=`support.incident.${input.action}`,prior=await replayCommand(write,a,key,op,id,input);if(prior){await getSupportIncident(a,id);return prior;}
  const r=await getSupportIncident(a,id),now=Date.now(),allowed:Record<string,string[]>={start:['open'],update:['open','investigating'],mitigate:['investigating'],reject:['mitigated'],close:['mitigated'],reopen:['closed'],cancel:['open','investigating','mitigated'],reassign:['open','investigating','mitigated'],link:['open','investigating'],unlink:['open','investigating']};
  if(!allowed[input.action].includes(String(r.status)))throw new ApiError(409,'SUPPORT_INCIDENT_STATE','Review the current incident state.');
  if(!manage&&!samePerson(a,r.owner_id))throw new ApiError(403,'SUPPORT_INCIDENT_OWNER_REQUIRED','The assigned incident owner must perform this action.');
@@ -84,8 +89,8 @@ export async function changeSupportIncident(a:WorkContext,id:string,raw:unknown,
  return executeCommand(write,a,key,op,input,id,input.expectedVersion+1,{id,version:input.expectedVersion+1,status,...(prepared?{manifest:prepared.manifest}:{})},steps,{companyId:a.companyId,branchId:String(r.branch_id),departmentId:r.department_id?String(r.department_id):null});
 }
 export async function incidentWorkspace(a:WorkContext) {
- requirePermission(a,'support.read');const {write}=await holdingResources(a.holdingId);
- const items=(await write.prepare(`SELECT t.* FROM support_incidents t WHERE ${scope} ORDER BY t.updated_at DESC,t.id LIMIT 200`).bind(...args(a)).all<Row>()).results;
+ requirePermission(a,'support.read');const {write}=await holdingResources(a.holdingId),permission=supportIncidentReadPredicate(a);
+ const items=(await write.prepare(`SELECT t.* FROM support_incidents t WHERE ${scope} AND ${permission.sql} ORDER BY t.updated_at DESC,t.id LIMIT 200`).bind(...args(a),...permission.bindings).all<Row>()).results;
  const tickets=(await write.prepare(`SELECT t.id,t.title,t.version,t.status FROM support_tickets t WHERE ${scope} AND t.source_kind='sales_order' ORDER BY t.updated_at DESC,t.id LIMIT 200`).bind(...args(a)).all<Row>()).results;
  return {items,tickets,canManage:hasPermission(a,'support.manage')};
 }
@@ -97,7 +102,7 @@ export async function incidentDetail(a:WorkContext,id:string) {
   canManage:hasPermission(a,'support.manage'),canWork:hasPermission(a,'support.work')&&samePerson(a,row.owner_id)&&Number(row.owner_eligible)>0,canReview:hasPermission(a,'support.manage')&&Number(row.reviewer_eligible)>0};
 }
 export async function incidentWork(a:WorkContext):Promise<WorkItem[]> {
- if(!hasPermission(a,'support.read'))return [];const {write}=await holdingResources(a.holdingId);
- const rows=(await write.prepare(`SELECT t.*,CASE WHEN ${eligible} THEN 1 ELSE 0 END owner_eligible,CASE WHEN EXISTS(SELECT 1 FROM assignments m WHERE ${reviewer} AND m.user_id=?) THEN 1 ELSE 0 END reviewer_eligible,(SELECT COUNT(DISTINCT m.user_id) FROM assignments m WHERE ${reviewer}) reviewer_count FROM support_incidents t WHERE ${scope}`).bind(a.userId,...args(a)).all<Row>()).results;
+ if(!hasPermission(a,'support.read'))return [];const {write}=await holdingResources(a.holdingId),permission=supportIncidentReadPredicate(a);
+ const rows=(await write.prepare(`SELECT t.*,CASE WHEN ${eligible} THEN 1 ELSE 0 END owner_eligible,CASE WHEN EXISTS(SELECT 1 FROM assignments m WHERE ${reviewer} AND m.user_id=?) THEN 1 ELSE 0 END reviewer_eligible,(SELECT COUNT(DISTINCT m.user_id) FROM assignments m WHERE ${reviewer}) reviewer_count FROM support_incidents t WHERE ${scope} AND ${permission.sql}`).bind(a.userId,...args(a),...permission.bindings).all<Row>()).results;
  return rows.map(r=>{const done=terminal(r.status),review=r.status==='mitigated',canAct=!done&&(review?hasPermission(a,'support.manage')&&Number(r.reviewer_eligible)>0:hasPermission(a,'support.work')&&samePerson(a,r.owner_id)&&Number(r.owner_eligible)>0);return {id:String(r.id),type:'support_incident',title:`${r.severity} incident · ${r.title}`,detail:'Shared cause; each linked customer case retains its own outcome.',href:`/support/incidents/${r.id}`,status:String(r.status),updatedAt:Number(r.updated_at),queue:done?'completed':canAct?'todo':'waiting',canAct,dueAt:Date.parse(String(r.due_date)+'T00:00:00Z'),responsibleQueue:review?'Independent Support manager':'Assigned incident owner',nextAction:review?'Review mitigation or request rework':'Investigate and record mitigation evidence',blocker:!done&&(review?!Number(r.reviewer_count):!Number(r.owner_eligible))?'No eligible recipient; Support manager or administrator coverage is required':null,relationships:[samePerson(a,r.owner_id)?'assigned':samePerson(a,r.created_by)?'requested':canAct?'approval':'team']};});
 }

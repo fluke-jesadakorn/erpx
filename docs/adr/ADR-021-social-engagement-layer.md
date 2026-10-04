@@ -1,6 +1,6 @@
 # ADR-021: Social engagement layer (ERP as social network)
 
-> **Status:** Accepted (2026-09-03) — speculative plan; no implementation yet. Builds on ADR-017 (rails, human-only decisions) and ADR-019 (typed `@`, backlinks). Canonical spec: `docs/plan/04-social-paradigm.md`.
+> **Status:** Accepted (2026-09-03) — retained interaction/ownership decision; current supported flows are implemented in the owner services. Builds on ADR-017 (rails, human-only decisions) and ADR-019 (typed `@`, backlinks). Current behavior: [Workplace UX](../contracts/next/workplace-ux.md) and [catalogue](../contracts/next/catalogue.md).
 
 ## Context
 

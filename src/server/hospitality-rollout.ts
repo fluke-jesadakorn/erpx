@@ -13,6 +13,7 @@ import { acceptedReleasePredicate, companyReleaseStatus, releaseRevisionTable } 
 import { productionScope, legalProductionScope } from '@/data/production-scope';
 import artifact from '@/data/release-artifact.json';
 import { authorityGuard } from './staff-policy';
+import {engineeringVerificationPredicate,isolatedEngineeringVerification} from './engineering-verification';
 
 const changeSchema = z.object({
   moduleId: z.string().min(1).max(80),
@@ -55,12 +56,13 @@ export async function companyFeatureCatalogue(actor: WorkContext) {
   const release = await companyReleaseStatus(write,actor.companyId);
   const legalRelease = await companyReleaseStatus(write,actor.companyId,undefined,legalProductionScope.version);
   const production = process.env.NODE_ENV === 'production';
+  const engineering = await isolatedEngineeringVerification(write,actor.companyId);
   return moduleRegistry.map((module) => {
     const row = rollout.get(module.id);
     const accepted = (module.id === 'legal' ? legalRelease : release).state === 'passed';
     const setupChecked = module.id in ready;
     const setupReady = ready[module.id] ?? false;
-    const state = resolveFeatureState({moduleId:module.id,production,rollout:row?.rollout_state,setupReady,productionAccepted:accepted,businessAccepted:accepted});
+    const state = engineering ? setupChecked&&!setupReady ? 'Setup required' as const : 'Pilot' as const : resolveFeatureState({moduleId:module.id,production,rollout:row?.rollout_state,setupReady,productionAccepted:accepted,businessAccepted:accepted});
     return {
       id: module.id, name: module.name, state,
       delivery: moduleAvailability(module),
@@ -68,7 +70,7 @@ export async function companyFeatureCatalogue(actor: WorkContext) {
       setupReady, setupChecked, productionAccepted: accepted, businessAccepted: accepted,
       inventoryAccepted: productionAccepted(module.id),
       scopeVersion: module.id === 'legal' ? legalProductionScope.version : productionScope.version,
-      environment: production ? 'production' : 'development',
+      environment: engineering ? 'isolated-engineering' : production ? 'production' : 'development',
       permitted: hasModuleAccess(actor.modules,module.id),
       ...(row ? { reason: row.reason, changedAt: row.changed_at } : {}),
     };
@@ -118,6 +120,7 @@ export async function changeCompanyFeatureRollout(actor: WorkContext, raw: unkno
 /** Request boundary for owner APIs; reads remain available for authorized history. */
 export async function assertProductionFeatureRoute(db: SqlDatabase, companyId: string, destination: string, method: string) {
   if (process.env.NODE_ENV !== 'production' || ['GET','HEAD','OPTIONS'].includes(method)) return;
+  if(await isolatedEngineeringVerification(db,companyId))return;
   const [root,second] = destination.split('/');
   // The isolated staging standalone runs with NODE_ENV=production. Payroll
   // acceptance exercises remain sandbox-only there; the private production
@@ -175,6 +178,7 @@ export async function assertProductionFeatureRoute(db: SqlDatabase, companyId: s
 
 export async function assertProductionModuleEnabled(db: SqlDatabase, companyId: string, moduleId: string) {
   if (process.env.NODE_ENV !== 'production') return;
+  if(moduleRegistry.some(module=>module.id===moduleId)&&await isolatedEngineeringVerification(db,companyId))return;
   if (!isReleaseModule(moduleId)) throw new ApiError(403,'FEATURE_COMING_SOON','This feature is outside the approved release scopes');
   const row=await db.prepare(`SELECT 1 FROM company_feature_rollouts f WHERE company_id=? AND module_id=? AND ${activeRolloutPredicate('f')}`)
     .bind(companyId,moduleId).first();
@@ -184,17 +188,23 @@ export async function assertProductionModuleEnabled(db: SqlDatabase, companyId: 
 /** Keep a queued result from becoming visible if rollout changes during provider inference. */
 export function productionFeatureGuard(db: SqlDatabase, key: string, companyId: string, moduleId: string) {
   if (process.env.NODE_ENV !== 'production') return [];
-  if (!isReleaseModule(moduleId)) throw new ApiError(403,'FEATURE_COMING_SOON','This feature is outside the approved release scopes');
+  const engineering=moduleRegistry.some(module=>module.id===moduleId)?engineeringVerificationPredicate('?'):'FALSE';
+  if (!isReleaseModule(moduleId)) {
+    if(engineering==='FALSE')throw new ApiError(403,'FEATURE_COMING_SOON','This feature is outside the approved release scopes');
+    return [assertion(db,key,'isolated-engineering',engineering,[companyId])];
+  }
   return [db.prepare('SELECT module_id FROM company_feature_rollouts WHERE company_id=? AND module_id=? FOR SHARE').bind(companyId,moduleId),assertion(db,key,'feature-rollout',
-    `EXISTS(SELECT 1 FROM company_feature_rollouts f WHERE company_id=? AND module_id=? AND ${activeRolloutPredicate('f')})`,
-    [companyId,moduleId])];
+    `(EXISTS(SELECT 1 FROM company_feature_rollouts f WHERE company_id=? AND module_id=? AND ${activeRolloutPredicate('f')}) OR ${engineering})`,
+    [companyId,moduleId,...(engineering==='FALSE'?[]:[companyId])])];
 }
 
 /** SQL predicate for company-scoped scheduled reads and writes. Expressions are code-owned, never user input. */
 export function scheduledFeaturePredicate(companyExpression: string, moduleId: string) {
   if (process.env.NODE_ENV !== 'production') return 'TRUE';
-  if (!isReleaseModule(moduleId)) return 'FALSE';
-  return `EXISTS(SELECT 1 FROM company_feature_rollouts f WHERE f.company_id=${companyExpression} AND f.module_id='${moduleId}' AND ${activeRolloutPredicate('f')})`;
+  const engineering=moduleRegistry.some(module=>module.id===moduleId)?engineeringVerificationPredicate('engineering_subject.company_id'):'FALSE';
+  if(engineering==='FALSE')return !isReleaseModule(moduleId)?'FALSE':`EXISTS(SELECT 1 FROM company_feature_rollouts f WHERE f.company_id=${companyExpression} AND f.module_id='${moduleId}' AND ${activeRolloutPredicate('f')})`;
+  const accepted=isReleaseModule(moduleId)?`EXISTS(SELECT 1 FROM company_feature_rollouts f WHERE f.company_id=engineering_subject.company_id AND f.module_id='${moduleId}' AND ${activeRolloutPredicate('f')})`:'FALSE';
+  return `(SELECT (${accepted} OR ${engineering}) FROM (SELECT ${companyExpression}::text company_id) engineering_subject)`;
 }
 
 function activeRolloutPredicate(alias: string) {
@@ -202,6 +212,7 @@ function activeRolloutPredicate(alias: string) {
 }
 
 export async function enabledProductionModules(db: SqlDatabase, companyId: string) {
+  if(await isolatedEngineeringVerification(db,companyId))return new Set(moduleRegistry.map(module=>module.id));
   const rows = (await db.prepare(`SELECT module_id FROM company_feature_rollouts f WHERE f.company_id=? AND ${activeRolloutPredicate('f')}`)
     .bind(companyId).all<{ module_id: string }>()).results;
   return new Set(rows.map(row=>row.module_id).filter(isReleaseModule));

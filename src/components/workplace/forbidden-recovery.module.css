@@ -1,7 +1,7 @@
 .shell {
   min-height: 100dvh;
-  background: var(--paper);
-  color: var(--ink);
+  background: var(--ui-paper);
+  color: var(--ui-ink);
 }
 .header {
   display: flex;
@@ -10,18 +10,47 @@
   gap: 20px;
   flex-wrap: wrap;
   padding: 18px 28px;
-  border-bottom: 1px solid var(--line);
-  background: var(--card);
+  border-bottom: 1px solid var(--ui-line);
+  background: var(--ui-card);
 }
-.brand { width: 112px; }
-.brand svg { display: block; width: 100%; height: auto; }
-.controls { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.panel { max-width: 760px; padding: 48px 28px; margin: 0 auto; }
-.panel h1 { margin: 0 0 16px; }
-.panel p { color: var(--muted); line-height: 1.7; }
-.panel .platformRoles { margin-top: 24px; }
+.brand {
+  width: 112px;
+}
+.brand svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.panel {
+  max-width: 760px;
+  padding: 48px 28px;
+  margin: 0 auto;
+}
+.panel h1 {
+  margin: 0 0 16px;
+}
+.panel p {
+  color: var(--ui-muted);
+  line-height: 1.7;
+}
+.panel .platformRoles {
+  margin-top: 24px;
+}
 @media (max-width: 600px) {
-  .header { padding: 16px; gap: 12px; }
-  .controls { gap: 8px; }
-  .panel { padding: 32px 20px; }
+  .header {
+    padding: 16px;
+    gap: 12px;
+  }
+  .controls {
+    gap: 8px;
+  }
+  .panel {
+    padding: 32px 20px;
+  }
 }

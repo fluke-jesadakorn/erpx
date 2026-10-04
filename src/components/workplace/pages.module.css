@@ -1,13 +1,13 @@
 .metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 12px;
   overflow: hidden;
   margin-bottom: 28px;
 }
 .metrics > * + * {
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--ui-line);
 }
 .homeGrid {
   display: grid;
@@ -21,14 +21,14 @@
   justify-content: space-between;
   align-items: center;
   padding-bottom: 16px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-line);
 }
 .panelHead h2 {
   margin: 0;
 }
 .panelHead a {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--ui-muted);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -39,13 +39,13 @@
   width: 34px;
   height: 38px;
   border-radius: 8px;
-  background: var(--brand-soft);
-  color: var(--brand);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand);
   flex-shrink: 0;
 }
 .subline {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--ui-muted);
   margin-top: 4px;
   display: flex;
   gap: 8px;
@@ -60,22 +60,22 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  border: 1px solid var(--line);
-  background: var(--card);
+  border: 1px solid var(--ui-line);
+  background: var(--ui-card);
   border-radius: 10px;
   padding: 17px;
   transition: background 0.15s;
 }
 .shortcut:hover {
-  background: var(--brand-soft);
+  background: var(--ui-brand-soft);
 }
 .shortcutDisabled {
   cursor: not-allowed;
-  color: color-mix(in srgb, var(--ink) 68%, var(--muted));
-  background: color-mix(in srgb, var(--card) 82%, var(--card-2));
+  color: color-mix(in srgb, var(--ui-ink) 68%, var(--ui-muted));
+  background: color-mix(in srgb, var(--ui-card) 82%, var(--ui-card-2));
 }
 .shortcutDisabled:hover {
-  background: color-mix(in srgb, var(--card) 82%, var(--card-2));
+  background: color-mix(in srgb, var(--ui-card) 82%, var(--ui-card-2));
 }
 .shortcutDisabled > span:first-child {
   opacity: 0.65;
@@ -83,8 +83,8 @@
 .shortcut > span:first-child {
   display: grid;
   place-items: center;
-  color: var(--brand);
-  background: var(--card-2);
+  color: var(--ui-brand);
+  background: var(--ui-card-2);
   width: 36px;
   height: 36px;
   border-radius: 9px;
@@ -96,11 +96,11 @@
 }
 .shortcut small {
   font-size: 10px;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .shortcut > svg {
   margin-left: auto;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .updates {
   display: grid;
@@ -109,7 +109,7 @@
   display: flex;
   gap: 11px;
   padding: 18px 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-line);
 }
 .update:last-child {
   border-bottom: 0;
@@ -120,7 +120,7 @@
 }
 .update p {
   font-size: 12px;
-  color: var(--muted);
+  color: var(--ui-muted);
   margin: 5px 0 8px;
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -131,7 +131,7 @@
   display: flex;
   gap: 14px;
   font-size: 10px;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .updateCounts span {
   display: flex;
@@ -142,32 +142,32 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid var(--line);
-  background: var(--card);
+  border: 1px solid var(--ui-line);
+  background: var(--ui-card);
   padding: 9px 12px;
   border-radius: 8px;
   font-size: 11px;
   white-space: nowrap;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .welcomeNote {
   margin: 24px 0 0;
   padding: 20px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-line);
   border-radius: 12px;
-  background: var(--brand-soft);
+  background: var(--ui-brand-soft);
 }
 .welcomeNote h2 {
   font-size: 15px;
 }
 .welcomeNote p {
   font-size: 12px;
-  color: var(--muted);
+  color: var(--ui-muted);
   margin: 8px 0 16px;
 }
 .welcomeNote a {
   font-size: 12px;
-  color: var(--brand);
+  color: var(--ui-brand);
   display: flex;
   gap: 8px;
   align-items: center;
@@ -175,7 +175,7 @@
 .tabs {
   display: flex;
   gap: 22px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-line);
   margin-bottom: 22px;
   overflow-x: auto;
 }
@@ -187,18 +187,18 @@
   border-bottom: 2px solid transparent;
   font-size: 14px;
   white-space: nowrap;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .tabs a[aria-current="page"] {
-  border-color: var(--brand);
-  color: var(--brand);
+  border-color: var(--ui-brand);
+  color: var(--ui-brand);
   font-weight: 600;
 }
 .tabs span {
   font-size: 12px;
   border-radius: 5px;
   padding: 1px 5px;
-  background: var(--card-2);
+  background: var(--ui-card-2);
 }
 .toolbar {
   display: flex;
@@ -219,12 +219,12 @@
 .toolbar > span {
   margin-left: auto;
   font-size: 11px;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .tableWrap {
   overflow-x: auto;
-  border: 1px solid var(--line);
-  background: var(--card);
+  border: 1px solid var(--ui-line);
+  background: var(--ui-card);
   border-radius: 10px;
 }
 .tableWrap table {
@@ -237,7 +237,7 @@
   display: block;
 }
 .tableWrap a:hover {
-  color: var(--brand);
+  color: var(--ui-brand);
 }
 .recordHeader {
   display: flex;
@@ -258,7 +258,7 @@
 }
 .facts dt {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--ui-muted);
 }
 .facts dd {
   font-size: 14px;
@@ -273,27 +273,27 @@
 }
 .detailNote {
   white-space: pre-wrap;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 13px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--ui-line);
   padding-top: 20px;
 }
 .recordAside {
-  background: var(--card);
-  border: 1px solid var(--line);
+  background: var(--ui-card);
+  border: 1px solid var(--ui-line);
   border-radius: 12px;
   padding: 22px;
 }
 .recordAside ol {
   padding-left: 20px;
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 12px;
   display: grid;
   gap: 20px;
   margin: 20px 0 0;
 }
 .recordAside li strong {
-  color: var(--ink);
+  color: var(--ui-ink);
   display: block;
   margin-bottom: 3px;
 }
@@ -305,17 +305,17 @@
 }
 .reviewSummary div {
   padding-bottom: 12px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-line);
 }
 .reviewSummary small {
   display: block;
-  color: var(--muted);
+  color: var(--ui-muted);
   margin-bottom: 4px;
 }
 .uploadState {
   font-size: 12px;
   padding: 12px;
-  background: var(--card-2);
+  background: var(--ui-card-2);
   border-radius: 8px;
   overflow-wrap: anywhere;
 }
@@ -330,8 +330,8 @@
   gap: 22px;
 }
 .lesson {
-  background: var(--card);
-  border: 1px solid var(--line);
+  background: var(--ui-card);
+  border: 1px solid var(--ui-line);
   border-radius: 12px;
   overflow: hidden;
 }
@@ -350,14 +350,14 @@
 }
 .lesson p {
   font-size: 12px;
-  color: var(--muted);
+  color: var(--ui-muted);
   margin: 8px 0;
 }
 .inboxRow {
   display: flex;
   gap: 14px;
   padding: 20px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-line);
   align-items: flex-start;
 }
 .inboxRow > div {
@@ -365,23 +365,23 @@
 }
 .inboxRow p {
   font-size: 12px;
-  color: var(--muted);
+  color: var(--ui-muted);
   margin: 5px 0;
 }
 .inboxRow > a {
   font-size: 11px;
-  color: var(--brand);
+  color: var(--ui-brand);
 }
 .inboxRowDisabled {
   cursor: not-allowed;
-  color: color-mix(in srgb, var(--ink) 68%, var(--muted));
-  background: color-mix(in srgb, var(--card) 82%, var(--card-2));
+  color: color-mix(in srgb, var(--ui-ink) 68%, var(--ui-muted));
+  background: color-mix(in srgb, var(--ui-card) 82%, var(--ui-card-2));
 }
 .inboxRowDisabled .taskIcon {
   opacity: 0.65;
 }
 .inboxActionDisabled {
-  color: var(--muted);
+  color: var(--ui-muted);
   font-size: 11px;
   font-weight: 650;
   white-space: nowrap;

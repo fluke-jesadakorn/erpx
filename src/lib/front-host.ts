@@ -1,3 +1,5 @@
+import { isEngineeringVerificationOrigin } from "../server/engineering-verification";
+
 export type FrontHostApp = "pms" | "pos";
 
 function configuredOrigin(value: string | undefined): URL | null {
@@ -5,7 +7,7 @@ function configuredOrigin(value: string | undefined): URL | null {
   const url = new URL(value);
   if (url.pathname !== "/" || url.search || url.hash || url.username || url.password || !["https:", "http:"].includes(url.protocol))
     throw new Error("INVALID_FRONT_ORIGIN");
-  if (process.env.NODE_ENV === "production" && url.protocol !== "https:") throw new Error("INVALID_FRONT_ORIGIN");
+  if (process.env.NODE_ENV === "production" && url.protocol !== "https:" && !isEngineeringVerificationOrigin(url)) throw new Error("INVALID_FRONT_ORIGIN");
   return url;
 }
 

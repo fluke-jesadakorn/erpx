@@ -1,3 +1,4 @@
+import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { bookingCatalog, bookingDatabase } from "@/server/pms-booking";
@@ -9,7 +10,11 @@ export default async function BookingPage({
 }: {
   params: Promise<{ holdingSlug: string }>;
 }) {
-  if (process.env.PMS_STRIPE_BOOKING_ENABLED === 'false' || process.env.NODE_ENV === "production" && process.env.PMS_STRIPE_LIVE_ENABLED !== "true") notFound();
+  if (
+    process.env.PMS_STRIPE_BOOKING_ENABLED === "false" ||
+    (process.env.NODE_ENV === "production" && process.env.PMS_STRIPE_LIVE_ENABLED !== "true")
+  )
+    notFound();
   const { holdingSlug } = await params;
   const db = await bookingDatabase(holdingSlug).catch((e) => {
     if (e instanceof Error && e.message === "HOLDING_NOT_FOUND") notFound();
@@ -22,8 +27,8 @@ export default async function BookingPage({
         <span className={styles.eyebrow}>A place for your next chapter</span>
         <h1>Find a stay that feels right.</h1>
         <p>
-          Explore our hotels, compare room options and reserve your stay. Book
-          directly and complete payment securely online.
+          Explore our hotels, compare room options and reserve your stay. Book directly and complete
+          payment securely online.
         </p>
       </header>
       {hotels.length ? (
@@ -46,12 +51,13 @@ export default async function BookingPage({
                   <p>{h.description}</p>
                   <p>{h.address}</p>
                 </div>
-                <Link
+                <UiActionLink
+                  variant="secondary"
                   className={styles.secondary}
                   href={`/book/${holdingSlug}/${h.id}`}
                 >
                   View hotel
-                </Link>
+                </UiActionLink>
               </article>
             ))}
           </section>
@@ -59,10 +65,7 @@ export default async function BookingPage({
       ) : (
         <section className={styles.surface}>
           <h2>Online reservations are not open yet</h2>
-          <p>
-            Our hotels will appear here when they are ready to accept direct
-            bookings.
-          </p>
+          <p>Our hotels will appear here when they are ready to accept direct bookings.</p>
         </section>
       )}
     </main>

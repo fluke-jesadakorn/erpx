@@ -1,9 +1,11 @@
+import { InlineNotice } from "@/components/ui/foundation";
 import Link from "next/link";
 import type { WorkContext } from "@/server/authorization";
 import { runtimeEnv } from "@/server/runtime";
 import { StatusBadge } from "@/components/ui/primitives";
 import { AccountInvitationActions } from "./account-invitation-actions";
 import { TimeText } from "@/components/time/time-preference-context";
+import { Card } from "@/components/ui/foundation";
 
 const deliveryLabels: Record<string, string> = {
   awaiting_approval: "Waiting for independent approval",
@@ -39,11 +41,11 @@ export async function AccountInvitations({
       sent_at: number | null;
     }>();
   return (
-    <section className="card">
+    <Card as="section" appearance="standard" className="ui-panel">
       <h2>Activation invitations</h2>
       {!invitations.results.length && <p>No activation invitations yet.</p>}
       {invitations.results.map((invite) => (
-        <div className="row" key={invite.id}>
+        <div className="ui-record-item" key={invite.id}>
           <div className="row-main">
             <Link href={`${base}/people/${invite.person_id}?tab=access`}>
               {invite.email}
@@ -53,11 +55,11 @@ export async function AccountInvitations({
                 ? deliveryLabels[invite.delivery_state] ?? invite.delivery_state
                 : "Legacy invitation — no delivery job"}
               {invite.attempts ? ` · ${invite.attempts} attempt${invite.attempts === 1 ? "" : "s"}` : ""}
-              {invite.sent_at ? <> · <TimeText value={invite.sent_at} /></> : ""}
+              {invite.sent_at ? <> · <TimeText appearance="standard" value={invite.sent_at} /></> : ""}
             </p>
-            {invite.error && <p role="alert">{invite.error.replaceAll("_", " ")}</p>}
+            {invite.error && <InlineNotice tone="danger" role="alert">{invite.error.replaceAll("_", " ")}</InlineNotice>}
           </div>
-          <StatusBadge status={invite.status} />
+          <StatusBadge appearance="standard" status={invite.status} />
           <AccountInvitationActions
             base={base}
             personId={invite.person_id}
@@ -67,6 +69,6 @@ export async function AccountInvitations({
           />
         </div>
       ))}
-    </section>
+    </Card>
   );
 }

@@ -1,4 +1,7 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { Button, Field, TextInput } from "@/components/ui/foundation";
 
 import { workFetch } from "@/lib/work-fetch";
 import betaStyles from "@/components/beta/beta.module.css";
@@ -29,10 +32,7 @@ export function OnboardingForm({
           };
           if (!response.ok) throw new Error(result.error.message);
           if (result.data.href) window.location.assign(result.data.href);
-          else
-            setMessage(
-              "The first 20 company spaces are full. You are on the waiting list.",
-            );
+          else setMessage("The first 20 company spaces are full. You are on the waiting list.");
         } catch (e) {
           setMessage(e instanceof Error ? e.message : "Please try again.");
         } finally {
@@ -40,9 +40,9 @@ export function OnboardingForm({
         }
       }}
     >
-      <label>
+      <Field appearance="standard">
         Company name
-        <input
+        <TextInput appearance="standard"
           name="companyName"
           defaultValue={initial?.company_name}
           required
@@ -50,20 +50,20 @@ export function OnboardingForm({
           maxLength={100}
           readOnly={!!initial}
         />
-      </label>
-      <label>
+      </Field>
+      <Field appearance="standard">
         Company URL
-        <input
+        <TextInput appearance="standard"
           name="slug"
           defaultValue={initial?.slug}
           pattern="[a-z][a-z0-9\-]{2,39}"
           required
           readOnly={!!initial}
         />
-      </label>
-      <label>
+      </Field>
+      <Field appearance="standard">
         First branch
-        <input
+        <TextInput appearance="standard"
           name="branchName"
           defaultValue={initial?.branch_name}
           required
@@ -71,15 +71,11 @@ export function OnboardingForm({
           maxLength={100}
           readOnly={!!initial}
         />
-      </label>
-      <button disabled={busy}>
-        {busy
-          ? "Preparing your workspace…"
-          : initial
-            ? "Resume setup"
-            : "Create my workspace"}
-      </button>
-      <p role="status">{message}</p>
+      </Field>
+      <Button appearance="standard" clientManaged type="submit" variant="ghost" disabled={busy}>
+        {busy ? "Preparing your workspace…" : initial ? "Resume setup" : "Create my workspace"}
+      </Button>
+      <InlineNotice tone="info" role="status">{message}</InlineNotice>
     </form>
   );
 }

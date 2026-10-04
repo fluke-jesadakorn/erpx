@@ -181,7 +181,7 @@ export async function GET(request: Request, ctx: Context) {
         { headers: { "Cache-Control": "private, no-store" } },
       );
     if (path.length === 2 && path[0] === "documents")
-      return documentExport(
+      return await documentExport(
         write,
         files,
         a,

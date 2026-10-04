@@ -13,6 +13,7 @@ import { assertion, executeCommand, replayCommand } from './commands';
 import { prepareJournal } from './finance';
 import { decimalToMinor, minorToDecimal } from '@/lib/finance-money';
 import { prepareAttachmentBinding } from './attachments/service';
+import { assertControlledThaiTaxPaymentOwner } from './finance-withholding';
 
 type Row = Record<string, string | number | null>;
 const version = z.number().int().positive();
@@ -68,6 +69,7 @@ export async function supplierBatchWorkspace(actor:WorkContext,id?:string) {
 export async function createSupplierBatch(actor:WorkContext,input:z.infer<typeof supplierBatchSchema>,key:string) {
  input=supplierBatchSchema.parse(input);company(actor);requirePermission(actor,'finance.write');const {write}=await holdingResources(actor.holdingId),id=`supplier-batch-${key}`;
  const prior=await replayCommand(write,actor,key,'finance.supplier_batch.create',id,input);if(prior)return prior;
+ await assertControlledThaiTaxPaymentOwner(write,actor,input.plannedDate);
  if(new Set(input.items.map(i=>i.invoiceId)).size!==input.items.length)throw new ApiError(422,'DUPLICATE_INVOICE','Select each invoice once.');
  const bank=await write.prepare("SELECT a.*,c.base_currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.id=? AND a.company_id=? AND a.category='asset' AND a.status='active' AND a.id=(SELECT cash_account_id FROM commerce_settings WHERE company_id=a.company_id) AND c.status='active'").bind(input.bankAccountId,actor.companyId).first<Row>();
  if(!bank||bank.currency!==bank.base_currency)throw new ApiError(422,'BANK_ACCOUNT_INVALID','Select an active bank ledger in the functional currency.');
@@ -143,6 +145,7 @@ export async function confirmSupplierInstruction(actor:WorkContext,id:string,inp
  if(!invoice)throw new ApiError(404,'INVOICE_NOT_FOUND','Source invoice is unavailable.');
  const bank=await write.prepare('SELECT t.*,s.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=?').bind(input.bankTransactionId,actor.companyId).first<Row>(),amount=Number(item.amount_minor);
  if(!bank||bank.currency!==batch.currency||bank.bank_account!==batch.bank_account_id||Number(bank.amount_minor)!==-amount||String(bank.transaction_date)<String(batch.planned_date))throw new ApiError(422,'BANK_EVIDENCE_MISMATCH','Match the approved bank account, currency, date and exact outgoing amount.');
+ await assertControlledThaiTaxPaymentOwner(write,actor,String(bank.transaction_date));
  let attachmentBinding:null|Awaited<ReturnType<typeof prepareAttachmentBinding>>=null;
  if(input.attachmentSetIds.length){const placeholders=input.attachmentSetIds.map(()=>'?').join(','),sets=(await write.prepare(`SELECT id,purpose_key,component_kind,component_ref FROM attachment_sets WHERE company_id=? AND id IN (${placeholders})`).bind(actor.companyId,...input.attachmentSetIds).all<{id:string;purpose_key:string;component_kind:string;component_ref:string|null}>()).results;
   if(sets.length!==new Set(input.attachmentSetIds).size||sets.some(set=>set.purpose_key!=='payment_proof'||set.component_kind!=='action'||set.component_ref!==`supplier-instruction:${id}`))throw new ApiError(422,'SUPPLIER_ATTACHMENT_PURPOSE','Choose only payment proof prepared for this supplier instruction.');
@@ -172,6 +175,6 @@ export async function supplierBatchWork(actor:WorkContext):Promise<WorkItem[]> {
   const needsRetry=Number(b.failed_count)>0;
   const completed=b.status==='cancelled'||b.status==='exported'&&Number(b.pending_count)===0&&!needsRetry;
   const canAct=!completed&&(needsRetry&&hasPermission(actor,'finance.write')|| (b.status==='draft'?hasPermission(actor,'finance.approve')&&!samePerson(actor,b.created_by):hasPermission(actor,'finance.pay')&&!samePerson(actor,b.created_by)&&!samePerson(actor,b.approved_by)||b.status==='exported'&&hasPermission(actor,'finance.approve')&&!samePerson(actor,b.exported_by)));
-  return {id:String(b.id),type:'supplier_batch',title:'Supplier payment batch',detail:`${b.planned_date} · ${b.currency} · ${b.pending_count} pending · ${b.failed_count} failed with an unpaid source${Number(b.unknown_count)?' · Bank result uncertain':''}`,href:`/finance/supplier-batches/${b.id}`,status:completed?'completed':String(b.status),updatedAt:Number(b.updated_at),queue:completed?'completed':canAct?'todo':'waiting',canAct,responsibleQueue:needsRetry?'Company Finance preparer':b.status==='draft'?'Independent Finance approver':'Company Treasury / Finance review',nextAction:needsRetry?'Review failed instructions and prepare payment for the remaining source balance':b.status==='draft'?'Review invoices, amounts and beneficiary details':'Review export and each bank result',relationships:[canAct?'approval':'team']};
+  return {id:String(b.id),type:'supplier_batch',actionKind:b.status==='draft'&&!needsRetry&&canAct?'approval':'work',title:'Supplier payment batch',detail:`${b.planned_date} · ${b.currency} · ${b.pending_count} pending · ${b.failed_count} failed with an unpaid source${Number(b.unknown_count)?' · Bank result uncertain':''}`,href:`/finance/supplier-batches/${b.id}`,status:completed?'completed':String(b.status),updatedAt:Number(b.updated_at),queue:completed?'completed':canAct?'todo':'waiting',canAct,responsibleQueue:needsRetry?'Company Finance preparer':b.status==='draft'?'Independent Finance approver':'Company Treasury / Finance review',nextAction:needsRetry?'Review failed instructions and prepare payment for the remaining source balance':b.status==='draft'?'Review invoices, amounts and beneficiary details':'Review export and each bank result',relationships:[canAct?'approval':'team']};
  });
 }

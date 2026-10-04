@@ -231,8 +231,8 @@ export async function supplierBillDetail(actor: WorkContext, id: string) {
       WHERE br.match_id=? ORDER BY f.fulfillment_date,f.id
     `).bind(id).all<Row>(),
     write.prepare("SELECT * FROM procurement_bill_match_events WHERE match_id=? ORDER BY version DESC").bind(id).all<Row>(),
-    write.prepare("SELECT id,code,name FROM finance_accounts WHERE company_id=? AND chart_id=? AND currency=? AND category='expense' AND status='active' ORDER BY code")
-      .bind(actor.companyId, bill.chart_id, bill.currency).all<Row>(),
+    write.prepare("SELECT a.id,a.code,a.name FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id AND c.company_id=a.company_id WHERE a.company_id=? AND a.chart_id=? AND a.currency=c.base_currency AND a.category='expense' AND a.status='active' ORDER BY a.code")
+      .bind(actor.companyId, bill.chart_id).all<Row>(),
   ]);
   const flow = hasPermission(actor, "commerce.read")
     ? await (await import("./flow-routing")).resolveFlow(write, actor, "order", String(bill.order_id))
@@ -297,7 +297,7 @@ export async function captureSupplierBill(actor: WorkContext, raw: unknown, key:
   if (input.invoiceDate < String(receiptRows.at(-1)!.fulfillment_date) || input.dueDate < input.invoiceDate) throw new ApiError(422, "BILL_DATES_INVALID", "Invoice and due dates must follow every selected receipt.");
 
   const config = await write.prepare("SELECT * FROM commerce_settings WHERE company_id=?").bind(actor.companyId).first<Row>();
-  if (!config || config.currency !== order.currency) throw new ApiError(409, "BILL_POSTING_PROFILE_REQUIRED", "Review the Company posting profile before matching supplier invoices.");
+  if (!config) throw new ApiError(409, "BILL_POSTING_PROFILE_REQUIRED", "Review the Company posting profile before matching supplier invoices.");
   let clearing: string | null = null;
   for (const receipt of receiptRows) {
     if (receipt.journal_status !== "posted" || receipt.journal_currency !== order.currency || receipt.journal_chart_id !== config.chart_id) throw new ApiError(409, "BILL_POSTING_PROFILE_REQUIRED", "Post every selected receipt GL with a compatible Company posting profile first.");
@@ -367,9 +367,9 @@ export async function decideSupplierBill(actor: WorkContext, id: string, raw: un
     if (!Number(bill.quantity_matches)) throw new ApiError(409, "BILL_QUANTITY_VARIANCE", "Invoiced quantities differ from the selected receipts. Return the invoice for correction; do not approve unreceived quantities.");
     if (variance) {
       if (!input.varianceAccountId) throw new ApiError(422, "PRICE_VARIANCE_ACCOUNT_REQUIRED", "Choose the Company-approved expense account for purchase price variance.");
-      const account = await write.prepare("SELECT id FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND currency=? AND category='expense' AND status='active'").bind(input.varianceAccountId, actor.companyId, bill.chart_id, bill.currency).first();
-      if (!account) throw new ApiError(422, "PRICE_VARIANCE_ACCOUNT_INVALID", "Use an active expense account in this Company chart and currency.");
-      steps.push(assertion(write, key, "variance-account", "EXISTS(SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND currency=? AND category='expense' AND status='active')", [input.varianceAccountId, actor.companyId, bill.chart_id, bill.currency]));
+      const account = await write.prepare("SELECT a.id FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id AND c.company_id=a.company_id WHERE a.id=? AND a.company_id=? AND a.chart_id=? AND a.currency=c.base_currency AND a.category='expense' AND a.status='active'").bind(input.varianceAccountId, actor.companyId, bill.chart_id).first();
+      if (!account) throw new ApiError(422, "PRICE_VARIANCE_ACCOUNT_INVALID", "Use an active expense account in this Company chart's functional currency.");
+      steps.push(assertion(write, key, "variance-account", "EXISTS(SELECT 1 FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id AND c.company_id=a.company_id WHERE a.id=? AND a.company_id=? AND a.chart_id=? AND a.currency=c.base_currency AND a.category='expense' AND a.status='active')", [input.varianceAccountId, actor.companyId, bill.chart_id]));
     }
   }
   if (returnDraft) {
@@ -450,7 +450,7 @@ export async function supplierBillWork(actor: WorkContext): Promise<WorkItem[]> 
       canAct = hasPermission(actor, "finance.write") && (!correction || hasPermission(actor, "commerce.read")) && !blocker && step?.primary?.userId === actor.userId;
       responsible = step?.primary?.name ?? "Assigned purchase order invoicing owner";
     }
-    items.push({ id: String(row.id), type: "supplier_bill", title: `Supplier invoice · ${row.reference}`, detail: `${row.order_number} · ${row.receipt_count} receipt(s) · ${row.currency} ${minorToDecimal(Number(row.subtotal_minor) + Number(row.tax_minor))}`, href: correction ? `/commerce/orders/${row.order_id}` : `/supplier-bills/${row.id}`, status: String(row.status), updatedAt: Number(row.updated_at), queue: canAct ? "todo" : "waiting", canAct, blocker, responsibleQueue: responsible, nextAction: review ? Number(row.quantity_matches) ? "Review invoice and purchase price variance" : "Return invoice with quantity discrepancy" : correction ? "Obtain corrected supplier invoice and resubmit from the receipt" : "Prepare matched AP invoice", dueAt: Date.parse(String(row.due_date) + "T00:00:00Z"), relationships: [canAct ? "assigned" : "team"] });
+    items.push({ id: String(row.id), type: "supplier_bill", actionKind: review && canAct ? "approval" : "work", title: `Supplier invoice · ${row.reference}`, detail: `${row.order_number} · ${row.receipt_count} receipt(s) · ${row.currency} ${minorToDecimal(Number(row.subtotal_minor) + Number(row.tax_minor))}`, href: correction ? `/commerce/orders/${row.order_id}` : `/supplier-bills/${row.id}`, status: String(row.status), updatedAt: Number(row.updated_at), queue: canAct ? "todo" : "waiting", canAct, blocker, responsibleQueue: responsible, nextAction: review ? Number(row.quantity_matches) ? "Review invoice and purchase price variance" : "Return invoice with quantity discrepancy" : correction ? "Obtain corrected supplier invoice and resubmit from the receipt" : "Prepare matched AP invoice", dueAt: Date.parse(String(row.due_date) + "T00:00:00Z"), relationships: [canAct ? "assigned" : "team"] });
   }
   return items;
 }

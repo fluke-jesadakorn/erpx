@@ -1,27 +1,32 @@
 "use client";
+import { Button } from "@/components/ui/foundation";
+
 import { useRouter } from "next/navigation";
 import { useSocialCommand } from "@/components/beta/social-command";
+import { type UiAppearance } from "@/components/ui/foundation";
 
-export function RevokeCompanyAccess({
+export function RevokeCompanyAccess({ appearance = "legacy",
   base,
   userId,
   onRevoked,
-}: {
+}: ({
   base: string;
   userId: string;
   onRevoked?: () => void;
-}) {
+}) & { appearance?: UiAppearance }) {
   const router = useRouter();
   const { run, send, busy, message } = useSocialCommand();
   return (
-    <details>
-      <summary>Company access</summary>
-      <p>
-        Revoke every role in this company. The employee record and history
-        remain; reactivation does not restore revoked roles.
+    <details data-ui-appearance={appearance}>
+      <summary data-ui-appearance={appearance}>Company access</summary>
+      <p data-ui-appearance={appearance}>
+        Revoke every role in this company. The employee record and history remain; reactivation does
+        not restore revoked roles.
       </p>
-      <button
-        className="button secondary"
+      <Button appearance={appearance}
+        type="submit"
+        variant="secondary"
+
         disabled={busy}
         onClick={() =>
           void run(async () => {
@@ -32,8 +37,8 @@ export function RevokeCompanyAccess({
         }
       >
         Revoke company access
-      </button>
-      {message && <p role="alert">{message}</p>}
+      </Button>
+      {message && <p data-ui-appearance={appearance} role="alert">{message}</p>}
     </details>
   );
 }

@@ -23,6 +23,16 @@ async function draft(lines=2){
 }
 
 describe("Thai accounting foundation",()=>{
+  it("imports and revises an unused chart account with replay and independent Company ledger history",async()=>{
+    const rows=[{code:`IMPORTED-${key()}`,name:"Imported current receivable",category:"asset" as const,currency:"THB",controlKind:"receivable" as const},{code:`IMPORTED-${key()}`,name:"Imported operating expense",category:"expense" as const,currency:"THB",controlKind:"none" as const}],command=key(),imported=await importAccounts(f.reviewer,f.chart,rows,command);
+    expect(await importAccounts(f.reviewer,f.chart,rows,command)).toEqual(imported);
+    let accounts=(await db.prepare("SELECT code,name,category,currency,control_kind,version FROM finance_accounts WHERE company_id=? AND chart_id=? AND code IN (?,?) ORDER BY code").bind(f.company,f.chart,...rows.map(row=>row.code)).all()).results;
+    expect(accounts).toEqual(expect.arrayContaining(rows.map(row=>expect.objectContaining({code:row.code,name:row.name,category:row.category,currency:"THB",control_kind:row.controlKind,version:1}))));
+    await importAccounts(f.reviewer,f.chart,[{...rows[1],name:"Reviewed unused expense name"}],key());
+    accounts=(await db.prepare("SELECT name,version FROM finance_accounts WHERE chart_id=? AND code=?").bind(f.chart,rows[1].code).all()).results;expect(accounts).toEqual([{name:"Reviewed unused expense name",version:2}]);
+    await expect(importAccounts({...f.reviewer,companyId:"another-company"},f.chart,rows,key())).rejects.toMatchObject({code:"CHART_NOT_FOUND"});
+    expect(await db.prepare("SELECT COUNT(*) n FROM audit_events WHERE command_id=? AND action='finance.account.import'").bind(command).first("n")).toBe(1);
+  });
   it("selects one THB statutory ledger only after independent NPAEs and policy review",async()=>{
     const input={statutoryChartId:f.chart,standard:"TFRS for NPAEs" as const,fiscalStartMonth:1,effectiveDate:"2026-01-01",eligibilityEvidence:"Accountant reviewed the entity's public accountability and NPAEs criteria",policyEvidence:"Company confirmed current tax, moving average stock and straight-line depreciation",taxBasis:"current_tax" as const,inventoryPolicy:"moving_average" as const,depreciationPolicy:"straight_line" as const};
     const command=key(),prepared=await prepareAccountingProfile(f.reviewer,input,command);

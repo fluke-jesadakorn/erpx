@@ -81,7 +81,7 @@ Expense commands live under `/api/v1/holdings/{holdingSlug}/expenses`. The old P
 
 This is a working local global-core implementation, **not a completed production ERP**. Payroll is an explicitly labelled gross-pay preview; it cannot post or execute payments without an implemented statutory adapter. Seeded payroll/export files are historical test fixtures, not certified calculations or executable bank instructions. No real employer data has been imported, no emails have been sent, and no production deployment has been performed.
 
-See [implementation status](archive/planning-2026-09/2026-09-07-global-core-status.md) for the complete 31-module inventory, gaps and verification evidence, and [ERP workflow research](archive/planning-2026-09/2026-09-06-production-workflows-research.md) for the primary-source workflow references.
+See [implementation status](production-plan.md) for the complete 31-module inventory, gaps and verification evidence, and [ERP workflow research](production-plan.md) for the primary-source workflow references.
 
 Physical counts are available from Stock & movements and Inventory module actions, with APIs under `/api/v1/holdings/{holdingSlug}/stock-counts`. Counts require an inventory operator and an independent holding finance reviewer. Subsequent stock movement invalidates an unposted snapshot. Migrations 0024–0025 add counts, decisions and the combined inventory ledger. `bun run seed:verify:local` now checks that stock quantity/value equals the combined movement ledger.
 

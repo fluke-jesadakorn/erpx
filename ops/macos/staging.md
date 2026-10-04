@@ -67,3 +67,46 @@ The code-only staging activation command is `sudo /usr/bin/python3 ops/macos/upg
 The old public page links redirect to the environment's console with path and query preserved. The two Stripe test webhook endpoint URLs now point to `https://console-erpx.jesadakorn.com/api/pos/stripe/webhook` and `https://console-erpx.jesadakorn.com/api/v1/stripe/webhook` with their original signing secrets. On 2026-09-25, Stripe delivered test-mode `payment_intent.canceled` to the Connect endpoint and `payment_intent.created` and `payment_intent.canceled` to the billing endpoint; all received HTTP 200 before and after the final staging activation. These were unconfirmed, then canceled PaymentIntents with no payment method or charge. The Connect test account is not bound to a staging company, so its signed event was correctly acknowledged as ignored. The `acme` Connect OAuth redirect URI on the console was added and set as the default in Stripe Dashboard; the old URI is retained for rollback. The marketing host now returns 404 for both webhook paths. A full OAuth account-linking flow still needs an authenticated ERPX test user.
 
 After activation, staging administrator sign-in through the local `3103` service using the console Host and HTTPS origin returned a secure, host-only cookie and an authenticated session. That cookie did not authenticate on the development console at `3100`. Both public homepages and console sign-in pages were opened in Chrome, and each homepage's Open console action reached the matching console. An interactive public sign-in and a full Connect account-linking flow remain unverified.
+
+
+## Front application activation (explicit staging request only)
+
+### Code-only staging activation
+
+Build with `bun run deploy:build` while the development server uses its separate
+`.next` directory. The upgrade script refuses a release with a different schema
+hash. Its dry run needs no privilege:
+
+```sh
+python3 ops/macos/upgrade-front-staging.py --release .runtime/releases/latest --check
+```
+
+Staging's installed files and environment belong to root and `_erpx_staging`.
+An operator with administrator access runs:
+
+```sh
+sudo /usr/bin/python3 ops/macos/upgrade-front-staging.py --release .runtime/releases/latest
+```
+
+The script backs up staging, installs the immutable release, adds the two exact
+staging origins to `staging.env`, switches only staging web/jobs, and checks the
+three local hostnames plus login, manifests and host isolation. It restores the
+old release and environment if local verification fails. It does not alter
+production, database schema, DNS or Tunnel routes.
+
+After the local checks pass, add only the two development hostnames to the
+existing `erpx-local` Tunnel route pointing to `http://127.0.0.1:3100`, then the
+two staging hostnames pointing to `http://127.0.0.1:3103`. Add proxied DNS records
+for those hostnames to the same Tunnel target as the existing ERPX records.
+Extend the existing Windows/Android redirect-rule exceptions to the four Front
+hostnames so an installed app stays on its own origin. Preserve all other
+Tunnel routes and the private production origin.
+
+Check `/api/health`, `/login`, `/manifest.webmanifest` and an authenticated
+Front page on each public hostname. Confirm that the other app's Front API,
+`/holdings`, `/platform` and administration API routes return 404. Check a fake
+host returns 421. Confirm sign in, session expiry, account recovery and sign out
+stay on the same Front hostname. Install both PWAs separately on Chrome and
+Safari devices and test the role-specific POS/PMS task paths with a ready staging
+company. Do not publish `pms.jesadakorn.com` or `pos.jesadakorn.com` until those
+business and device checks pass.

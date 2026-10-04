@@ -1,4 +1,7 @@
 "use client";
+import { InlineNotice } from "@/components/ui/foundation";
+
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -12,6 +15,7 @@ import {
 } from "@/components/attachments/attachment-feature-context";
 import { workFetch } from "@/lib/work-fetch";
 import type { supportEvidence } from "@/server/support-evidence";
+import { Card, FormGrid, Stack, FormLayout } from "@/components/ui/foundation";
 
 const emptyChange: AttachmentPanelChange = {
   setId: null,
@@ -36,26 +40,18 @@ export function SupportEvidenceConsole({
     router = useRouter(),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [purpose, setPurpose] = useState<
-      "internal_evidence" | "customer_shareable"
-    >("internal_evidence"),
+    [purpose, setPurpose] = useState<"internal_evidence" | "customer_shareable">(
+      "internal_evidence",
+    ),
     [change, setChange] = useState<AttachmentPanelChange>(emptyChange),
     [reason, setReason] = useState(""),
     command = useRef<{ fingerprint: string; key: string } | null>(null),
     revokeKey = useRef<{ input: string; key: string } | null>(null),
     canMutateEvidence = canMutateAttachments(attachmentMode, data.canChange);
   const purposeLabel =
-    purpose === "customer_shareable"
-      ? "Customer-shareable document"
-      : "Internal case evidence";
+    purpose === "customer_shareable" ? "Customer-shareable document" : "Internal case evidence";
   async function bind() {
-    if (
-      !canMutateEvidence ||
-      busy ||
-      !change.setId ||
-      !change.readyCount ||
-      !change.bindable
-    )
+    if (!canMutateEvidence || busy || !change.setId || !change.readyCount || !change.bindable)
       return;
     const input = {
         id: ticketId,
@@ -81,9 +77,7 @@ export function SupportEvidenceConsole({
         result = await response.json();
       if (!response.ok) {
         if (response.status < 500) command.current = null;
-        throw new Error(
-          result.error?.message ?? "Unable to lock case evidence.",
-        );
+        throw new Error(result.error?.message ?? "Unable to lock case evidence.");
       }
       command.current = null;
       setReason("");
@@ -118,10 +112,7 @@ export function SupportEvidenceConsole({
           body: fingerprint,
         }),
         result = await response.json();
-      if (!response.ok)
-        throw new Error(
-          result.error?.message ?? "Unable to withdraw evidence.",
-        );
+      if (!response.ok) throw new Error(result.error?.message ?? "Unable to withdraw evidence.");
       revokeKey.current = null;
       router.refresh();
     } catch (e) {
@@ -132,23 +123,22 @@ export function SupportEvidenceConsole({
   }
   if (attachmentMode === "disabled" && data.items.length === 0) return null;
   return (
-    <section className="card content-stack">
+    <Card as="section" appearance="standard" className="ui-panel ui-stack">
       <h2>Support files</h2>
       <p>
-        Internal evidence stays with authorized Support staff. A
-        customer-shareable file is a separate reviewed purpose and the portal
-        exposes only its sanitized preview, never the private original or
-        internal metadata.
+        Internal evidence stays with authorized Support staff. A customer-shareable file is a
+        separate reviewed purpose and the portal exposes only its sanitized preview, never the
+        private original or internal metadata.
       </p>
       {error && (
-        <p role="alert" className="error">
+        <InlineNotice tone="danger" role="alert" className="error">
           {error}
-        </p>
+        </InlineNotice>
       )}
       {attachmentMode !== "disabled" && (
-        <label>
+        <Field appearance="standard">
           File audience to review
-          <select
+          <Select appearance="standard"
             value={purpose}
             onChange={(event) => {
               setPurpose(event.target.value as typeof purpose);
@@ -158,11 +148,11 @@ export function SupportEvidenceConsole({
           >
             <option value="internal_evidence">Internal Support only</option>
             <option value="customer_shareable">Customer-shareable files</option>
-          </select>
-        </label>
+          </Select>
+        </Field>
       )}
       {attachmentMode !== "disabled" && (
-        <AttachmentPanel
+        <AttachmentPanel appearance="standard"
           key={`${ticketId}:${version}:${purpose}`}
           base={base}
           targetType="support_ticket"
@@ -182,10 +172,7 @@ export function SupportEvidenceConsole({
               ? "Support managers can bind this purpose; the matching authenticated customer can view only the sanitized preview."
               : "Only the current assigned Support colleague and eligible Support managers can view this purpose."
           }
-          readOnly={
-            !canMutateEvidence ||
-            (purpose === "customer_shareable" && !data.canShare)
-          }
+          readOnly={!canMutateEvidence || (purpose === "customer_shareable" && !data.canShare)}
           frozen={!canMutateEvidence}
           showHistory
           allowOriginalDownload={purpose !== "customer_shareable"}
@@ -193,20 +180,21 @@ export function SupportEvidenceConsole({
         />
       )}
       {canMutateEvidence && (
-        <div className="business-form">
-          <label>
+        <FormGrid as="div" className="ui-form-grid">
+          <Field appearance="standard">
             Why this evidence belongs to the case
-            <textarea
+            <TextArea appearance="standard"
               value={reason}
               onChange={(event) => setReason(event.target.value)}
               minLength={3}
               maxLength={2000}
               required
             />
-          </label>
-          <button
+          </Field>
+          <Button appearance="standard"
+            variant="primary"
             type="button"
-            className="button"
+
             disabled={
               busy ||
               reason.trim().length < 3 ||
@@ -217,18 +205,18 @@ export function SupportEvidenceConsole({
             onClick={() => void bind()}
           >
             {busy ? "Saving…" : `Bind ${purposeLabel.toLowerCase()}`}
-          </button>
-        </div>
+          </Button>
+        </FormGrid>
       )}
       {data.items.length > 0 && (
         <details>
           <summary>Legacy case files</summary>
           <p>
-            These files use the previous private evidence adapter and remain
-            available during migration.
+            These files use the previous private evidence adapter and remain available during
+            migration.
           </p>
           {data.items.map((f) => (
-            <div className="content-stack" key={String(f.id)}>
+            <Stack as="div" className="ui-stack" key={String(f.id)}>
               {f.revoked_at ? (
                 <p>{String(f.original_name)} · Withdrawn</p>
               ) : (
@@ -237,8 +225,8 @@ export function SupportEvidenceConsole({
                 </a>
               )}
               {canMutateEvidence && !f.revoked_at && !Number(f.legal_hold) && (
-                <form
-                  className="business-form"
+                <FormLayout
+                  className="ui-form-grid"
                   onSubmit={(event) => {
                     event.preventDefault();
                     void revoke(
@@ -247,24 +235,19 @@ export function SupportEvidenceConsole({
                     );
                   }}
                 >
-                  <label>
+                  <Field appearance="standard">
                     Reason for withdrawing {String(f.original_name)}
-                    <input
-                      name="reason"
-                      minLength={3}
-                      maxLength={2000}
-                      required
-                    />
-                  </label>
-                  <button className="button secondary" disabled={busy}>
+                    <TextInput appearance="standard" name="reason" minLength={3} maxLength={2000} required />
+                  </Field>
+                  <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={busy}>
                     Withdraw legacy file
-                  </button>
-                </form>
+                  </Button>
+                </FormLayout>
               )}
-            </div>
+            </Stack>
           ))}
         </details>
       )}
-    </section>
+    </Card>
   );
 }

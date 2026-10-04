@@ -1,4 +1,7 @@
 "use client";
+import { ActionLink as UiActionLink } from "@/components/ui/foundation";
+
+import { Button, Field, TextInput, Popover, PopoverTrigger, PopoverContent, type UiAppearance } from "@/components/ui/foundation";
 
 import { workFetch } from "@/lib/work-fetch";
 import { RoleSelect } from "@/components/workplace/role-select";
@@ -6,16 +9,8 @@ import { PersonAvatar } from "@/components/ui/person-avatar";
 import { useHydrated } from "@/components/ui/use-hydrated";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  Check,
-  ChevronDown,
-  LogIn,
-  LogOut,
-  Plus,
-  UserRound,
-} from "lucide-react";
+import { Check, ChevronDown, LogIn, LogOut, Plus, UserRound } from "lucide-react";
 import styles from "@/components/workplace/account.module.css";
-import Link from "next/link";
 import { Appearance } from "@/components/workplace/workplace-controls";
 import { leavePushSession } from "@/lib/push-client";
 import { useContextSwitch } from "@/components/workplace/context-switch-provider";
@@ -26,6 +21,7 @@ type DeviceSession = {
 };
 
 type Props = {
+  appearance?: UiAppearance;
   assignments?: import("@/server/authorization").WorkAssignment[];
   preferredAssignmentId?: string | null;
   contextRevision?: number;
@@ -35,7 +31,16 @@ type Props = {
   theme: string;
 };
 
-export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments = [], preferredAssignmentId = null, contextRevision = 0, companyId }: Props) {
+export function AccountSwitcher({
+  appearance = "legacy",
+  workspaceBase,
+  activeUser,
+  theme,
+  assignments = [],
+  preferredAssignmentId = null,
+  contextRevision = 0,
+  companyId,
+}: Props) {
   const { switchContext, busy } = useContextSwitch();
   const ready = useHydrated();
   const root = useRef<HTMLDivElement>(null);
@@ -53,15 +58,16 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
   }
 
   useEffect(() => {
+    if (appearance === "standard") return;
     function close(event: MouseEvent) {
       if (!root.current?.contains(event.target as Node)) setOpen(false);
     }
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
-  }, []);
+  }, [appearance]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || appearance === "standard") return;
     const previous = document.activeElement as HTMLElement | null;
     const menu = root.current?.querySelector<HTMLElement>('[role="dialog"]');
     const focusable = () =>
@@ -94,21 +100,32 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
       document.removeEventListener("keydown", keyboard);
       previous?.focus({ preventScroll: true });
     };
-  }, [open, adding]);
+  }, [open, adding, appearance]);
 
   async function chooseAccount(session: DeviceSession) {
     if (session.user.id === activeUser.id || pending || busy) return;
     setPending(`account:${session.user.id}`);
     setError("");
     try {
-      await switchContext({ companyId, scroll: scrollPosition.current, onCommitted: () => setOpen(false), action: async () => {
-        if (workspaceBase !== "/platform") await leavePushSession(workspaceBase);
-        const { authClient } = await import("@/lib/auth-client");
-        const result = await authClient.multiSession.setActive({ sessionToken: session.session.token });
-        if (result.error) throw new Error(result.error.message ?? "Account could not be selected.");
-      } });
-    } catch (error) { setError(error instanceof Error ? error.message : "Account could not be selected."); }
-    finally { setPending(""); }
+      await switchContext({
+        companyId,
+        scroll: scrollPosition.current,
+        onCommitted: () => setOpen(false),
+        action: async () => {
+          if (workspaceBase !== "/platform") await leavePushSession(workspaceBase);
+          const { authClient } = await import("@/lib/auth-client");
+          const result = await authClient.multiSession.setActive({
+            sessionToken: session.session.token,
+          });
+          if (result.error)
+            throw new Error(result.error.message ?? "Account could not be selected.");
+        },
+      });
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Account could not be selected.");
+    } finally {
+      setPending("");
+    }
   }
 
   async function addAccount(event: React.FormEvent<HTMLFormElement>) {
@@ -117,35 +134,70 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
     setError("");
     const form = new FormData(event.currentTarget);
     try {
-      await switchContext({ companyId, scroll: scrollPosition.current, onCommitted: () => setOpen(false), action: async () => {
-        if (workspaceBase !== "/platform") await leavePushSession(workspaceBase);
-        const { authClient } = await import("@/lib/auth-client");
-        const result = await authClient.signIn.email({ email: String(form.get("email")), password: String(form.get("password")) });
-        if (result.error) throw new Error(result.error.message ?? "Account could not be added.");
-      } });
-    } catch (error) { setError(error instanceof Error ? error.message : "Account could not be added."); }
-    finally { setPending(""); }
+      await switchContext({
+        companyId,
+        scroll: scrollPosition.current,
+        onCommitted: () => setOpen(false),
+        action: async () => {
+          if (workspaceBase !== "/platform") await leavePushSession(workspaceBase);
+          const { authClient } = await import("@/lib/auth-client");
+          const result = await authClient.signIn.email({
+            email: String(form.get("email")),
+            password: String(form.get("password")),
+          });
+          if (result.error) throw new Error(result.error.message ?? "Account could not be added.");
+        },
+      });
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Account could not be added.");
+    } finally {
+      setPending("");
+    }
   }
 
   async function chooseRole(assignmentId: string) {
     if (assignmentId === preferredAssignmentId || pending || busy) return;
-    setPending("role"); setError("");
+    setPending("role");
+    setError("");
     try {
-      await switchContext({ companyId, scroll: scrollPosition.current, onCommitted: () => setOpen(false), action: async () => {
-        const response = await workFetch(`/api/v1${workspaceBase}/assignments/active`, {
-          method: "POST", headers: { "content-type": "application/json", "x-erpx-context-company": assignments.find(option=>option.id===assignmentId)?.companyId ?? companyId ?? "" },
-          body: JSON.stringify({ assignmentId, revision: contextRevision }),
-        });
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.error?.message ?? "Role could not be selected. Refresh to check your current access.");
-      } });
-    } catch (error) { setError(error instanceof Error ? error.message : "Role could not be selected."); }
-    finally { setPending(""); }
+      await switchContext({
+        companyId,
+        scroll: scrollPosition.current,
+        onCommitted: () => setOpen(false),
+        action: async () => {
+          const response = await workFetch(`/api/v1${workspaceBase}/assignments/active`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-erpx-context-company":
+                assignments.find((option) => option.id === assignmentId)?.companyId ??
+                companyId ??
+                "",
+            },
+            body: JSON.stringify({ assignmentId, revision: contextRevision }),
+          });
+          const body = await response.json();
+          if (!response.ok)
+            throw new Error(
+              body.error?.message ??
+                "Role could not be selected. Refresh to check your current access.",
+            );
+        },
+      });
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Role could not be selected.");
+    } finally {
+      setPending("");
+    }
   }
 
   async function signOut() {
     setPending("logout");
-    try { if(workspaceBase!=="/platform")await leavePushSession(workspaceBase); } catch { /* Revoking the auth session also blocks future sends. */ }
+    try {
+      if (workspaceBase !== "/platform") await leavePushSession(workspaceBase);
+    } catch {
+      /* Revoking the auth session also blocks future sends. */
+    }
     const { authClient } = await import("@/lib/auth-client");
     await authClient.signOut();
     window.location.replace(new URL("/login", window.location.origin));
@@ -153,14 +205,10 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
 
   const accounts = sessions.some((item) => item.user.id === activeUser.id)
     ? sessions
-    : [
-        { session: { token: "", userId: activeUser.id }, user: activeUser },
-        ...sessions,
-      ];
+    : [{ session: { token: "", userId: activeUser.id }, user: activeUser }, ...sessions];
 
-  return (
-    <div className={`account-switcher ${styles.skin}`} ref={root}>
-      <button
+  const trigger = (      <Button appearance={appearance}
+        variant="plain"
         className="account-trigger"
         disabled={!ready || busy || Boolean(pending)}
         aria-label={`Account menu for ${activeUser.name}, ${activeUser.email}`}
@@ -180,17 +228,16 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
         <PersonAvatar name={activeUser.name} small />
         <span className="user-copy">
           <strong>{activeUser.name}</strong>
-          <span className="active-work-role" title={assignments.find(a=>a.id===preferredAssignmentId)?.label}>{assignments.find(a=>a.id===preferredAssignmentId)?.label ?? activeUser.email}</span>
+          <span
+            className="active-work-role"
+            title={assignments.find((a) => a.id === preferredAssignmentId)?.label}
+          >
+            {assignments.find((a) => a.id === preferredAssignmentId)?.label ?? activeUser.email}
+          </span>
         </span>
         <ChevronDown size={15} />
-      </button>
-      {open && (
-        <div
-          className="account-menu"
-          role="dialog"
-          aria-label="Account switcher"
-        >
-          <div className="account-menu-head">
+      </Button>);
+  const content = <>          <div className="account-menu-head">
             <div>
               <span className="eyebrow">Signed in accounts</span>
               <strong>Account & work role</strong>
@@ -203,7 +250,8 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
                 {accounts.map((item) => {
                   const active = item.user.id === activeUser.id;
                   return (
-                    <button
+                    <Button appearance={appearance}
+                      variant="plain"
                       type="button"
                       className={`account-option ${active ? "active" : ""}`}
                       aria-current={active ? "true" : undefined}
@@ -223,20 +271,56 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
                       ) : (
                         <LogIn size={16} />
                       )}
-                    </button>
+                    </Button>
                   );
                 })}
               </div>
-              <Link className="button ghost" href={`${workspaceBase}/iam/my-access`} onClick={() => setOpen(false)}>My access & security</Link>
-              {workspaceBase!=="/platform"&&<Link className="button ghost" href={`${workspaceBase}/settings/notifications`} onClick={() => setOpen(false)}>Notification settings</Link>}
-              {workspaceBase !== "/platform" && <Link className="button ghost" href={`${workspaceBase}/profiles/${encodeURIComponent(activeUser.id)}`} onClick={() => setOpen(false)}>My profile</Link>}
-              {assignments.length > 0 && <section className="role-section">
-                <RoleSelect assignments={assignments} value={preferredAssignmentId ?? ""} disabled={Boolean(pending)} onChange={value => void chooseRole(value)} />
-                <p className="role-hint">Only this role is used for actions and approvals. Self-approval rules still apply.</p>
-              </section>}
-              <div className="appearance-row"><span>Appearance</span><Appearance initialTheme={theme} compact /></div>
+              <UiActionLink appearance={appearance}
+                variant="ghost"
+                href={`${workspaceBase}/iam/my-access`}
+                onClick={() => setOpen(false)}
+              >
+                My access & security
+              </UiActionLink>
+              {workspaceBase !== "/platform" && (
+                <UiActionLink appearance={appearance}
+                  variant="ghost"
+                  href={`${workspaceBase}/settings/notifications`}
+                  onClick={() => setOpen(false)}
+                >
+                  Notification settings
+                </UiActionLink>
+              )}
+              {workspaceBase !== "/platform" && (
+                <UiActionLink appearance={appearance}
+                  variant="ghost"
+                  href={`${workspaceBase}/profiles/${encodeURIComponent(activeUser.id)}`}
+                  onClick={() => setOpen(false)}
+                >
+                  My profile
+                </UiActionLink>
+              )}
+              {assignments.length > 0 && (
+                <section className="role-section">
+                  <RoleSelect appearance={appearance}
+                    assignments={assignments}
+                    value={preferredAssignmentId ?? ""}
+                    disabled={Boolean(pending)}
+                    onChange={(value) => void chooseRole(value)}
+                  />
+                  <p className="role-hint">
+                    Only this role is used for actions and approvals. Self-approval rules still
+                    apply.
+                  </p>
+                </section>
+              )}
+              <div className="appearance-row">
+                <span>Appearance</span>
+                <Appearance appearance={appearance} initialTheme={theme} compact />
+              </div>
               <div className="account-actions">
-                <button
+                <Button appearance={appearance}
+                  variant="plain"
                   type="button"
                   onClick={() => {
                     setAdding(true);
@@ -246,11 +330,16 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
                 >
                   <Plus size={16} />
                   Add another account
-                </button>
-                <button type="button" disabled={Boolean(pending) || busy} onClick={() => void signOut()}>
+                </Button>
+                <Button appearance={appearance}
+                  variant="plain"
+                  type="button"
+                  disabled={Boolean(pending) || busy}
+                  onClick={() => void signOut()}
+                >
                   <LogOut size={16} />
                   Sign out all
-                </button>
+                </Button>
               </div>
             </>
           )}
@@ -262,43 +351,35 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
                 </span>
                 <div>
                   <strong>Add an existing account</strong>
-                  <small>
-                    Verify its credentials once to keep it available on this
-                    device.
-                  </small>
+                  <small>Verify its credentials once to keep it available on this device.</small>
                 </div>
               </div>
-              <label>
+              <Field>
                 Work email
-                <input
-                  name="email"
-                  type="email"
-                  autoComplete="username"
-                  required
-                  autoFocus
-                />
-              </label>
-              <label>
+                <TextInput appearance={appearance} name="email" type="email" autoComplete="username" required autoFocus />
+              </Field>
+              <Field>
                 Password
-                <input
+                <TextInput appearance={appearance}
                   name="password"
                   type="password"
                   autoComplete="current-password"
                   minLength={12}
                   required
                 />
-              </label>
+              </Field>
               <div className="add-account-actions">
-                <button
+                <Button appearance={appearance}
+                  variant="secondary"
                   type="button"
-                  className="button secondary"
+
                   onClick={() => setAdding(false)}
                 >
                   Back
-                </button>
-                <button className="button" disabled={pending === "add"}>
+                </Button>
+                <Button appearance={appearance} clientManaged type="submit" variant="primary" disabled={pending === "add"}>
                   {pending === "add" ? "Adding…" : "Add account"}
-                </button>
+                </Button>
               </div>
             </form>
           )}
@@ -307,8 +388,11 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
               {error}
             </div>
           )}
-        </div>
-      )}
-    </div>
-  );
+</>;
+  return <div className={`account-switcher ${styles.skin}`} ref={root}>
+    {appearance === "standard" ? <Popover open={open} modal onOpenChange={next => setOpen(next)}>
+      <PopoverTrigger render={trigger} />
+      <PopoverContent className={`${styles.skin} ui-account-popup`} aria-label="Account switcher">{content}</PopoverContent>
+    </Popover> : <>{trigger}{open && <div className="account-menu" role="dialog" aria-label="Account switcher">{content}</div>}</>}
+  </div>;
 }

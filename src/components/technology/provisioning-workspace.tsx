@@ -1,4 +1,6 @@
 "use client";
+import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
+
 import { PreferredDateTimeField } from "@/components/time/preferred-date-time-field";
 import { TimeText } from "@/components/time/time-preference-context";
 import { useEffect, useRef, useState } from "react";
@@ -16,19 +18,20 @@ import {
 import type { PeopleLifecycleData } from "@/lib/people-lifecycle";
 import styles from "./technology.module.css";
 import consoleStyles from "./provisioning-console.module.css";
-export function ProvisioningWorkspace({
+import { type UiAppearance } from "@/components/ui/foundation";
+export function ProvisioningWorkspace({ appearance = "legacy",
   base,
   lifecycle,
   data,
   canApply,
   section = "people",
-}: {
+}: ({
   base: string;
   lifecycle: PeopleLifecycleData;
   data: TechnologyData;
   canApply: boolean;
   section?: "people" | "operations";
-}) {
+}) & { appearance?: UiAppearance }) {
   const router = useRouter(),
     receipt = useRef<{ body: string; key: string } | null>(null),
     activeRowRef = useRef<HTMLButtonElement>(null),
@@ -41,22 +44,14 @@ export function ProvisioningWorkspace({
     [notice, setNotice] = useState(""),
     [preview, setPreview] = useState<ProvisioningPreview | null>(null),
     [input, setInput] = useState<ProvisioningInput | null>(null),
-    [detail, setDetail] = useState<string | null>(
-      lifecycle.roster[0]?.engagementId ?? null,
-    ),
-    [operationDetail, setOperationDetail] = useState<string | null>(
-      data.operations[0]?.id ?? null,
-    ),
+    [detail, setDetail] = useState<string | null>(lifecycle.roster[0]?.engagementId ?? null),
+    [operationDetail, setOperationDetail] = useState<string | null>(data.operations[0]?.id ?? null),
     [mobileDetail, setMobileDetail] = useState(false),
     [search, setSearch] = useState(""),
     [statusFilter, setStatusFilter] = useState("all"),
     [source, setSource] = useState<"position" | "supplemental">("position"),
-    [withdraw, setWithdraw] = useState<
-      import("@/lib/technology").AppliedPackage | null
-    >(null);
-  const pending = data.operations.some((op) =>
-    ["queued", "running", "retry"].includes(op.status),
-  );
+    [withdraw, setWithdraw] = useState<import("@/lib/technology").AppliedPackage | null>(null);
+  const pending = data.operations.some((op) => ["queued", "running", "retry"].includes(op.status));
   useEffect(() => {
     if (!pending) return;
     const timer = setInterval(() => router.refresh(), 5000);
@@ -76,20 +71,16 @@ export function ProvisioningWorkspace({
     if (receipt.current?.body !== fingerprint)
       receipt.current = { body: fingerprint, key: crypto.randomUUID() };
     try {
-      const r = await workFetch(
-          "/api/v1" + base + "/technology/provisioning/" + path,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Idempotency-Key": receipt.current.key,
-            },
-            body: encoded,
+      const r = await workFetch("/api/v1" + base + "/technology/provisioning/" + path, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": receipt.current.key,
           },
-        ),
+          body: encoded,
+        }),
         result = await r.json();
-      if (!r.ok)
-        throw Error(result.error?.message ?? "Unable to provision access.");
+      if (!r.ok) throw Error(result.error?.message ?? "Unable to provision access.");
       receipt.current = null;
       return result.data;
     } catch (e) {
@@ -101,27 +92,21 @@ export function ProvisioningWorkspace({
   function status(id: string, positionId: string | null) {
     const position = lifecycle.positions.find((p) => p.id === positionId),
       applied = data.applications.filter(
-        (a) =>
-          a.engagement_id === id && a.active && a.source_kind === "position",
+        (a) => a.engagement_id === id && a.active && a.source_kind === "position",
       );
     if (
       data.operations.some(
         (op) =>
           op.status === "blocked" &&
-          data.applications.some(
-            (a) => a.engagement_id === id && a.id.startsWith(op.id + ":"),
-          ),
+          data.applications.some((a) => a.engagement_id === id && a.id.startsWith(op.id + ":")),
       )
     )
       return "Needs attention";
     if (
       data.operations.some(
         (op) =>
-          (["queued", "running", "retry"].includes(op.status) ||
-            op.reviewsPending > 0) &&
-          data.applications.some(
-            (a) => a.engagement_id === id && a.id.startsWith(op.id + ":"),
-          ),
+          (["queued", "running", "retry"].includes(op.status) || op.reviewsPending > 0) &&
+          data.applications.some((a) => a.engagement_id === id && a.id.startsWith(op.id + ":")),
       )
     )
       return "In progress";
@@ -135,19 +120,14 @@ export function ProvisioningWorkspace({
       : "Waiting for IT";
   }
   const statusById = new Map(
-    lifecycle.roster.map((p) => [
-      p.engagementId,
-      status(p.engagementId, p.positionId),
-    ]),
+    lifecycle.roster.map((p) => [p.engagementId, status(p.engagementId, p.positionId)]),
   );
   const normalizedSearch = search.trim().toLocaleLowerCase();
   const filteredPeople = lifecycle.roster.filter((p) => {
     const position =
-      lifecycle.positions.find((item) => item.id === p.positionId)?.title ??
-      "No position";
+      lifecycle.positions.find((item) => item.id === p.positionId)?.title ?? "No position";
     return (
-      (statusFilter === "all" ||
-        statusById.get(p.engagementId) === statusFilter) &&
+      (statusFilter === "all" || statusById.get(p.engagementId) === statusFilter) &&
       (!normalizedSearch ||
         [p.name, p.engagementId, position].some((value) =>
           value.toLocaleLowerCase().includes(normalizedSearch),
@@ -155,37 +135,38 @@ export function ProvisioningWorkspace({
     );
   });
   const selectableVisible = filteredPeople.filter((p) => p.status === "active");
-  const person = filteredPeople.find((p) => p.engagementId === detail) ??
-    filteredPeople[0];
-  const operation =
-    data.operations.find((op) => op.id === operationDetail) ??
-    data.operations[0];
+  const person = filteredPeople.find((p) => p.engagementId === detail) ?? filteredPeople[0];
+  const operation = data.operations.find((op) => op.id === operationDetail) ?? data.operations[0];
   const personApplications = person
     ? data.applications.filter((a) => a.engagement_id === person.engagementId)
     : [];
   return (
-    <div className={consoleStyles.workspace}>
-      <div className={consoleStyles.toolbar}>
-        <div className={consoleStyles.heading}>
-          <h2>{section === "operations" ? "Provisioning operations" : "Employee access"}</h2>
-          <span className={consoleStyles.count}>
+    <div data-ui-appearance={appearance} className={consoleStyles.workspace}>
+      <div data-ui-appearance={appearance} className={consoleStyles.toolbar}>
+        <div data-ui-appearance={appearance} className={consoleStyles.heading}>
+          <h2 data-ui-appearance={appearance}>{section === "operations" ? "Provisioning operations" : "Employee access"}</h2>
+          <span data-ui-appearance={appearance} className={consoleStyles.count}>
             {section === "operations"
               ? data.operations.length + " operations"
               : filteredPeople.length + " of " + lifecycle.roster.length + " employees"}
           </span>
         </div>
         {section === "people" && canApply && (
-          <div className={consoleStyles.actions}>
+          <div data-ui-appearance={appearance} className={consoleStyles.actions}>
             {selected.length > 0 && (
-              <button
+              <Button appearance={appearance}
+                type="submit"
+                variant="plain"
                 className={consoleStyles.textAction}
                 onClick={() => setSelected([])}
               >
                 Clear selection
-              </button>
+              </Button>
             )}
-            <button
-              className="button"
+            <Button appearance={appearance}
+              type="submit"
+              variant="primary"
+
               disabled={!selected.length}
               onClick={() => {
                 setPreview(null);
@@ -195,19 +176,27 @@ export function ProvisioningWorkspace({
               }}
             >
               Prepare {selected.length || ""} selected
-            </button>
+            </Button>
           </div>
         )}
       </div>
-      {notice && <p className={consoleStyles.notice} role="status">{notice}</p>}
-      {error && !open && <p className={consoleStyles.error} role="alert">{error}</p>}
+      {notice && (
+        <p data-ui-appearance={appearance} className={consoleStyles.notice} role="status">
+          {notice}
+        </p>
+      )}
+      {error && !open && (
+        <p data-ui-appearance={appearance} className={consoleStyles.error} role="alert">
+          {error}
+        </p>
+      )}
       {section === "people" ? (
-        <div className={consoleStyles.console} data-mobile-detail={mobileDetail}>
-          <div className={consoleStyles.listPane}>
-            <div className={consoleStyles.listControls}>
-              <label className={consoleStyles.searchLabel}>
-                <span className="sr-only">Search employees</span>
-                <input
+        <div data-ui-appearance={appearance} className={consoleStyles.console} data-mobile-detail={mobileDetail}>
+          <div data-ui-appearance={appearance} className={consoleStyles.listPane}>
+            <div data-ui-appearance={appearance} className={consoleStyles.listControls}>
+              <Field appearance={appearance} className={consoleStyles.searchLabel}>
+                <span data-ui-appearance={appearance} className="sr-only">Search employees</span>
+                <TextInput appearance={appearance}
                   type="search"
                   value={search}
                   onChange={(event) => {
@@ -216,27 +205,27 @@ export function ProvisioningWorkspace({
                   }}
                   placeholder="Search name or position"
                 />
-              </label>
-              <label className={consoleStyles.filterLabel}>
-                <span className="sr-only">Filter by IT status</span>
-                <select
+              </Field>
+              <Field appearance={appearance} className={consoleStyles.filterLabel}>
+                <span data-ui-appearance={appearance} className="sr-only">Filter by IT status</span>
+                <Select appearance={appearance}
                   value={statusFilter}
                   onChange={(event) => {
                     setStatusFilter(event.target.value);
                     setMobileDetail(false);
                   }}
                 >
-                  <option value="all">All IT statuses</option>
-                  <option value="Ready">Ready</option>
-                  <option value="In progress">In progress</option>
-                  <option value="Needs attention">Needs attention</option>
-                  <option value="Waiting for IT">Waiting for IT</option>
-                </select>
-              </label>
+                  <option data-ui-appearance={appearance} value="all">All IT statuses</option>
+                  <option data-ui-appearance={appearance} value="Ready">Ready</option>
+                  <option data-ui-appearance={appearance} value="In progress">In progress</option>
+                  <option data-ui-appearance={appearance} value="Needs attention">Needs attention</option>
+                  <option data-ui-appearance={appearance} value="Waiting for IT">Waiting for IT</option>
+                </Select>
+              </Field>
             </div>
-            <div className={consoleStyles.listHeader}>
-              <label>
-                <input
+            <div data-ui-appearance={appearance} className={consoleStyles.listHeader}>
+              <Field appearance={appearance} orientation="inline">
+                <TextInput appearance={appearance}
                   aria-label="Select visible active employees, up to 100 total"
                   type="checkbox"
                   disabled={!canApply || selectableVisible.length === 0}
@@ -247,46 +236,41 @@ export function ProvisioningWorkspace({
                   onChange={(event) => {
                     const checked = event.currentTarget.checked;
                     setSelected((current) => {
-                      const visibleIds = new Set(
-                        selectableVisible.map((p) => p.engagementId),
-                      );
-                      if (!checked)
-                        return current.filter((id) => !visibleIds.has(id));
+                      const visibleIds = new Set(selectableVisible.map((p) => p.engagementId));
+                      if (!checked) return current.filter((id) => !visibleIds.has(id));
                       const next = [...current];
                       for (const p of selectableVisible) {
                         if (next.length >= 100) break;
-                        if (!next.includes(p.engagementId))
-                          next.push(p.engagementId);
+                        if (!next.includes(p.engagementId)) next.push(p.engagementId);
                       }
                       return next;
                     });
                   }}
                 />
-                <span>Select visible</span>
-              </label>
-              <span>{selected.length}/100 selected</span>
+                <span data-ui-appearance={appearance}>Select visible</span>
+              </Field>
+              <span data-ui-appearance={appearance}>{selected.length}/100 selected</span>
             </div>
-            <div className={consoleStyles.listScroll} role="list" aria-label="Employees">
+            <div data-ui-appearance={appearance} className={consoleStyles.listScroll} role="list" aria-label="Employees">
               {filteredPeople.map((p) => {
                 const position =
-                  lifecycle.positions.find((item) => item.id === p.positionId)
-                    ?.title ?? "No position";
+                  lifecycle.positions.find((item) => item.id === p.positionId)?.title ??
+                  "No position";
                 const state = statusById.get(p.engagementId) ?? "Waiting for IT";
                 return (
-                  <div
+                  <div data-ui-appearance={appearance}
                     className={consoleStyles.listRow}
                     data-selected={person?.engagementId === p.engagementId}
                     key={p.engagementId}
                     role="listitem"
                   >
-                    <input
+                    <TextInput appearance={appearance}
                       type="checkbox"
                       aria-label={"Select " + p.name}
                       disabled={
                         !canApply ||
                         p.status !== "active" ||
-                        (selected.length >= 100 &&
-                          !selected.includes(p.engagementId))
+                        (selected.length >= 100 && !selected.includes(p.engagementId))
                       }
                       checked={selected.includes(p.engagementId)}
                       onChange={(event) => {
@@ -298,7 +282,9 @@ export function ProvisioningWorkspace({
                         );
                       }}
                     />
-                    <button
+                    <Button appearance={appearance}
+                      type="submit"
+                      variant="plain"
                       ref={person?.engagementId === p.engagementId ? activeRowRef : undefined}
                       className={consoleStyles.rowButton}
                       aria-current={person?.engagementId === p.engagementId ? "true" : undefined}
@@ -307,20 +293,24 @@ export function ProvisioningWorkspace({
                         setMobileDetail(true);
                       }}
                     >
-                      <span className={consoleStyles.rowMain}>
-                        <strong>{p.name}</strong>
-                        <span>{position}</span>
+                      <span data-ui-appearance={appearance} className={consoleStyles.rowMain}>
+                        <strong data-ui-appearance={appearance}>{p.name}</strong>
+                        <span data-ui-appearance={appearance}>{position}</span>
                       </span>
-                      <span className={consoleStyles.badge} data-status={state}>{state}</span>
-                    </button>
+                      <span data-ui-appearance={appearance} className={consoleStyles.badge} data-status={state}>
+                        {state}
+                      </span>
+                    </Button>
                   </div>
                 );
               })}
               {filteredPeople.length === 0 && (
-                <div className={consoleStyles.empty}>
-                  <strong>No employees found</strong>
-                  <p>Try another name, position, or IT status.</p>
-                  <button
+                <div data-ui-appearance={appearance} className={consoleStyles.empty}>
+                  <strong data-ui-appearance={appearance}>No employees found</strong>
+                  <p data-ui-appearance={appearance}>Try another name, position, or IT status.</p>
+                  <Button appearance={appearance}
+                    type="submit"
+                    variant="plain"
                     className={consoleStyles.textAction}
                     onClick={() => {
                       setSearch("");
@@ -328,67 +318,97 @@ export function ProvisioningWorkspace({
                     }}
                   >
                     Clear filters
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
           </div>
-          <section className={consoleStyles.detailPane} aria-label="Employee access details">
-            <button
+          <section data-ui-appearance={appearance} className={consoleStyles.detailPane} aria-label="Employee access details">
+            <Button appearance={appearance}
+              type="submit"
+              variant="plain"
               ref={backRef}
               className={consoleStyles.back}
               onClick={() => setMobileDetail(false)}
             >
               ← Back to employees
-            </button>
+            </Button>
             {person ? (
               <>
-                <div className={consoleStyles.detailHead}>
-                  <div>
-                    <span className={consoleStyles.eyebrow}>Employee</span>
-                    <h3>{person.name}</h3>
-                    <p>
-                      {lifecycle.positions.find((p) => p.id === person.positionId)
-                        ?.title ?? "No position assigned"}
+                <div data-ui-appearance={appearance} className={consoleStyles.detailHead}>
+                  <div data-ui-appearance={appearance}>
+                    <span data-ui-appearance={appearance} className={consoleStyles.eyebrow}>Employee</span>
+                    <h3 data-ui-appearance={appearance}>{person.name}</h3>
+                    <p data-ui-appearance={appearance}>
+                      {lifecycle.positions.find((p) => p.id === person.positionId)?.title ??
+                        "No position assigned"}
                     </p>
                   </div>
-                  <span
+                  <span data-ui-appearance={appearance}
                     className={consoleStyles.badge}
                     data-status={statusById.get(person.engagementId)}
                   >
                     {statusById.get(person.engagementId)}
                   </span>
                 </div>
-                <div className={consoleStyles.detailScroll}>
-                  <div className={consoleStyles.detailSectionHead}>
-                    <h4>Applied access</h4>
-                    <span>{personApplications.filter((a) => a.active).length} effective</span>
+                <div data-ui-appearance={appearance} className={consoleStyles.detailScroll}>
+                  <div data-ui-appearance={appearance} className={consoleStyles.detailSectionHead}>
+                    <h4 data-ui-appearance={appearance}>Applied access</h4>
+                    <span data-ui-appearance={appearance}>{personApplications.filter((a) => a.active).length} effective</span>
                   </div>
                   {personApplications.length === 0 && (
-                    <div className={consoleStyles.emptyDetail}>
+                    <div data-ui-appearance={appearance} className={consoleStyles.emptyDetail}>
                       No access package has been applied to this employee.
                     </div>
                   )}
                   {personApplications.map((a) => (
-                    <section className={consoleStyles.accessCard} key={a.id}>
-                      <div className={consoleStyles.accessHead}>
-                        <div>
-                          <strong>{a.definition.name}</strong>
-                          <span>Revision {a.package_revision} · {a.source_kind} source</span>
+                    <section data-ui-appearance={appearance} className={consoleStyles.accessCard} key={a.id}>
+                      <div data-ui-appearance={appearance} className={consoleStyles.accessHead}>
+                        <div data-ui-appearance={appearance}>
+                          <strong data-ui-appearance={appearance}>{a.definition.name}</strong>
+                          <span data-ui-appearance={appearance}>
+                            Revision {a.package_revision} · {a.source_kind} source
+                          </span>
                         </div>
-                        <span className={consoleStyles.badge} data-status={a.active ? "Ready" : "Inactive"}>
+                        <span data-ui-appearance={appearance}
+                          className={consoleStyles.badge}
+                          data-status={a.active ? "Ready" : "Inactive"}
+                        >
                           {a.active ? "Effective" : "Inactive / pending"}
                         </span>
                       </div>
-                      <dl className={consoleStyles.factGrid}>
-                        <div><dt>Expires</dt><dd><TimeText value={a.valid_until} /></dd></div>
-                        <div><dt>ERPX roles</dt><dd>{a.definition.grants.map((g) => g.roleId).join(", ") || "None"} <small>(reviewed separately)</small></dd></div>
-                        <div><dt>Groups</dt><dd>{[...a.definition.groupIds, ...a.definition.directoryGroupIds].join(", ") || "None"}</dd></div>
-                        <div><dt>Exceptions</dt><dd>{a.scope.exclude?.join(", ") || "None"}</dd></div>
+                      <dl data-ui-appearance={appearance} className={consoleStyles.factGrid}>
+                        <div data-ui-appearance={appearance}>
+                          <dt data-ui-appearance={appearance}>Expires</dt>
+                          <dd data-ui-appearance={appearance}>
+                            <TimeText appearance={appearance} value={a.valid_until} />
+                          </dd>
+                        </div>
+                        <div data-ui-appearance={appearance}>
+                          <dt data-ui-appearance={appearance}>ERPX roles</dt>
+                          <dd data-ui-appearance={appearance}>
+                            {a.definition.grants.map((g) => g.roleId).join(", ") || "None"}{" "}
+                            <small data-ui-appearance={appearance}>(reviewed separately)</small>
+                          </dd>
+                        </div>
+                        <div data-ui-appearance={appearance}>
+                          <dt data-ui-appearance={appearance}>Groups</dt>
+                          <dd data-ui-appearance={appearance}>
+                            {[...a.definition.groupIds, ...a.definition.directoryGroupIds].join(
+                              ", ",
+                            ) || "None"}
+                          </dd>
+                        </div>
+                        <div data-ui-appearance={appearance}>
+                          <dt data-ui-appearance={appearance}>Exceptions</dt>
+                          <dd data-ui-appearance={appearance}>{a.scope.exclude?.join(", ") || "None"}</dd>
+                        </div>
                       </dl>
                       {canApply && !a.ended_at && (
-                        <button
-                          className="button secondary"
+                        <Button appearance={appearance}
+                          type="submit"
+                          variant="secondary"
+
                           onClick={() => {
                             setSelected([a.engagement_id]);
                             setWithdraw(a);
@@ -398,28 +418,39 @@ export function ProvisioningWorkspace({
                           }}
                         >
                           Withdraw this source
-                        </button>
+                        </Button>
                       )}
                     </section>
                   ))}
                 </div>
               </>
             ) : (
-              <div className={consoleStyles.emptyDetail}>Select an employee to inspect access.</div>
+              <div data-ui-appearance={appearance} className={consoleStyles.emptyDetail}>Select an employee to inspect access.</div>
             )}
           </section>
         </div>
       ) : (
-        <div className={consoleStyles.console} data-mobile-detail={mobileDetail}>
-          <div className={consoleStyles.listPane}>
-            <div className={consoleStyles.listHeader}>
-              <strong>Recent operations</strong>
-              <span>{data.operations.length} total</span>
+        <div data-ui-appearance={appearance} className={consoleStyles.console} data-mobile-detail={mobileDetail}>
+          <div data-ui-appearance={appearance} className={consoleStyles.listPane}>
+            <div data-ui-appearance={appearance} className={consoleStyles.listHeader}>
+              <strong data-ui-appearance={appearance}>Recent operations</strong>
+              <span data-ui-appearance={appearance}>{data.operations.length} total</span>
             </div>
-            <div className={consoleStyles.listScroll} role="list" aria-label="Provisioning operations">
+            <div data-ui-appearance={appearance}
+              className={consoleStyles.listScroll}
+              role="list"
+              aria-label="Provisioning operations"
+            >
               {data.operations.map((op) => (
-                <div className={consoleStyles.listRow} data-selected={operation?.id === op.id} key={op.id} role="listitem">
-                  <button
+                <div data-ui-appearance={appearance}
+                  className={consoleStyles.listRow}
+                  data-selected={operation?.id === op.id}
+                  key={op.id}
+                  role="listitem"
+                >
+                  <Button appearance={appearance}
+                    type="submit"
+                    variant="plain"
                     ref={operation?.id === op.id ? activeRowRef : undefined}
                     className={consoleStyles.rowButton}
                     aria-current={operation?.id === op.id ? "true" : undefined}
@@ -428,74 +459,94 @@ export function ProvisioningWorkspace({
                       setMobileDetail(true);
                     }}
                   >
-                    <span className={consoleStyles.rowMain}>
-                      <strong>{op.status.replaceAll("_", " ")}</strong>
-                      <span><TimeText value={op.created_at} /></span>
+                    <span data-ui-appearance={appearance} className={consoleStyles.rowMain}>
+                      <strong data-ui-appearance={appearance}>{op.status.replaceAll("_", " ")}</strong>
+                      <span data-ui-appearance={appearance}>
+                        <TimeText appearance={appearance} value={op.created_at} />
+                      </span>
                     </span>
-                    {op.reviewsPending > 0 && <span className={consoleStyles.reviewCount}>{op.reviewsPending} reviews</span>}
-                  </button>
+                    {op.reviewsPending > 0 && (
+                      <span data-ui-appearance={appearance} className={consoleStyles.reviewCount}>{op.reviewsPending} reviews</span>
+                    )}
+                  </Button>
                 </div>
               ))}
               {data.operations.length === 0 && (
-                <div className={consoleStyles.empty}>No provisioning operations yet.</div>
+                <div data-ui-appearance={appearance} className={consoleStyles.empty}>No provisioning operations yet.</div>
               )}
             </div>
           </div>
-          <section className={consoleStyles.detailPane} aria-label="Operation details">
-            <button ref={backRef} className={consoleStyles.back} onClick={() => setMobileDetail(false)}>
+          <section data-ui-appearance={appearance} className={consoleStyles.detailPane} aria-label="Operation details">
+            <Button appearance={appearance}
+              type="submit"
+              variant="plain"
+              ref={backRef}
+              className={consoleStyles.back}
+              onClick={() => setMobileDetail(false)}
+            >
               ← Back to operations
-            </button>
+            </Button>
             {operation ? (
               <>
-                <div className={consoleStyles.detailHead}>
-                  <div>
-                    <span className={consoleStyles.eyebrow}>Provisioning operation</span>
-                    <h3>{operation.status.replaceAll("_", " ")}</h3>
-                    <p><TimeText value={operation.created_at} /></p>
+                <div data-ui-appearance={appearance} className={consoleStyles.detailHead}>
+                  <div data-ui-appearance={appearance}>
+                    <span data-ui-appearance={appearance} className={consoleStyles.eyebrow}>Provisioning operation</span>
+                    <h3 data-ui-appearance={appearance}>{operation.status.replaceAll("_", " ")}</h3>
+                    <p data-ui-appearance={appearance}>
+                      <TimeText appearance={appearance} value={operation.created_at} />
+                    </p>
                   </div>
                 </div>
-                <div className={consoleStyles.detailScroll}>
-                  <div className={consoleStyles.detailSectionHead}>
-                    <h4>Progress</h4>
-                    <span>{operation.reviewsPending} ERPX role reviews pending</span>
+                <div data-ui-appearance={appearance} className={consoleStyles.detailScroll}>
+                  <div data-ui-appearance={appearance} className={consoleStyles.detailSectionHead}>
+                    <h4 data-ui-appearance={appearance}>Progress</h4>
+                    <span data-ui-appearance={appearance}>{operation.reviewsPending} ERPX role reviews pending</span>
                   </div>
                   {operation.steps.length > 0 ? (
-                    <ol className={consoleStyles.steps}>
+                    <ol data-ui-appearance={appearance} className={consoleStyles.steps}>
                       {operation.steps.map((step) => (
-                        <li key={step.id}>
-                          <strong>{step.label}</strong>
-                          <span>{step.status.replaceAll("_", " ")}</span>
+                        <li data-ui-appearance={appearance} key={step.id}>
+                          <strong data-ui-appearance={appearance}>{step.label}</strong>
+                          <span data-ui-appearance={appearance}>{step.status.replaceAll("_", " ")}</span>
                         </li>
                       ))}
                     </ol>
                   ) : (
-                    <div className={consoleStyles.emptyDetail}>No directory steps recorded.</div>
+                    <div data-ui-appearance={appearance} className={consoleStyles.emptyDetail}>No directory steps recorded.</div>
                   )}
                   {operation.last_error && (
-                    <p className={consoleStyles.error} role="status">{operation.last_error}</p>
+                    <p data-ui-appearance={appearance} className={consoleStyles.error} role="status">
+                      {operation.last_error}
+                    </p>
                   )}
-                  <RecordDocumentPanel
+                  <RecordDocumentPanel appearance={appearance}
                     key={`${operation.id}:${operation.version}`}
                     base={base}
                     targetType="people_provision_operation"
                     targetId={operation.id}
                     expectedTargetVersion={operation.version}
                     title="Sanitized provisioning evidence"
-                    purposes={[{
-                      key: "sanitized_provisioning_evidence",
-                      label: "Sanitized provisioning evidence",
-                      description: "Attach only a redacted review artifact. Never upload passwords, private keys, secrets, configuration exports, or database dumps.",
-                      visibility: "Restricted to Company IT provisioning administrators. Sanitization attestation is required before binding.",
-                    }]}
+                    purposes={[
+                      {
+                        key: "sanitized_provisioning_evidence",
+                        label: "Sanitized provisioning evidence",
+                        description:
+                          "Attach only a redacted review artifact. Never upload passwords, private keys, secrets, configuration exports, or database dumps.",
+                        visibility:
+                          "Restricted to Company IT provisioning administrators. Sanitization attestation is required before binding.",
+                      },
+                    ]}
                     editable={canApply}
                   />
-                  <div className={consoleStyles.detailActions}>
+                  <div data-ui-appearance={appearance} className={consoleStyles.detailActions}>
                     {canApply &&
                       ["FRESH_MFA_REQUIRED", "PROVISIONING_RETRY_REQUIRED"].includes(
                         operation.last_error ?? "",
                       ) && (
-                        <button
-                          className="button secondary"
+                        <Button appearance={appearance}
+                          type="submit"
+                          variant="secondary"
+
                           disabled={busy}
                           onClick={async () => {
                             if (
@@ -508,7 +559,7 @@ export function ProvisioningWorkspace({
                           }}
                         >
                           Retry unfinished operation
-                        </button>
+                        </Button>
                       )}
                     {operation.steps.length > 0 && (
                       <Link href={base + "/technology?view=organization"}>
@@ -522,18 +573,20 @@ export function ProvisioningWorkspace({
                 </div>
               </>
             ) : (
-              <div className={consoleStyles.emptyDetail}>Select an operation to inspect progress.</div>
+              <div data-ui-appearance={appearance} className={consoleStyles.emptyDetail}>
+                Select an operation to inspect progress.
+              </div>
             )}
           </section>
         </div>
       )}
-      <Dialog
+      <Dialog appearance={appearance}
         open={open}
         onClose={() => setOpen(false)}
         title="Prepare employee resources"
-        presentation="responsive-panel"
+        presentation="form-drawer"
       >
-        <form
+        <form data-ui-appearance={appearance}
           className={styles.form}
           onChange={() => {
             setPreview(null);
@@ -542,15 +595,12 @@ export function ProvisioningWorkspace({
           onSubmit={async (e) => {
             e.preventDefault();
             const f = new FormData(e.currentTarget),
-              pkg = lifecycle.packages.find(
-                (p) => p.id === String(f.get("packageId")),
-              ),
+              pkg = lifecycle.packages.find((p) => p.id === String(f.get("packageId"))),
               parsed = provisioningInput.safeParse({
                 engagementIds: selected,
                 sourceKind: withdraw?.source_kind ?? source,
                 packageId: withdraw?.package_id ?? pkg?.id ?? null,
-                revision:
-                  withdraw?.package_revision ?? pkg?.published_revision ?? null,
+                revision: withdraw?.package_revision ?? pkg?.published_revision ?? null,
                 revokeOnly: !!withdraw,
                 revokeApplicationIds: withdraw ? [withdraw.id] : [],
                 restoreAccess: f.has("restoreAccess"),
@@ -574,90 +624,81 @@ export function ProvisioningWorkspace({
             }
           }}
         >
-          <p>
+          <p data-ui-appearance={appearance}>
             {withdraw
               ? `Withdraw applied source: ${withdraw.definition.name} · r${withdraw.package_revision}`
               : `${selected.length} employees selected. HR placement is already effective.`}
           </p>
           {!withdraw && (
             <>
-              <label>
+              <Field appearance={appearance}>
                 Access source
-                <select
-                  value={source}
-                  onChange={(e) => setSource(e.target.value as typeof source)}
-                >
-                  <option value="position">
-                    Replace applied position package
-                  </option>
-                  <option value="supplemental">
-                    Additional access for these people
-                  </option>
-                </select>
-              </label>
-              <label>
+                <Select appearance={appearance} value={source} onChange={(e) => setSource(e.target.value as typeof source)}>
+                  <option data-ui-appearance={appearance} value="position">Replace applied position package</option>
+                  <option data-ui-appearance={appearance} value="supplemental">Additional access for these people</option>
+                </Select>
+              </Field>
+              <Field appearance={appearance}>
                 Access package
-                <select name="packageId" required={source === "supplemental"}>
-                  <option value="">Use each employee’s position package</option>
+                <Select appearance={appearance} name="packageId" required={source === "supplemental"}>
+                  <option data-ui-appearance={appearance} value="">Use each employee’s position package</option>
                   {lifecycle.packages
                     .filter((p) => p.published_revision)
                     .map((p) => (
-                      <option key={p.id} value={p.id}>
+                      <option data-ui-appearance={appearance} key={p.id} value={p.id}>
                         {p.definition.name} · r{p.published_revision}
                       </option>
                     ))}
-                </select>
-              </label>
-              <PreferredDateTimeField name="expires" label="Access expires" required />
-              <label>
-                <input type="checkbox" name="restoreAccess" /> Restore access
-                after a completed HR return (old grants stay revoked)
-              </label>
-              <details>
-                <summary>Exceptions</summary>
-                <label>
+                </Select>
+              </Field>
+              <PreferredDateTimeField appearance={appearance} name="expires" label="Access expires" required />
+              <Field appearance={appearance} orientation="inline">
+                <TextInput appearance={appearance} type="checkbox" name="restoreAccess" /> Restore access after a completed
+                HR return (old grants stay revoked)
+              </Field>
+              <details data-ui-appearance={appearance}>
+                <summary data-ui-appearance={appearance}>Exceptions</summary>
+                <Field appearance={appearance}>
                   Exclude resource keys (one per line)
-                  <textarea
+                  <TextArea appearance={appearance}
                     name="exclude"
-                    placeholder={
-                      "role:role-id\ngroup:group-id\ndirectory:group-id\ngpo:gpo-id"
-                    }
+                    placeholder={"role:role-id\ngroup:group-id\ndirectory:group-id\ngpo:gpo-id"}
                   />
-                </label>
+                </Field>
               </details>
             </>
           )}
-          <label>
+          <Field appearance={appearance}>
             Reason
-            <textarea name="reason" required minLength={3} maxLength={1000} />
-          </label>
-          <button className="button secondary" disabled={busy}>
+            <TextArea appearance={appearance} name="reason" required minLength={3} maxLength={1000} />
+          </Field>
+          <Button appearance={appearance} clientManaged type="submit" variant="secondary" disabled={busy}>
             Preview changes
-          </button>
+          </Button>
           {preview && input && (
-            <div className={styles.preview}>
+            <div data-ui-appearance={appearance} className={styles.preview}>
               {preview.employees.map((p) => (
-                <section key={p.id}>
-                  <h3>{p.name}</h3>
-                  <p>
+                <section data-ui-appearance={appearance} key={p.id}>
+                  <h3 data-ui-appearance={appearance}>{p.name}</h3>
+                  <p data-ui-appearance={appearance}>
                     {p.packageName} · revision {p.revision}
                   </p>
-                  <p>Add: {p.added.join(", ") || "No new grants"}</p>
-                  <p>Replace source: {p.removed.join(", ") || "None"}</p>
-                  <p>
+                  <p data-ui-appearance={appearance}>Add: {p.added.join(", ") || "No new grants"}</p>
+                  <p data-ui-appearance={appearance}>Replace source: {p.removed.join(", ") || "None"}</p>
+                  <p data-ui-appearance={appearance}>
                     Retain:{" "}
-                    {p.retained.join(", ") ||
-                      "Other independent access keeps its own conditions"}
+                    {p.retained.join(", ") || "Other independent access keeps its own conditions"}
                   </p>
-                  <p>{p.reviews} ERPX role requests need independent review.</p>
+                  <p data-ui-appearance={appearance}>{p.reviews} ERPX role requests need independent review.</p>
                 </section>
               ))}
               {preview.warnings.map((w) => (
-                <p key={w}>{w}</p>
+                <p data-ui-appearance={appearance} key={w}>{w}</p>
               ))}
-              <button
+              <Button appearance={appearance}
+                variant="primary"
                 type="button"
-                className="button"
+
                 disabled={busy}
                 onClick={async () => {
                   const result = await send("apply", {
@@ -675,10 +716,10 @@ export function ProvisioningWorkspace({
                 }}
               >
                 Apply resources & request role reviews
-              </button>
+              </Button>
             </div>
           )}
-          {error && <p role="alert">{error}</p>}
+          {error && <p data-ui-appearance={appearance} role="alert">{error}</p>}
         </form>
       </Dialog>
     </div>

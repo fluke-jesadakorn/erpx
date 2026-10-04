@@ -138,7 +138,7 @@ function buildPath(route: RouteEntry, options: { scope?: string; invalidId?: boo
     companySlug: fixture.hospitality.companyId,
     app: options.app ?? (/\/pos(?:\/|$)/.test(template) ? "pos" : "pms"),
     destination: "home",
-    kind: "order",
+    kind: template.includes("/work/department-approvals/") ? "expense" : "order",
     propertyId: fixture.hospitality.propertyId,
     path: template.includes("/platform/tasks/") ? "today" : "overview",
     section: template.includes("/pms/") ? "reservations" : "members",
@@ -204,21 +204,24 @@ function profileFor(route: RouteEntry): string {
 }
 
 async function capture(page: Page, info: TestInfo, route: RouteEntry, accessPattern: string, path: string, kind = "fixture") {
+  // An isolated webpack server may compile a route and hydrate its streamed
+  // recovery screen on its first visit. Keep the content assertions intact.
+  test.setTimeout(120_000);
   const errors = pageErrors(page);
   let navigationError = "";
   let status: number | undefined;
   try {
-    page.setDefaultNavigationTimeout(30_000);
+    page.setDefaultNavigationTimeout(60_000);
     const response = await page.goto(path, { waitUntil: "domcontentloaded" });
     status = response?.status();
-    await page.locator("main, [role=main]").first().waitFor({ state: "visible", timeout: 20_000 });
-    await page.locator("h1:visible, [role=heading][aria-level='1']:visible").first().waitFor({ state: "visible", timeout: 20_000 });
+    await page.locator("main, [role=main]").first().waitFor({ state: "visible", timeout: 45_000 });
+    await page.locator("h1:visible, [role=heading][aria-level='1']:visible").first().waitFor({ state: "visible", timeout: 45_000 });
     await page.waitForFunction(() => {
       const heading = [...document.querySelectorAll("h1, [role=heading][aria-level='1']")]
         .find((element) => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== "hidden");
       const text = heading?.textContent?.trim() ?? "";
       return Boolean(text) && !/^loading(?:…|\.\.\.)?$/i.test(text);
-    }, null, { timeout: 20_000 });
+    }, null, { timeout: 45_000 });
   } catch (error) {
     navigationError = error instanceof Error ? error.name : "unknown";
   }
@@ -231,7 +234,8 @@ async function capture(page: Page, info: TestInfo, route: RouteEntry, accessPatt
     title: document.title,
     headingText: [...document.querySelectorAll("h1, [role=heading][aria-level='1']")]
       .find((element) => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== "hidden")?.textContent?.trim() ?? "",
-    accessReason: document.querySelector("[data-access-reason]")?.getAttribute("data-access-reason") ?? null,
+    accessReason: document.querySelector("[data-access-reason]")?.getAttribute("data-access-reason")
+      ?? (document.querySelector("[data-work-forbidden]") ? "permission" : null),
     host: window.location.host,
     pathname: window.location.pathname,
   })).catch(() => ({ viewportWidth: 0, documentWidth: 0, mainCount: 0, headingCount: 0, title: "", headingText: "", accessReason: null, host: "", pathname: "" }));
@@ -274,6 +278,7 @@ async function capture(page: Page, info: TestInfo, route: RouteEntry, accessPatt
 }
 
 function hrefForPublicEntry(route: RouteEntry, app: "pms" | "pos" = "pms") {
+  if (route.template === "/marketing") return { baseURL: "http://dev-erpx.localhost:3104", path: "/" };
   if (route.template.startsWith("/front-access")) return { baseURL: app === "pms" ? pmsOrigin : posOrigin, path: buildPath(route) };
   if (route.template.startsWith("/front/")) return { baseURL: process.env.ERPX_E2E_BASE_URL ?? state.origin, path: buildPath(route, { app }) };
   const sample = examplePath(route);
@@ -301,7 +306,7 @@ test.describe("signed-out route access", () => {
     for (const app of apps) {
       const target = hrefForPublicEntry(route, app);
       test(`${route.template} · anonymous · ${app}`, async ({ page }, info) => {
-        const { status, metrics } = await capture(page, info, route, "anonymous", target.path, "representative");
+        const { status, metrics } = await capture(page, info, route, "anonymous", new URL(target.path, target.baseURL).href, "representative");
         const finalUrl = new URL(page.url());
         const isFrontLogin = ["dev-pms.localhost", "dev-pos.localhost"].includes(finalUrl.hostname) && ["/login", "/forgot-password", "/verify-email", "/reset-password"].includes(finalUrl.pathname);
         if (route.signedOut === "public") {
@@ -395,9 +400,16 @@ for (const [profile, routes] of grouped) {
             expect(finalUrl.pathname).toBe("/login");
           } else {
             expect(finalUrl.pathname, `${route.template} must not stop at the work-role picker`).not.toBe("/work-role");
+            expect(finalUrl.pathname, `${route.template} must preserve its signed-in session`).not.toBe("/login");
           }
           if (route.area === "Platform") {
-            expect(finalUrl.pathname === "/access" && ["platform", "workspace", "permission"].includes(metrics.accessReason ?? ""), "holding access must be explicitly denied platform administration").toBe(true);
+            const legacyDenial = finalUrl.pathname === "/access" && ["platform", "workspace", "permission"].includes(metrics.accessReason ?? "");
+            const managedDenial = /^\/holdings\/erpx\/manage-erpx(?:\/|$)/.test(finalUrl.pathname) && status === 403;
+            expect(legacyDenial || managedDenial, "holding access must be explicitly denied platform administration").toBe(true);
+            if (managedDenial) {
+              await expect(page.locator("[data-work-forbidden]").first()).toBeVisible();
+              await expect(page.getByRole("heading", { name: "Your role cannot open this view", exact: true })).toBeVisible();
+            }
           } else if (route.detailRoute && sample.kind !== "placeholder") {
             expect(status === 404 || status === 403 || metrics.accessReason === "not_found" || metrics.accessReason === "permission" || status! < 400,
               `${route.template} valid sample should load or explain access`).toBe(true);
@@ -474,7 +486,14 @@ test.describe("scoped personas and permission denial", () => {
       test(`${template} returns permission state`, async ({ page }, info) => {
         const { metrics } = await capture(page, info, route, "employee:denied", buildPath(route), "permission-denial");
         if (template === "/holdings/[holdingSlug]/people/settings") {
-          await expect(page.getByText("Your selected role does not manage these settings.", { exact: true }), `${template} must explain its read-only denial`).toBeVisible();
+          if (new URL(page.url()).pathname.endsWith("/people")) {
+            await expect(page.getByText("Read-only organization explorer", { exact: true }), `${template} must explain its read-only access`).toBeVisible();
+            await expect(page.getByRole("button", { name: "HR settings", exact: true })).toHaveCount(0);
+            await expect(page.getByRole("button", { name: "+ Add", exact: true })).toHaveCount(0);
+            expect(new URL(page.url()).searchParams.get("panel")).toBe("settings");
+          } else {
+            await expect(page.getByText("Your selected role does not manage these settings.", { exact: true }), `${template} must explain its read-only denial`).toBeVisible();
+          }
         } else {
           expect(metrics.accessReason === "permission" || page.url().includes("/access"), `${template} denied with an explicit state`).toBe(true);
         }

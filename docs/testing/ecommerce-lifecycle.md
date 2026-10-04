@@ -1,5 +1,7 @@
 # E-commerce lifecycle simulation
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 ## ขอบเขตที่ implement แล้ว
 
 E-commerce เป็นช่องทางรับคำสั่งซื้อและเก็บ source link ส่วน Sales, Inventory, Finance และ Returns ยังคงเป็นเจ้าของธุรกรรมของตนเอง ระบบรองรับ channel draft → independent activation, listing draft → independent publication, version-locked cart → checkout → Sales order submission → independent order approval → shared stock reservation → fulfillment link → invoice-gated return request

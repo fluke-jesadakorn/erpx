@@ -119,6 +119,7 @@ export async function getDomainWork(
       ],
       id: String(x.id),
       type: "expense",
+      actionKind: canReviewExpense(actor,x) && stage !== "accounts_review" ? "approval" : "work",
       title: `${x.legal_name} · ${x.merchant || "Expense draft"}`,
       detail: `${actionable ? (status === "in_review" ? "Review receipt and business purpose" : post ? "Post approved obligation" : reimburse ? "Record reimbursement" : "Complete and submit claim") : terminal ? "Expense completed" : "Waiting for expense processing"} · ${x.currency} ${minorToDecimal(Number(x.outstanding_minor ?? Number(x.amount_minor) + Number(x.tax_minor)))}`,
       href: `/expenses/${x.id}`,
@@ -145,6 +146,7 @@ export async function getDomainWork(
     rows.push({
       id: String(x.id),
       type: "stock_count",
+      actionKind: review && status === "submitted" ? "approval" : "work",
       responsibleQueue: review ? "Finance review" : "Warehouse",
       relationships: [
         ...(own ? ["requested" as const] : []),
@@ -183,6 +185,7 @@ export async function getDomainWork(
     rows.push({
       id: String(x.id),
       type: "transfer",
+      actionKind: review && status === "submitted" && x.delivery_mode === "transit" ? "approval" : "work",
       responsibleQueue: review ? "Receiving warehouse" : "Source warehouse",
       relationships: [
         ...(own ? ["requested" as const] : []),
@@ -231,6 +234,7 @@ export async function getStaffWork(actor: WorkContext): Promise<DomainWork[]> {
     rows.push({
       id: task.id,
       type: "staff_task",
+      actionKind: detail.permittedActions.includes("approve") ? "approval" : "work",
       dueAt: task.due_at,
       blocker: detail.blockedReason,
       responsibleQueue:

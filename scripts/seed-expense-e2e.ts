@@ -1,3 +1,4 @@
+import { changeAppointment } from "../src/server/department-authority";
 import { getLocalProxy } from "./local/fixtures";
 import { hashPassword } from "better-auth/crypto";
 import { mkdir } from "node:fs/promises";
@@ -163,6 +164,7 @@ try {
         f.company,
       ),
   ]);
+  await changeAppointment(proxy.env.H001_DB,f.owner,{kind:"head",departmentId:f.department,positionId:null,personId:`person-${f.head.userId}`,expectedVersion:0,reason:"Appointed head for isolated development browser tests"},crypto.randomUUID());
   await mkdir(".scratch/expense-v2", { recursive: true });
   await Bun.write(
     ".scratch/expense-v2/fixture.json",

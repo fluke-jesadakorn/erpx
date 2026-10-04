@@ -1,4 +1,8 @@
 "use client";
+import { ActionAnchor as UiActionAnchor } from "@/components/ui/foundation";
+
+import { Button, Field, TextArea, TextInput } from "@/components/ui/foundation";
+
 import { TimeText } from "@/components/time/time-preference-context";
 
 import Image from "next/image";
@@ -17,14 +21,7 @@ import {
   TriangleAlert,
   Upload,
 } from "lucide-react";
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AttachmentApiError,
@@ -44,15 +41,10 @@ import {
   validateGenericAttachment,
   withdrawAttachmentLink,
 } from "@/lib/attachment-client";
-import {
-  attachmentStateLabel,
-  canMutateAttachmentDraft,
-} from "@/lib/attachment-state";
-import {
-  canMutateAttachments,
-  useAttachmentFeatureMode,
-} from "./attachment-feature-context";
+import { attachmentStateLabel, canMutateAttachmentDraft } from "@/lib/attachment-state";
+import { canMutateAttachments, useAttachmentFeatureMode } from "./attachment-feature-context";
 import styles from "./attachment-panel.module.css";
+import { type UiAppearance } from "@/components/ui/foundation";
 
 type LocalLink = AttachmentLinkDto & {
   localState?: "reserving" | "uploading" | "waiting";
@@ -94,14 +86,11 @@ export type AttachmentPanelProps = {
   allowOriginalDownload?: boolean;
 };
 
-const active = (link: LocalLink) =>
-  !["withdrawn", "expired"].includes(link.linkState);
-const ready = (link: LocalLink) =>
-  active(link) && link.sourceState === "available";
+const active = (link: LocalLink) => !["withdrawn", "expired"].includes(link.linkState);
+const ready = (link: LocalLink) => active(link) && link.sourceState === "available";
 const terminal = (link: LocalLink) =>
-  ["available", "scan_error", "malware_rejected", "destroyed"].includes(
-    link.sourceState ?? "",
-  ) || ["withdrawn", "expired", "bound"].includes(link.linkState);
+  ["available", "scan_error", "malware_rejected", "destroyed"].includes(link.sourceState ?? "") ||
+  ["withdrawn", "expired", "bound"].includes(link.linkState);
 
 const sanitizationAttestationTargets = new Set([
   "iam_review",
@@ -112,18 +101,11 @@ const sanitizationAttestationTargets = new Set([
 ]);
 
 function statusIcon(link: LocalLink) {
-  if (
-    link.localState ||
-    ["quarantined", "scanning"].includes(link.sourceState ?? "")
-  )
+  if (link.localState || ["quarantined", "scanning"].includes(link.sourceState ?? ""))
     return <LoaderCircle aria-hidden size={14} className={styles.spin} />;
   if (link.linkState === "bound") return <LockKeyhole aria-hidden size={14} />;
   if (ready(link)) return <ShieldCheck aria-hidden size={14} />;
-  if (
-    ["scan_error", "malware_rejected", "destroyed"].includes(
-      link.sourceState ?? "",
-    )
-  )
+  if (["scan_error", "malware_rejected", "destroyed"].includes(link.sourceState ?? ""))
     return <TriangleAlert aria-hidden size={14} />;
   return <Paperclip aria-hidden size={14} />;
 }
@@ -135,19 +117,15 @@ function newerSet(
 ) {
   return (
     sets.find(
-      (item) =>
-        item.expectedTargetVersion === expectedTargetVersion &&
-        item.state === "draft",
+      (item) => item.expectedTargetVersion === expectedTargetVersion && item.state === "draft",
     ) ??
     sets.find((item) => item.expectedTargetVersion === expectedTargetVersion) ??
-    (allowHistoricalDraft
-      ? sets.find((item) => item.state === "draft")
-      : null) ??
+    (allowHistoricalDraft ? sets.find((item) => item.state === "draft") : null) ??
     null
   );
 }
 
-export function AttachmentPanel(props: AttachmentPanelProps) {
+export function AttachmentPanel(props: (AttachmentPanelProps) & { appearance?: UiAppearance }) {
   const mode = useAttachmentFeatureMode();
   const { onAvailabilityChange, onChange, requiredCount } = props;
   const mutationsEnabled = canMutateAttachments(
@@ -172,7 +150,7 @@ export function AttachmentPanel(props: AttachmentPanelProps) {
   }, [mutationsEnabled, onChange, requiredCount]);
   if (mode === "disabled") return null;
   return (
-    <AttachmentPanelContent
+    <AttachmentPanelContent appearance={(props.appearance ?? "legacy")}
       {...props}
       onChange={mutationsEnabled ? onChange : undefined}
       readOnly={props.readOnly === true || mode === "read-only"}
@@ -180,7 +158,7 @@ export function AttachmentPanel(props: AttachmentPanelProps) {
   );
 }
 
-function AttachmentPanelContent({
+function AttachmentPanelContent({ appearance = "legacy",
   base,
   targetType,
   targetId,
@@ -205,7 +183,7 @@ function AttachmentPanelContent({
   readOnly = false,
   showHistory = false,
   allowOriginalDownload = true,
-}: AttachmentPanelProps) {
+}: (AttachmentPanelProps) & { appearance?: UiAppearance }) {
   const router = useRouter();
   const inputId = useId();
   const cameraId = useId();
@@ -228,27 +206,16 @@ function AttachmentPanelContent({
   const [error, setError] = useState("");
   const [withdrawId, setWithdrawId] = useState<string | null>(null);
   const [withdrawReason, setWithdrawReason] = useState("");
-  const [boundLocally, setBoundLocally] = useState(
-    initialSet?.state === "bound",
-  );
-  const [retryableLinkIds, setRetryableLinkIds] = useState<Set<string>>(
-    () => new Set(),
-  );
+  const [boundLocally, setBoundLocally] = useState(initialSet?.state === "bound");
+  const [retryableLinkIds, setRetryableLinkIds] = useState<Set<string>>(() => new Set());
   const [attestationNote, setAttestationNote] = useState("");
 
-  const requiredCount = Math.max(
-    set?.requiredCount ?? 0,
-    requiredOverride ?? 0,
-  );
-  const maxFiles = Math.min(
-    100,
-    Math.max(1, set?.maxFiles ?? maxOverride ?? 10),
-  );
+  const requiredCount = Math.max(set?.requiredCount ?? 0, requiredOverride ?? 0);
+  const maxFiles = Math.min(100, Math.max(1, set?.maxFiles ?? maxOverride ?? 10));
   const activeLinks = useMemo(() => links.filter(active), [links]);
   const readyCount = activeLinks.filter(ready).length;
   const sanitizationRequired = sanitizationAttestationTargets.has(targetType);
-  const sanitizationAttested =
-    !sanitizationRequired || set?.sanitizationAttested === true;
+  const sanitizationAttested = !sanitizationRequired || set?.sanitizationAttested === true;
   const filesBindable = readyCount >= requiredCount && activeLinks.every(ready);
   const bindable = filesBindable && sanitizationAttested;
   const locked = frozen || boundLocally || set?.state === "bound";
@@ -260,8 +227,7 @@ function AttachmentPanelContent({
   });
   const submissionBlocked =
     draftMutable &&
-    ((requiredCount > 0 && readyCount < requiredCount) ||
-      (activeLinks.length > 0 && !bindable));
+    ((requiredCount > 0 && readyCount < requiredCount) || (activeLinks.length > 0 && !bindable));
 
   useEffect(() => {
     const form = panelRef.current?.closest("form");
@@ -279,25 +245,15 @@ function AttachmentPanelContent({
       panelRef.current?.focus();
     };
     form.addEventListener("submit", stopPendingSubmission, true);
-    return () =>
-      form.removeEventListener("submit", stopPendingSubmission, true);
-  }, [
-    filesBindable,
-    readyCount,
-    requiredCount,
-    sanitizationAttested,
-    submissionBlocked,
-  ]);
+    return () => form.removeEventListener("submit", stopPendingSubmission, true);
+  }, [filesBindable, readyCount, requiredCount, sanitizationAttested, submissionBlocked]);
 
   const notify = useCallback(
     (nextSet: AttachmentSetDto | null, nextLinks: LocalLink[]) => {
       if (!onChange) return;
       const usable = nextLinks.filter(active);
       const readyLinks = usable.filter(ready);
-      const minimum = Math.max(
-        nextSet?.requiredCount ?? 0,
-        requiredOverride ?? 0,
-      );
+      const minimum = Math.max(nextSet?.requiredCount ?? 0, requiredOverride ?? 0);
       onChange({
         setId: nextSet?.id ?? null,
         links: nextLinks,
@@ -334,11 +290,7 @@ function AttachmentPanelContent({
         componentKind,
         ...(!showHistory ? { expectedTargetVersion } : {}),
       });
-      const current = newerSet(
-        sets,
-        expectedTargetVersion,
-        targetType === "leave_request",
-      );
+      const current = newerSet(sets, expectedTargetVersion, targetType === "leave_request");
       replace(current);
       setHistory(
         showHistory
@@ -362,11 +314,7 @@ function AttachmentPanelContent({
         onAvailabilityChange?.(false);
         return;
       }
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "Unable to load attached files.",
-      );
+      setError(cause instanceof Error ? cause.message : "Unable to load attached files.");
     } finally {
       if (mounted.current) setChecking(false);
     }
@@ -394,14 +342,7 @@ function AttachmentPanelContent({
   useEffect(() => {
     createKey.current = crypto.randomUUID();
     bindKey.current = null;
-  }, [
-    componentKind,
-    componentRef,
-    expectedTargetVersion,
-    purposeKey,
-    targetId,
-    targetType,
-  ]);
+  }, [componentKind, componentRef, expectedTargetVersion, purposeKey, targetId, targetType]);
 
   useEffect(() => {
     if (initialSet) replace(initialSet);
@@ -438,9 +379,7 @@ function AttachmentPanelContent({
   const patchLink = useCallback(
     (linkId: string, patch: Partial<LocalLink>) => {
       setLinks((current) => {
-        const next = current.map((link) =>
-          link.id === linkId ? { ...link, ...patch } : link,
-        );
+        const next = current.map((link) => (link.id === linkId ? { ...link, ...patch } : link));
         notify(setRef.current, next);
         return next;
       });
@@ -486,8 +425,7 @@ function AttachmentPanelContent({
       }
       if (mounted.current)
         patchLink(linkId, {
-          localError:
-            "Scanning is taking longer than expected. Reload status before submitting.",
+          localError: "Scanning is taking longer than expected. Reload status before submitting.",
         });
     },
     [base, patchLink],
@@ -499,9 +437,7 @@ function AttachmentPanelContent({
       setError("");
       const remaining = maxFiles - activeLinks.length;
       if (selected.length > remaining) {
-        setError(
-          `You can attach ${remaining} more file${remaining === 1 ? "" : "s"} to this set.`,
-        );
+        setError(`You can attach ${remaining} more file${remaining === 1 ? "" : "s"} to this set.`);
         return;
       }
       const invalid = selected
@@ -555,13 +491,9 @@ function AttachmentPanelContent({
               file,
               mediaType,
             });
-            setRetryableLinkIds((current) =>
-              new Set(current).add(reservation.attachmentLinkId),
-            );
+            setRetryableLinkIds((current) => new Set(current).add(reservation.attachmentLinkId));
             setLinks((current) =>
-              current.map((item) =>
-                item.id === optimisticId ? pending : item,
-              ),
+              current.map((item) => (item.id === optimisticId ? pending : item)),
             );
             await uploadAttachmentBytes(reservation.uploadUrl, file, mediaType);
             retryUploads.current.delete(reservation.attachmentLinkId);
@@ -575,9 +507,7 @@ function AttachmentPanelContent({
               patchLink(reservation.attachmentLinkId, {
                 localState: undefined,
                 localError:
-                  cause instanceof Error
-                    ? cause.message
-                    : "Unable to refresh scan status.",
+                  cause instanceof Error ? cause.message : "Unable to refresh scan status.",
               }),
             );
           } catch (cause) {
@@ -603,12 +533,7 @@ function AttachmentPanelContent({
           cause.code === "ATTACHMENTS_DISABLED"
         )
           setGateUnavailable(true);
-        else
-          setError(
-            cause instanceof Error
-              ? cause.message
-              : "Unable to start secure upload.",
-          );
+        else setError(cause instanceof Error ? cause.message : "Unable to start secure upload.");
       } finally {
         if (mounted.current) setBusy(false);
       }
@@ -634,11 +559,7 @@ function AttachmentPanelContent({
     setError("");
     patchLink(linkId, { localState: "uploading", localError: undefined });
     try {
-      await uploadAttachmentBytes(
-        pending.uploadUrl,
-        pending.file,
-        pending.mediaType,
-      );
+      await uploadAttachmentBytes(pending.uploadUrl, pending.file, pending.mediaType);
       retryUploads.current.delete(linkId);
       setRetryableLinkIds((current) => {
         const next = new Set(current);
@@ -649,15 +570,11 @@ function AttachmentPanelContent({
       void poll(linkId).catch((cause) =>
         patchLink(linkId, {
           localState: undefined,
-          localError:
-            cause instanceof Error
-              ? cause.message
-              : "Unable to refresh scan status.",
+          localError: cause instanceof Error ? cause.message : "Unable to refresh scan status.",
         }),
       );
     } catch (cause) {
-      const message =
-        cause instanceof Error ? cause.message : "Upload retry failed.";
+      const message = cause instanceof Error ? cause.message : "Upload retry failed.";
       patchLink(linkId, { localState: undefined, localError: message });
       setError(message);
     } finally {
@@ -666,8 +583,7 @@ function AttachmentPanelContent({
   }
 
   async function withdraw() {
-    if (!draftMutable || !withdrawId || withdrawReason.trim().length < 3)
-      return;
+    if (!draftMutable || !withdrawId || withdrawReason.trim().length < 3) return;
     setBusy(true);
     setError("");
     try {
@@ -692,11 +608,7 @@ function AttachmentPanelContent({
       setWithdrawId(null);
       setWithdrawReason("");
     } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "Unable to withdraw this file.",
-      );
+      setError(cause instanceof Error ? cause.message : "Unable to withdraw this file.");
     } finally {
       setBusy(false);
     }
@@ -725,9 +637,7 @@ function AttachmentPanelContent({
       setAttestationNote("");
     } catch (cause) {
       setError(
-        cause instanceof Error
-          ? cause.message
-          : "Unable to record the sanitization review.",
+        cause instanceof Error ? cause.message : "Unable to record the sanitization review.",
       );
     } finally {
       if (mounted.current) setBusy(false);
@@ -735,14 +645,7 @@ function AttachmentPanelContent({
   }
 
   async function bindRecord() {
-    if (
-      !draftMutable ||
-      bindMode !== "record" ||
-      !set ||
-      readyCount < 1 ||
-      !bindable
-    )
-      return;
+    if (!draftMutable || bindMode !== "record" || !set || readyCount < 1 || !bindable) return;
     setBusy(true);
     setError("");
     try {
@@ -756,9 +659,7 @@ function AttachmentPanelContent({
       );
       const now = Date.now();
       const nextLinks = links.map((link) =>
-        active(link)
-          ? { ...link, linkState: "bound" as const, boundAt: now }
-          : link,
+        active(link) ? { ...link, linkState: "bound" as const, boundAt: now } : link,
       );
       replace({ ...set, state: "bound", links: nextLinks }, nextLinks);
       setBoundLocally(true);
@@ -766,9 +667,7 @@ function AttachmentPanelContent({
       router.refresh();
     } catch (cause) {
       setError(
-        cause instanceof Error
-          ? cause.message
-          : "Unable to lock these files to the record.",
+        cause instanceof Error ? cause.message : "Unable to lock these files to the record.",
       );
     } finally {
       if (mounted.current) setBusy(false);
@@ -778,22 +677,22 @@ function AttachmentPanelContent({
   if (checking || gateUnavailable) return null;
 
   return (
-    <section
+    <section data-ui-appearance={appearance}
       ref={panelRef}
       tabIndex={-1}
       className={`${styles.panel} ${compact ? styles.compact : ""}`}
       aria-labelledby={`${inputId}-title`}
     >
-      <div className={styles.heading}>
-        <div>
-          <h3 id={`${inputId}-title`}>{title}</h3>
-          <p>{description}</p>
-          <p className={styles.visibility}>
+      <div data-ui-appearance={appearance} className={styles.heading}>
+        <div data-ui-appearance={appearance}>
+          <h3 data-ui-appearance={appearance} id={`${inputId}-title`}>{title}</h3>
+          <p data-ui-appearance={appearance}>{description}</p>
+          <p data-ui-appearance={appearance} className={styles.visibility}>
             <LockKeyhole aria-hidden size={13} />
             {visibility}
           </p>
         </div>
-        <span className={styles.counter}>
+        <span data-ui-appearance={appearance} className={styles.counter}>
           {!set && history.length > 0
             ? `${history.reduce((count, item) => count + item.links.filter(active).length, 0)} attached`
             : `${readyCount}/${maxFiles} ready${requiredCount ? ` · ${requiredCount} required` : ""}`}
@@ -801,22 +700,22 @@ function AttachmentPanelContent({
       </div>
 
       {draftMutable && fieldName && set?.id && (
-        <input type="hidden" name={fieldName} value={set.id} />
+        <TextInput appearance={appearance} type="hidden" name={fieldName} value={set.id} />
       )}
 
       {draftMutable && (
         <>
-          <label className={styles.caption}>
+          <Field appearance={appearance} className={styles.caption}>
             Caption for the next files (optional)
-            <input
+            <TextInput appearance={appearance}
               value={caption}
               maxLength={500}
               disabled={disabled || busy}
               onChange={(event) => setCaption(event.target.value)}
               placeholder="What this file proves or contains"
             />
-          </label>
-          <div
+          </Field>
+          <div data-ui-appearance={appearance}
             className={styles.dropzone}
             data-dragging={dragging}
             onDragEnter={(event) => {
@@ -825,11 +724,7 @@ function AttachmentPanelContent({
             }}
             onDragOver={(event) => event.preventDefault()}
             onDragLeave={(event) => {
-              if (
-                !event.currentTarget.contains(
-                  event.relatedTarget as Node | null,
-                )
-              )
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null))
                 setDragging(false);
             }}
             onDrop={(event) => {
@@ -839,12 +734,12 @@ function AttachmentPanelContent({
             }}
           >
             <Upload aria-hidden size={24} />
-            <strong>Drop files here or choose from this device</strong>
-            <span>JPEG, PNG, WebP, HEIC, HEIF, or PDF · up to 10 MB each</span>
-            <div className={styles.pickerActions}>
-              <label className={styles.picker} htmlFor={inputId}>
+            <strong data-ui-appearance={appearance}>Drop files here or choose from this device</strong>
+            <span data-ui-appearance={appearance}>JPEG, PNG, WebP, HEIC, HEIF, or PDF · up to 10 MB each</span>
+            <div data-ui-appearance={appearance} className={styles.pickerActions}>
+              <Field appearance={appearance} className={styles.picker} htmlFor={inputId}>
                 <Paperclip aria-hidden size={14} /> Choose files
-                <input
+                <TextInput appearance={appearance}
                   id={inputId}
                   type="file"
                   multiple
@@ -855,10 +750,10 @@ function AttachmentPanelContent({
                     event.currentTarget.value = "";
                   }}
                 />
-              </label>
-              <label className={styles.picker} htmlFor={cameraId}>
+              </Field>
+              <Field appearance={appearance} className={styles.picker} htmlFor={cameraId}>
                 <Camera aria-hidden size={14} /> Take photo
-                <input
+                <TextInput appearance={appearance}
                   id={cameraId}
                   type="file"
                   accept="image/*"
@@ -869,35 +764,34 @@ function AttachmentPanelContent({
                     event.currentTarget.value = "";
                   }}
                 />
-              </label>
+              </Field>
             </div>
           </div>
         </>
       )}
 
       {locked && (
-        <p className={styles.notice}>
+        <p data-ui-appearance={appearance} className={styles.notice}>
           <LockKeyhole aria-hidden size={15} />
-          This evidence is bound to a recorded action. Add a correction or a new
-          revision instead of replacing it.
+          This evidence is bound to a recorded action. Add a correction or a new revision instead of
+          replacing it.
         </p>
       )}
 
       {sanitizationRequired && draftMutable && (
-        <div className={styles.notice}>
+        <div data-ui-appearance={appearance} className={styles.notice}>
           <ShieldCheck aria-hidden size={15} />
-          <div>
-            <strong>Sanitized review evidence only</strong>
-            <p>
-              Never upload passwords, private keys, secrets, configuration
-              exports, or database dumps. Review the final clean file list and
-              record what was sanitized before binding.
+          <div data-ui-appearance={appearance}>
+            <strong data-ui-appearance={appearance}>Sanitized review evidence only</strong>
+            <p data-ui-appearance={appearance}>
+              Never upload passwords, private keys, secrets, configuration exports, or database
+              dumps. Review the final clean file list and record what was sanitized before binding.
             </p>
             {!sanitizationAttested && (
               <>
-                <label className={styles.caption}>
+                <Field appearance={appearance} className={styles.caption}>
                   Sanitization review note
-                  <textarea
+                  <TextArea appearance={appearance}
                     value={attestationNote}
                     minLength={10}
                     maxLength={1000}
@@ -905,23 +799,22 @@ function AttachmentPanelContent({
                     onChange={(event) => setAttestationNote(event.target.value)}
                     placeholder="Reviewed the artifact; credentials and sensitive system material were removed."
                   />
-                </label>
-                <button
+                </Field>
+                <Button appearance={appearance}
+                  variant="secondary"
                   type="button"
-                  className="button secondary"
-                  disabled={
-                    !filesBindable || attestationNote.trim().length < 10 || busy
-                  }
+
+                  disabled={!filesBindable || attestationNote.trim().length < 10 || busy}
                   onClick={() => void attestSanitization()}
                 >
                   Record sanitization review
-                </button>
+                </Button>
               </>
             )}
             {sanitizationAttested && (
-              <p>
-                <LockKeyhole aria-hidden size={13} /> Sanitization review
-                recorded. Adding or withdrawing a file requires a new review.
+              <p data-ui-appearance={appearance}>
+                <LockKeyhole aria-hidden size={13} /> Sanitization review recorded. Adding or
+                withdrawing a file requires a new review.
               </p>
             )}
           </div>
@@ -929,27 +822,23 @@ function AttachmentPanelContent({
       )}
 
       {error && (
-        <p className={styles.error} role="alert">
+        <p data-ui-appearance={appearance} className={styles.error} role="alert">
           {error}
         </p>
       )}
 
       {links.length > 0 && (
-        <ul className={styles.files} aria-label={`${title} file list`}>
+        <ul data-ui-appearance={appearance} className={styles.files} aria-label={`${title} file list`}>
           {links.map((link) => {
             const isError =
               Boolean(link.localError) ||
-              ["scan_error", "malware_rejected", "destroyed"].includes(
-                link.sourceState ?? "",
-              );
+              ["scan_error", "malware_rejected", "destroyed"].includes(link.sourceState ?? "");
             const canWithdraw =
-              draftMutable &&
-              link.linkState === "draft" &&
-              !link.id.startsWith("reserving:");
+              draftMutable && link.linkState === "draft" && !link.id.startsWith("reserving:");
             return (
-              <li className={styles.file} key={link.id}>
+              <li data-ui-appearance={appearance} className={styles.file} key={link.id}>
                 {link.previewAvailable && active(link) ? (
-                  <a
+                  <a data-ui-appearance={appearance}
                     className={styles.filePreview}
                     href={attachmentContentUrl(base, link.id, "preview")}
                     target="_blank"
@@ -965,7 +854,7 @@ function AttachmentPanelContent({
                     />
                   </a>
                 ) : (
-                  <span className={styles.fileIcon}>
+                  <span data-ui-appearance={appearance} className={styles.fileIcon}>
                     {link.mediaType.startsWith("image/") ? (
                       <ImageIcon aria-hidden size={16} />
                     ) : (
@@ -973,13 +862,13 @@ function AttachmentPanelContent({
                     )}
                   </span>
                 )}
-                <span className={styles.fileInfo}>
-                  <strong title={link.filename}>{link.filename}</strong>
-                  <span>
+                <span data-ui-appearance={appearance} className={styles.fileInfo}>
+                  <strong data-ui-appearance={appearance} title={link.filename}>{link.filename}</strong>
+                  <span data-ui-appearance={appearance}>
                     {formatAttachmentBytes(link.bytes ?? 0)}
                     {link.caption ? ` · ${link.caption}` : ""}
                   </span>
-                  <span
+                  <span data-ui-appearance={appearance}
                     className={styles.state}
                     data-ready={ready(link)}
                     data-error={isError}
@@ -987,13 +876,12 @@ function AttachmentPanelContent({
                   >
                     {statusIcon(link)} {attachmentStateLabel(link)}
                   </span>
-                  {link.localError && (
-                    <span role="alert">{link.localError}</span>
-                  )}
+                  {link.localError && <span data-ui-appearance={appearance} role="alert">{link.localError}</span>}
                 </span>
-                <span className={styles.fileActions}>
+                <span data-ui-appearance={appearance} className={styles.fileActions}>
                   {link.previewAvailable && active(link) && (
-                    <a
+                    <UiActionAnchor appearance={appearance}
+                      variant="ghost"
                       className={styles.iconAction}
                       href={attachmentContentUrl(base, link.id, "preview")}
                       target="_blank"
@@ -1002,20 +890,22 @@ function AttachmentPanelContent({
                       title="Open sanitized preview"
                     >
                       <Eye aria-hidden size={15} />
-                    </a>
+                    </UiActionAnchor>
                   )}
                   {allowOriginalDownload && ready(link) && (
-                    <a
+                    <UiActionAnchor appearance={appearance}
+                      variant="ghost"
                       className={styles.iconAction}
                       href={attachmentContentUrl(base, link.id, "original")}
                       aria-label={`Download ${link.filename}`}
                       title="Download private original"
                     >
                       <Download aria-hidden size={15} />
-                    </a>
+                    </UiActionAnchor>
                   )}
                   {!terminal(link) && !link.localState && (
-                    <button
+                    <Button appearance={appearance}
+                      variant="ghost"
                       type="button"
                       className={styles.iconAction}
                       aria-label={`Reload status for ${link.filename}`}
@@ -1023,24 +913,24 @@ function AttachmentPanelContent({
                       onClick={() => void poll(link.id)}
                     >
                       <RefreshCw aria-hidden size={15} />
-                    </button>
+                    </Button>
                   )}
-                  {draftMutable &&
-                    link.localError &&
-                    retryableLinkIds.has(link.id) && (
-                      <button
-                        type="button"
-                        className={styles.iconAction}
-                        aria-label={`Retry upload for ${link.filename}`}
-                        title="Retry interrupted upload"
-                        disabled={busy}
-                        onClick={() => void retryUpload(link.id)}
-                      >
-                        <Upload aria-hidden size={15} />
-                      </button>
-                    )}
+                  {draftMutable && link.localError && retryableLinkIds.has(link.id) && (
+                    <Button appearance={appearance}
+                      variant="ghost"
+                      type="button"
+                      className={styles.iconAction}
+                      aria-label={`Retry upload for ${link.filename}`}
+                      title="Retry interrupted upload"
+                      disabled={busy}
+                      onClick={() => void retryUpload(link.id)}
+                    >
+                      <Upload aria-hidden size={15} />
+                    </Button>
+                  )}
                   {canWithdraw && (
-                    <button
+                    <Button appearance={appearance}
+                      variant="ghost"
                       type="button"
                       className={styles.iconAction}
                       aria-label={`Withdraw ${link.filename}`}
@@ -1052,40 +942,40 @@ function AttachmentPanelContent({
                       }}
                     >
                       <Trash2 aria-hidden size={15} />
-                    </button>
+                    </Button>
                   )}
                 </span>
                 {canWithdraw && withdrawId === link.id && (
-                  <div className={styles.withdrawForm}>
-                    <label>
+                  <div data-ui-appearance={appearance} className={styles.withdrawForm}>
+                    <Field appearance={appearance}>
                       Reason for withdrawing {link.filename}
-                      <textarea
+                      <TextArea appearance={appearance}
                         value={withdrawReason}
                         minLength={3}
                         maxLength={1000}
                         required
                         autoFocus
-                        onChange={(event) =>
-                          setWithdrawReason(event.target.value)
-                        }
+                        onChange={(event) => setWithdrawReason(event.target.value)}
                       />
-                    </label>
-                    <div className={styles.withdrawActions}>
-                      <button
+                    </Field>
+                    <div data-ui-appearance={appearance} className={styles.withdrawActions}>
+                      <Button appearance={appearance}
+                        variant="secondary"
                         type="button"
-                        className="button secondary"
+
                         onClick={() => setWithdrawId(null)}
                       >
                         Keep file
-                      </button>
-                      <button
+                      </Button>
+                      <Button appearance={appearance}
+                        variant="primary"
                         type="button"
-                        className="button"
+
                         disabled={busy || withdrawReason.trim().length < 3}
                         onClick={() => void withdraw()}
                       >
                         Withdraw file
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -1096,26 +986,31 @@ function AttachmentPanelContent({
       )}
 
       {history.length > 0 && (
-        <div className={styles.history}>
-          <h4>Attached history</h4>
+        <div data-ui-appearance={appearance} className={styles.history}>
+          <h4 data-ui-appearance={appearance}>Attached history</h4>
           {history.map((historicalSet) => (
-            <section className={styles.historySet} key={historicalSet.id}>
-              <p>
+            <section data-ui-appearance={appearance} className={styles.historySet} key={historicalSet.id}>
+              <p data-ui-appearance={appearance}>
                 Record version {historicalSet.expectedTargetVersion ?? "—"}
-                {historicalSet.links[0]?.boundAt
-                  ? <> · attached <TimeText value={historicalSet.links[0].boundAt} /></>
-                  : historicalSet.state === "draft"
-                    ? " · staged for approval"
-                    : ""}
+                {historicalSet.links[0]?.boundAt ? (
+                  <>
+                    {" "}
+                    · attached <TimeText appearance={appearance} value={historicalSet.links[0].boundAt} />
+                  </>
+                ) : historicalSet.state === "draft" ? (
+                  " · staged for approval"
+                ) : (
+                  ""
+                )}
               </p>
-              <ul
+              <ul data-ui-appearance={appearance}
                 className={styles.files}
                 aria-label={`${title} record version ${historicalSet.expectedTargetVersion ?? "history"}`}
               >
                 {historicalSet.links.filter(active).map((link) => (
-                  <li className={styles.file} key={link.id}>
+                  <li data-ui-appearance={appearance} className={styles.file} key={link.id}>
                     {link.previewAvailable ? (
-                      <a
+                      <a data-ui-appearance={appearance}
                         className={styles.filePreview}
                         href={attachmentContentUrl(base, link.id, "preview")}
                         target="_blank"
@@ -1131,7 +1026,7 @@ function AttachmentPanelContent({
                         />
                       </a>
                     ) : (
-                      <span className={styles.fileIcon}>
+                      <span data-ui-appearance={appearance} className={styles.fileIcon}>
                         {link.mediaType.startsWith("image/") ? (
                           <ImageIcon aria-hidden size={16} />
                         ) : (
@@ -1139,13 +1034,13 @@ function AttachmentPanelContent({
                         )}
                       </span>
                     )}
-                    <span className={styles.fileInfo}>
-                      <strong title={link.filename}>{link.filename}</strong>
-                      <span>
+                    <span data-ui-appearance={appearance} className={styles.fileInfo}>
+                      <strong data-ui-appearance={appearance} title={link.filename}>{link.filename}</strong>
+                      <span data-ui-appearance={appearance}>
                         {formatAttachmentBytes(link.bytes ?? 0)}
                         {link.caption ? ` · ${link.caption}` : ""}
                       </span>
-                      <span className={styles.state} data-ready={ready(link)}>
+                      <span data-ui-appearance={appearance} className={styles.state} data-ready={ready(link)}>
                         {historicalSet.state === "bound" ? (
                           <LockKeyhole aria-hidden size={13} />
                         ) : (
@@ -1156,9 +1051,10 @@ function AttachmentPanelContent({
                           : " Clean and staged for approval"}
                       </span>
                     </span>
-                    <span className={styles.fileActions}>
+                    <span data-ui-appearance={appearance} className={styles.fileActions}>
                       {link.previewAvailable && (
-                        <a
+                        <UiActionAnchor appearance={appearance}
+                          variant="ghost"
                           className={styles.iconAction}
                           href={attachmentContentUrl(base, link.id, "preview")}
                           target="_blank"
@@ -1167,23 +1063,19 @@ function AttachmentPanelContent({
                           title="Open sanitized preview"
                         >
                           <Eye aria-hidden size={15} />
-                        </a>
+                        </UiActionAnchor>
                       )}
-                      {allowOriginalDownload &&
-                        link.sourceState === "available" && (
-                          <a
-                            className={styles.iconAction}
-                            href={attachmentContentUrl(
-                              base,
-                              link.id,
-                              "original",
-                            )}
-                            aria-label={`Download ${link.filename}`}
-                            title="Download private original"
-                          >
-                            <Download aria-hidden size={15} />
-                          </a>
-                        )}
+                      {allowOriginalDownload && link.sourceState === "available" && (
+                        <UiActionAnchor appearance={appearance}
+                          variant="ghost"
+                          className={styles.iconAction}
+                          href={attachmentContentUrl(base, link.id, "original")}
+                          aria-label={`Download ${link.filename}`}
+                          title="Download private original"
+                        >
+                          <Download aria-hidden size={15} />
+                        </UiActionAnchor>
+                      )}
                     </span>
                   </li>
                 ))}
@@ -1194,36 +1086,35 @@ function AttachmentPanelContent({
       )}
 
       {draftMutable && requiredCount > 0 && !bindable && (
-        <p className={styles.notice} role="status">
+        <p data-ui-appearance={appearance} className={styles.notice} role="status">
           <TriangleAlert aria-hidden size={15} />
           This action needs {requiredCount} clean file
-          {requiredCount === 1 ? "" : "s"}. Wait for every selected file to
-          finish scanning before submitting.
+          {requiredCount === 1 ? "" : "s"}. Wait for every selected file to finish scanning before
+          submitting.
         </p>
       )}
       {draftMutable &&
         activeLinks.length > 0 &&
         activeLinks.some((link) => !ready(link)) &&
         requiredCount === 0 && (
-          <p className={styles.hint}>
-            Wait for every selected file to finish scanning, or withdraw it,
-            before submitting this action.
+          <p data-ui-appearance={appearance} className={styles.hint}>
+            Wait for every selected file to finish scanning, or withdraw it, before submitting this
+            action.
           </p>
         )}
       {draftMutable && bindMode === "record" && set && readyCount > 0 && (
-        <div className={styles.bindActions}>
-          <button
+        <div data-ui-appearance={appearance} className={styles.bindActions}>
+          <Button appearance={appearance}
+            variant="primary"
             type="button"
-            className="button primary"
+            className="primary"
             disabled={busy || !bindable}
             onClick={() => void bindRecord()}
           >
             <LockKeyhole aria-hidden size={15} />
             Attach clean files to this record
-          </button>
-          {!bindable && (
-            <span>Wait for every selected file to pass its security scan.</span>
-          )}
+          </Button>
+          {!bindable && <span data-ui-appearance={appearance}>Wait for every selected file to pass its security scan.</span>}
         </div>
       )}
     </section>

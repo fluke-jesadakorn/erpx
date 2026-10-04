@@ -8,6 +8,8 @@ import { hasModuleAccess } from "@/data/module-access";
 import { assertion, executeCommand, replayCommand } from "./commands";
 import { ApiError } from "./http";
 import { decimalToMinor, minorToDecimal } from "@/lib/finance-money";
+import { snapshotMoney } from "./company-money";
+import { isTransactionalSqlDatabase, type SqlDatabase } from "./runtime/types";
 import {
   changeOrderReservation,
   getOrder,
@@ -74,7 +76,7 @@ const actionSchema = z.object({
   fulfillmentVersion: version.optional(),
   date: z.string().date().optional(),
   lines: z
-    .array(z.object({ lineId: z.string().min(1), quantity: qty, condition:z.enum(['unopened','damaged','unknown']).default('unknown'), conditionNote:z.string().trim().max(500).default(''), qualityDueDate:z.union([z.string().date(),z.literal('')]).default('') }))
+    .array(z.object({ lineId: z.string().min(1), quantity: qty, condition:z.enum(['unopened','damaged','unknown']).default('unknown'), conditionNote:z.string().trim().max(500).default(''), qualityDueDate:z.union([z.string().date(),z.literal('')]).default(''),allocations:z.array(z.object({lotId:z.string().min(1),quantity:qty})).max(200).optional() }))
     .optional(),
 });
 function access(a: WorkContext, write = false) {
@@ -85,6 +87,12 @@ function access(a: WorkContext, write = false) {
       "MODULE_FORBIDDEN",
       "Your current role cannot access E-commerce.",
     );
+}
+const cartScope = "c.company_id=? AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?)";
+function scopeValues(a:WorkContext){return [a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId];}
+async function functionalCurrency(write:SqlDatabase,a:WorkContext,currency:string){
+ const config=await write.prepare('SELECT s.currency,c.base_currency FROM commerce_settings s JOIN finance_charts c ON c.id=s.chart_id AND c.company_id=s.company_id WHERE s.company_id=?').bind(a.companyId).first<{currency:string;base_currency:string}>();
+ if(!config||config.currency!==currency||config.base_currency!==currency)throw new ApiError(422,'ECOMMERCE_CURRENCY_MAPPING_REQUIRED','Use the configured Sales functional currency for this channel and cart.');
 }
 export async function ecommerceWorkspace(a: WorkContext) {
   access(a);
@@ -105,15 +113,15 @@ export async function ecommerceWorkspace(a: WorkContext) {
           .all<Row>(),
         write
           .prepare(
-            "SELECT * FROM ecommerce_carts WHERE company_id=? AND (?::text IS NULL OR branch_id=?) ORDER BY updated_at DESC",
+            `SELECT c.* FROM ecommerce_carts c WHERE ${cartScope} ORDER BY c.updated_at DESC`,
           )
-          .bind(a.companyId, a.branchId, a.branchId)
+          .bind(...scopeValues(a))
           .all<Row>(),
         write
           .prepare(
-            "SELECT x.*,o.number,o.state order_state FROM ecommerce_checkouts x JOIN commerce_orders o ON o.id=x.sales_order_id WHERE x.cart_id IN (SELECT id FROM ecommerce_carts WHERE company_id=?) ORDER BY x.updated_at DESC",
+            `SELECT x.*,o.number,o.state order_state FROM ecommerce_checkouts x JOIN ecommerce_carts c ON c.id=x.cart_id JOIN commerce_orders o ON o.id=x.sales_order_id WHERE ${cartScope} ORDER BY x.updated_at DESC`,
           )
-          .bind(a.companyId)
+          .bind(...scopeValues(a))
           .all<Row>(),
         write
           .prepare(
@@ -188,7 +196,8 @@ export async function createListing(a: WorkContext, raw: unknown, key: string) {
     op = "ecommerce.listing.create",
     prior = await replayCommand(write, a, key, op, id, i);
   if (prior) return prior;
-  const now = Date.now();
+  await functionalCurrency(write,a,i.currency);
+  const now=Date.now(),money=await snapshotMoney(write,a,{sourceType:'ecommerce_listing',sourceId:id,amountKind:'unit_price',transactionDate:new Date(now).toISOString().slice(0,10),currency:i.currency,currencyScale:2,amountUnits:String(decimalToMinor(i.price))});
   return executeCommand(
     write,
     a,
@@ -199,6 +208,7 @@ export async function createListing(a: WorkContext, raw: unknown, key: string) {
     1,
     { id, status: "draft", version: 1 },
     [
+      money.statement,
       assertion(
         write,
         key,
@@ -247,7 +257,8 @@ export async function createCart(a: WorkContext, raw: unknown, key: string) {
     op = "ecommerce.cart.create",
     prior = await replayCommand(write, a, key, op, id, i);
   if (prior) return prior;
-  const now = Date.now();
+  await functionalCurrency(write,a,i.currency);
+  const now=Date.now();
   return executeCommand(
     write,
     a,
@@ -294,11 +305,11 @@ export async function createCart(a: WorkContext, raw: unknown, key: string) {
 }
 export async function addCartLine(a: WorkContext, raw: unknown, key: string) {
   access(a, true);
-  const i = lineSchema.parse(raw),
-    { write } = await holdingResources(a.holdingId),
-    cart = await write
-      .prepare("SELECT * FROM ecommerce_carts WHERE id=? AND company_id=?")
-      .bind(i.cartId, a.companyId)
+  const i=lineSchema.parse(raw),{write}=await holdingResources(a.holdingId),op='ecommerce.cart.add',prior=await replayCommand(write,a,key,op,i.cartId,i);
+  if(prior)return prior;
+  const cart = await write
+      .prepare(`SELECT c.* FROM ecommerce_carts c WHERE c.id=? AND ${cartScope}`)
+      .bind(i.cartId,...scopeValues(a))
       .first<Row>(),
     listing = await write
       .prepare(
@@ -315,7 +326,7 @@ export async function addCartLine(a: WorkContext, raw: unknown, key: string) {
   if (
     cart.status !== "open" ||
     Number(cart.version) !== i.expectedVersion ||
-    listing.status !== "published" ||
+    listing.status !== "published" || listing.channel_status!=='active' ||
     Number(listing.version) !== i.listingVersion ||
     cart.channel_id !== listing.channel_id ||
     cart.currency !== listing.currency
@@ -325,11 +336,8 @@ export async function addCartLine(a: WorkContext, raw: unknown, key: string) {
       "ECOMMERCE_SOURCE_CHANGED",
       "Cart or listing changed.",
     );
-  const op = "ecommerce.cart.add",
-    prior = await replayCommand(write, a, key, op, i.cartId, i);
-  if (prior) return prior;
-  const now = Date.now(),
-    lineId = `ecommerce-cart-line-${key}`;
+  const now=Date.now(),lineId=`ecommerce-cart-line-${key}`,
+    money=await snapshotMoney(write,a,{sourceType:'ecommerce_cart_command',sourceId:key,amountKind:'added_subtotal',transactionDate:new Date(now).toISOString().slice(0,10),currency:String(cart.currency),currencyScale:2,amountUnits:String((BigInt(decimalToMinor(i.quantity,3))*BigInt(String(listing.price_minor))+BigInt(500))/BigInt(1000))});
   return executeCommand(
     write,
     a,
@@ -340,6 +348,9 @@ export async function addCartLine(a: WorkContext, raw: unknown, key: string) {
     i.expectedVersion + 1,
     { id: i.cartId, lineId, status: "open", version: i.expectedVersion + 1 },
     [
+      money.statement,
+      write.prepare('SELECT id FROM ecommerce_carts WHERE id=? FOR UPDATE').bind(i.cartId),
+      assertion(write,key,'listing-current',"EXISTS(SELECT 1 FROM ecommerce_listings l JOIN ecommerce_channels c ON c.id=l.channel_id WHERE l.id=? AND l.version=? AND l.status='published' AND c.status='active' AND c.company_id=? AND l.currency=?)",[i.listingId,i.listingVersion,a.companyId,cart.currency]),
       assertion(
         write,
         key,
@@ -369,14 +380,11 @@ export async function addCartLine(a: WorkContext, raw: unknown, key: string) {
     ],
   );
 }
-export async function checkoutCart(a: WorkContext, raw: unknown, key: string) {
+export async function checkoutCart(a: WorkContext, raw: unknown, key: string, ownerWrite?:SqlDatabase):Promise<Record<string,unknown>> {
   access(a, true);
-  const i = checkoutSchema.parse(raw),
-    { write } = await holdingResources(a.holdingId),
-    cart = await write
-      .prepare("SELECT * FROM ecommerce_carts WHERE id=? AND company_id=?")
-      .bind(i.cartId, a.companyId)
-      .first<Row>();
+  const i = checkoutSchema.parse(raw),write=ownerWrite??(await holdingResources(a.holdingId)).write;
+  if(!ownerWrite&&isTransactionalSqlDatabase(write))return write.transaction(tx=>checkoutCart(a,raw,key,tx));
+  const cart = await write.prepare(`SELECT c.* FROM ecommerce_carts c WHERE c.id=? AND ${cartScope} FOR UPDATE`).bind(i.cartId,...scopeValues(a)).first<Row>();
   if (!cart) throw new ApiError(404, "CART_NOT_FOUND", "Cart not found.");
   const checkoutId = `ecommerce-checkout-${i.cartId}`,
     op = "ecommerce.checkout",
@@ -416,6 +424,7 @@ export async function checkoutCart(a: WorkContext, raw: unknown, key: string) {
       })),
     }),
     `ecommerce-order-${cart.id}`,
+    write,
   );
   await transitionOrder(
     {
@@ -426,6 +435,7 @@ export async function checkoutCart(a: WorkContext, raw: unknown, key: string) {
     String(order.id),
     { action: "submit", expectedVersion: 1 },
     `ecommerce-submit-${cart.id}`,
+    write,
   );
   const now = Date.now(),
     result = {
@@ -470,10 +480,14 @@ export async function changeEcommerce(
   id: string,
   raw: unknown,
   key: string,
-) {
+  ownerWrite?:SqlDatabase,
+):Promise<Record<string,unknown>> {
   access(a, true);
   const i = actionSchema.parse(raw),
-    { write } = await holdingResources(a.holdingId);
+    write=ownerWrite??(await holdingResources(a.holdingId)).write;
+  if(!ownerWrite&&isTransactionalSqlDatabase(write))return write.transaction(tx=>changeEcommerce(a,kind,id,raw,key,tx));
+  const op=`ecommerce.${kind}.${i.action}`,prior=await replayCommand(write,a,key,op,id,i);
+  if(prior)return prior;
   if (kind !== "checkout") {
     const table =
         kind === "channel" ? "ecommerce_channels" : "ecommerce_listings",
@@ -489,6 +503,10 @@ export async function changeEcommerce(
         "ECOMMERCE_RECORD_NOT_FOUND",
         "Record not found.",
       );
+    requirePermission(a,'commerce.approve');
+    if(a.branchId||a.departmentId)throw new ApiError(403,'COMPANY_ECOMMERCE_REQUIRED','Review shared channel and listing terms through a Company assignment.');
+    const allowed=kind==='channel'?['activate','reject','retire']:['publish','reject','retire'];
+    if(!allowed.includes(i.action))throw new ApiError(422,'INVALID_ECOMMERCE_TRANSITION','Use the lifecycle command belonging to this record.');
     const active = kind === "channel" ? "active" : "published",
       expected = i.action === "retire" ? active : "draft",
       status =
@@ -508,9 +526,6 @@ export async function changeEcommerce(
         "CONFLICT",
         "Independent current review is required.",
       );
-    const op = `ecommerce.${kind}.${i.action}`,
-      prior = await replayCommand(write, a, key, op, id, i);
-    if (prior) return prior;
     return executeCommand(
       write,
       a,
@@ -525,8 +540,8 @@ export async function changeEcommerce(
           write,
           key,
           "record",
-          `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND version=? AND status=?)`,
-          [id, i.expectedVersion, expected],
+          `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND version=? AND status=? AND (?='retire' OR created_by<>?))`,
+          [id,i.expectedVersion,expected,i.action,a.userId],
         ),
         write
           .prepare(
@@ -538,9 +553,9 @@ export async function changeEcommerce(
   }
   const checkout = await write
     .prepare(
-      "SELECT x.*,c.branch_id,c.department_id,o.version current_order_version,o.state order_state FROM ecommerce_checkouts x JOIN ecommerce_carts c ON c.id=x.cart_id JOIN commerce_orders o ON o.id=x.sales_order_id WHERE x.id=? AND c.company_id=?",
+      `SELECT x.*,c.branch_id,c.department_id,o.version current_order_version,o.state order_state FROM ecommerce_checkouts x JOIN ecommerce_carts c ON c.id=x.cart_id JOIN commerce_orders o ON o.id=x.sales_order_id WHERE x.id=? AND ${cartScope} FOR UPDATE OF x,c,o`,
     )
-    .bind(id, a.companyId)
+    .bind(id,...scopeValues(a))
     .first<Row>();
   if (!checkout)
     throw new ApiError(404, "CHECKOUT_NOT_FOUND", "Checkout not found.");
@@ -551,10 +566,9 @@ export async function changeEcommerce(
       ? String(checkout.department_id)
       : null,
   };
-  const op = `ecommerce.checkout.${i.action}`,
-    prior = await replayCommand(write, a, key, op, id, i);
-  if (prior) return prior;
+  if(Number(checkout.version)!==i.expectedVersion)throw new ApiError(409,'ECOMMERCE_SOURCE_CHANGED','Reload the checkout before performing this action.');
   if (i.action === "approve-order") {
+    if(checkout.status!=='submitted')throw new ApiError(409,'ECOMMERCE_SOURCE_CHANGED','Only a submitted checkout can be approved.');
     await transitionOrder(
       scoped,
       String(checkout.sales_order_id),
@@ -563,8 +577,9 @@ export async function changeEcommerce(
         expectedVersion: Number(checkout.current_order_version),
       },
       `${key}:approve`,
+      write,
     );
-    const order = await getOrder(scoped, String(checkout.sales_order_id));
+    const order = await getOrder(scoped,String(checkout.sales_order_id),write);
     let v = Number(order.order.version);
     for (const line of order.lines) {
       await changeOrderReservation(
@@ -582,6 +597,7 @@ export async function changeEcommerce(
           reason: i.reason,
         },
         `${key}:reserve:${line.id}`,
+        write,
       );
       v++;
     }
@@ -616,10 +632,8 @@ export async function changeEcommerce(
     );
   }
   if (i.action === "sync-fulfillment") {
-    const order = await getOrder(scoped, String(checkout.sales_order_id)),
-      now = Date.now();
-    for (const f of order.fulfillments)
-      await write
+    const order = await getOrder(scoped,String(checkout.sales_order_id),write),
+      now=Date.now(),links=order.fulfillments.map(f=>write
         .prepare(
           "INSERT INTO ecommerce_fulfillment_links VALUES(?,?,?,?,?,?) ON CONFLICT(fulfillment_id) DO NOTHING",
         )
@@ -630,8 +644,7 @@ export async function changeEcommerce(
           order.order.version,
           order.order.state,
           now,
-        )
-        .run();
+        ));
     return executeCommand(
       write,
       a,
@@ -646,6 +659,7 @@ export async function changeEcommerce(
         version: i.expectedVersion + 1,
       },
       [
+        ...links,
         assertion(
           write,
           key,
@@ -668,6 +682,7 @@ export async function changeEcommerce(
         "RETURN_DETAIL_REQUIRED",
         "Fulfillment, version, date and lines are required.",
       );
+    if(!await write.prepare('SELECT 1 FROM commerce_fulfillments WHERE id=? AND order_id=? AND version=?').bind(i.fulfillmentId,checkout.sales_order_id,i.fulfillmentVersion).first())throw new ApiError(404,'ECOMMERCE_FULFILLMENT_NOT_FOUND','Select a current delivery from this checkout.');
     const ret = await requestCommerceReturn(
         scoped,
         i.fulfillmentId,
@@ -678,6 +693,7 @@ export async function changeEcommerce(
           lines: i.lines,
         }),
         `${key}:return`,
+        write,
       ),
       now = Date.now();
     return executeCommand(
@@ -732,9 +748,9 @@ export async function ecommerceDetail(a: WorkContext, id: string) {
   const { write } = await holdingResources(a.holdingId),
     checkout = await write
       .prepare(
-        "SELECT x.*,c.channel_id,c.party_id,c.warehouse_id,c.branch_id,c.department_id,o.number,o.state order_state FROM ecommerce_checkouts x JOIN ecommerce_carts c ON c.id=x.cart_id JOIN commerce_orders o ON o.id=x.sales_order_id WHERE x.id=? AND c.company_id=?",
+        `SELECT x.*,c.channel_id,c.party_id,c.warehouse_id,c.branch_id,c.department_id,o.number,o.state order_state FROM ecommerce_checkouts x JOIN ecommerce_carts c ON c.id=x.cart_id JOIN commerce_orders o ON o.id=x.sales_order_id WHERE x.id=? AND ${cartScope}`,
       )
-      .bind(id, a.companyId)
+      .bind(id,...scopeValues(a))
       .first<Row>();
   if (!checkout)
     throw new ApiError(404, "CHECKOUT_NOT_FOUND", "Checkout not found.");
@@ -761,7 +777,7 @@ export async function ecommerceDetail(a: WorkContext, id: string) {
     ).results,
     returnLinks: (
       await write
-        .prepare("SELECT * FROM ecommerce_return_links WHERE checkout_id=?")
+        .prepare("SELECT l.*,r.status current_return_status,r.version current_return_version FROM ecommerce_return_links l JOIN commerce_returns r ON r.id=l.commerce_return_id WHERE l.checkout_id=?")
         .bind(id)
         .all<Row>()
     ).results,

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
-import type { FileMetadata, FileStore, StoredFile } from './types';
+import type { FileMetadata, FileStore, SqlDatabase, StoredFile } from './types';
 import type { PostgresDatabase } from './postgres';
 
 const validKey = (key: string) => {
@@ -47,6 +47,7 @@ export class MinioFileStore implements FileStore {
   constructor(private readonly bucket: string, private readonly prefix: string, endpoint: string, accessKeyId: string, secretAccessKey: string, region: string, private readonly preservationDb?: PostgresDatabase, private readonly legacy?: FileStore) {
     this.client = new S3Client({ endpoint, region, forcePathStyle: true, credentials: { accessKeyId, secretAccessKey } });
   }
+  get supportsTransactionDeletion() { return Boolean(this.preservationDb); }
   private objectKey(key: string) { return `${this.prefix}/${createHash('sha256').update(validKey(key)).digest('hex')}`; }
   private metadata(key: string, head: { ContentLength?: number; LastModified?: Date; Metadata?: Record<string, string> }): FileMetadata {
     const meta = head.Metadata ?? {};
@@ -99,23 +100,32 @@ export class MinioFileStore implements FileStore {
       return this.head(key);
     });
   }
-  async delete(input: string | string[]) {
+  async delete(input: string | string[], authorization?: Parameters<FileStore['delete']>[1]) {
     const keys = Array.isArray(input) ? input : [input];
     if (keys.some(key => key.startsWith('legal/'))) throw new Error('LEGAL_DOCUMENT_PRESERVATION_REQUIRED');
     // Delete the fallback first. If it fails, the remote object must remain
     // readable; otherwise the fallback can resurrect a successfully deleted
-    // remote object. LocalFileStore performs its own legal-hold check under the
-    // advisory lock, so nesting it inside protect() would deadlock.
-    if (this.legacy) await this.legacy.delete(keys);
-    await this.protect(keys, async () => { for (const key of keys) await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: this.objectKey(key) })); });
+    // remote object. Both stores recheck preservation on the same owning
+    // transaction, without acquiring another connection or advisory lock owner.
+    await this.protect(keys, async tx => {
+      if (this.legacy) await this.legacy.delete(keys, this.legacy.supportsTransactionDeletion && tx ? { database: tx } : undefined);
+      for (const key of keys) await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: this.objectKey(key) }));
+    }, authorization?.database);
   }
-  private async protect<T>(keys: string[], operation: () => Promise<T>): Promise<T> {
+  private async protect<T>(keys: string[], operation: (tx?: SqlDatabase) => Promise<T>, database?: SqlDatabase): Promise<T> {
+    if (database) {
+      if (!this.preservationDb) throw new Error('TRANSACTION_NOT_ACTIVE_OR_OWNED');
+      this.preservationDb.assertActiveTransaction(database);
+    }
     if (!this.preservationDb) return operation();
-    return this.preservationDb.transaction(async tx => {
+    const guarded = async (tx: SqlDatabase) => {
       await tx.prepare("SELECT pg_advisory_xact_lock(hashtextextended('legal-files',0))").run();
+      if(await tx.prepare("SELECT to_regclass('attachment_orphan_preservations') present").first("present"))for(const key of keys)
+        if(await tx.prepare("SELECT 1 FROM attachment_orphan_preservations p WHERE p.object_key=? AND NOT EXISTS(SELECT 1 FROM attachment_orphan_preservation_events e WHERE e.preservation_id=p.id AND e.event_kind='restored')").bind(key).first())throw new Error('FILE_PRESERVED_PENDING_OWNER');
       for (const key of keys) if (await tx.prepare("SELECT 1 FROM legal_file_preservations p JOIN legal_hold_targets t ON t.item_id=p.item_id JOIN legal_holds h ON h.id=t.hold_id WHERE h.state!='released' AND (p.object_key=? OR (p.source_type='attachment' AND EXISTS(SELECT 1 FROM attachment_derivatives d WHERE d.attachment_id=p.source_id AND d.object_key=?)))").bind(key, key).first()) throw new Error('LEGAL_HOLD_BLOCKS_FILE_MUTATION');
-      return operation();
-    });
+      return operation(tx);
+    };
+    return database ? guarded(database) : this.preservationDb.transaction(guarded);
   }
   async destroyPreserved(keys: string[], authorization: Parameters<NonNullable<FileStore['destroyPreserved']>>[1]) {
     const row = await authorization.database.prepare("SELECT x.manifest FROM legal_destructions x WHERE x.id=? AND x.state='executing' AND NOT EXISTS(SELECT 1 FROM legal_hold_targets t JOIN legal_holds h ON h.id=t.hold_id WHERE t.item_id=x.item_id AND h.state!='released')").bind(authorization.destructionId).first<{ manifest: string }>();

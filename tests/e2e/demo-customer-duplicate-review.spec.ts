@@ -1,3 +1,4 @@
+import {createEngineeringBrowserContext} from './helpers/engineering-browser-evidence';
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -51,8 +52,8 @@ test("isolated demo independently reviews and merges duplicate customers", async
   expect(duplicateIds).toHaveLength(2);
   expect(quotationId).toBeTruthy();
 
-  const requesterContext = await browser.newContext(testInfo.project.use);
-  const reviewerContext = await browser.newContext(testInfo.project.use);
+  const requesterContext = await createEngineeringBrowserContext(browser,testInfo);
+  const reviewerContext = await createEngineeringBrowserContext(browser,testInfo);
   const requesterPage = await requesterContext.newPage();
   const reviewerPage = await reviewerContext.newPage();
   const base = "/holdings/simulation";
@@ -61,9 +62,9 @@ test("isolated demo independently reviews and merges duplicate customers", async
   try {
     await signInRole(requesterContext, requesterPage, credentials, "holding_owner", listPath);
     await expect(requesterPage.getByRole("heading", { name: "Customer duplicate reviews", exact: true })).toBeVisible();
-    await requesterPage.getByLabel("First customer").selectOption(duplicateIds![0]);
-    await requesterPage.getByLabel("Second customer").selectOption(duplicateIds![1]);
-    await requesterPage.getByLabel("Evidence and reason").fill(
+    await requesterPage.locator('#workspace-content').getByLabel("First customer").selectOption(duplicateIds![0]);
+    await requesterPage.locator('#workspace-content').getByLabel("Second customer").selectOption(duplicateIds![1]);
+    await requesterPage.locator('#workspace-content').getByLabel("Evidence and reason").fill(
       "Matching simulated tax registration and near-matching legal names require independent identity review.",
     );
     const requestResponsePromise = requesterPage.waitForResponse(
@@ -79,16 +80,16 @@ test("isolated demo independently reviews and merges duplicate customers", async
     await expect(requesterPage.getByRole("table", { name: "Customer identity comparison" })).toContainText("SIM-DUP-A");
     await expect(requesterPage.getByRole("table", { name: "Customer identity comparison" })).toContainText("SIM-DUP-B");
     await expect(requesterPage.getByRole("table", { name: "Customer identity comparison" })).toContainText("SIM-TAX-204812340001");
-    const comparison = requesterPage.locator("section.card").filter({ has: requesterPage.getByRole("heading", { name: "Compare customer records" }) });
+    const comparison = requesterPage.locator("#workspace-content section.card").filter({ has: requesterPage.getByRole("heading", { name: "Compare customer records" }) });
     await expect(comparison.getByText(/Matching simulated tax registration/)).toBeVisible();
     await expect(requesterPage.getByRole("button", { name: "Record independent decision", exact: true })).toHaveCount(0);
     await expect(requesterPage.getByRole("heading", { name: "Identity decision", exact: true })).toHaveCount(0);
 
     await signInRole(reviewerContext, reviewerPage, credentials, "sales_manager", `${base}/customer-duplicates/${reviewId}`);
     await expect(reviewerPage.getByRole("table", { name: "Customer identity comparison" })).toContainText("SIM-TAX-204812340001");
-    await reviewerPage.getByLabel("Decision").selectOption("duplicate");
-    await reviewerPage.getByLabel("Canonical record").selectOption(duplicateIds![0]);
-    await reviewerPage.getByLabel("Evidence and reason").fill(
+    await reviewerPage.locator('#workspace-content').getByLabel("Decision").selectOption("duplicate");
+    await reviewerPage.locator('#workspace-content').getByLabel("Canonical record").selectOption(duplicateIds![0]);
+    await reviewerPage.locator('#workspace-content').getByLabel("Evidence and reason").fill(
       "Compared both company records and retained the first customer master as canonical.",
     );
     const decisionResponsePromise = reviewerPage.waitForResponse(
@@ -101,14 +102,14 @@ test("isolated demo independently reviews and merges duplicate customers", async
       version: 2,
       status: "duplicate",
     });
-    await expect(reviewerPage.getByText(new RegExp(`duplicate · canonical ${duplicateIds![0]}`))).toBeVisible();
-    await expect(reviewerPage.getByText(/Version 2 · duplicate · Compared both company records/)).toBeVisible();
+    await expect(reviewerPage.locator("#workspace-content").getByText(new RegExp(`duplicate · canonical ${duplicateIds![0]}`))).toBeVisible();
+    await expect(reviewerPage.locator("#workspace-content").getByText(/Version 2 · duplicate · Compared both company records/)).toBeVisible();
 
     reviewerPage.once("dialog", async (dialog) => {
       expect(dialog.message()).toContain("Merge safe source records");
       await dialog.accept();
     });
-    const mergeForm = reviewerPage.locator("form").filter({ has: reviewerPage.getByRole("button", { name: "Merge into canonical customer", exact: true }) });
+    const mergeForm = reviewerPage.locator("#workspace-content form").filter({ has: reviewerPage.getByRole("button", { name: "Merge into canonical customer", exact: true }) });
     await mergeForm.getByLabel("Evidence and reason").fill(
       "Merged the eligible quotation into the selected canonical customer after reviewing source ownership.",
     );
@@ -124,8 +125,8 @@ test("isolated demo independently reviews and merges duplicate customers", async
       canonicalCustomerId: duplicateIds![0],
       mergedCustomerId: duplicateIds![1],
     });
-    await expect(reviewerPage.getByText(/merged · canonical/)).toBeVisible();
-    await expect(reviewerPage.getByText(/Version 3 · merge · Merged the eligible quotation/)).toBeVisible();
+    await expect(reviewerPage.locator("#workspace-content").getByText(/merged · canonical/)).toBeVisible();
+    await expect(reviewerPage.locator("#workspace-content").getByText(/Version 3 · merge · Merged the eligible quotation/)).toBeVisible();
     await expect(reviewerPage.getByRole("heading", { name: "Identity decision", exact: true })).toHaveCount(0);
 
     const detailResponse = await reviewerContext.request.get(`${base.replace("/holdings/", "/api/v1/holdings/")}/customer-duplicates?id=${encodeURIComponent(reviewId)}`);
@@ -140,12 +141,12 @@ test("isolated demo independently reviews and merges duplicate customers", async
 
     await reviewerPage.goto(`${base}/customers/${duplicateIds![0]}`, { waitUntil: "commit" });
     await expect(reviewerPage.getByRole("heading", { name: "Demo Harbor Logistics", exact: true })).toBeVisible();
-    const sourceActivity = reviewerPage.locator("section.card").filter({ hasText: "Visible source activity" });
+    const sourceActivity = reviewerPage.locator("#workspace-content section.card").filter({ hasText: "Visible source activity" });
     await expect(sourceActivity.getByRole("link").filter({ hasText: /quote ·/i })).toHaveAttribute(
       "href",
       new RegExp(`/commerce/orders/${quotationId}$`),
     );
-    await expect(reviewerPage.getByText("SIM-DUP-A · Internal service timeline", { exact: true })).toBeVisible();
+    await expect(reviewerPage.locator("#workspace-content").getByText("SIM-DUP-A · Internal service timeline", { exact: true })).toBeVisible();
     await reviewerPage.evaluate(() => window.scrollTo(0, 0));
 
     await testInfo.attach("customer-duplicate-review-result", {

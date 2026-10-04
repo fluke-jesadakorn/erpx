@@ -1,3 +1,5 @@
+
+import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { FeaturePage } from "@/components/features/feature-page";
 import { FinanceWorkspace, financeStyles as styles } from "@/components/finance/finance-workspace";
 import { formatMoneyUnits } from "@/lib/company-money";
@@ -28,10 +30,10 @@ export default async function FinanceWorkbenchPage({ params, searchParams }: { p
     const query = await searchParams;
     const view = query.view === "waiting" || query.view === "team" ? query.view : "actions";
     const work = await workSnapshot(actor).catch(error => pageError(error, holdingSlug));
-    return <FeaturePage className="content-stack" data-source="live" data-module="finance"><FinanceWorkspace base={base} active="work" title="Finance today" description={roleDescription(data)} actions={data.canPrepare ? <Link className="button" href={`${base}/finance/invoices?kind=receivable&new=1`}>Add document</Link> : undefined}><FinanceToday base={base} attention={data.attention} work={work} view={view} query={query.q ?? ""} page={Number(query.page ?? 1)}/></FinanceWorkspace></FeaturePage>;
+    return <FeaturePage className="ui-page-content" data-source="live" data-module="finance"><FinanceWorkspace base={base} active="work" title="Finance today" description={roleDescription(data)} actions={data.canPrepare ? <UiActionLink appearance="standard" variant="primary" href={`${base}/finance/invoices?kind=receivable&new=1`}>Add document</UiActionLink> : undefined}><FinanceToday base={base} attention={data.attention} work={work} view={view} query={query.q ?? ""} page={Number(query.page ?? 1)}/></FinanceWorkspace></FeaturePage>;
   }
-  return <FeaturePage className="content-stack" data-source="live" data-module="finance">
-    <FinanceWorkspace base={base} active="work" title="My finance work" description={roleDescription(data)} actions={data.canPrepare ? <Link className="button" href={`${base}/finance/invoices?new=1`}>Add document</Link> : undefined}>
+  return <FeaturePage className="ui-page-content" data-source="live" data-module="finance">
+    <FinanceWorkspace base={base} active="work" title="My finance work" description={roleDescription(data)} actions={data.canPrepare ? <UiActionLink appearance="standard" variant="primary" href={`${base}/finance/invoices?new=1`}>Add document</UiActionLink> : undefined}>
       <section className={styles.hero}>
         <div><p className="eyebrow">Needs attention</p><strong>{data.totalAttention}</strong><p>Current queue ordered by cash impact and period-close impact</p></div>
         <aside><span className="muted">Current role</span><b>{actor.role}</b><span className="muted">Company {actor.companyId} · {data.currency ?? "Currency not configured"}</span></aside>

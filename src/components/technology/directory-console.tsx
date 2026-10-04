@@ -1,4 +1,6 @@
 "use client";
+import { Button, TextInput } from "@/components/ui/foundation";
+
 import { useState } from "react";
 import {
   FolderTree,
@@ -11,10 +13,7 @@ import {
   ArrowDown,
   ArrowLeft,
 } from "lucide-react";
-import type {
-  DirectoryAction,
-  DirectoryObject,
-} from "@/lib/directory-operations";
+import type { DirectoryAction, DirectoryObject } from "@/lib/directory-operations";
 import styles from "./directory-console.module.css";
 const icons = {
   ou: Folder,
@@ -54,7 +53,14 @@ export function DirectoryConsole({
     [selected, setSelected] = useState<string | null>(initialObjectId ?? null);
   const current = objects.find((o) => o.id === selected),
     ous = objects.filter((o) => o.kind === "ou");
-  const folderName = folder === "all" ? "All objects" : folder === "groups" ? "Groups" : folder === "gpos" ? "Group Policy Objects" : ous.find((o) => o.id === folder)?.name ?? "All objects";
+  const folderName =
+    folder === "all"
+      ? "All objects"
+      : folder === "groups"
+        ? "Groups"
+        : folder === "gpos"
+          ? "Group Policy Objects"
+          : (ous.find((o) => o.id === folder)?.name ?? "All objects");
   const listing = objects.filter(
     (o) =>
       (folder === "all" ||
@@ -63,9 +69,7 @@ export function DirectoryConsole({
           : folder === "groups"
             ? o.kind === "group"
             : o.parentId === folder)) &&
-      (o.name + " " + o.kind + " " + o.dn)
-        .toLowerCase()
-        .includes(search.toLowerCase()),
+      (o.name + " " + o.kind + " " + o.dn).toLowerCase().includes(search.toLowerCase()),
   );
   const depth = (o: DirectoryObject) => {
     let n = 0,
@@ -91,11 +95,7 @@ export function DirectoryConsole({
     onDrop: (e: React.DragEvent) => {
       if (!canManage) return;
       e.preventDefault();
-      onDrop(
-        e.dataTransfer.getData("application/erpx-directory-object"),
-        o.id,
-        o.kind,
-      );
+      onDrop(e.dataTransfer.getData("application/erpx-directory-object"), o.id, o.kind);
     },
   });
   const links = (current?.properties.gpoLinks ?? []) as {
@@ -123,33 +123,128 @@ export function DirectoryConsole({
     <div className={styles.console} data-detail-open={Boolean(current)}>
       <section className={styles.objectList} aria-label="Directory objects">
         <div className={styles.listToolbar}>
-          <div><strong>Objects</strong><span>{listing.length} shown</span></div>
-          <input type="search" className={styles.search} aria-label="Search directory objects" placeholder="Search objects" value={search} onChange={(event) => onSearchChange(event.target.value)} />
-          <button type="button" className={styles.locationButton} aria-expanded={pickerOpen} aria-controls="directory-location-picker" onClick={() => setPickerOpen(!pickerOpen)}><FolderTree size={16} /> {folderName}</button>
+          <div>
+            <strong>Objects</strong>
+            <span>{listing.length} shown</span>
+          </div>
+          <TextInput
+            type="search"
+            className={styles.search}
+            aria-label="Search directory objects"
+            placeholder="Search objects"
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+          />
+          <Button
+            variant="plain"
+            type="button"
+            className={styles.locationButton}
+            aria-expanded={pickerOpen}
+            aria-controls="directory-location-picker"
+            onClick={() => setPickerOpen(!pickerOpen)}
+          >
+            <FolderTree size={16} /> {folderName}
+          </Button>
         </div>
-        {pickerOpen && <nav id="directory-location-picker" className={styles.tree} aria-label="Directory OU tree">
-          <p>Choose a location or drag an object onto an OU or group.</p>
-          <button type="button" aria-current={folder === "all"} onClick={() => chooseFolder("all")}>All objects</button>
-          {ous.map((o) => <button type="button" key={o.id} {...drag(o)} style={{ paddingInlineStart: 12 + depth(o) * 15 }} aria-current={folder === o.id} onClick={() => chooseFolder(o.id)}><Folder size={15} />{o.name}</button>)}
-          <button type="button" aria-current={folder === "groups"} onClick={() => chooseFolder("groups")}><Users size={15} />Groups</button>
-          <button type="button" aria-current={folder === "gpos"} onClick={() => chooseFolder("gpos")}><FileCog size={15} />Group Policy Objects</button>
-        </nav>}
+        {pickerOpen && (
+          <nav
+            id="directory-location-picker"
+            className={styles.tree}
+            aria-label="Directory OU tree"
+          >
+            <p>Choose a location or drag an object onto an OU or group.</p>
+            <Button
+              variant="plain"
+              type="button"
+              aria-current={folder === "all"}
+              onClick={() => chooseFolder("all")}
+            >
+              All objects
+            </Button>
+            {ous.map((o) => (
+              <Button
+                variant="plain"
+                type="button"
+                key={o.id}
+                {...drag(o)}
+                style={{ paddingInlineStart: 12 + depth(o) * 15 }}
+                aria-current={folder === o.id}
+                onClick={() => chooseFolder(o.id)}
+              >
+                <Folder size={15} />
+                {o.name}
+              </Button>
+            ))}
+            <Button
+              variant="plain"
+              type="button"
+              aria-current={folder === "groups"}
+              onClick={() => chooseFolder("groups")}
+            >
+              <Users size={15} />
+              Groups
+            </Button>
+            <Button
+              variant="plain"
+              type="button"
+              aria-current={folder === "gpos"}
+              onClick={() => chooseFolder("gpos")}
+            >
+              <FileCog size={15} />
+              Group Policy Objects
+            </Button>
+          </nav>
+        )}
         <div className={styles.rows} role="list">
           {listing.map((o) => {
             const Icon = icons[o.kind];
-            return <div key={o.id} className={styles.row} role="listitem" {...drag(o)} data-selected={selected === o.id}>
-              <button type="button" aria-current={selected === o.id} onClick={() => setSelected(o.id)} onDoubleClick={() => o.kind === "ou" && chooseFolder(o.id)}>
-                <Icon size={18} aria-hidden="true" /><span><strong>{o.name}</strong><small>{o.kind} · {objects.find((p) => p.id === o.parentId)?.name ?? "Directory root"}</small></span>
-              </button>
-            </div>;
+            return (
+              <div
+                key={o.id}
+                className={styles.row}
+                role="listitem"
+                {...drag(o)}
+                data-selected={selected === o.id}
+              >
+                <Button
+                  variant="plain"
+                  type="button"
+                  aria-current={selected === o.id}
+                  onClick={() => setSelected(o.id)}
+                  onDoubleClick={() => o.kind === "ou" && chooseFolder(o.id)}
+                >
+                  <Icon size={18} aria-hidden="true" />
+                  <span>
+                    <strong>{o.name}</strong>
+                    <small>
+                      {o.kind} ·{" "}
+                      {objects.find((p) => p.id === o.parentId)?.name ?? "Directory root"}
+                    </small>
+                  </span>
+                </Button>
+              </div>
+            );
           })}
-          {!listing.length && <p className={styles.empty}>{search.trim() ? "No objects match this search." : "No objects in this location. Choose another location or read the inventory."}</p>}
+          {!listing.length && (
+            <p className={styles.empty}>
+              {search.trim()
+                ? "No objects match this search."
+                : "No objects in this location. Choose another location or read the inventory."}
+            </p>
+          )}
         </div>
       </section>
       <aside className={styles.properties} aria-label="Object properties">
         {current ? (
           <>
-            <button type="button" className={styles.backButton} onClick={() => setSelected(null)}><ArrowLeft size={16} /> Back to objects</button>
+            <Button
+              variant="plain"
+              type="button"
+              className={styles.backButton}
+              onClick={() => setSelected(null)}
+            >
+              <ArrowLeft size={16} /> Back to objects
+            </Button>
             <h3>{current.name}</h3>
             <span className={styles.tag}>{current.kind}</span>
             <dl>
@@ -164,9 +259,9 @@ export function DirectoryConsole({
                 <ul>
                   {current.memberIds.map((id) => (
                     <li key={id}>
-                      <button onClick={() => setSelected(id)}>
+                      <Button type="submit" variant="plain" onClick={() => setSelected(id)}>
                         {objects.find((o) => o.id === id)?.name ?? id}
-                      </button>
+                      </Button>
                     </li>
                   ))}
                 </ul>
@@ -175,12 +270,12 @@ export function DirectoryConsole({
             <h4>Member of</h4>
             <ul>
               {objects
-                .filter(
-                  (o) => o.kind === "group" && o.memberIds.includes(current.id),
-                )
+                .filter((o) => o.kind === "group" && o.memberIds.includes(current.id))
                 .map((o) => (
                   <li key={o.id}>
-                    <button onClick={() => setSelected(o.id)}>{o.name}</button>
+                    <Button type="submit" variant="plain" onClick={() => setSelected(o.id)}>
+                      {o.name}
+                    </Button>
                   </li>
                 ))}
             </ul>
@@ -198,44 +293,45 @@ export function DirectoryConsole({
                       draggable={canManage}
                       onDragStart={(e) => {
                         e.stopPropagation();
-                        e.dataTransfer.setData(
-                          "application/erpx-gpo-link",
-                          String(i),
-                        );
+                        e.dataTransfer.setData("application/erpx-gpo-link", String(i));
                       }}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => {
                         e.preventDefault();
-                        const raw = e.dataTransfer.getData(
-                          "application/erpx-gpo-link",
-                        );
+                        const raw = e.dataTransfer.getData("application/erpx-gpo-link");
                         if (raw !== "") order(Number(raw), i);
                       }}
                     >
-                      <button onClick={() => setSelected(l.gpoId)}>
+                      <Button type="submit" variant="plain" onClick={() => setSelected(l.gpoId)}>
                         {objects.find((o) => o.id === l.gpoId)?.name ?? l.gpoId}
-                      </button>
+                      </Button>
                       <small>
                         {l.enabled ? "Enabled" : "Disabled"}
                         {l.enforced ? " · Enforced" : ""}
                       </small>
                       {canManage && (
                         <div className={styles.linkActions}>
-                          <button
+                          <Button
+                            type="submit"
+                            variant="plain"
                             aria-label={`Move GPO link ${i + 1} up`}
                             disabled={i === 0}
                             onClick={() => order(i, i - 1)}
                           >
                             <ArrowUp size={14} />
-                          </button>
-                          <button
+                          </Button>
+                          <Button
+                            type="submit"
+                            variant="plain"
                             aria-label={`Move GPO link ${i + 1} down`}
                             disabled={i === links.length - 1}
                             onClick={() => order(i, i + 1)}
                           >
                             <ArrowDown size={14} />
-                          </button>
-                          <button
+                          </Button>
+                          <Button
+                            type="submit"
+                            variant="plain"
                             onClick={() =>
                               onEdit({
                                 kind: "gpo.link",
@@ -245,7 +341,7 @@ export function DirectoryConsole({
                             }
                           >
                             Properties
-                          </button>
+                          </Button>
                         </div>
                       )}
                     </li>
@@ -255,40 +351,40 @@ export function DirectoryConsole({
             )}
             {canManage && (
               <div className={styles.propertyActions}>
-                {["account", "computer", "group", "ou"].includes(
-                  current.kind,
-                ) && (
-                  <button
-                    className="button secondary"
-                    onClick={() =>
-                      onEdit({ kind: "object.move", objectId: current.id })
-                    }
+                {["account", "computer", "group", "ou"].includes(current.kind) && (
+                  <Button
+                    type="submit"
+                    variant="secondary"
+
+                    onClick={() => onEdit({ kind: "object.move", objectId: current.id })}
                   >
                     Move to OU
-                  </button>
+                  </Button>
                 )}
                 {current.kind === "group" && (
-                  <button
-                    className="button secondary"
-                    onClick={() =>
-                      onEdit({ kind: "group.members", objectId: current.id })
-                    }
+                  <Button
+                    type="submit"
+                    variant="secondary"
+
+                    onClick={() => onEdit({ kind: "group.members", objectId: current.id })}
                   >
                     Change members
-                  </button>
+                  </Button>
                 )}
                 {current.kind === "ou" && (
                   <>
-                    <button
-                      className="button secondary"
-                      onClick={() =>
-                        onEdit({ kind: "ou.update", objectId: current.id })
-                      }
+                    <Button
+                      type="submit"
+                      variant="secondary"
+
+                      onClick={() => onEdit({ kind: "ou.update", objectId: current.id })}
                     >
                       Edit OU
-                    </button>
-                    <button
-                      className="button secondary"
+                    </Button>
+                    <Button
+                      type="submit"
+                      variant="secondary"
+
                       onClick={() =>
                         onEdit({
                           kind: "gpo.inheritance",
@@ -297,57 +393,59 @@ export function DirectoryConsole({
                       }
                     >
                       Set inheritance
-                    </button>
+                    </Button>
                   </>
                 )}
                 {current.kind === "gpo" && (
                   <>
-                    <button
-                      className="button secondary"
-                      onClick={() =>
-                        onEdit({ kind: "gpo.publish", objectId: current.id })
-                      }
+                    <Button
+                      type="submit"
+                      variant="secondary"
+
+                      onClick={() => onEdit({ kind: "gpo.publish", objectId: current.id })}
                     >
                       Edit settings
-                    </button>
-                    <button
-                      className="button secondary"
-                      onClick={() =>
-                        onEdit({ kind: "gpo.link", objectId: current.id })
-                      }
+                    </Button>
+                    <Button
+                      type="submit"
+                      variant="secondary"
+
+                      onClick={() => onEdit({ kind: "gpo.link", objectId: current.id })}
                     >
                       Link to OU
-                    </button>
-                    <button
-                      className="button secondary"
-                      onClick={() =>
-                        onEdit({ kind: "gpo.filter", objectId: current.id })
-                      }
+                    </Button>
+                    <Button
+                      type="submit"
+                      variant="secondary"
+
+                      onClick={() => onEdit({ kind: "gpo.filter", objectId: current.id })}
                     >
                       Security filtering
-                    </button>
+                    </Button>
                   </>
                 )}
                 {current.kind === "account" && (
                   <>
-                    <button
-                      className="button secondary"
-                      onClick={() =>
-                        onEdit({ kind: "account.update", objectId: current.id })
-                      }
+                    <Button
+                      type="submit"
+                      variant="secondary"
+
+                      onClick={() => onEdit({ kind: "account.update", objectId: current.id })}
                     >
                       Edit account
-                    </button>
-                    <button
-                      className="button secondary"
-                      onClick={() =>
-                        onEdit({ kind: "account.enable", objectId: current.id })
-                      }
+                    </Button>
+                    <Button
+                      type="submit"
+                      variant="secondary"
+
+                      onClick={() => onEdit({ kind: "account.enable", objectId: current.id })}
                     >
                       Enable account
-                    </button>
-                    <button
-                      className="button secondary"
+                    </Button>
+                    <Button
+                      type="submit"
+                      variant="secondary"
+
                       onClick={() =>
                         onEdit({
                           kind: "account.disable",
@@ -356,7 +454,7 @@ export function DirectoryConsole({
                       }
                     >
                       Disable account
-                    </button>
+                    </Button>
                   </>
                 )}
               </div>

@@ -1,5 +1,7 @@
 # Benefits lifecycle simulation
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 สถานะนี้เป็น **owner implementation บนข้อมูลจำลอง** สำหรับ S18/G16 ยังไม่ใช่ provider, payroll expert, production หรือ business sign-off
 
 ## Flow ที่ส่งมอบ
@@ -26,4 +28,3 @@
 - migration/open enrollment ของบริษัทจริง, plan documents, eligibility policy และ privacy/retention review
 - Thai payroll expert review และ shadow payroll สองรอบ
 - browser หลายบทบาท, customer/business UAT และ production sign-off
-

@@ -1,3 +1,5 @@
+
+import { PageContent } from "@/components/ui/patterns";
 import { FeaturePage } from "@/components/features/feature-page";
 import { WorkDashboard } from "@/components/workplace/work-dashboard";
 import { workResponsibilities,workTypes,workViews } from "@/lib/work-item";
@@ -38,17 +40,19 @@ export default async function WorkPage({
   }
   const view = workViews.some(([id]) => id === query.view) ? String(query.view)
     : query.queue || query.responsibility ? "legacy" : "actions";
+  const tracking = ["requests","waiting","completed"].includes(String(query.tracking)) ? String(query.tracking) : "all";
   const current = new URLSearchParams({
     ...(Number(query.offset)>0?{offset:String(query.offset)}:{}),
     ...(view !== "legacy" ? { view } : { queue }),
     ...(responsibility !== "all" ? { responsibility } : {}),
     ...(type !== "all" ? { type } : {}),
     ...(q ? { q } : {}),
+    ...(view === "tracking" && tracking !== "all" ? { tracking } : {}),
   }).toString();
   if (!newKind) {
-    const summary = await getWorkPage(actor,{view,queue,type,q,responsibility,offset:Number(query.offset??0)});
+    const summary = await getWorkPage(actor,{view,queue,type,q,responsibility,tracking,offset:Number(query.offset??0)});
     return (
-      <FeaturePage className="content" data-source="live">
+      <PageContent as={FeaturePage} data-source="live">
         <WorkDashboard
           key={`${actor.companyId}:${actor.userId}:${base}:${current}:${summary.generatedAt}`}
           base={base}
@@ -61,7 +65,7 @@ export default async function WorkPage({
           q={q}
           current={current}
         />
-      </FeaturePage>
+      </PageContent>
     );
   }
   const { CreateWork } = await import("./create");

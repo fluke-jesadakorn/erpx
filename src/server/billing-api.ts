@@ -14,6 +14,8 @@ import {
   type BillingActor,
 } from "./billing";
 import { billingStripe } from "./billing-stripe";
+import {readTargetBillingPeriod} from "./billing-target";
+import {billingMonth} from "@/lib/billing";
 import { attachmentUploadsFrozen, attachmentsV2ReadOnly } from "./attachments/feature";
 import { detectedAttachmentMediaType } from "./attachments/preview";
 import { attachmentScannerReadiness } from "./attachments/scanner";
@@ -88,6 +90,11 @@ export function billingHandler(platform: boolean) {
       ).rows[0];
       if (!holding) throw new ApiError(404, "NOT_FOUND", "Holding not found.");
       slug = holding.slug;
+      if(request.method==='GET'&&path.length===1&&path[0]==='target'){
+        const month=url.searchParams.get('month')??billingMonth(Date.now());
+        if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))throw new ApiError(422,'INVALID_BILLING_MONTH','Choose a valid billing month.');
+        return Response.json({data:await readTargetBillingPeriod(db,holdingId,month)},{headers:{'Cache-Control':'private, no-store'}});
+      }
       if (path[0] === "evidence") {
         if (!platform)
           throw new ApiError(

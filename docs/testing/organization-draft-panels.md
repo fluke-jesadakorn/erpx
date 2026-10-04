@@ -1,5 +1,7 @@
 # Organization arrangement drafts
 
+> Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
+
 The People workspace at `/holdings/{holdingSlug}/people` now uses one unit rail, a main list of positions and their occupants, and a detail drawer with expandable sections. Selecting a unit changes the main structure; selecting a person or position opens its details. HR settings and the team schedule open in the same page. The former Source, Tray and Destination layout is retained below as implementation history.
 
 The workspace loads an existing private Company draft with GET and creates a draft only on the first arrangement. Structure and review use the same projected organization. People, positions with their occupants, and departments can be moved with drag handles or the keyboard-accessible “Move…” destination chooser. Pending changes expose Undo/Redo and combined review. Parking preserves an item whose destination is not yet chosen; no employment record changes until submission and the relevant effective-time or approval workflow completes.
