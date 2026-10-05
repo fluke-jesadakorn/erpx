@@ -2,6 +2,7 @@ import { workViews, workViewAvailable, type WorkViewAvailability } from "./work-
 import { adminSections, type AdminSection } from "./administration";
 import { iamSections } from "./iam";
 import { hasPermission } from "./permissions";
+import { salesCustomerAccess, salesCustomerLegacyDestination } from "./sales-customers";
 import { peopleIamDestination } from "./people-lifecycle";
 import { financeDestinationForRoute, financeNavigation, financeRootItems, financeSidebarId } from "./finance-navigation";
 import { workplaceCategories, workplaceModuleDestinations, workplaceStartActions, type WorkplaceCategoryId, type AiSupport } from "./workplace-catalogue";
@@ -107,6 +108,7 @@ export type NavigationCategory = {
   label: string;
   icon: NavigationIconId;
   apps: NavigationItem[];
+  secondaryItems?: NavigationItem[];
 };
 
 export type WorkplaceNavigationModel = {
@@ -316,6 +318,7 @@ export function workplaceNavigation(
 
   const peopleItems = [
     item("people-directory", "People", "people", "People", "admin-people", ["employees", "staff", "profiles", "organization", "positions", "archived profiles", "roster", "shifts", "schedule", "HR settings", "leave policy", "pay groups"]),
+    ...(!beta && hasPermission(actor,"people.read") ? [item("people-evaluation", "Skills & performance", "people/evaluation", "People", "admin-people", ["evaluation", "compensation", "skills", "pay bands", "annual review"])] : []),
     ...(!beta && hasPermission(actor,"roster.read") ? [item("people-roster","Roster","people/roster","People","calendar",["staffing","leave","overtime","coverage"])] : []),
     ...(scopeKind === "holding" && !beta &&
       (holdingRolesWithPayroll.has(role) || hasPermission(actor, "payroll.read") || hasPermission(actor, "payroll.payment.read"))
@@ -736,7 +739,7 @@ export function workplaceNavigation(
   };
   const metadata = (entry: NavigationItem, appId?: string): NavigationItem => {
     const owner = entry.id === "work" || entry.id.startsWith("work-") || entry.id.startsWith("calendar") ? "operations"
-      : entry.id === "people-payroll" || entry.id === "people-roster" ? "people_payroll"
+      : entry.id === "people-payroll" || entry.id === "people-roster" || entry.id === "people-evaluation" ? "people_payroll"
       : entry.id === "administration-usage" || entry.id === "branch-usage" ? "commercial"
       : entry.id === "administration-ai" ? "agent"
       : entry.id === "administration-approvals" ? "operations"
@@ -751,15 +754,36 @@ export function workplaceNavigation(
     return { ...entry, categoryId, ownerModuleId: owner, objective: destination?.objective,
       aiSupport: destination?.aiSupport ?? "guide" };
   };
-  const appDestinations = apps.flatMap((app) => app.items.map((child) => metadata(child, app.id)));
+  const hubAccess = salesCustomerAccess({ ...actor, branchId: scopeKind === "branch" ? "branch" : null, departmentId: scopeKind === "department" ? "department" : null }, context.availableAppIds);
+  const movedDestination = (entry: NavigationItem) => {
+    if (beta || platform) return entry;
+    const url = new URL(entry.href, "https://navigation.invalid");
+    const route = url.pathname.slice(base.length + 1);
+    const href = salesCustomerLegacyDestination(base, route, Object.fromEntries(url.searchParams));
+    return href ? { ...entry, href } : entry;
+  };
+  if (!beta && !platform) for (const app of apps) {
+    app.items = app.items.filter(entry => entry.id !== "operations-pricing" || hubAccess.pricing).map(movedDestination);
+    if (app.href) app.href = movedDestination({ id: app.id, label: app.label, href: app.href, group: app.label, icon: app.icon }).href;
+  }
+  const appDestinations = apps.flatMap((app) => app.items.map((child) => movedDestination(metadata(child, app.id))))
+    .filter(entry => entry.id !== "operations-pricing" || hubAccess.pricing);
+  const hubEntries: NavigationItem[] = beta ? [] : [
+    ...(hubAccess.today ? [{ ...item("sales-hub", "Sales", "sales", "Sales", "commerce", ["today", "follow-ups", "pipeline", "quotations", "orders"]), categoryId: "customers-sales" as const, ownerModuleId: "sales" }] : []),
+    ...(hubAccess.directory || hubAccess.support || hubAccess.contacts || hubAccess.reviews ? [{ ...item("customers-hub", "Customers", hubAccess.directory ? "customers" : hubAccess.contacts ? "customers?view=contacts" : hubAccess.support ? "customers?view=support" : "customers?view=reviews", "Customers", "parties", ["Customer 360", "prospects", "contacts", "service", "reviews"]), categoryId: "customers-sales" as const, ownerModuleId: "crm" }] : []),
+  ];
+  const hubTools = beta ? [] : [
+    ...(hubAccess.contacts ? [{ ...item("crm-contacts", "Prospects & contacts", "customers?view=contacts", "Customers", "parties", ["accounts", "contacts"]), categoryId: "customers-sales" as const, ownerModuleId: "crm" }] : []),
+    ...(hubAccess.reports ? [{ ...item("crm-reports", "CRM reports", "sales?view=reports", "Sales", "commerce", ["analytics", "forecast"]), categoryId: "customers-sales" as const, ownerModuleId: "crm" }] : []),
+  ];
   // One level of work entries; detailed views stay with their owning page.
   const categoryEntries = [...appDestinations, ...standalone.map(entry => metadata(entry))]
     .filter(entry => entry.id !== "crm-customers");
   const categories = workplaceCategories.flatMap(([id, label, icon]): NavigationCategory[] => {
     let entries = categoryEntries.filter(entry => entry.categoryId === id);
     if (id === "customers-sales") {
-      const order = ["customer-timeline","crm-pipeline","customer-followups","operations-quotations","operations-sales"];
-      entries = entries.sort((a,b)=>(order.includes(a.id)?order.indexOf(a.id):99)-(order.includes(b.id)?order.indexOf(b.id):99));
+      const secondaryItems = entries.filter(entry => ["marketing", "ecommerce"].includes(entry.id));
+      return hubEntries.length || secondaryItems.length ? [{ id, label, icon, apps: hubEntries, secondaryItems }] : [];
     }
     if (id === "finance" && context.financeWorkspaceV2) entries = financeRootItems(entries);
     return entries.length ? [{ id, label, icon, apps: entries }] : [];
@@ -769,7 +793,7 @@ export function workplaceNavigation(
     apps,
     categories,
     standalone,
-    search: uniqueDestinations([...primary.map(entry => metadata(entry)), ...primary.flatMap(entry => entry.submodules ?? []).map(entry => ({...metadata(entry), categoryId: "daily" as const})), ...appDestinations, ...standalone.map(entry => metadata(entry)),
+    search: uniqueDestinations([...primary.map(entry => metadata(entry)), ...primary.flatMap(entry => entry.submodules ?? []).map(entry => ({...metadata(entry), categoryId: "daily" as const})), ...hubEntries, ...hubTools, ...appDestinations, ...standalone.map(entry => metadata(entry)),
       ...workplaceStartActions.map(action=>({...item(`start-${action.id}`,action.label,`${base}${action.path}`,"Start","work"),categoryId:"daily" as const,ownerModuleId:action.owner,objective:action.objective,aiSupport:"prepare" as const}))]),
     settingsDefault: visibleAdminSections.some((section) => ["people", "usage", "ai"].includes(section)) ? visibleAdminSections[0] : "feedback",
   };
@@ -807,6 +831,24 @@ export function resolveNavigation(
 ): NavigationResolution {
   const [route, second, third] = relativeSegments(base, pathname);
   const standard = base !== "/platform" && !hasApp(model, "resources");
+  if (base !== "/platform") {
+    const salesViews: Record<string, string> = { today: "sales-today", pipeline: "crm-pipeline", documents: queryValue(searchParams, "type") === "sales" ? "operations-sales" : "operations-quotations", pricing: "operations-pricing", reports: "crm-reports" };
+    const reviews: Record<string, string> = { identity: "customer-identity", duplicates: "customer-duplicates", access: "customer-access" };
+    if (route === "sales") return { activeId: queryValue(searchParams, "kind") === "followups" ? "customer-followups" : salesViews[queryValue(searchParams, "view") || "today"] ?? "sales-today", sidebarId: "sales-hub", groupId: "sales" };
+    if (route === "customers") {
+      const view = queryValue(searchParams, "view"), root = model.search.find(item => item.id === "customers-hub");
+      const defaultView = root?.href.includes("view=support") ? "support" : "directory";
+      const activeId = second ? "customer-timeline" : ({ directory: view ? "crm-customers" : "customer-timeline", contacts: "crm-contacts", support: "support-cases", reviews: reviews[queryValue(searchParams, "review") || "identity"] } as Record<string, string>)[view || defaultView] ?? "customer-timeline";
+      return { activeId, sidebarId: "customers-hub", groupId: "crm", detailLabel: second ? "Customer profile" : undefined };
+    }
+    if (route === "crm" || route === "customer-followups") return { activeId: route === "crm" ? "crm-pipeline" : "customer-followups", sidebarId: "sales-hub", groupId: "crm", detailLabel: second ? route === "crm" ? "CRM case" : "Customer follow-up" : undefined };
+    if (route === "support" || ["customer-identity", "customer-duplicates", "customer-access"].includes(route)) return { activeId: route === "support" ? "support-cases" : route, sidebarId: "customers-hub", groupId: route === "support" ? "support" : "customer_authority", detailLabel: second ? route === "support" ? second === "sla" ? "Resolution-time watch" : second === "incidents" ? "Shared incidents" : "Support case" : "Review request" : undefined };
+    if (route === "commerce" && second === "orders" && queryValue(searchParams, "view") !== "purchase") return { activeId: queryValue(searchParams, "view") === "quote" ? "operations-quotations" : "operations-sales", sidebarId: "sales-hub", groupId: "sales", detailLabel: "Sales document" };
+    if (route === "commerce" && !second && ["", "sales", "quote", "pricing", "parties"].includes(queryValue(searchParams, "view")) && queryValue(searchParams, "kind") !== "supplier") {
+      const view = queryValue(searchParams, "view");
+      return { activeId: view === "parties" ? "crm-customers" : view === "pricing" ? "operations-pricing" : view === "quote" ? "operations-quotations" : "operations-sales", sidebarId: view === "parties" ? "customers-hub" : "sales-hub", groupId: view === "parties" ? "crm" : "sales" };
+    }
+  }
   if (!route || route === "home")
     return { activeId: "home" };
   if (route === "feed")
@@ -848,6 +890,7 @@ export function resolveNavigation(
     };
   if (route === "technology") return {activeId: ({organization:"technology-organization",positions:"technology-organization",employees:"technology-organization",directory:"technology-organization",resources:"technology-devices",attributes:"technology-attributes"} as Record<string,string>)[searchParams?.get("view")??"organization"]??"technology-organization",groupId:"technology"};
   if (route === "people") {
+    if (second === "evaluation") return { activeId: "people-evaluation", groupId: "people" };
     if (second === "roster") return { activeId: model.search.some(item=>item.id==="people-roster") ? "people-roster" : "people-directory", groupId: "people" };
     if (second === "settings") {
       const section = queryValue(searchParams, "section");
@@ -1085,6 +1128,11 @@ export function navigationTrail(
     return [{ label: "Notification settings" }];
   const resolved = resolveNavigation(model, base, pathname, searchParams);
   if (!resolved.activeId || resolved.activeId === "home") return [];
+  if (["sales-hub", "customers-hub"].includes(resolved.sidebarId ?? "")) {
+    const hub = resolved.sidebarId === "sales-hub" ? "sales" : "customers", labels: Record<string, string> = { "sales-today": "Today", "crm-pipeline": "Pipeline", "customer-followups": "Today", "operations-sales": "Sales documents", "operations-quotations": "Sales documents", "operations-pricing": "Price lists", "crm-reports": "Reports", "crm-contacts": "Prospects & contacts", "customer-timeline": "Customers", "crm-customers": "Customers", "support-cases": "Service", "customer-identity": "Review customer data", "customer-duplicates": "Review customer data", "customer-access": "Review customer data" };
+    const label = labels[resolved.activeId], detail = resolved.detailLabel ?? (queryValue(searchParams, "detailId") ? ({ customer: "Customer profile", order: "Sales document", crm_lead: "CRM case", customer_followup: "Customer follow-up", support_ticket: "Support case" } as Record<string, string>)[queryValue(searchParams, "detailKind")] ?? "Record" : undefined);
+    return [{ label: hub === "sales" ? "Sales" : "Customers", href: `${base}/${hub}` }, ...(label && label !== "Customers" ? [{ label }] : []), ...(detail ? [{ label: detail }] : [])];
+  }
   if (resolved.activeId === "people-directory" && resolved.groupId === "people")
     return [
       { label: "People", ...(resolved.detailLabel ? { href: `${base}/people` } : {}) },
@@ -1147,7 +1195,7 @@ export function navigationCategory(
   resolved: NavigationResolution,
 ) {
   const activeId = resolved.sidebarId ?? resolved.activeId;
-  return model.categories.find(entry => entry.apps.some(item => item.id === activeId))
+  return model.categories.find(entry => [...entry.apps, ...(entry.secondaryItems ?? [])].some(item => item.id === activeId))
     ?? model.categories.find(entry => entry.apps.some(item =>
       model.apps.find(app => app.id === resolved.groupId)?.items.some(child => child.id === item.id)));
 

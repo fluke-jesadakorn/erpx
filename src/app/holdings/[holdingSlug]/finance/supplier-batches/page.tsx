@@ -3,7 +3,7 @@ import { Table, TableFrame } from "@/components/ui/foundation";
 import { FeaturePage } from "@/components/features/feature-page";
 import { FinanceWorkspace } from "@/components/finance/finance-workspace";
 import { hasPermission } from "@/lib/permissions";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { requireWorkContext, publicScope } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { listSupplierBatches, supplierBatchWorkspace } from "@/server/supplier-payments";

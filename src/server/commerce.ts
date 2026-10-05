@@ -104,6 +104,8 @@ export const invoiceFromDeliverySchema = z.object({
   dueDate: z.iso.date(),
 });
 export const settlementSchema = z.object({
+  periodId: z.string().min(1).optional(),
+  bankAccountId: z.string().min(1).optional(),
   paymentSlipId: z.string().min(1).optional(),
   attachmentSetIds: z.array(z.string().min(1)).max(10).default([]),
   expectedVersion: z.number().int().positive(),
@@ -188,18 +190,18 @@ async function settings(db: SqlDatabase, actor: WorkContext) {
     );
   return row;
 }
-async function period(db: SqlDatabase, actor: WorkContext, date: string) {
+async function period(db: SqlDatabase, actor: WorkContext, date: string, selectedId?: string) {
   const rows = await db
     .prepare(
-      "SELECT id FROM finance_periods WHERE company_id=? AND start_date<=? AND end_date>=? AND state='open'",
+      "SELECT id FROM finance_periods WHERE company_id=? AND start_date<=? AND end_date>=? AND state='open' AND (?::text IS NULL OR id=?)",
     )
-    .bind(actor.companyId, date, date)
+    .bind(actor.companyId, date, date, selectedId ?? null, selectedId ?? null)
     .all<Row>();
   if (rows.results.length !== 1)
     throw new ApiError(
       409,
       "PERIOD_UNAVAILABLE",
-      "Exactly one open accounting period is required for this date.",
+      selectedId ? "Choose an open Company accounting period containing the payment date." : "Choose the accounting period when several open periods contain this date.",
     );
   return String(rows.results[0].id);
 }
@@ -1587,7 +1589,12 @@ export async function prepareInvoiceSettlement(
       "Amount must be positive and no greater than the outstanding balance.",
     );
   const config = await settings(write, actor),
-    periodId = await period(write, actor, input.date);
+    periodId = await period(write, actor, input.date, input.periodId);
+  if (input.bankAccountId) {
+    const bank = await write.prepare("SELECT id FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND currency=? AND category='asset' AND control_kind='bank' AND status='active'").bind(input.bankAccountId, actor.companyId, config.chart_id, invoice.currency).first();
+    if (!bank) throw new ApiError(422,"BANK_ACCOUNT_INVALID","Choose an active bank account from the invoice's primary book and currency.");
+  }
+  const bankAccountId = input.bankAccountId ?? String(config.cash_account_id);
   const payment = `payment-${key}`,
     journal = `journal-${key}`;
   const payable = invoice.kind === "payable";
@@ -1600,20 +1607,21 @@ export async function prepareInvoiceSettlement(
   const lines = [
     {
       account: String(
-        payable ? invoice.credit_account_id : config.cash_account_id,
+        payable ? invoice.credit_account_id : bankAccountId,
       ),
       debit: amountMinor,
       credit: 0,
     },
     {
       account: String(
-        payable ? config.cash_account_id : invoice.debit_account_id,
+        payable ? bankAccountId : invoice.debit_account_id,
       ),
       debit: 0,
       credit: amountMinor,
     },
   ];
   const steps = [
+    ...(input.bankAccountId ? [assertion(write,key,"settlement-bank","EXISTS(SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND currency=? AND category='asset' AND control_kind='bank' AND status='active')",[bankAccountId,actor.companyId,config.chart_id,invoice.currency])] : []),
     await commerceMoney(write,actor,{sourceType:'finance_payment',sourceId:payment,amountKind:'settled',transactionDate:input.date,currency:String(invoice.currency),amountUnits:amountMinor}),
     await commerceMoney(write,actor,{sourceType:'finance_journal',sourceId:journal,amountKind:'debit_total',transactionDate:input.date,currency:String(invoice.currency),amountUnits:amountMinor}),
     assertion(write,key,"settlement-functional-currency","EXISTS(SELECT 1 FROM finance_charts WHERE id=? AND company_id=? AND base_currency=?) AND EXISTS(SELECT 1 FROM finance_invoices WHERE id=? AND fx_rate_micros=1000000)",[config.chart_id,actor.companyId,invoice.currency,invoiceId]),
@@ -1659,7 +1667,7 @@ export async function prepareInvoiceSettlement(
         config.currency,
         amountMinor,
         amountMinor,
-        config.cash_account_id,
+        bankAccountId,
         journal,
         actor.userId,
         payable ? actor.userId : null,
@@ -1918,14 +1926,14 @@ export async function saveMaster(
   );
 }
 
-export async function commercePage(actor:WorkContext,query:{view:string;kind?:string;q?:string;cursor?:string;movementCursor?:string;new?:string;edit?:string;request?:string}) {
+export async function commercePage(actor:WorkContext,query:{view:string;kind?:string;q?:string;cursor?:string;movementCursor?:string;new?:string;edit?:string;request?:string;status?:string}) {
   actor=allowed(actor,'read');const {write}=await holdingResources(actor.holdingId),s=scope(actor);
   const search=query.q??'',branchArgs=[actor.companyId,actor.branchId,actor.branchId];
   const partyKind=query.kind==='customer'||query.kind==='supplier'?query.kind:'';
   const orderView=['sales','quote','purchase'].includes(query.view);
   const lists:Record<string,{sql:string;args:unknown[];descending?:boolean}>={
     orders:{sql:`SELECT o.*,p.name party_name,o.created_at::text page_key FROM commerce_orders o JOIN finance_parties p ON p.id=o.party_id
-      WHERE ${s.sql} AND o.kind=? AND (?='' OR strpos(lower(o.number||' '||p.name||' '||o.state),lower(?))>0)`,args:[...s.args,query.view,search,search],descending:true},
+      WHERE ${s.sql} AND o.kind=? AND (?='' OR strpos(lower(o.number||' '||p.name||' '||o.state),lower(?))>0) AND (?='' OR o.state=?)`,args:[...s.args,query.view,search,search,query.status??'',query.status??''],descending:true},
     products:{sql:'SELECT *,sku AS page_key FROM commerce_products WHERE company_id=?',args:[actor.companyId]},
     parties:{sql:"SELECT *,name AS page_key FROM finance_parties WHERE company_id=? AND kind IN ('customer','supplier') AND person_id IS NULL AND (?::text='' OR kind=?)",args:[actor.companyId,partyKind,partyKind]},
     warehouses:{sql:'SELECT *,name AS page_key FROM commerce_warehouses WHERE company_id=? AND (?::text IS NULL OR branch_id=?)',args:branchArgs},
@@ -1939,7 +1947,7 @@ export async function commercePage(actor:WorkContext,query:{view:string;kind?:st
   };
   const list=orderView?'orders':query.view;
   const [page,config,options,movementPage]=await Promise.all([
-    readListPage<Row & {id:string;page_key:string}>(write,{...lists[list],cursor:query.cursor,scope:[actor.companyId,actor.branchId,list,query.view,...(list==='parties'?[partyKind]:[]),search]}),
+    readListPage<Row & {id:string;page_key:string}>(write,{...lists[list],cursor:query.cursor,scope:[actor.companyId,actor.branchId,list,query.view,...(list==='parties'?[partyKind]:[]),search,...(query.status?[query.status]:[])]}),
     settings(write,actor),
     query.new==='1'||query.edit||query.request ? commerceOverview(actor) : null,
     query.view==='stock'?readListPage<Row & {id:string;page_key:string}>(write,{

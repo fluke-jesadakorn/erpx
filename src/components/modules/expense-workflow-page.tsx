@@ -7,7 +7,7 @@ import { ExpensePostingPreview } from "./expense-posting-preview";
 import styles from "./expense.module.css";
 import { canManagePeople } from "@/server/people-directory";
 import { administrationAccess } from "@/server/administration";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import type { WorkContext } from "@/server/authorization";
 import {
   canEditExpense,

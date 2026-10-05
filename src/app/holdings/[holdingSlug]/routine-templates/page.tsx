@@ -9,7 +9,7 @@ import { EmptyState,PageHeader } from "@/components/ui/primitives";
 import { administrationAccess } from "@/server/administration";
 import { listTemplates } from "@/server/routines";
 import { staffPage } from "@/server/staff-page";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { Card } from "@/components/ui/foundation";
 export default async function Routines({
   params,

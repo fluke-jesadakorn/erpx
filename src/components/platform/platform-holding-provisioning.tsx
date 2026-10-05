@@ -1,4 +1,5 @@
 "use client";
+import { CollectionRecordLink, RecordCollectionDrawer } from "@/components/records/record-collection";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, Table, TextArea, TextInput } from "@/components/ui/foundation";
@@ -68,6 +69,7 @@ export function PlatformHoldingProvisioning({
 
   return (
     <Card as="section" appearance="standard" className="ui-panel" id="platform-holding-provisioning">
+      <RecordCollectionDrawer<PlatformProvisioningSnapshot> kind="platform_provision" title="Holding provisioning" endpoint="/api/v1/platform/operations/provision" select={(snapshot,id)=>snapshot.rows.find(row=>row.id===id) as unknown as Record<string,unknown>??null}/>
       <h3>Provision a Holding</h3>
       <p className="muted">
         Activate a pre-provisioned database and private file namespace. This creates the
@@ -95,7 +97,7 @@ export function PlatformHoldingProvisioning({
               {snapshot.rows.map((row) => (
                 <tr key={row.id}>
                   <td>
-                    <strong>{row.displayName}</strong>
+                    <CollectionRecordLink kind="platform_provision" id={row.id}>{row.displayName}</CollectionRecordLink>
                     <br />
                     <small>{row.slug}</small>
                   </td>

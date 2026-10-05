@@ -131,6 +131,8 @@ const EXTENSION_MEDIA_TYPES: Record<string, string> = {
 };
 
 export function attachmentApiBase(base: string) {
+  if (/^\/(?:api\/v1\/)?front\/[^/]+\/[^/]+\/pms\/?$/.test(base))
+    return (base.startsWith('/api/v1/')?'': '/api/v1')+base.replace(/\/$/,'');
   if (base.startsWith("/api/v1/holdings/") || /^\/api\/customer-portal\/[^/]+\/attachments\/?$/.test(base))
     return base.replace(/\/$/, "");
   if (!base.startsWith("/holdings/"))
@@ -347,7 +349,9 @@ export function attachmentContentUrl(
   linkId: string,
   variant: "original" | "preview",
 ) {
-  return `${attachmentApiBase(base)}/attachment-links/${encodeURIComponent(linkId)}/content?variant=${variant}`;
+  const location = typeof document !== 'undefined' && base.includes('/front/')
+    ? document.querySelector<HTMLElement>('[data-front-app]')?.dataset.frontLocation : undefined;
+  return `${attachmentApiBase(base)}/attachment-links/${encodeURIComponent(linkId)}/content?${new URLSearchParams({variant,...(location?{frontLocation:location}:{})})}`;
 }
 
 export async function listMediaPublications(

@@ -23,7 +23,7 @@ import {
   countOptions,
 } from "@/server/inventory-counts";
 import { pageError } from "@/server/page-error";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Count({
@@ -106,7 +106,7 @@ export default async function Count({
                   {lines.map((l) => (
                     <tr key={String(l.id)}>
                       <td>
-                        {String(l.sku)} · {String(l.description)}
+                        <Link href={`${base}/record-details/product/${encodeURIComponent(String(l.product_id))}`}>{String(l.sku)} · {String(l.description)}</Link>
                       </td>
                       <td>
                         {Number(l.snapshot_quantity_milli) / 1000} {String(l.unit)}
@@ -168,7 +168,7 @@ export default async function Count({
                   <tbody>
                     {lotLines.map((l) => (
                       <tr key={String(l.id)}>
-                        <td>{String(l.lot_code ?? l.serial_number)}</td>
+                        <td><Link href={`${base}/record-details/inventory_lot/${encodeURIComponent(String(l.lot_id))}`}>{String(l.lot_code ?? l.serial_number)}</Link></td>
                         <td>{Number(l.snapshot_quantity_milli) / 1000}</td>
                         <td>{Number(l.counted_quantity_milli) / 1000}</td>
                         <td>

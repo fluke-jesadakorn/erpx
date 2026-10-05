@@ -1,7 +1,7 @@
 "use client";
 import { InlineNotice } from "@/components/ui/foundation";
 
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import {Button,Field,Select,TextArea,TextInput} from "@/components/ui/foundation";
 import {minorToDecimal} from "@/lib/finance-money";
 import {usePeopleCommand} from "./payroll-controls";

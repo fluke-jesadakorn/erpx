@@ -28,6 +28,10 @@ export const frozenFiles = [
   "src/components/beta/social-post-content-editor.tsx", "src/components/beta/social-advanced-editor.tsx",
 ];
 export const sharedAdapters = [
+  // Shared record navigation is opt-in at register/list triggers; frozen callers keep their presentation.
+  "src/components/records/record-link.tsx", "src/components/records/record-context.tsx",
+  "src/components/records/record-collection.tsx", "src/components/records/pms-entry-detail.tsx", "src/components/records/pms-hotel-sources.tsx",
+  "src/components/records/record-surface.tsx", "src/components/records/record-drawer.tsx", "src/components/records/pos-record-detail.tsx",
   "src/app/login/login-form.tsx",
   "src/components/workplace/workplace-controls.tsx", "src/components/workplace/app-navigation.tsx",
   "src/components/features/feature-page.tsx", "src/components/features/feature-widget.tsx",

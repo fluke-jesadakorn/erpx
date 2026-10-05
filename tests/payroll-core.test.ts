@@ -6,6 +6,7 @@ import { submitPayrollReview } from "../src/server/payroll-readiness";
 import { getPayrollLiabilities, remitPayrollLiability, payrollRemittanceSchema } from "../src/server/payroll-remittance";
 import { listStaffNotifications } from "../src/server/staff-notifications";
 import { resolveFlow } from "../src/server/flow-routing";
+import { assertOwnedCashCannotMatchAgain } from "./helpers/finance-bank-ownership";
 import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from "./helpers/attachment-v2";
 
 vi.mock("../src/server/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
@@ -54,6 +55,7 @@ it("snapshots configured proration and overtime and exports an immutable review 
 });
 
 it("posts an approved payroll run into the finance ledger exactly once",async()=>{
+  const financeOwner={...f.owner};
   vi.useFakeTimers({toFake:["Date"]});vi.setSystemTime(new Date("2026-10-02T00:00:00Z"));
   f.owner.role="payroll_preparer";f.owner.assignmentId=await f.grant(f.owner,"payroll_preparer");
   f.manager.role="payroll_approver";f.manager.assignmentId=await f.grant(f.manager,"payroll_approver");
@@ -154,6 +156,9 @@ it("posts an approved payroll run into the finance ledger exactly once",async()=
   expect(await paymentFile.object.text()).toContain(item!.reference);
   expect(await db.prepare("SELECT status FROM hr_payment_batches WHERE id=?").bind(batch.id).first("status")).toBe("settled");
   const finalFlow=await resolveFlow(db,f.reviewer,"payroll",String(created.id)); expect(finalFlow.current).toBeNull(); expect(finalFlow.blocker).toBeNull();
+  const ownedCash=(await db.prepare("SELECT journal_id FROM hr_payroll_statutory_remittances WHERE company_id=? UNION ALL SELECT journal_id FROM hr_payroll_payment_settlements WHERE company_id=?").bind(f.company,f.company).all<{journal_id:string}>()).results;
+  expect(ownedCash).toHaveLength(3);
+  await assertOwnedCashCannotMatchAgain(db,financeOwner,ownedCash.map(row=>row.journal_id),f.accounts.cash);
 });
 
 it("requires an independent correction decision and preserves every reviewed payroll revision",async()=>{

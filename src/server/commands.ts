@@ -22,7 +22,7 @@ export async function replayCommand<T=Record<string,unknown>>(db:SqlDatabase,act
 }
 /** Replays also revalidate their original role; they cannot recover privilege after a switch. */
 async function validateReplayAuthority(db:SqlDatabase,actor:Actor) {
- if(!actor.authority)return;
+ if(!actor.authority && actor.iam?.queuedAssignmentVersion===undefined)return;
  const key=crypto.randomUUID();
  try {
    await db.batch([...workContextGuards(db,actor,key),...iamMutationGuards(db,actor,key),db.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
@@ -52,6 +52,10 @@ export async function executeCommand<T>(db: SqlDatabase, actor: Actor, id: strin
   const digest=await fingerprint(actor,operation,recordId,input);
   const prior=()=>replayCommand<T>(db,actor,id,operation,recordId,input);
   const existing=await prior();if(existing)return existing;
+  if(operation.startsWith("finance.")){
+    const fileSteps=await (await import("./finance-expansion-evidence")).financeExpansionReviewFileSteps(db,actor,operation,recordId,version,input,id);
+    statements=[...fileSteps,...statements];
+  }
   const target = flowCommandTarget(operation,recordId,input);
   if (operation === "commerce.invoice.create") {
     const delivery = await db.prepare("SELECT f.order_id FROM commerce_fulfillments f JOIN commerce_orders o ON o.id=f.order_id WHERE f.id=? AND o.company_id=?").bind(recordId,actor.companyId).first<{order_id:string}>();
@@ -100,6 +104,8 @@ export async function executeCommand<T>(db: SqlDatabase, actor: Actor, id: strin
     } catch (inspectionError) {
       if ((inspectionError as {code?:string}).code!=='25P02') throw inspectionError;
     }
+    const financeFailure=financialConstraintError(error);
+    if(financeFailure)throw financeFailure;
     if (/constraint|UNIQUE/i.test(String(error))) {
       const conflict = new ApiError(409,"CONFLICT","The record changed, a reference is unavailable, or this value already exists. Refresh and review again.");
       conflict.cause = error;
@@ -108,3 +114,16 @@ export async function executeCommand<T>(db: SqlDatabase, actor: Actor, id: strin
     throw error;
   }
 }
+
+const financeFailures:Record<string,string>={
+      PERIOD_CLOSED:"The posting date is covered by a closed or closing Company period. Use the next open date or independently reopen it.",
+      CLOSE_NOT_READY:"Resolve every draft dated within this Company period before closing, including drafts retained under an overlapping annual period.",
+      BOOK_ACCOUNT_MAPPING_REQUIRED:"Complete the effective secondary-book account mapping before posting.",
+      BOOK_ACCOUNT_IDENTITY_CHANGED:"The source and secondary accounts must keep the same category, currency and control kind.",
+      BOOK_CURRENCY_OR_STATUS_CHANGED:"Review both active books and their functional currency before posting.",
+      BOOK_POSTING_PRECEDES_REVIEWED_OPENING:"Use an open date on or after the reviewed secondary-book opening.",
+      SECONDARY_BOOK_REQUIRES_OWNED_ADJUSTMENT:"Secondary-book changes require an independently reviewed book adjustment.",
+      DIMENSION_VALUE_REQUIRED:"Fill in the Company's required reporting dimensions with active values before posting.",
+    };
+
+export function financialConstraintError(error:unknown){const code=Object.keys(financeFailures).find(code=>String(error).includes(code));return code?new ApiError(409,code,financeFailures[code]):null;}

@@ -77,22 +77,29 @@ describe("Source-derived Thai VAT register and filing preparation",()=>{
     await approvedEntry(await invoice("payable"),{treatment:"allocated",deductibleBps:5000});
     const p=await prepareVatPackage(f.reviewer,packageInput(),key());expect(p.result).toMatchObject({inputVatMinor:700,deductibleInputMinor:350,payableMinor:0,creditMinor:350,netMinor:-350});
   });
-  it("retains VAT close evidence and rejects an unmatched tax movement after preparation",async()=>{
-    await approvedEntry(await invoice());
+  it("retains VAT close evidence, refuses late GL and rejects pending corrections or unmatched tax movement",async()=>{
+    const source=await invoice(),entry=await approvedEntry(source);
     const prepared=await beginClose(f.reviewer,f.period,key());
     const evidence=JSON.parse(String(await db.prepare("SELECT detail_json FROM finance_close_checks WHERE period_id=? AND check_key='statutory-vat'").bind(f.period).first("detail_json")));
     expect(evidence).toMatchObject({ready:true,rows:[expect.objectContaining({ledger_minor:700,register_minor:700})]});
     const journal=`late-vat-${key()}`;
-    // Simulate source evidence drift after preparation; normal posting commands
-    // cannot post into the now-closing period.
-    await db.batch([
+    const lateSteps=[
       db.prepare("INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,source_type,memo,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,'2026-09-30','THB','manual','Unmatched tax evidence fixture','draft',?,1,1)").bind(journal,f.company,f.chart,f.period,journal,f.reviewer.userId),
       db.prepare("INSERT INTO finance_journal_lines(id,journal_id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,ordinal) VALUES(?,?,?,100,0,100,0,0),(?,?,?,0,100,0,100,1)").bind(key(),journal,f.accounts.cash,key(),journal,outputAccount),
       db.prepare("UPDATE finance_journals SET status='posted',posted_by=?,posted_at=1 WHERE id=?").bind(f.manager.userId,journal),
-    ]);
+    ];
+    await expect(db.batch(lateSteps)).rejects.toThrow("PERIOD_CLOSED");
+    expect(Number(await db.prepare("SELECT COUNT(*) n FROM finance_journals WHERE id=?").bind(journal).first("n"))).toBe(0);
+    const correction=await prepareVatCorrection(f.reviewer,entry,vatCorrectionSchema.parse({...facts(source,{documentReference:"Corrected supporting tax invoice reference"}),expectedEntryVersion:2,reason:"Review newly received document evidence without changing retained tax amounts"}),key());
     const period=await db.prepare("SELECT * FROM finance_periods WHERE id=?").bind(f.period).first();
-    expect(await calculateCloseReconciliations(db,f.manager,period!)).toMatchObject({ready:false,vat:{ready:false,rows:[expect.objectContaining({ledger_minor:800,register_minor:700})]}});
+    expect(await calculateCloseReconciliations(db,f.manager,period!)).toMatchObject({ready:false,vat:{ready:false,pendingCorrections:1,rows:[expect.objectContaining({ledger_minor:700,register_minor:700})]}});
     await expect(closePeriod(f.manager,f.period,{expectedVersion:Number(prepared.version),proof:"Reject unmatched VAT source evidence"},key())).rejects.toMatchObject({code:"CLOSE_RECONCILIATION_STALE"});
+    await cancelClose(f.reviewer,f.period,{expectedVersion:Number(prepared.version),reason:"Resolve changed source evidence before preparing the close again"},key());
+    await reviewVatCorrection(f.manager,correction.id,"reject",{expectedVersion:1,reason:"Retain independently reviewed original tax reference"},key());
+    await db.batch(lateSteps);
+    const openPeriod=await db.prepare("SELECT * FROM finance_periods WHERE id=?").bind(f.period).first();
+    expect(await calculateCloseReconciliations(db,f.manager,openPeriod!)).toMatchObject({ready:false,vat:{ready:false,rows:[expect.objectContaining({ledger_minor:800,register_minor:700})]}});
+    await expect(beginClose(f.reviewer,f.period,key())).rejects.toMatchObject({code:"CLOSE_VAT_RECONCILIATION_FAILED"});
     expect(JSON.parse(String(await db.prepare("SELECT detail_json FROM finance_close_checks WHERE period_id=? AND check_key='statutory-vat'").bind(f.period).first("detail_json"))).rows[0].ledger_minor).toBe(700);
   });
   it("appends independently reviewed corrections while preserving filed figures and original export bytes",async()=>{

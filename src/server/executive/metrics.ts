@@ -1,3 +1,5 @@
+import {readMetricSources,type MetricSourceGroup,type MetricSourcePage} from './metric-sources';
+import {formatMetric} from '@/lib/executive/numbers';
 import { visibility as legalVisibility } from "../legal/access";
 import "server-only";
 import { hasPermission } from "@/lib/permissions";
@@ -676,7 +678,9 @@ function moneyRatioMinor(numerator: string | number | bigint, denominator: strin
 }
 
 /** Read only explicit adapters. Totals and grouped values are cast to text before the shared SQL parser. */
-export async function queryMetric(db: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown = "default"): Promise<MetricData> {
+export function queryMetric(db: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown?: Breakdown): Promise<MetricData>;
+export function queryMetric(db: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown, sourceGroup: MetricSourceGroup): Promise<MetricSourcePage>;
+export async function queryMetric(db: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown = "default", sourceGroup?: MetricSourceGroup): Promise<MetricData|MetricSourcePage> {
   const spec = specs[id];
   if (!metricBreakdowns(id).includes(breakdown)) throw new ApiError(422, "BREAKDOWN_UNAVAILABLE", "This metric does not support that grouping.");
   if (!(await metricCatalogFor(db, a)).find((metric) => metric.id === id)?.available) throw new ApiError(403, "METRIC_FORBIDDEN", "This metric is unavailable in the current source permissions, acceptance status or scope.");
@@ -694,13 +698,13 @@ export async function queryMetric(db: SqlDatabase, a: WorkContext, id: MetricId,
   if (id === "active-subscriptions") {
     const label = breakdown === "status" ? "status" : breakdown === "plan" ? "plan" : "'Active subscriptions'", now = Date.now();
     sql = `WITH subscriptions AS (
-        SELECT COALESCE(p.name,e.plan_id) plan,CASE WHEN e.pending_end THEN 'ending' ELSE 'active' END status
+        SELECT e.id,COALESCE(p.name,e.plan_id) plan,CASE WHEN e.pending_end THEN 'ending' ELSE 'active' END status
         FROM billing_enrollments e
         LEFT JOIN LATERAL (SELECT name FROM billing_plans WHERE id=e.plan_id ORDER BY revision DESC LIMIT 1) p ON TRUE
         WHERE e.holding_id=? AND e.started_at<=? AND e.ended_at IS NULL
           AND (e.pending_end=FALSE OR e.effective_at IS NULL OR e.effective_at>?)
         UNION ALL
-        SELECT 'Legacy subscription' plan,b.status
+        SELECT b.holding_id id,'Legacy subscription' plan,b.status
         FROM beta_billing b WHERE b.holding_id=? AND b.subscription_id IS NOT NULL AND b.status IN ('active','trialing')
           AND (b.current_period_end IS NULL OR b.current_period_end*1000>?)
       ) SELECT ${label} label,count(*)::text value FROM subscriptions GROUP BY 1 ORDER BY 1`;
@@ -796,7 +800,7 @@ export async function queryMetric(db: SqlDatabase, a: WorkContext, id: MetricId,
     const label = breakdown === "branch" || breakdown === "department"
       ? `COALESCE((SELECT display_name FROM organization_nodes WHERE id=e.${breakdown}_id AND company_id=e.company_id),'Unassigned')`
       : breakdown === "level" ? "COALESCE((SELECT 'Level '||level_number||' · '||name FROM staff_levels WHERE id=e.level_id AND company_id=e.company_id),'Unmapped')" : "'Active people'";
-    sql = `WITH effective AS (SELECT DISTINCT ON (p.id) p.id person_id,e.* FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id WHERE ${scopedAlias("e")} AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active' AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')) ORDER BY p.id,e.start_date DESC,e.id) SELECT ${label} label,count(*)::text value FROM effective e GROUP BY 1 ORDER BY 1`;
+    sql = `WITH effective AS (SELECT DISTINCT ON (p.id) p.id effective_person_id,e.* FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id WHERE ${scopedAlias("e")} AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active' AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')) ORDER BY p.id,e.start_date DESC,e.id) SELECT ${label} label,count(*)::text value FROM effective e GROUP BY 1 ORDER BY 1`;
     values = scopeArgs;
   } else if (id === "approved-leave-duration") {
     const label = breakdown === "branch"
@@ -938,11 +942,11 @@ export async function queryMetric(db: SqlDatabase, a: WorkContext, id: MetricId,
       ? "COALESCE((SELECT n.display_name FROM organization_nodes n WHERE n.id=x.branch_id AND n.company_id=x.company_id),'Company-wide')"
       : "substring(x.event_date,1,7)";
     sql = `WITH sales AS (
-        SELECT s.company_id,s.branch_id,s.business_date event_date,s.total_minor amount_minor
+        SELECT s.id,s.id sale_id,s.company_id,s.branch_id,s.business_date event_date,s.total_minor amount_minor
         FROM pos_sales s WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND s.currency=?
           AND s.business_date BETWEEN ? AND ? AND s.state='completed'
       ), refunds AS (
-        SELECT s.company_id,s.branch_id,r.accounting_date event_date,-r.amount_minor amount_minor
+        SELECT r.id,s.id sale_id,s.company_id,s.branch_id,r.accounting_date event_date,-r.amount_minor amount_minor
         FROM pos_refunds r JOIN pos_sales s ON s.id=r.sale_id AND s.company_id=r.company_id
         WHERE r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND s.currency=?
           AND r.accounting_date BETWEEN ? AND ? AND r.kind='sale' AND r.state='completed'
@@ -1537,6 +1541,12 @@ export async function queryMetric(db: SqlDatabase, a: WorkContext, id: MetricId,
         : sumExact(exactRows.slice(99).map((row) => row.value)),
     }]
     : exactRows.map(({ label, value }) => ({ label, value }));
+
+  if (sourceGroup) {
+    const selected = rows.find(row => row.label === sourceGroup.label && (sourceGroup.unit === undefined || ('unit' in row && row.unit === sourceGroup.unit)));
+    const reported = selected ? formatMetric(selected.value, {unit: spec.unit, currency: spec.unit === 'money' ? f.currency : null, valueScale: spec.unit === 'quantity' ? 3 : spec.unit === 'count' || spec.unit === 'duration' ? 0 : 2}) + (sourceGroup.unit ? ` ${sourceGroup.unit}` : '') : undefined;
+    return readMetricSources(sourceDb,id,sql,values,sourceGroup,raw,`${spec.dateBasis} · ${f.from} to ${f.to} · ${f.currency}`,reported);
+  }
 
   const referenceAt = referenceAtOverride ?? Date.now();
   const watermarks = spec.holdingOwnerOnly

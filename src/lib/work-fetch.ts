@@ -13,6 +13,8 @@ export function workFetch(input:RequestInfo|URL,init?:RequestInit):Promise<Respo
  const platformNode=document.querySelector<HTMLElement>('[data-platform-assignment]');
  if(url.pathname.startsWith('/api/v1/platform/')&&platformNode)headers.set('x-erpx-platform-assignment',platformNode.dataset.platformAssignment!);
  const method=(init?.method??(input instanceof Request?input.method:'GET')).toUpperCase();
+ const recordForm=document.activeElement?.closest?.('form')??null;
+ const formEditVersion=recordForm?.getAttribute?.('data-erpx-edit-version')??null;
  const cleanup=method==='DELETE' && (url.pathname.endsWith('/push')||url.pathname.endsWith('/push/session'));
  const selecting=url.pathname==='/api/v1/platform/assignments/active';
  if(contextIsSwitching()&&!['GET','HEAD','OPTIONS'].includes(method)&&!cleanup&&!selecting)return Promise.resolve(Response.json({error:{code:'WORK_CONTEXT_CHANGED',message:'Account and permissions are updating. Wait before submitting.'}},{status:409}));
@@ -25,7 +27,10 @@ export function workFetch(input:RequestInfo|URL,init?:RequestInit):Promise<Respo
  return fetch(input,{...init,headers}).then(async response=>{
  if(response.status===409){const body=await response.clone().json().catch(()=>null);if(["WORK_CONTEXT_CHANGED","WORK_ROLE_REQUIRED","WORK_ROLE_UNAVAILABLE"].includes(body?.error?.code))window.dispatchEvent(new Event('erpx:work-context-changed'));}
  if(generation!==contextGeneration() || url.pathname.startsWith('/api/v1/platform/') && platformNode && (!platformNode.isConnected || headers.get('x-erpx-platform-assignment')!==platformNode.dataset.platformAssignment) || node && (!node.isConnected || node.dataset.workStale==='true' || stamp !== [node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment].join(':')))return Response.json({error:{code:'WORK_CONTEXT_CHANGED',message:'Your work role changed. Reload and review.'}},{status:409});
- if(response.ok && !["GET","HEAD","OPTIONS"].includes(method) && !url.pathname.endsWith("/navigation")) announceWorkChange();
+ if(response.ok && !["GET","HEAD","OPTIONS"].includes(method) && !url.pathname.endsWith("/navigation")) {
+  window.dispatchEvent(new CustomEvent('erpx:record-command-saved',{detail:{form:recordForm,formEditVersion}}));
+  announceWorkChange();
+ }
  return response;
  });
 }

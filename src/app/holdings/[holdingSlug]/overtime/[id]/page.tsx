@@ -7,7 +7,7 @@ import { getOvertime } from "@/server/overtime";
 import { pageError } from "@/server/page-error";
 import { holdingResources } from "@/server/runtime";
 import { activeStaff } from "@/server/staff-policy";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 export default async function OvertimeDetail({params,searchParams}:{params:Promise<{holdingSlug:string;id:string}>;searchParams:Promise<{shift?:string}>}) {
  const {holdingSlug,id}=await params,actor=await requireWorkContext(holdingSlug),base=workspaceBase(publicScope(actor)),record=id==='new'?undefined:await getOvertime(actor,id).catch(e=>pageError(e,holdingSlug));
  let initial={};const {shift}=await searchParams;

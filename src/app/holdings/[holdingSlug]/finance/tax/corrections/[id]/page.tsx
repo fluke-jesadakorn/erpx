@@ -1,5 +1,5 @@
 import { Table, TableFrame } from "@/components/ui/foundation";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { hasPermission } from "@/lib/permissions";
@@ -54,7 +54,7 @@ export default async function VatCorrectionPage({
           <Card as="section" appearance="standard" className="ui-panel" key={String(next.id)}>
             <h2>
               {String(old.document_reference)} ·{" "}
-              {next.source_type === "commerce_return"
+              {next.source_type !== "invoice"
                 ? "Return linked to original"
                 : "Original document"}
             </h2>

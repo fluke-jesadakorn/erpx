@@ -94,6 +94,7 @@ export async function readWorkSnapshot(actor: WorkContext): Promise<WorkSnapshot
   // scope, but return domain 403s instead of interrupting the entire Next page.
   actor = { ...actor, pageRequest: undefined };
   const jobs: { label: string; load: () => Promise<WorkItem[]> }[] = [];
+  if(!actor.beta)jobs.push({label:"Finance expansion reviews",load:async()=>(await import("./finance-expansion-work")).financeExpansionWork(actor)});
   jobs.push({label:"Legal",load:async()=> (await import("./legal/integrations")).legalWork((await holdingResources(actor.holdingId)).write,actor)});
   if (!actor.beta) jobs.push({label:"Overtime",load:()=>overtimeWork(actor)});
   if (!actor.beta) jobs.push({label:"Hotel operations",load:()=>pmsWork(actor)});
@@ -218,6 +219,7 @@ export async function readWorkSnapshot(actor: WorkContext): Promise<WorkSnapshot
       'Stock in transit':['inventory'], 'Quality holds':['quality'], 'Quality escalations':['quality'],
       'Supplier payment batches':['procurement'], 'Return refunds':['sales'],
       'Commercial and financial workflows':['finance'],
+      'Finance expansion reviews':['finance'],
     };
     for (let index=jobs.length-1;index>=0;index--)
       if (!(sources[jobs[index].label]??[]).some((moduleId)=>enabled.has(moduleId))) jobs.splice(index,1);

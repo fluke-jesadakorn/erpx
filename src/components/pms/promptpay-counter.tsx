@@ -1,5 +1,7 @@
 "use client";
-import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
+import { Dialog } from "@/components/ui/dialog";
+import { decimalToMinor } from "@/lib/finance-money";
+import { Button, Field, Select, TextInput, TextArea } from "@/components/ui/foundation";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
@@ -46,7 +48,8 @@ export function PmsPromptPay({
     [payment, setPayment] = useState<Payment | null>(null),
     [id, setId] = useState(initialId ?? ""),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [refundRow,setRefundRow]=useState<History|null>(null);
   const language = useFrontLanguage();
   useEffect(() => {
     if (!id) return;
@@ -170,42 +173,12 @@ export function PmsPromptPay({
                     ? "Late payment under review"
                     : "Paid"}
               </p>
-              {row.state === "succeeded" && !row.refund_state && row.payer_email && (
+              {row.state === "succeeded" && (!row.refund_state || row.refund_state === "succeeded") && row.payer_email && (
                 <Button
                   type="submit"
                   variant="primary"
                   disabled={busy}
-                  onClick={async () => {
-                    const amount = window.prompt(
-                      frontText("Refund amount (THB)", language),
-                      (row.amount_minor / 100).toFixed(2),
-                    );
-                    if (amount === null) return;
-                    const reason = window.prompt(frontText("Reason for refund", language));
-                    if (reason === null) return;
-                    setBusy(true);
-                    setError("");
-                    try {
-                      const response = await workFetch(`/api/v1${base}/pms/stripe-refunds`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          action: "request",
-                          id: row.id,
-                          amountMinor: Math.round(Number(amount) * 100),
-                          reason,
-                        }),
-                      });
-                      const body = await response.json();
-                      if (!response.ok)
-                        throw new Error(body.error?.message ?? "Refund request failed");
-                      router.refresh();
-                    } catch (error) {
-                      setError(error instanceof Error ? error.message : "Refund request failed");
-                    } finally {
-                      setBusy(false);
-                    }
-                  }}
+                  onClick={() => setRefundRow(row)}
                 >
                   Request Stripe refund
                 </Button>
@@ -219,6 +192,15 @@ export function PmsPromptPay({
             </div>
           ))}
       </section>
+      <Dialog presentation="form-drawer" appearance="standard" open={Boolean(refundRow)} onClose={()=>setRefundRow(null)} title={frontText("Request Stripe refund",language)} dismissDisabled={busy}>
+        {refundRow&&<form onSubmit={async e=>{e.preventDefault();const form=new FormData(e.currentTarget);setBusy(true);setError("");try{const amountMinor=decimalToMinor(String(form.get("amount")));if(amountMinor<=0||amountMinor>refundRow.amount_minor)throw new Error("Enter an amount within the original payment");const response=await workFetch(`/api/v1${base}/pms/stripe-refunds`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"request",id:refundRow.id,amountMinor,reason:String(form.get("reason"))})});const body=await response.json();if(!response.ok)throw new Error(body.error?.message??"Refund request failed");setRefundRow(null);router.refresh();}catch(error){setError(error instanceof Error?error.message:"Refund request failed");}finally{setBusy(false);}}}>
+          <p>Original payment: THB {(refundRow.amount_minor/100).toFixed(2)}</p>
+          <Field appearance="standard">Refund amount (THB)<TextInput appearance="standard" name="amount" type="number" required min="0.01" step="0.01" max={refundRow.amount_minor/100} defaultValue={(refundRow.amount_minor/100).toFixed(2)}/></Field>
+          <Field appearance="standard">Reason for refund<TextArea appearance="standard" name="reason" required minLength={3} maxLength={1000}/></Field>
+          {error&&<p role="alert">{error}</p>}
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>Request independent approval</Button>
+        </form>}
+      </Dialog>
     </FrontLocalizedTree>
   );
 }

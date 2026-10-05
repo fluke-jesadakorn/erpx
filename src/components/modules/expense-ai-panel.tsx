@@ -4,7 +4,7 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { Button } from "@/components/ui/foundation";
 
 import { workFetch } from "@/lib/work-fetch";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { LoaderCircle, Sparkles } from "lucide-react";
 import styles from "./expense.module.css";
 import { useCallback, useEffect, useRef, useState } from "react";

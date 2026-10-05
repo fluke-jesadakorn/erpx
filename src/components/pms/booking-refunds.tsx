@@ -1,10 +1,13 @@
 "use client";
+import {RecordLink} from "@/components/records/record-link";
+import {recordCanonicalHref} from "@/lib/record-drawer";
 import { Button, Table, TableFrame } from "@/components/ui/foundation";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
 import { minorToDecimal } from "@/lib/finance-money";
+import {BookingRefundRecovery} from "./booking-refund-recovery";
 
 type Refund = {
   id: string;
@@ -13,6 +16,7 @@ type Refund = {
   refund_state: string;
   last_error: string | null;
   created_at: number;
+  needs_receipt_recovery?: boolean;
 };
 export function BookingRefunds({
   base,
@@ -44,14 +48,14 @@ export function BookingRefunds({
           <tbody>
             {rows.map((row) => (
               <tr key={row.id}>
-                <td>{row.id.slice(0, 8)}</td>
+                <td><RecordLink href={recordCanonicalHref(base,{kind:"pms_booking_refund",id:row.id})}>{row.id.slice(0, 8)}</RecordLink></td>
                 <td>THB {minorToDecimal(Number(row.amount_minor))}</td>
                 <td>
                   {row.refund_state}
                   {row.last_error && <p>{row.last_error}</p>}
                 </td>
                 <td>
-                  {canApprove && row.refund_state === "requested" ? (
+                  {canApprove && (row.needs_receipt_recovery || row.refund_state === 'failed') ? <BookingRefundRecovery base={base} id={row.id} receipt={row.needs_receipt_recovery} onSaved={()=>router.refresh()}/> : canApprove && row.refund_state === "requested" ? (
                     <Button
                       type="submit"
                       variant="primary"
@@ -78,6 +82,8 @@ export function BookingRefunds({
                     >
                       Approve Stripe refund
                     </Button>
+                  ) : row.refund_state === "requires_action" ? (
+                    "Waiting for guest bank details"
                   ) : row.refund_state === "processing" ? (
                     "Waiting for Stripe"
                   ) : row.refund_state === "succeeded" ? (

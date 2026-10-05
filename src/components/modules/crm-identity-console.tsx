@@ -7,12 +7,20 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
 import type { crmIdentities } from "@/server/crm-identities";
-import { Card, FormLayout } from "@/components/ui/foundation";
+import { HubForm } from "@/components/sales-customers/hub-form";
+import { HubPagination, HubSegments } from "@/components/sales-customers/hub-shell";
+import { HubFilters, HubTable, hubPage } from "@/components/sales-customers/hub-list";
+import { RecordLink as Link } from "@/components/records/record-link";
+import { queryValue, type HubQuery } from "@/lib/sales-customers";
+import styles from "@/components/sales-customers/hub.module.css";
+import { FormLayout } from "@/components/ui/foundation";
 
 export function CRMIdentityConsole({
   base,
   data,
+  query = {},
 }: {
+  query?: HubQuery;
   base: string;
   data: Awaited<ReturnType<typeof crmIdentities>>;
 }) {
@@ -38,6 +46,7 @@ export function CRMIdentityConsole({
         throw new Error(j.error?.message ?? "Unable to save CRM identity.");
       }
       last.current = null;
+      window.dispatchEvent(new Event("erpx:hub-saved"));
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Retry the same action.");
@@ -45,18 +54,15 @@ export function CRMIdentityConsole({
       setBusy(false);
     }
   }
+  const items = (query.list === "contacts" ? data.contacts : data.accounts).filter(row => !query.q || `${row.name} ${row.detail ?? ""}`.toLowerCase().includes(queryValue(query, "q").toLowerCase())), rows = hubPage(items, query);
   return (
-    <Card as="section" appearance="standard" className="ui-panel">
-      <h2>Accounts &amp; contacts</h2>
-      <p>
-        Prospects can be recorded before Finance creates a customer. A separate reviewer must
-        confirm a Finance customer or PMS guest link; names and email addresses never link people
-        automatically.
-      </p>
+    <section className={styles.section}>
+      <p className={styles.description}>Prospects stay separate until their customer link is reviewed.</p>
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+      <div className={styles.actions}>
       {data.canCreate && (
         <>
-          <FormLayout
+          <HubForm title="New prospect account" label="New prospect"><FormLayout
             className="ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -79,8 +85,8 @@ export function CRMIdentityConsole({
             <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Create account
             </Button>
-          </FormLayout>
-          <FormLayout
+          </FormLayout></HubForm>
+          <HubForm title="New contact" label="New contact" primary={false}><FormLayout
             className="ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -116,11 +122,11 @@ export function CRMIdentityConsole({
             <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Create contact
             </Button>
-          </FormLayout>
+          </FormLayout></HubForm>
         </>
       )}
       {data.canReview && (
-        <FormLayout
+        <HubForm title="Review Finance customer link" label="Review customer link" primary={false}><FormLayout
           className="ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -168,16 +174,22 @@ export function CRMIdentityConsole({
           <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Confirm link
           </Button>
-        </FormLayout>
+        </FormLayout></HubForm>
       )}
-      <h3>Recorded accounts</h3>
-      {data.accounts.map((a) => (
-        <p key={String(a.id)}>
-          {String(a.name)} · {String(a.kind)} ·{" "}
-          {a.finance_party_id ? `Finance: ${String(a.finance_customer_name)}` : "Prospect"}
-        </p>
-      ))}
-      {!data.accounts.length && <p>No accounts recorded.</p>}
-    </Card>
+      </div>
+      <div className={styles.section}>
+        <HubSegments base={base} hub="customers" query={{ ...query, view: "contacts" }} name="list" selected={queryValue(query, "list", "accounts")} label="Prospect record type" values={[["accounts", "Prospects"], ["contacts", "Contacts"]]} />
+        <HubFilters query={{ ...query, view: "contacts" }} placeholder="Search prospects and contacts" />
+        <HubTable label="Prospects and contacts" columns={query.list === "contacts" ? ["Contact", "Prospect account", "Contact detail"] : ["Prospect", "Type", "Customer link"]}>
+          {rows.map(row => <tr key={String(row.id)}>
+            <td><span className={styles.recordName}>{String(row.name)}</span></td>
+            <td data-label={query.list === "contacts" ? "Prospect account" : "Type"}>{query.list === "contacts" ? String(data.accounts.find(account => account.id === row.account_id)?.name ?? "Account unavailable") : String(row.kind)}</td>
+            <td data-label={query.list === "contacts" ? "Contact detail" : "Customer link"}>{query.list === "contacts" ? String(row.detail) : row.finance_party_id ? <Link href={`${base}/customers/${row.finance_party_id}`}>{String(row.finance_customer_name)}</Link> : "Prospect"}</td>
+          </tr>)}
+        </HubTable>
+        {!items.length && <p>No matching records in this scope.</p>}
+        <HubPagination base={base} hub="customers" query={{ ...query, view: "contacts" }} count={rows.length} total={items.length} />
+      </div>
+    </section>
   );
 }

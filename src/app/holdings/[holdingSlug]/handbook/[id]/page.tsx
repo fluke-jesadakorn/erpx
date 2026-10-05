@@ -10,7 +10,7 @@ import { publicScope,requireWorkContext } from "@/server/authorization";
 import { handbookAccess,handbookArticle } from "@/server/handbook";
 import { accessPage,pageError } from "@/server/page-error";
 import { holdingResources } from "@/server/runtime";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 export default async function Article({
   params,
   searchParams,

@@ -63,6 +63,7 @@ it("keeps the sensitive workforce registry exact and fails closed for hidden HR 
       "benefit_election:election_document:record,action",
       "benefit_election:provider_proof:record,action",
       "benefit_plan:benefit_booklet:record",
+      "hr_evaluation_assessment:evaluation_evidence:record",
       "hr_person:bank_document:record",
       "hr_person:compensation_authorization:record",
       "hr_person:employment_amendment:record",

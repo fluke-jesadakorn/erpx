@@ -1,4 +1,5 @@
 "use client";
+import { RecordLink } from "@/components/records/record-link";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { FormDisclosure } from "@/components/ui/form-disclosure";
@@ -427,7 +428,7 @@ export function SalesPricingConsole({ base, data }: { base: string; data: Data }
               {data.lists.map((list) => {
                 const listItems = data.items.filter((item) => item.price_list_id === list.id);
                 return <tr key={String(list.id)}>
-                  <td><strong>{String(list.name)}</strong></td>
+                  <td><RecordLink href={`${base}/record-details/price_list/${encodeURIComponent(String(list.id))}`}>{String(list.name)}</RecordLink></td>
                   <td><div className="grid gap-3">{listItems.map(item => <div key={String(item.id)}>
                     <div>{String(item.sku)}</div>
                     <div className="ui-description">{String(item.product_name)}</div>

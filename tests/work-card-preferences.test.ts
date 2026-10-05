@@ -196,6 +196,7 @@ it("requires selecting the warehouse grant and rejects department inventory crea
     "service_request",
     "equipment_request",
     "purchase_request",
+    "leave",
   ]);
   const actor: WorkContext = {
     ...f.it,

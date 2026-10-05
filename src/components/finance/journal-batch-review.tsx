@@ -1,4 +1,5 @@
 "use client";
+import { RecordLink } from "@/components/records/record-link";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Table, TableFrame, TextArea, TextInput } from "@/components/ui/foundation";
@@ -113,7 +114,7 @@ export function JournalBatchReview({
                   />
                 </td>
                 <td>
-                  <a href={`${base}/finance/journals/${j.id}`}>{String(j.journal_number)}</a>
+                  <RecordLink href={`${base}/finance/journals/${encodeURIComponent(String(j.id))}`}>{String(j.journal_number)}</RecordLink>
                 </td>
                 <td>{String(j.entry_date)}</td>
                 <td>

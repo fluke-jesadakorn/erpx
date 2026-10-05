@@ -45,7 +45,7 @@ function policy(
     requiredCount: options.requiredCount ?? 0,
     classification: options.classification ?? "confidential",
     retentionPolicyKey: options.retentionPolicyKey ?? null,
-    publication: false,
+    publication: options.publication ?? false,
     portalUpload: false,
   };
 }
@@ -57,6 +57,7 @@ function policy(
  * configuration dumps and database dumps.
  */
 export const financeOperationsAttachmentPolicies: readonly AttachmentPolicy[] = Object.freeze([
+  ...["finance_billing_correction","finance_business_bill","finance_plan_edition","finance_book_rule","finance_book_adjustment","finance_bank_match_group","finance_collection_case","finance_business_contract","finance_recognition_run","finance_instrument","finance_instrument_run","finance_asset_policy","finance_asset_policy_run","finance_group_report","finance_ownership_interest","finance_acquisition","finance_intercompany_pair"].map(type=>policy(type,"finance_support",["record"],{maxFiles:50})),
   policy("finance_journal", "journal_support", ["record"], { maxFiles: 50 }),
   policy("finance_bank_statement", "bank_statement", ["record"], { maxFiles: 50 }),
   policy("finance_bank_transaction", "reconciliation_workpaper", ["action"]),
@@ -87,6 +88,8 @@ export const financeOperationsAttachmentPolicies: readonly AttachmentPolicy[] = 
   policy("pms_lost_property", "lost_property_photo", ["record", "action"], { mediaTypes: images }),
   policy("pms_lost_property", "handover_evidence", ["action"], { classification: "restricted" }),
   policy("pms_property", "ota_reconciliation", ["action"], { maxFiles: 50 }),
+  policy("pms_property", "booking_media", ["record"], { mediaTypes: images, publication: true, classification: "internal", maxFiles: 24 }),
+  policy("pms_room_type", "booking_media", ["record"], { mediaTypes: images, publication: true, classification: "internal", maxFiles: 24 }),
 
   policy("overtime_request", "planned_evidence", ["action"]),
   policy("overtime_request", "actual_evidence", ["action"]),
@@ -155,6 +158,7 @@ async function companyRow(
 }
 
 const financeRecords: Record<string, { table: string; version: string; write: string }> = {
+ ...Object.fromEntries(Object.entries({finance_billing_correction:"finance_billing_corrections",finance_business_bill:"finance_business_billing_runs",finance_plan_edition:"finance_plan_editions",finance_book_rule:"finance_book_rules",finance_book_adjustment:"finance_book_adjustments",finance_bank_match_group:"finance_bank_match_groups",finance_collection_case:"finance_collection_cases",finance_business_contract:"finance_business_contracts",finance_recognition_run:"finance_recognition_runs",finance_instrument:"finance_instrument_editions",finance_instrument_run:"finance_instrument_runs",finance_asset_policy:"finance_asset_policy_editions",finance_asset_policy_run:"finance_asset_policy_runs",finance_group_report:"finance_group_report_editions",finance_ownership_interest:"finance_ownership_interests",finance_acquisition:"finance_acquisitions",finance_intercompany_pair:"finance_intercompany_document_pairs"}).map(([type,table])=>[type,{table,version:"version",write:"finance.write"}])),
   finance_journal: { table: "finance_journals", version: "version", write: "finance.write" },
   finance_bank_statement: { table: "finance_bank_statements", version: "version", write: "finance.write" },
   finance_bank_transaction: { table: "finance_bank_transactions", version: "version", write: "finance.write" },
@@ -171,6 +175,7 @@ const financeRecords: Record<string, { table: string; version: string; write: st
 };
 
 const pmsKinds: Record<string, string> = {
+  pms_room_type: "room_type",
   pms_guest: "guest",
   pms_reservation: "reservation",
   pms_stay: "stay",
@@ -179,6 +184,7 @@ const pmsKinds: Record<string, string> = {
 };
 
 function pmsWritePermission(policy: AttachmentPolicy) {
+  if (policy.purposeKey === "booking_media") return "pms.configure";
   if (["pms_guest", "pms_reservation"].includes(policy.targetType)) return "pms.reservations";
   if (policy.targetType === "pms_stay") return "pms.frontdesk";
   if (policy.targetType === "pms_task") return "pms.housekeeping";
@@ -209,9 +215,13 @@ export async function authorizeFinanceOperationsAttachmentTarget(
     const row = await companyRow(
       db,
       actor,
-      `SELECT company_id,NULL::text branch_id,NULL::text department_id,${finance.version} AS version${policy.targetType==="finance_tax_identity"?",party_id,status":""} FROM ${finance.table} WHERE id=? AND company_id=?`,
+      `SELECT company_id,NULL::text branch_id,NULL::text department_id,${finance.version} AS version${policy.targetType==="finance_tax_identity"?",party_id,status":policy.purposeKey==="finance_support"?(policy.targetType==="finance_business_bill"?",CASE WHEN EXISTS(SELECT 1 FROM finance_business_billing_runs child WHERE child.parent_run_id=finance_business_billing_runs.id) THEN 'superseded' ELSE no_charge_status END AS status":",status"):""} FROM ${finance.table} WHERE id=? AND company_id=?`,
       targetId,
     );
+    if(policy.purposeKey==="finance_support"){
+      if(["finance_group_report","finance_ownership_interest","finance_acquisition","finance_intercompany_pair"].includes(policy.targetType)&&actor.scope.kind!=="holding")forbidden("Use Holding Finance authority to manage group evidence.");
+      if(operation!=="read"&&!["draft",...(policy.targetType==="finance_bank_match_group"?["proposed"]:[])].includes(String(row.status)))throw new ApiError(409,"ATTACHMENT_TARGET_LOCKED","Retained Finance evidence is locked after review. Prepare a corrected owner edition before changing its documents.");
+    }
     if(policy.targetType==="finance_tax_identity"){
       if(actor.branchId||actor.departmentId||row.party_id!==null)forbidden("Scanned signer evidence belongs to the Company payer's tax identity.");
       if(operation!=="read"&&row.status!=="draft")throw new ApiError(409,"ATTACHMENT_TARGET_LOCKED","Prepare a new tax identity revision to change an approved signer source.");
@@ -310,6 +320,7 @@ export async function authorizeFinanceOperationsAttachmentTarget(
 }
 
 const versionDescriptors: Record<string, { table: string; column?: string; extra?: string }> = {
+ ...Object.fromEntries(Object.entries(financeRecords).filter(([type])=>financeOperationsAttachmentPolicies.some(p=>p.targetType===type&&p.purposeKey==="finance_support")).map(([type,record])=>[type,{table:record.table,extra:type==="finance_business_bill"?"no_charge_status='draft' AND NOT EXISTS(SELECT 1 FROM finance_business_billing_runs child WHERE child.parent_run_id=finance_business_billing_runs.id)":type==="finance_bank_match_group"?"status='proposed'":"status='draft'"}])),
   finance_journal: { table: "finance_journals" },
   finance_bank_statement: { table: "finance_bank_statements" },
   finance_bank_transaction: { table: "finance_bank_transactions" },
@@ -326,6 +337,7 @@ const versionDescriptors: Record<string, { table: string; column?: string; extra
   pos_sale: { table: "pos_sales" },
   pos_refund: { table: "pos_refunds" },
   pos_shift: { table: "pos_shifts" },
+  pms_room_type: { table: "pms_records", extra: "kind='room_type'" },
   pms_guest: { table: "pms_records", extra: "kind='guest'" },
   pms_reservation: { table: "pms_records", extra: "kind='reservation'" },
   pms_stay: { table: "pms_records", extra: "kind='stay'" },
@@ -377,7 +389,7 @@ export function financeOperationsAttachmentRecordVersionStep(
   const item = versionDescriptors[targetType];
   if (!item) return null;
   const column = item.column ?? "version";
-  const hasUpdatedAt = !["finance_bank_statements", "finance_periods", "finance_assets", "iam_reviews", "iam_migrations", "company_provisioning"].includes(item.table);
+  const hasUpdatedAt = !["finance_bank_statements", "finance_periods", "finance_assets", "finance_plan_editions", "finance_book_rules", "finance_business_billing_runs", "iam_reviews", "iam_migrations", "company_provisioning"].includes(item.table);
   return db.prepare(`UPDATE ${item.table} SET ${column}=${column}+1${hasUpdatedAt ? ",updated_at=?" : ""} WHERE id=? AND ${column}=?${item.extra ? ` AND ${item.extra}` : ""}`)
     .bind(...(hasUpdatedAt ? [now, targetId, expectedVersion] : [targetId, expectedVersion]));
 }

@@ -1,5 +1,5 @@
 import { Table as StandardTable, TableFrame } from "@/components/ui/foundation";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import {FeaturePage} from "@/components/features/feature-page";
 import {PageHeader} from "@/components/ui/primitives";
 import {minorToDecimal} from "@/lib/finance-money";

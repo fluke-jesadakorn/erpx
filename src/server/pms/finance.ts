@@ -16,6 +16,8 @@ export async function pmsFinanceOverview(actor:WorkContext,propertyId?:string) {
       COALESCE(sum(l.debit_minor-l.credit_minor) FILTER (WHERE l.account_id=p.config_json::jsonb->'accounts'->>'receivable'),0) receivable,
       COALESCE(sum(l.credit_minor-l.debit_minor) FILTER (WHERE l.account_id=p.config_json::jsonb->'accounts'->>'advance'),0) advance,
       COALESCE(sum(l.credit_minor-l.debit_minor) FILTER (WHERE l.account_id=p.config_json::jsonb->'accounts'->>'deposit'),0) deposit,
+      COALESCE(sum(l.credit_minor-l.debit_minor) FILTER (WHERE l.account_id=p.config_json::jsonb->'onlineAccounting'->>'refundPayable'),0) refund_payable,
+      COALESCE(sum(l.credit_minor-l.debit_minor) FILTER (WHERE l.account_id=p.config_json::jsonb->'onlineAccounting'->>'unallocated'),0) unallocated,
       COALESCE(sum(l.debit_minor-l.credit_minor) FILTER (WHERE l.account_id IN (p.config_json::jsonb->'accounts'->>'bank',p.config_json::jsonb->'accounts'->>'cash')),0) received,
       COALESCE(sum(l.debit_minor),0) debit,COALESCE(sum(l.credit_minor),0) credit
     FROM pms_properties p LEFT JOIN (SELECT property_id,journal_id FROM pms_postings
@@ -24,7 +26,16 @@ export async function pmsFinanceOverview(actor:WorkContext,propertyId?:string) {
     LEFT JOIN finance_journal_lines l ON l.journal_id=j.id
     WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.id=?) GROUP BY p.id`)
     .bind(actor.companyId,actor.branchId,actor.branchId,propertyId??null,propertyId??null)
-    .all<{id:string;receivable:number;advance:number;deposit:number;received:number;debit:number;credit:number}>()).results;
+    .all<{id:string;receivable:number;advance:number;deposit:number;refund_payable:number;unallocated:number;received:number;debit:number;credit:number}>()).results;
+  const liabilities=(await write.prepare(`SELECT p.id,
+    COALESCE(sum(CASE WHEN e.data_json::jsonb->>'description'='payment.refund_liability' THEN (e.data_json::jsonb->>'total')::bigint
+      WHEN e.data_json::jsonb->>'description'='payment.refund_settle' AND source.data_json::jsonb->>'description'<>'payment.unallocated' THEN (e.data_json::jsonb->>'total')::bigint ELSE 0 END),0) refund_payable,
+    COALESCE(sum(CASE WHEN e.data_json::jsonb->>'description'='payment.unallocated' THEN (e.data_json::jsonb->>'total')::bigint
+      WHEN e.data_json::jsonb->>'description'='payment.refund_settle' AND source.data_json::jsonb->>'description'='payment.unallocated' THEN (e.data_json::jsonb->>'total')::bigint ELSE 0 END),0) unallocated
+    FROM pms_properties p LEFT JOIN pms_records e ON e.property_id=p.id AND e.kind='entry'
+    LEFT JOIN pms_records source ON source.property_id=p.id AND source.id=e.data_json::jsonb->>'originalId' AND source.kind='entry'
+    WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.id=?) GROUP BY p.id`)
+    .bind(actor.companyId,actor.branchId,actor.branchId,propertyId??null,propertyId??null).all<{id:string;refund_payable:number;unallocated:number}>()).results;
   const reviews=(await write.prepare(`SELECT t.id,t.property_id,t.folio_id,t.state,t.amount_minor,t.currency,t.version,t.reference,t.recorded_by,
       t.bank_transaction_id,t.entry_id,t.finance_payment_id,t.updated_at
     FROM pms_transfer_requests t JOIN pms_properties p ON p.id=t.property_id AND p.company_id=t.company_id
@@ -58,7 +69,11 @@ export async function pmsFinanceOverview(actor:WorkContext,propertyId?:string) {
   return {hotels:hotels.map(hotel=>{
     const line=gl.find(row=>row.id===hotel.id);
     const ledger={receivable:Number(line?.receivable??0),advance:Number(line?.advance??0),deposit:Number(line?.deposit??0),received:Number(line?.received??0)};
+    const original=liabilities.find(row=>row.id===hotel.id);
+    const online={refundPayable:Number(original?.refund_payable??0),unallocated:Number(original?.unallocated??0)};
+    const onlineLedger={refundPayable:Number(line?.refund_payable??0),unallocated:Number(line?.unallocated??0)};
     return {...hotel,ledger,differences:{receivable:(hotel.receivable??0)-ledger.receivable,advance:(hotel.advance??0)-ledger.advance,deposit:(hotel.deposit??0)-ledger.deposit},
+      online,onlineLedger,onlineDifferences:{refundPayable:online.refundPayable-onlineLedger.refundPayable,unallocated:online.unallocated-onlineLedger.unallocated},
       unbalanced:Number(line?.debit??0)-Number(line?.credit??0),pendingTransfers:reviews.filter(row=>row.property_id===hotel.id&&row.state==="pending").length};
   }),reviews,exceptions,documents,updatedAt:Date.now()};
 }

@@ -42,6 +42,7 @@ Reviewed 2026-10-03. Decisions retain their identifiers and original rationale; 
 | [ADR-036: Canonical file sources with policy-bound links](ADR-036-canonical-file-sources-and-policy-bound-links.md) | Retained decision; apply current owner contract |
 | [ADR-037: Sandbox AI Gateway and rated Holding billing](ADR-037-sandbox-ai-gateway-and-rated-holding-billing.md) | Retained decision; apply current owner contract |
 | [ADR-038: Company manual currencies and immutable money snapshots](ADR-038-company-manual-currency-and-money-snapshots.md) | Retained decision; apply current owner contract |
+| [ADR-039: Atomic secondary book projection](ADR-039-finance-book-projection-boundary.md) | Deferred PostgreSQL projection, reviewed openings and independently owned noncontrol book adjustments; same functional currency initially |
 
 Historical Rust terms and dated rollout evidence in older decisions apply to that archived implementation. Use [owner contracts](../contracts/next/README.md) and [catalogue workflows](../contracts/next/catalogue.md) for current coverage, not old phase or workspace counts.
 

@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test("health endpoint is available and not cached", async ({ request }) => {
   const response = await request.get("/api/health");
   expect(response.status()).toBe(200);
-  expect(await response.json()).toEqual({ status: "ok" });
+  expect(await response.json()).toMatchObject({ status: "ok" });
   expect(response.headers()["cache-control"]).toContain("no-store");
 });
 
@@ -13,14 +13,14 @@ for (const path of ["/", "/holdings/acme/home", "/holdings/acme/work"]) {
     await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
     await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
     await expect(page.getByLabel("Work email")).toBeVisible();
-    await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Password", exact: true })).toBeVisible();
   });
 }
 
 test("invalid credentials show an error and allow another attempt", async ({ page }) => {
   await page.goto("/login");
   await page.getByLabel("Work email").fill("playwright-nobody@example.invalid");
-  await page.getByLabel("Password", { exact: true }).fill("Invalid-password-123!");
+  await page.getByRole("textbox", { name: "Password", exact: true }).fill("Invalid-password-123!");
   const responsePromise = page.waitForResponse((response) =>
     response.url().endsWith("/api/auth/sign-in/email") && response.request().method() === "POST",
   );
@@ -46,7 +46,7 @@ test("invalid reset links explain how to request a replacement", async ({ page }
   await expect(
     page.getByRole("link", { name: "Request a new reset link" }),
   ).toHaveAttribute("href", "/forgot-password");
-  await expect(page.getByLabel("Password", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "Password", exact: true })).toHaveCount(0);
 });
 
 test("login opens password recovery", async ({ page }) => {
@@ -64,7 +64,7 @@ test("seeded employee signs in through the UI and keeps their session after relo
 
   await page.goto("/login");
   await page.getByLabel("Work email").fill(email!);
-  await page.getByLabel("Password", { exact: true }).fill(password!);
+  await page.getByRole("textbox", { name: "Password", exact: true }).fill(password!);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/(?:holdings\/[^/]+\/home|work-role\?.*)$/);
   if(page.url().includes('/work-role')){

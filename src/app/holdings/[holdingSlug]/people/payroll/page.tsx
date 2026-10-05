@@ -1,3 +1,4 @@
+import { RecordLink } from "@/components/records/record-link";
 
 import { PageContent } from "@/components/ui/patterns";
 import { PayrollDashboard } from "@/components/modules/payroll-workspace";
@@ -55,7 +56,7 @@ export default async function PayrollPage({
         canPrepare={hasPermission(actor, "payroll.prepare")}
         redacted={redacted}
       />
-      {!redacted&&!actor.branchId&&!actor.departmentId&&<Card as="section" appearance="standard" className="ui-panel"><h2>Posted payroll by pay month</h2><p className="muted">Company totals from posted payroll items. Corrections use their actual payment month and employee identities remain in the restricted run detail.</p><TableFrame appearance="standard" label="Monthly posted payroll"><Table><thead><tr><th>Pay month</th><th>Currency</th><th>Runs</th><th>People</th><th>Gross</th><th>Deductions</th><th>Employer cost</th><th>Net</th></tr></thead><tbody>{summary.map(row=><tr key={`${row.pay_month}-${row.currency}`}><td>{row.pay_month}</td><td>{row.currency}</td><td>{row.run_count}</td><td>{row.headcount}</td><td>{minorToDecimal(Number(row.gross_minor))}</td><td>{minorToDecimal(Number(row.deductions_minor))}</td><td>{minorToDecimal(Number(row.employer_cost_minor))}</td><td>{minorToDecimal(Number(row.net_minor))}</td></tr>)}</tbody></Table></TableFrame>{!summary.length&&<p>No payroll has been posted.</p>}</Card>}
+      {!redacted&&!actor.branchId&&!actor.departmentId&&<Card as="section" appearance="standard" className="ui-panel"><h2>Posted payroll by pay month</h2><p className="muted">Company totals from posted payroll items. Corrections use their actual payment month and employee identities remain in the restricted run detail.</p><TableFrame appearance="standard" label="Monthly posted payroll"><Table><thead><tr><th>Pay month</th><th>Currency</th><th>Runs</th><th>People</th><th>Gross</th><th>Deductions</th><th>Employer cost</th><th>Net</th></tr></thead><tbody>{summary.map(row=><tr key={`${row.pay_month}-${row.currency}`}><td><RecordLink href={`${workspaceBase(publicScope(actor))}/record-details/payroll_month/${row.pay_month}`} record={{kind:"payroll_month",id:row.pay_month,args:{currency:row.currency}}}>{row.pay_month}</RecordLink></td><td>{row.currency}</td><td>{row.run_count}</td><td>{row.headcount}</td><td>{minorToDecimal(Number(row.gross_minor))}</td><td>{minorToDecimal(Number(row.deductions_minor))}</td><td>{minorToDecimal(Number(row.employer_cost_minor))}</td><td>{minorToDecimal(Number(row.net_minor))}</td></tr>)}</tbody></Table></TableFrame>{!summary.length&&<p>No payroll has been posted.</p>}</Card>}
     </PageContent>
   );
 }

@@ -1,0 +1,10 @@
+.body { display:grid; gap:24px; color:var(--ui-ink); }
+.body p { margin:0; color:var(--ui-muted); line-height:1.6; }
+.body h3 { margin:0; font-size:1rem; }
+.form,.secret,.list { display:grid; gap:16px; }
+.form,.secret { padding:20px; border:1px solid var(--ui-control-border); border-radius:var(--ui-radius-lg); background:var(--ui-card); }
+.connection { display:grid; gap:10px; padding:16px; border:1px solid var(--ui-control-border); border-radius:var(--ui-radius-md); }
+.connection > div { display:flex; flex-wrap:wrap; justify-content:space-between; gap:12px; }
+.status { font-size:.8rem; text-transform:capitalize; color:var(--ui-muted); }
+.connection button,.form button { justify-self:start; }
+@media(max-width:640px) { .trigger { width:100%; order:3; } }

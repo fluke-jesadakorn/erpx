@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { OrganizationAccessWorkspace } from "@/components/technology/organization-access-workspace";
 import { organizationAccessData } from "@/server/organization-access";
 import { gpoRulesOverview } from "@/server/gpo-rules";

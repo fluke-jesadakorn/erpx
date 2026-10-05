@@ -10,7 +10,7 @@ getTemplate,
 type ScheduleRow,
 } from "@/server/routines";
 import { staffPage } from "@/server/staff-page";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 export default async function Routine({
   params,
 }: {

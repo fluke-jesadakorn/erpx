@@ -38,17 +38,16 @@ import { prepareAttachmentBinding } from "./attachments/service";
 import { ApiError } from "./http";
 import { snapshotMoney, snapshotMoneyCarry, snapshotMoneyReversal } from "./company-money";
 import { holdingResources } from "./runtime";
-import { readAllPmsRecords, readPmsCalendar, readPmsDashboard, readPmsDetail, readPmsSetupFacts } from "./pms/read-repository";
+import { readAllPmsRecords, readPmsCalendar, readPmsDashboard, readPmsDetail, readPmsSetupFacts,readPmsOperationsList,readPmsConfiguration } from "./pms/read-repository";
 import type { PmsSetupFacts } from "@/lib/pms-read";
 import { pmsReadSelectionSchema, type PmsReadSelection } from "@/lib/pms-read-selection";
-import { frontWorkspaceHref } from "./front-app";
 import {
   isTransactionalSqlDatabase,
   type SqlDatabase,
   type TransactionalSqlDatabase,
 } from "./runtime/types";
 
-type ReadSnapshot = Snapshot & { dashboardHasStays?: boolean; setupFacts?: PmsSetupFacts };
+type ReadSnapshot = Snapshot & { dashboardHasStays?: boolean; setupFacts?: PmsSetupFacts;listMeta?:Awaited<ReturnType<typeof readPmsOperationsList>>['listMeta'] };
 type PropertyRow = {
   id: string;
   company_id: string;
@@ -129,17 +128,21 @@ export async function loadPms(
   scope(actor, p);
   const selected = selection ? pmsReadSelectionSchema.parse(selection) : undefined;
   const dashboard = selected?.view === "dashboard" ? await readPmsDashboard(db, id, p.businessDate) : undefined;
-  const rows = dashboard?.records ?? (selected?.view === "calendar"
+  const list=selected?.view==='list'?await readPmsOperationsList(db,id,p.businessDate,selected):undefined;
+  const rows = list?.records??dashboard?.records ?? (selected?.view === "calendar"
     ? await readPmsCalendar(db, id, selected.from, selected.to)
     : selected?.view === "detail" ? await readPmsDetail(db, id, selected.id)
+    : selected?.view === "setup" ? await readPmsConfiguration(db,id)
+    : selected?.view === "report" ? []
     : await readAllPmsRecords(db, id));
   if (selected?.view === "detail" && !rows.some(row => row.id === selected.id))
     throw new ApiError(404, "PMS_RECORD_NOT_FOUND", "Hotel item not found");
-  const setupFacts = selected?.view === "calendar" || selected?.view === "detail"
+  const setupFacts = selected && selected.view!=='dashboard'
     ? await readPmsSetupFacts(db, id) : undefined;
   return {
     property: p,
     records: rows,
+    ...(list?{listMeta:list.listMeta}:{}),
     ...(dashboard ? { dashboardHasStays: dashboard.hasStays } : {}),
     ...(setupFacts ? { setupFacts } : {}),
   };
@@ -215,7 +218,14 @@ function visibleSnapshot(s: ReadSnapshot, actor: WorkContext): ReadSnapshot {
       ) as Config["accounts"],
       chartId: "",
     };
+  redactListMetadata(result);
   return result;
+}
+function redactListMetadata(snapshot:ReadSnapshot){
+ if(!snapshot.listMeta)return;
+ const visible=new Set(snapshot.records.map(row=>row.id));
+ snapshot.listMeta.ids=snapshot.listMeta.ids.filter(id=>visible.has(id));
+ if(snapshot.listMeta.selectedId&&!visible.has(snapshot.listMeta.selectedId))delete snapshot.listMeta.selectedId;
 }
 export async function pmsWorkspace(actor: WorkContext, propertyId?: string, includeDayControls=false, frontMode=false, selection?: PmsReadSelection) {
   requirePermission(actor, "pms.read");
@@ -228,6 +238,10 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
   const { write } = await holdingResources(actor.holdingId);
   const readSelection = selection ? pmsReadSelectionSchema.parse(selection) : undefined;
   const complete = !readSelection;
+  const setup = readSelection?.view==='setup';
+  const report = readSelection?.view==='report';
+  const section = readSelection?.view==='list'?readSelection.section:undefined;
+  const staffNeeded=complete||['rooms','housekeeping','cashier','night-audit','folios'].includes(section??'');
   const rows = await query<PropertyRow>(
     write,
     `SELECT * FROM pms_properties WHERE company_id=?${actor.branchId ? " AND branch_id=?" : ""} ORDER BY name`,
@@ -242,11 +256,11 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
         ? write.transaction((tx) => loadPms(tx, actor, selected.id, false, readSelection))
         : loadPms(write, actor, selected.id, false, readSelection))
     : null;
-  const configuration = !frontMode && (complete || !s) && (
+  const configuration = !frontMode && (complete || setup || !s || section==='inventory') && (
     hasPermission(actor, "pms.configure") ||
     hasPermission(actor, "pms.accounting.prepare") ||
     hasPermission(actor, "pms.accounting.approve"));
-  const staff = complete ? await query<{ id: string; name: string }>(
+  const staff = staffNeeded ? await query<{ id: string; name: string }>(
     write,
     "SELECT DISTINCT a.user_id id,COALESCE(h.legal_name,a.user_id) name FROM assignments a LEFT JOIN hr_people h ON h.user_id=a.user_id AND h.company_id=a.company_id AND h.merged_into_id IS NULL WHERE a.company_id=? AND a.revoked_at IS NULL AND a.valid_from<=? AND a.valid_until>? AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=?)) ORDER BY name",
     actor.companyId,
@@ -254,7 +268,7 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
     Date.now(),
     selected?.branch_id ?? actor.branchId ?? "",
   ) : [];
-  const accounting = complete && !frontMode && (
+  const accounting = (complete||setup) && !frontMode && (
     hasPermission(actor, "pms.accounting.prepare") ||
     hasPermission(actor, "pms.accounting.approve"));
   const branches = configuration
@@ -266,9 +280,9 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
       )
     : [];
   const accounts = accounting
-    ? await query<{ id: string; name: string; code: string; chart_id: string }>(
+    ? await query<{ id: string; name: string; code: string; chart_id: string; category:string }>(
         write,
-        "SELECT id,name,code,chart_id FROM finance_accounts WHERE company_id=? AND status='active' AND currency='THB' ORDER BY code",
+        "SELECT id,name,code,chart_id,category FROM finance_accounts WHERE company_id=? AND status='active' AND currency='THB' ORDER BY code",
         actor.companyId,
       )
     : [];
@@ -280,7 +294,7 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
       )
     : [];
   const parties =
-    complete && !frontMode && (hasPermission(actor, "pms.cashier") ||
+    (complete||setup||report||section==='folios') && !frontMode && (hasPermission(actor, "pms.cashier") ||
     hasPermission(actor, "pms.configure") ||
     hasPermission(actor, "pms.reports"))
       ? await query<{ id: string; name: string }>(
@@ -305,7 +319,7 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
       )
     : [];
   const docs =
-    complete && s &&
+    s && (!readSelection || readSelection.view === "list" || readSelection.view === "detail") &&
     (hasPermission(actor, "pms.cashier") || hasPermission(actor, "pms.reports"))
       ? await query<{
           id: string;
@@ -314,8 +328,10 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
           created_at: number;
         }>(
           write,
-          "SELECT id,folio_id,kind,created_at FROM pms_documents WHERE property_id=? ORDER BY created_at DESC",
+          "SELECT id,folio_id,kind,created_at FROM pms_documents WHERE property_id=? AND (?::jsonb IS NULL OR folio_id IN (SELECT jsonb_array_elements_text(?::jsonb))) ORDER BY created_at DESC,id LIMIT 200",
           s.property.id,
+          readSelection?JSON.stringify(records(s,"folio").map(f=>f.id)):null,
+          readSelection?JSON.stringify(records(s,"folio").map(f=>f.id)):null,
         )
       : [];
   let ledger: null | {
@@ -325,7 +341,7 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
     advance: number;
     deposit: number;
   } = null;
-  if (complete && !frontMode && s && hasPermission(actor, "pms.reports")) {
+  if ((complete||report) && !frontMode && s && hasPermission(actor, "pms.reports")) {
     const lines = await query<{
       account_id: string;
       debit: number;
@@ -347,6 +363,12 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
       deposit: -balance(s.property.config.accounts.deposit),
     };
   }
+  const controlBalances = report && !frontMode && s && hasPermission(actor,'pms.reports')
+    ? await write.prepare(`SELECT COALESCE(SUM((data_json::jsonb->>'due')::bigint),0)::double precision due,
+      COALESCE(SUM((data_json::jsonb->>'advance')::bigint),0)::double precision advance,
+      COALESCE(SUM((data_json::jsonb->>'deposit')::bigint),0)::double precision deposit
+      FROM pms_records WHERE property_id=? AND kind='folio'`).bind(s.property.id).first<{due:number;advance:number;deposit:number}>()
+    : null;
   const snapshot = s ? visibleSnapshot(s, actor) : null;
   if (frontMode && snapshot) {
     const { currency, minorUnit, timezone } = snapshot.property.config;
@@ -379,6 +401,7 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
       .map((row) => row.kind === "entry"
         ? { ...row, data: { ...row.data, sourceKey: "sourceKey" in row.data && typeof row.data.sourceKey === "string" && row.data.sourceKey.startsWith("pos:") ? "pos" : "front" } }
         : row);
+    redactListMetadata(snapshot);
   }
   if (readSelection?.view === "detail" && snapshot && !snapshot.records.some(row => row.id === readSelection.id))
     throw new ApiError(404, "PMS_RECORD_NOT_FOUND", "Hotel item not found");
@@ -392,7 +415,7 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
     "pms.maintenance",
     "pms.audit",
   ] as const;
-  const transferRequests = complete && s && (hasPermission(actor, "pms.cashier") || hasPermission(actor, "finance.approve"))
+  const transferRequests = (complete||section==='folios') && s && (hasPermission(actor, "pms.cashier") || hasPermission(actor, "finance.approve"))
     ? await query<TransferRequestRow>(
         write,
         "SELECT * FROM pms_transfer_requests WHERE company_id=? AND property_id=? ORDER BY created_at DESC LIMIT 100",
@@ -400,7 +423,7 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
         s.property.id,
       )
       : [];
-  const chargeCorrections = complete && s && (hasPermission(actor,"pms.cashier") || hasPermission(actor,"pms.approve"))
+  const chargeCorrections = (complete||section==='folios') && s && (hasPermission(actor,"pms.cashier") || hasPermission(actor,"pms.approve"))
     ? await query<{
         id:string; entry_id:string; folio_id:string; status:string; version:number; reason:string;
         requested_by:string; reviewed_by:string|null; review_reason:string|null; reversal_entry_id:string|null;
@@ -413,7 +436,7 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
   const readinessChecks = s ? readiness(s, s.setupFacts) : [];
   return {
     bookingDelivery:
-      complete && !frontMode && s && hasPermission(actor, "pms.configure")
+      (complete||setup) && !frontMode && s && hasPermission(actor, "pms.configure")
         ? await query<{
             id: string;
             reservation_id: string;
@@ -430,12 +453,12 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
       ? transferRequests.filter((row) => row.recorded_by === actor.userId)
       : transferRequests,
     chargeCorrections,
-    stripeConnectionReady: complete && !frontMode && hasPermission(actor,'pms.cashier')&&Boolean(await write.prepare("SELECT 1 FROM pos_connections WHERE company_id=? AND state='ready' AND promptpay_enabled=true AND thb_bank_ready=true AND payout_interval='daily'").bind(actor.companyId).first()),
-    stripePayments: complete && !frontMode && s&&hasPermission(actor,'pms.cashier')?await query<{id:string;folio_id:string;state:string;kind:string;amount_minor:number;refund_state:string|null;payer_email:string|null}>(write,"SELECT id,folio_id,state,kind,amount_minor,refund_state,payer_email FROM pms_stripe_payments WHERE property_id=? ORDER BY created_at DESC LIMIT 100",s.property.id):[],
-    bookingRefunds: complete && !frontMode && hasPermission(actor,'finance.approve')&&!actor.branchId
-      ? await query<{id:string;property_id:string;amount_minor:number;status:string;refund_state:string;created_at:number;last_error:string|null}>(write,"SELECT id,property_id,amount_minor,status,refund_state,created_at,last_error FROM pms_booking_payments WHERE company_id=? AND refund_state IS NOT NULL ORDER BY created_at DESC LIMIT 100",actor.companyId)
+    stripeConnectionReady: (complete||section==='folios') && !frontMode && hasPermission(actor,'pms.cashier')&&Boolean(await write.prepare("SELECT 1 FROM pos_connections WHERE company_id=? AND state='ready' AND promptpay_enabled=true AND thb_bank_ready=true AND payout_interval='daily'").bind(actor.companyId).first()),
+    stripePayments: (complete||section==='folios') && !frontMode && s&&hasPermission(actor,'pms.cashier')?await query<{id:string;folio_id:string;state:string;kind:string;amount_minor:number;refund_state:string|null;payer_email:string|null}>(write,"SELECT id,folio_id,state,kind,amount_minor,refund_state,payer_email FROM pms_stripe_payments WHERE property_id=? ORDER BY created_at DESC LIMIT 100",s.property.id):[],
+    bookingRefunds: (complete||section==='folios') && !frontMode && hasPermission(actor,'finance.approve')&&!actor.branchId
+      ? await query<{id:string;property_id:string;amount_minor:number;status:string;refund_state:string;created_at:number;last_error:string|null;needs_receipt_recovery:boolean}>(write,"SELECT r.id,p.property_id,r.amount_minor,p.status,r.state refund_state,r.created_at,r.last_error, (p.status='refund_review' AND r.state='requested' AND r.allocations_json::jsonb='[]'::jsonb AND NOT EXISTS(SELECT 1 FROM pms_records e WHERE e.property_id=p.property_id AND e.kind='entry' AND e.data_json::jsonb->>'sourceKey'='online-payment:'||p.id)) needs_receipt_recovery FROM pms_booking_refund_requests r JOIN pms_booking_payments p ON p.id=r.payment_id WHERE p.company_id=? ORDER BY r.created_at DESC LIMIT 100",actor.companyId)
       : [],
-    transferBankEvidence: complete && !frontMode && s && hasPermission(actor,'finance.approve')
+    transferBankEvidence: (complete||section==='folios') && !frontMode && s && hasPermission(actor,'finance.approve')
       ? await query<{id:string;transaction_date:string;external_id:string;amount_minor:number;currency:string;version:number}>(write,`SELECT t.id,t.transaction_date,t.external_id,t.amount_minor,t.currency,t.version
         FROM finance_bank_transactions t JOIN finance_bank_statements b ON b.id=t.statement_id
         WHERE t.company_id=? AND b.bank_account=? AND t.currency=? AND t.amount_minor>0 AND t.match_status IN ('unmatched','proposed')
@@ -457,6 +480,8 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
     snapshot,
     readiness: readinessChecks,
     frontReady: frontMode ? Boolean(s && s.property.state === "open" && readinessChecks.length === 0) : undefined,
+    canReviewBookingMedia:hasPermission(actor,"records.review")||hasPermission(actor,"commerce.approve"),
+    bookingReadiness:{email:Boolean(process.env.RESEND_API_KEY&&process.env.RESEND_FROM),accounting:Boolean(s?.property.config.approvedBy),onlineAccounting:Boolean(s?.property.config.onlineAccounting?.approvedBy),fees:Boolean(s?.property.config.bookingFees?.approvedBy),connect:!frontMode&&Boolean(await write.prepare("SELECT 1 FROM pos_connections WHERE company_id=? AND state='ready' AND charges_enabled=true AND payouts_enabled=true AND (card_enabled=true OR promptpay_enabled=true) AND (livemode=false OR ?='true')").bind(actor.companyId,process.env.PMS_STRIPE_LIVE_ENABLED??"false").first())},
     canManageSetup: hasPermission(actor, "pms.configure") || hasPermission(actor, "pms.accounting.prepare") || hasPermission(actor, "pms.accounting.approve"),
     permissions: (frontMode ? frontPermissions : pmsPermissions).filter((k) => hasPermission(actor, k)),
     availablePaymentMethods: ['cash'],
@@ -470,7 +495,8 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
     warehouses: frontMode ? [] : warehouses,
     documents: docs,
     ledger: frontMode ? null : ledger,
-    dayControls:complete && s && includeDayControls && (hasPermission(actor,'pms.audit')||(!frontMode&&hasPermission(actor,'pms.reports')))
+    controlBalances,
+    dayControls:(complete||section==='night-audit') && s && includeDayControls && (hasPermission(actor,'pms.audit')||(!frontMode&&hasPermission(actor,'pms.reports')))
       ? await hospitalityDayControls(write,actor.companyId,s.property.branchId,s.property.id,s.property.businessDate)
       : null,
   };
@@ -519,6 +545,11 @@ async function validSetup(db: SqlDatabase, s: Snapshot) {
         `Account ${kind} must be ${category} in the same chart and currency`,
       );
   }
+  if(c.bookingFees&&!await db.prepare("SELECT id FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND currency=? AND category='revenue' AND status='active'").bind(c.bookingFees.account,p.companyId,c.chartId,c.currency).first())throw new ApiError(422,"PMS_FEE_ACCOUNT_INVALID","Cancellation fees require a separate active revenue account in the company chart");
+  if (c.onlineAccounting) for (const id of [c.onlineAccounting.refundPayable, c.onlineAccounting.unallocated]) {
+    const account = await db.prepare("SELECT id FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND currency=? AND category='liability' AND status='active'").bind(id, p.companyId, c.chartId, c.currency).first();
+    if (!account) throw new ApiError(422, "PMS_ONLINE_ACCOUNT_INVALID", "Online refund and unallocated accounts must be active company liability accounts");
+  }
 }
 async function post(
   db: SqlDatabase,
@@ -555,7 +586,7 @@ async function post(
       memo: effect.source,
       isOpening: false,
       lines: effect.lines.map((l) => ({
-        accountId: c.accounts[l.account],
+        accountId: l.account === "cancellationFee" ? c.bookingFees!.account : l.account === "refundPayable" || l.account === "unallocated" ? c.onlineAccounting![l.account] : c.accounts[l.account],
         debit: minorToDecimal(l.debit),
         credit: minorToDecimal(l.credit),
         dimensions: {
@@ -830,7 +861,7 @@ async function syncAllocations(
     applied = new Map<string, number>();
   for (const e of entries) {
     const target =
-      e.data.kind === "refund"
+      (e.data.kind === "refund" && e.data.description !== "payment.refund_settle") || e.data.description === "payment.refund_liability"
         ? refunds
         : e.data.reference === "deposit-application"
           ? applied
@@ -838,9 +869,9 @@ async function syncAllocations(
     if (target)
       for (const part of e.data.funding ?? []) {
         if (
-          e.data.kind === "refund" &&
+          (e.data.kind === "refund" || e.data.description === "payment.refund_liability") &&
           record(s, "entry", part.entryId).data.kind === "deposit" &&
-          record(s, "refund", e.data.originalId).data.pocket === "deposit"
+          (e.data.refundPocket ?? record(s, "refund", e.data.originalId).data.pocket) === "deposit"
         )
           continue;
         target.set(part.entryId, (target.get(part.entryId) ?? 0) + part.amount);
@@ -875,7 +906,8 @@ async function syncAllocations(
       source.data.kind === "deposit"
         ? (applied.get(source.id) ?? 0)
         : Number(source.data.total);
-    let budget=Math.max(0, available - (refunds.get(source.id) ?? 0));
+    const held=(f.data.refundHolds??[]).filter(p=>p.entryId===source.id&&p.pocket==="advance").reduce((n,p)=>n+p.amount,0);
+    let budget=Math.max(0, available - (refunds.get(source.id) ?? 0)-held);
     for(const target of targets){
       const n=Math.min(target.remaining,budget);
       if (n <= 0) continue;
@@ -1284,6 +1316,19 @@ export async function pmsCommand(
         if(controls.blockers.length) throw new ApiError(409,'PMS_DAY_RECONCILIATION_BLOCKED',controls.blockers.join(' · '));
       }
       const original = new Map(s.records.map((r) => [r.id, JSON.stringify(r)]));
+      if(op==='accounting.save'||op==='accounting.bootstrap')if(await tx.prepare("SELECT id FROM pms_booking_payments WHERE property_id=? AND status='payment_pending' LIMIT 1").bind(s.property.id).first())throw new ApiError(409,'PMS_PAYMENT_PENDING','Accounting is frozen while online payment is pending');
+      if(op==='folio.merge'){const v=command.input as {id:string;toFolioId:string};if(await tx.prepare('SELECT id FROM pms_booking_allocations WHERE folio_id IN (?,?) LIMIT 1').bind(v.id,v.toFolioId).first())throw new ApiError(409,'PMS_ONLINE_RECEIPT_FROZEN','Keep online receipt folios separate to preserve their immutable allocation');}
+      if (op.startsWith("stay.") || op.startsWith("reservation.") || op.startsWith("folio.")) {
+        const targetId = command.input && typeof command.input === "object" ? (command.input as { id?: string }).id : undefined;
+        const stay = records(s, "stay").find(row => row.id === targetId);
+        const folio = records(s,"folio").find(row=>row.id===targetId);
+        const reservationId = stay?.data.reservationId ?? folio?.data.reservationId ?? targetId;
+        if (reservationId && await tx.prepare("SELECT id FROM pms_booking_payments WHERE reservation_id=? AND status='payment_pending' LIMIT 1").bind(reservationId).first())
+          throw new ApiError(409, "PMS_PAYMENT_PENDING", "Room and price details are frozen while online payment is pending");
+        if (["stay.change_dates", "stay.cancel", "reservation.cancel"].includes(op) && (op!=="stay.change_dates" || stay?.data.state!=="in_house") && reservationId &&
+          await tx.prepare("SELECT id FROM pms_booking_payments WHERE reservation_id=? AND status='confirmed' LIMIT 1").bind(reservationId).first())
+          throw new ApiError(409, "PMS_BOOKING_REVISION_REQUIRED", "Review the booking change and its payment difference before confirming it");
+      }
       const outcome =
         op === "property.create"
           ? {
@@ -1309,6 +1354,17 @@ export async function pmsCommand(
             "PMS_EMAIL_REQUIRED",
             "Configure booking email delivery before publishing",
           );
+        const booking = s.property.config.booking;
+        if(booking.rateIds.some(id=>(record(s,"rate",id).data.collection?.cancellationFeePercent??0)>0)&&!s.property.config.bookingFees?.approvedBy)throw new ApiError(422,"PMS_FEE_ACCOUNT_REQUIRED","Finance must approve cancellation fee accounting before publishing these rates");
+        for (const [targetType, targetId, images] of [["pms_property", s.property.id, booking.images ?? []], ...booking.roomContent.map(room => ["pms_room_type", room.typeId, room.images ?? []])] as Array<[string,string,import("@/lib/pms-model").BookingImage[]]>) {
+          for (const image of images) if (!await tx.prepare("SELECT id FROM attachment_publications WHERE id=? AND company_id=? AND target_type=? AND target_id=? AND state='approved'").bind(image.publicationId,actor.companyId,targetType,targetId).first())
+            throw new ApiError(422,"PMS_IMAGE_NOT_PUBLIC","Choose independently approved booking images from this hotel or room type");
+        }
+        if(booking.rateIds.some(id=>record(s,"rate",id).data.collection?.method && record(s,"rate",id).data.collection?.method!=="pay_at_hotel")) {
+          if(!s.property.config.onlineAccounting?.approvedBy) throw new ApiError(422,"PMS_ONLINE_ACCOUNTING_REQUIRED","Finance must approve online liability accounts before publishing prepaid rates");
+          const connection=await tx.prepare("SELECT account_id,livemode FROM pos_connections WHERE company_id=? AND state='ready' AND charges_enabled=true AND payouts_enabled=true AND (card_enabled=true OR promptpay_enabled=true)").bind(actor.companyId).first<{account_id:string;livemode:boolean}>();
+          if(!connection || connection.livemode && process.env.PMS_STRIPE_LIVE_ENABLED!=="true") throw new ApiError(422,"PMS_PAYMENT_UNAVAILABLE","Complete Company Stripe sandbox setup before publishing prepaid rates");
+        }
       }
       await validateReferences(tx, s, engineOp, engineInput);
       if (
@@ -1316,6 +1372,8 @@ export async function pmsCommand(
           "accounting.save",
           "accounting.bootstrap",
           "accounting.approve",
+          "online_accounting.prepare",
+          "online_accounting.approve",
           "property.enable",
           "night.start",
           "night.resume",

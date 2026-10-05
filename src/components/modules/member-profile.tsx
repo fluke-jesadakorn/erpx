@@ -1,5 +1,5 @@
 import { hasPermission } from "@/lib/permissions";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { organizationOverview } from "@/server/organization";
 import { MemberPanel } from "@/components/beta/member-panel";
 import { PeopleEditor } from "./people-editor";

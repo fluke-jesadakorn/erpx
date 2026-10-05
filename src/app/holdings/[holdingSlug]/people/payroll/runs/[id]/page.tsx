@@ -1,6 +1,6 @@
 import { InlineNotice } from "@/components/ui/foundation";
 import { BusinessDocumentBranding } from "@/components/brand/business-document";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { FeaturePage, WidgetGrid } from "@/components/features/feature-page";
 import { PayrollCorrectionControls } from "@/components/modules/payroll-controls";
 import { PayrollCancellationControls } from "@/components/modules/payroll-cancellation-controls";

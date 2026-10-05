@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { FeaturePage } from "@/components/features/feature-page";
 import { ExpenseEditor } from "@/components/modules/expense-controls";
 import { PageHeader } from "@/components/ui/primitives";

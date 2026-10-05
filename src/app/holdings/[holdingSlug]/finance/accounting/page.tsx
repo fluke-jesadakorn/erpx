@@ -12,7 +12,7 @@ import { workspaceBase } from "@/lib/workspace";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import { ledgerWorkspace } from "@/server/ledger";
 import { pageError } from "@/server/page-error";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { FilterBar } from "@/components/ui/foundation";
 
 export const dynamic = "force-dynamic";
@@ -89,6 +89,8 @@ export default async function AccountingPage({
               chart={data.chart}
               accounts={data.accounts}
               periods={data.periods}
+              dimensions={data.dimensions}
+              dimensionValues={data.dimensionValues}
               initialOpen
             />
           </section>

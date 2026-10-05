@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { RecordCatalog } from "@/components/records/record-catalog";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { requireWorkContext, publicScope } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { pageError } from "@/server/page-error";
@@ -36,7 +37,7 @@ export default async function Page({
           <Card as="section" appearance="standard" className="ui-panel">
             <div className="ui-section-header">
               <div>
-                <h2>{String(listing.title)}</h2>
+                <h2><Link href={`${base}/record-details/ecommerce_listing/${listing.id}`} record={{kind:"ecommerce_listing",id:String(listing.id)}}>{String(listing.title)}</Link></h2>
                 <p className="muted">
                   Listing files · version {String(listing.version)}
                 </p>
@@ -99,6 +100,6 @@ export default async function Page({
           </Link>
         ))}
       </Card>
-    </PageContent>
+    <RecordCatalog base={base} kind="ecommerce_channel" title="Channels" rows={data.channels} label="name"/><RecordCatalog base={base} kind="ecommerce_cart" title="Carts" rows={data.carts} label="id"/></PageContent>
   );
 }

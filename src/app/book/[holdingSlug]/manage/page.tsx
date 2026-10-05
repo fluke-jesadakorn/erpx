@@ -1,4 +1,5 @@
 import { GuestBookingManager } from "@/components/pms/guest-booking-manager";
+import { BookingCopy } from "@/components/pms/booking-copy";
 import styles from "@/components/pms/booking.module.css";
 export default async function ManageBooking({
   params,
@@ -9,12 +10,11 @@ export default async function ManageBooking({
   return (
     <main className={styles.wrap}>
       <header className={styles.hero}>
-        <span className={styles.eyebrow}>Your stay</span>
-        <h1>Manage your booking.</h1>
-        <p>
-          View your reservation or cancel before its free-cancellation deadline.
-          Contact the hotel for changes to rooms or dates.
-        </p>
+        <BookingCopy className={styles.eyebrow}>Your stay</BookingCopy>
+        <BookingCopy as="h1">Manage your booking.</BookingCopy>
+        <BookingCopy as="p">
+          Review your reservation, change dates and rooms, or cancel selected rooms within the accepted policy. Track payments and refunds here.
+        </BookingCopy>
       </header>
       <GuestBookingManager slug={holdingSlug} />
     </main>

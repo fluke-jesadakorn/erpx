@@ -5,7 +5,7 @@ import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, Sparkles } from "lucide-react";

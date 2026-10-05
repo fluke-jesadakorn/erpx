@@ -44,7 +44,7 @@ type LinkRow = {
   source_state: AttachmentSourceState | null; preview_object_key: string | null;
 };
 
-const brandPublicationTargets = new Set(["holding_brand","branch_brand","company_storefront_brand"]);
+const brandPublicationTargets = new Set(["holding_brand","branch_brand","company_storefront_brand","pms_property","pms_room_type"]);
 function isBrandPublicationTarget(targetType:string) { return brandPublicationTargets.has(targetType); }
 
 async function atomic<T>(db: SqlDatabase, action: (tx: SqlDatabase) => Promise<T>) {

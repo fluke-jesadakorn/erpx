@@ -1,6 +1,10 @@
 import { beforeAll,beforeEach,afterEach,describe,it,expect,vi } from 'vitest';
 import { createHmac } from 'node:crypto';
+import { importBankStatement } from '../src/server/finance';
+import { setFinanceCompanyTool } from '../src/server/finance-company-tools';
+import { bankAutomationWorkspace,proposeBankMatchGroup,decideBankMatchGroup } from '../src/server/finance-bank-automation';
 import { env,applyMigrations } from './runtime-env';
+import {posWorkspace,posReportReceipts} from '../src/server/pos';
 import { posCommand,one,all,run } from '../src/server/pos-core';
 import { accountKeys,saleAmounts,portion,recipeQuantities,formatPosMoney,businessDate } from '../src/lib/pos';
 import { defaultConfig,pmsAccountKeys } from '../src/lib/pms';
@@ -888,6 +892,13 @@ describe('POS provider recovery and reporting',()=>{
   expect((await one(db,'SELECT state,journal_id,version FROM pos_settlements WHERE id=?',payout.id))).toEqual({state:'unmapped',journal_id:null,version:1});
   await expect(command('settlement.map_external',input,{...manager,branchId:'pos-branch'})).rejects.toMatchObject({code:'POS_COMPANY_SETTINGS'});
   await expect(command('settlement.map_external',{...input,expectedVersion:2},manager)).rejects.toMatchObject({code:'POS_VERSION_CONFLICT'});
+  await setFinanceCompanyTool(actor,{tool:'bank_automation',enabled:true,expectedVersion:0,reason:'Disposable native POS bank ownership fixture'},'pos-bank-tool-fixture');
+  await run(db,"UPDATE finance_accounts SET currency='THB' WHERE id='bank'");
+  const otherStatement=await importBankStatement(actor,{bankAccount:'bank',statementNumber:'OTHER-10400',statementDate:'2026-09-17',opening:'0',closing:'104.00',sourceHash:'different-native-bank-evidence',rows:[{externalId:'other-payout',transactionDate:'2026-09-17',amount:'104.00',currency:'THB'}]},'pos-other-bank-statement');
+  const otherBank=String((await one(db,'SELECT id FROM finance_bank_transactions WHERE statement_id=?',otherStatement.id))!.id);
+  const group=await proposeBankMatchGroup(actor,{bankTransactionIds:[otherBank],journalLineIds:['manual-bank'],reason:'Earlier generic bank match before native POS adoption'},'pos-earlier-bank-group');
+  const staleGroup=await proposeBankMatchGroup(actor,{bankTransactionIds:[otherBank],journalLineIds:['manual-bank'],reason:'Earlier competing proposal retains its source before POS adoption'},'pos-earlier-stale-group');
+  await decideBankMatchGroup(manager,String(group.id),{expectedVersion:1,reason:'Independent earlier bank evidence review'},'confirm','pos-earlier-bank-confirm');
   await command('settlement.map_external',input,manager,'manual-payout-map');
   expect((await one(db,"SELECT state,journal_id FROM pos_settlements WHERE id=?",payout.id))).toEqual({state:'paid',journal_id:'manual-j'});
   await run(db,"UPDATE pos_jobs SET state='pending',next_attempt_at=0 WHERE id='job_manual'");await run(db,"UPDATE pos_stripe_events SET applied_at=NULL WHERE id='evt_manual'");await drainPos(db,'h001');
@@ -895,6 +906,15 @@ describe('POS provider recovery and reporting',()=>{
   await run(db,"INSERT INTO finance_bank_statements(id,company_id,bank_account,statement_number,statement_date,source_hash,imported_by,created_at) VALUES('manual-statement','pos-company','bank','TEST ONLY','2026-09-17','manual-fixture','manager',0)");
   await run(db,"INSERT INTO finance_bank_transactions(id,statement_id,company_id,transaction_date,external_id,amount_minor,currency) VALUES('manual-bank-line','manual-statement','pos-company','2026-09-17','po_manual',10400,'THB')");
   const match={id:payout.id,expectedVersion:2,bankTransactionId:'manual-bank-line',bankVersion:1,reason:'sandbox statement matched to genuine payout reference'};
+  await expect(command('settlement.match',match,manager,'manual-payout-bank-blocked')).rejects.toMatchObject({code:'POS_CASH_JOURNAL_ALREADY_MATCHED'});
+  expect(await one(db,"SELECT match_status,version FROM finance_bank_transactions WHERE id='manual-bank-line'")).toEqual({match_status:'unmatched',version:1});
+  expect(await one(db,'SELECT version,bank_transaction_id FROM pos_settlements WHERE id=?',payout.id)).toEqual({version:2,bank_transaction_id:null});
+  await decideBankMatchGroup(manager,String(group.id),{expectedVersion:2,reason:'Release the earlier cash claim before native POS bank confirmation'},'reverse','pos-earlier-bank-reverse');
+  await expect(decideBankMatchGroup(manager,String(staleGroup.id),{expectedVersion:1,reason:'Old proposal must not consume the now adopted POS cash journal'},'confirm','pos-earlier-stale-confirm')).rejects.toMatchObject({code:'BANK_TARGET_UNAVAILABLE'});
+  const available=await bankAutomationWorkspace(actor);
+  expect(available.targets.map(row=>row.id)).not.toContain('manual-bank');
+  expect(available.suggestions.flatMap(row=>row.journalLineIds??[])).not.toContain('manual-bank');
+  await expect(proposeBankMatchGroup(actor,{bankTransactionIds:[otherBank],journalLineIds:['manual-bank'],reason:'POS adoption already owns this cash journal'},'pos-adopted-bank-rejected')).rejects.toMatchObject({code:'BANK_TARGET_UNAVAILABLE'});
   await command('settlement.match',match,manager,'manual-payout-bank-match');
   expect(await command('settlement.match',match,manager,'manual-payout-bank-match')).toEqual({id:payout.id});
   expect((await one(db,"SELECT matched_type FROM finance_bank_transactions WHERE id='manual-bank-line'"))?.matched_type).toBe('pos_payout');
@@ -1122,4 +1142,15 @@ it('keeps prepared day evidence stable until Finance confirms before a later-day
 it('keeps daily reports within the authorized company and branch',async()=>{
  await expect(posDayReport(db,{...actor,branchId:'another-branch'},'pos-branch',businessDate())).rejects.toMatchObject({code:'POS_NOT_FOUND'});
  await expect(posDayReport(db,{...actor,companyId:'another-company'},'pos-branch',businessDate())).rejects.toMatchObject({code:'POS_NOT_FOUND'});
+});
+
+it('drills a POS report group into exactly its completed source receipts with Company and Branch isolation',async()=>{
+ const sale=await createSale();await add(sale);await pay(sale);await change('sale.complete',sale);
+ const report=await posWorkspace(actor,undefined,'','reports'),group=report.reports.find(row=>row.register_id==='retail')!;
+ const detail=await posReportReceipts(actor,{businessDate:String(group.business_date),registerId:String(group.register_id),shiftId:String(group.shift_id),currency:String(group.currency)});
+ expect(detail.rows.map(row=>row.id)).toContain(sale);
+ expect(Number(detail.row.total_minor)).toBe(Number(group.total_minor));
+ expect(detail.rows.every(row=>row.state==='completed'&&row.register_id===group.register_id&&row.shift_id===group.shift_id&&row.currency===group.currency&&row.business_date===group.business_date)).toBe(true);
+ await expect(posReportReceipts({...actor,companyId:'other-company'},{businessDate:String(group.business_date),registerId:String(group.register_id),shiftId:String(group.shift_id),currency:String(group.currency)})).rejects.toMatchObject({status:404});
+ await expect(posReportReceipts({...actor,branchId:'other-branch'},{businessDate:String(group.business_date),registerId:String(group.register_id),shiftId:String(group.shift_id),currency:String(group.currency)})).rejects.toMatchObject({status:404});
 });

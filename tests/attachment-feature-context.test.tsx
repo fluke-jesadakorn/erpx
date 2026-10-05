@@ -17,9 +17,7 @@ it("provides one server-derived attachment mode at the application root", () => 
   const source = readFileSync("src/app/layout.tsx", "utf8");
   expect(source).toContain("attachmentsV2Enabled()");
   expect(source).toContain("attachmentsV2ReadOnly()");
-  expect(source).toContain(
-    "<AttachmentFeatureProvider mode={attachmentFeatureMode}>",
-  );
+  expect(source.match(/<AttachmentFeatureProvider\b[^>]*mode=\{attachmentFeatureMode\}/g)).toHaveLength(1);
 });
 
 it("serializes the server-selected attachment feature mode into the client boundary", () => {

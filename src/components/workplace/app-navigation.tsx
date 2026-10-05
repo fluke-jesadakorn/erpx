@@ -345,7 +345,7 @@ export function AppNavigation({
   }
 
   function categoryItems(category: NavigationCategory, inFlyout = false) {
-    return category.apps.flatMap((item) => {
+    const links = category.apps.flatMap((item) => {
       if (!item.submodules?.length) return [appLink(item, inFlyout)];
       const app = model.apps.find((entry) => entry.id === item.id);
       const root = app?.items[0];
@@ -357,6 +357,7 @@ export function AppNavigation({
       ];
       return destinations.map((entry) => appLink(entry, inFlyout));
     });
+    return [...links, ...(category.secondaryItems?.length ? [<details key={`${category.id}-more`} className={appStyles.moreNav} open={category.secondaryItems.some(item => item.id === active.activeId)}><summary>More</summary>{category.secondaryItems.map(item => appLink(item, inFlyout))}</details>] : [])];
   }
 
   function categorySection(category: NavigationCategory) {
@@ -578,6 +579,7 @@ export function AppNavigation({
                       launcherRow(submodule, item.label),
                     ]),
                   ])}
+                  {!!category.secondaryItems?.length && <details className={appStyles.moreNav}><summary>More</summary>{category.secondaryItems.map(item => launcherRow(item))}</details>}
                 </section>
               ))}
             </div>

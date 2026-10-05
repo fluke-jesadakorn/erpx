@@ -1,2 +1,7 @@
-import Link from 'next/link';import {requireWorkContext,publicScope} from '@/server/authorization';import {workspaceBase} from '@/lib/workspace';import {pageError} from '@/server/page-error';import {customerIdentityWorkspace} from '@/server/customer-identity-changes';import {CustomerIdentityConsole} from '@/components/modules/customer-identity-console';
-import { PageContent, Card } from "@/components/ui/foundation";export const dynamic='force-dynamic';export default async function Page({params}:{params:Promise<{holdingSlug:string}>}){const {holdingSlug}=await params,a=await requireWorkContext(holdingSlug),base=workspaceBase(publicScope(a)),data=await customerIdentityWorkspace(a).catch(e=>pageError(e,holdingSlug));return <PageContent as="div" className="ui-page-content"><Link href={`${base}/work`}>Work</Link><h1>Customer identity changes</h1><p>Review a before/after snapshot before changing the customer master.</p><CustomerIdentityConsole base={base} data={data}/><Card as="section" appearance="standard" className="ui-panel">{data.rows.map(r=><Link className="ui-record-item" href={`${base}/customer-identity/${r.id}`} key={String(r.id)}>{String(r.customer_name)} · {String(r.status)}</Link>)}{!data.rows.length&&<p>No identity changes.</p>}</Card></PageContent>}
+import { redirectSalesCustomerList } from "@/server/sales-customer-redirect";
+import type { HubQuery } from "@/lib/sales-customers";
+export const dynamic = "force-dynamic";
+export default async function Page({ params, searchParams }: { params: Promise<{ holdingSlug: string }>; searchParams: Promise<HubQuery> }) {
+  const { holdingSlug } = await params;
+  await redirectSalesCustomerList(holdingSlug, "customer-identity", await searchParams);
+}

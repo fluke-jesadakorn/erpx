@@ -19,6 +19,21 @@ export async function hospitalityDayControls(db:SqlDatabase,companyId:string,bra
   const pendingPayments=await count(db,"SELECT count(*) n FROM pos_payments p JOIN pos_sales s ON s.id=p.sale_id WHERE s.company_id=? AND s.branch_id=? AND s.business_date=? AND p.state IN ('requested','pending','exception')",...scope,businessDate);
   const pendingHotelTransfers=await count(db,"SELECT count(*) n FROM pms_transfer_requests WHERE company_id=? AND property_id=? AND business_date=? AND state='pending'",companyId,propertyId,businessDate);
   const pendingChargeCorrections=await count(db,"SELECT count(*) n FROM pms_charge_corrections WHERE company_id=? AND property_id=? AND status='pending'",companyId,propertyId);
+  const property=await db.prepare('SELECT config_json FROM pms_properties WHERE id=? AND company_id=?').bind(propertyId,companyId).first<{config_json:string}>();
+  const timezone=property?JSON.parse(property.config_json).timezone:'Asia/Bangkok';
+  const unpostedBookingReceipts=await count(db,`SELECT count(*) n FROM pms_booking_payments
+    WHERE property_id=? AND company_id=? AND paid_at IS NOT NULL AND status IN ('payment_pending','expired')
+    AND to_char(to_timestamp(paid_at/1000.0) AT TIME ZONE ?,'YYYY-MM-DD')<=?`,propertyId,companyId,timezone,businessDate);
+  const failedBookingRefunds=await count(db,`SELECT count(*) n FROM pms_booking_refund_requests r
+    JOIN pms_booking_payments p ON p.id=r.payment_id WHERE p.property_id=? AND p.company_id=?
+    AND (r.state='failed' OR (r.state IN ('approved','processing','requires_action') AND r.last_error IS NOT NULL))
+    AND to_char(to_timestamp(r.created_at/1000.0) AT TIME ZONE ?,'YYYY-MM-DD')<=?`,propertyId,companyId,timezone,businessDate);
+  const unpostedCounterReceipts=await count(db,`SELECT count(*) n FROM pms_stripe_payments
+    WHERE property_id=? AND company_id=? AND received_at IS NOT NULL AND state IN ('requested','pending','cancelled')
+    AND to_char(to_timestamp(received_at/1000.0) AT TIME ZONE ?,'YYYY-MM-DD')<=?`,propertyId,companyId,timezone,businessDate);
+  const failedCounterRefunds=await count(db,`SELECT count(*) n FROM pms_stripe_payments
+    WHERE property_id=? AND company_id=? AND (refund_state='failed' OR (refund_state IN ('approved','processing','requires_action') AND last_error IS NOT NULL))
+    AND to_char(to_timestamp(COALESCE(received_at,created_at)/1000.0) AT TIME ZONE ?,'YYYY-MM-DD')<=?`,propertyId,companyId,timezone,businessDate);
   const unresolvedRefunds=await count(db,"SELECT count(*) n FROM pos_refunds WHERE company_id=? AND branch_id=? AND accounting_date=? AND state IN ('requested','approved','processing','exception')",...scope,businessDate);
   const failedJobs=await count(db,"SELECT count(*) n FROM pos_jobs WHERE company_id=? AND state='exception' AND kind NOT IN ('connect','connect_refresh')",companyId);
   const missingRoomCharges=await count(db,`SELECT count(*) n FROM pos_sales s WHERE s.company_id=? AND s.branch_id=? AND s.business_date=? AND s.state='completed' AND s.invoice_id IS NULL
@@ -70,6 +85,10 @@ export async function hospitalityDayControls(db:SqlDatabase,companyId:string,bra
     pendingPayments?`${pendingPayments} restaurant payment(s) awaiting a result or bank verification`:null,
     pendingHotelTransfers?`${pendingHotelTransfers} hotel bank transfer(s) awaiting Finance verification`:null,
     pendingChargeCorrections?`${pendingChargeCorrections} hotel folio correction(s) awaiting independent review`:null,
+    unpostedBookingReceipts?`${unpostedBookingReceipts} verified online hotel receipt(s) still need accounting recovery`:null,
+    failedBookingRefunds?`${failedBookingRefunds} online hotel refund(s) need recovery`:null,
+    unpostedCounterReceipts?`${unpostedCounterReceipts} verified counter receipt(s) still need accounting recovery`:null,
+    failedCounterRefunds?`${failedCounterRefunds} counter refund(s) need recovery`:null,
     unresolvedRefunds?`${unresolvedRefunds} restaurant refund(s) awaiting resolution`:null,
     failedJobs?`${failedJobs} restaurant background job(s) need recovery`:null,
     missingRoomCharges?`${missingRoomCharges} room charge(s) lack a hotel revenue posting`:null,
@@ -79,6 +98,6 @@ export async function hospitalityDayControls(db:SqlDatabase,companyId:string,bra
     stockValueMinor!==stockLedgerMinor?'Restaurant stock movements do not match their inventory ledger posting':null,
     unbalancedJournals?`${unbalancedJournals} restaurant or hotel journal(s) are unbalanced`:null,
   ].filter((value):value is string=>Boolean(value));
-  return {businessDate,blockers,openShifts,unreviewedVariances,openBills,pendingPayments,pendingHotelTransfers,pendingChargeCorrections,unresolvedRefunds,failedJobs,missingRoomCharges,missingDirectInvoices,unmatchedVerifiedTransfers,unmatchedVerifiedHotelTransfers,unbalancedJournals,
+  return {businessDate,blockers,openShifts,unreviewedVariances,openBills,pendingPayments,pendingHotelTransfers,pendingChargeCorrections,unpostedBookingReceipts,failedBookingRefunds,unpostedCounterReceipts,failedCounterRefunds,unresolvedRefunds,failedJobs,missingRoomCharges,missingDirectInvoices,unmatchedVerifiedTransfers,unmatchedVerifiedHotelTransfers,unbalancedJournals,
     directSalesMinor:Number(totals?.direct_total??0),roomChargesMinor:Number(totals?.room_total??0),cashReceivedMinor:Number(totals?.cash_received??0),verifiedTransferMinor:Number(totals?.transfer_verified??0),stockValueMinor,stockLedgerMinor};
 }

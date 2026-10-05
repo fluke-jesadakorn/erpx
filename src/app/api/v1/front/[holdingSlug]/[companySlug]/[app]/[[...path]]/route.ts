@@ -7,6 +7,7 @@ import { holdingResources } from "@/server/runtime";
 import { PostgresDatabase } from "@/server/runtime/postgres";
 import { posWorkspace } from "@/server/pos";
 import { posCommand } from "@/server/pos-core";
+import {staffBookingChange} from "@/server/pms/staff-booking-changes";
 import { pmsWorkspace, pmsCommand } from "@/server/pms";
 import { pmsReadSelectionFromSearch } from "@/lib/pms-read-selection";
 import { staffBookingSearch, bookingError } from "@/server/pms-booking";
@@ -19,6 +20,7 @@ import { posCustomers } from '@/server/pos-daily';
 import { posProductImage } from '@/server/pos-images';
 import {frontTaxDocumentCommand,frontTaxDocumentView} from '@/server/hospitality-tax-documents';
 import {taxDocumentRequest} from '@/server/hospitality-tax-document-request';
+import {frontPmsAttachmentPaths,frontPmsAttachmentRequest} from '@/server/pms/front-attachments';
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +51,9 @@ async function frontActor(
   const requestedCompany = request.headers.get("x-erpx-front-company");
   if (requestedCompany && requestedCompany !== companySlug)
     throw new ApiError(404, "FRONT_NOT_FOUND", "This Front app is unavailable.");
-  const location = request.headers.get("x-erpx-front-location")?.trim() || "holding";
+  const contentLocation = app==='pms'&&/\/attachment-links\/[^/]+\/content$/.test(new URL(request.url).pathname)
+    ? new URL(request.url).searchParams.get('frontLocation') : null;
+  const location = request.headers.get("x-erpx-front-location")?.trim() || contentLocation || "holding";
   const scope = frontLocationScope(holdingSlug, location);
   if (!scope)
     throw new ApiError(404, "FRONT_LOCATION_NOT_FOUND", "This Front location is unavailable.");
@@ -67,12 +71,22 @@ function commandKey(request: Request) {
   return key;
 }
 
+export async function PUT(request:Request,{params}:Context){
+ try{
+  assertOrigin(request);
+  const {holdingSlug,companySlug,app,path=[]}=await params;
+  if(app!=='pms'||path[0]!=='uploads')throw new ApiError(404,'NOT_FOUND','Hotel upload not found.');
+  return await frontPmsAttachmentRequest(request,await frontActor(request,holdingSlug,companySlug,'pms'),path);
+ }catch(error){return errorResponse(error);}
+}
+
 export async function GET(request: Request, { params }: Context) {
   try {
     const { holdingSlug, companySlug, app: rawApp, path = [] } = await params;
     if (rawApp !== "pos" && rawApp !== "pms")
       throw new ApiError(404, "NOT_FOUND", "Not found.");
     const app = rawApp as FrontAppKind;
+    if(app==='pms'&&frontPmsAttachmentPaths.has(path[0]))return await frontPmsAttachmentRequest(request,await frontActor(request,holdingSlug,companySlug,app),path);
     if(path.length===1&&path[0]==='tax-documents'){
       const actor=await frontActor(request,holdingSlug,companySlug,app);
       const invoiceId=z.string().uuid().parse(new URL(request.url).searchParams.get('invoiceId'));
@@ -133,6 +147,7 @@ export async function POST(request: Request, { params }: Context) {
     if (rawApp !== "pos" && rawApp !== "pms")
       throw new ApiError(404, "NOT_FOUND", "Not found.");
     const app = rawApp as FrontAppKind;
+    if(app==='pms'&&frontPmsAttachmentPaths.has(path[0]))return await frontPmsAttachmentRequest(request,await frontActor(request,holdingSlug,companySlug,app),path);
     if (app === "pms" && path[0] === "home") {
       const actor = await frontActor(request, holdingSlug, companySlug, app);
       return Response.json({data:await pmsHomeWrite(actor,path.slice(1),await request.json(),commandKey(request))}, {headers:{"Cache-Control":"private, no-store"}});
@@ -187,6 +202,12 @@ export async function POST(request: Request, { params }: Context) {
         { data: await posCommand(db, actor, operation, body, commandKey(request)) },
         { headers: { "Cache-Control": "private, no-store" } },
       );
+    }
+
+    if(path.length===1&&path[0]==='booking-changes'){
+      const db=(await holdingResources(actor.holdingId)).write;
+      if(!isTransactionalSqlDatabase(db))throw new Error('POSTGRES_REQUIRED');
+      return Response.json({data:await staffBookingChange(db,actor,holdingSlug,await request.json(),commandKey(request))},{headers:{'Cache-Control':'private, no-store'}});
     }
 
     if (path.length === 1 && (path[0] === "availability" || path[0] === "quote")) {

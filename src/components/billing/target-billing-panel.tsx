@@ -1,4 +1,5 @@
 "use client";
+import {CollectionRecordLink,RecordCollectionDrawer,RecordFacts} from "@/components/records/record-collection";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { FormDisclosure } from "@/components/ui/form-disclosure";
@@ -9,7 +10,7 @@ import { TimeText } from "@/components/time/time-preference-context";
 import { betaFetch } from "@/lib/beta-client";
 import { billingMonth, monthBounds } from "@/lib/billing";
 import { workFetch } from "@/lib/work-fetch";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { useCallback, useEffect, useState } from "react";
 import styles from "./target-billing-panel.module.css";
 
@@ -92,6 +93,7 @@ type MeasuredEvidence = {
     totalVerifiedSatang: number | null;
   };
 };
+function billingLineIdentity(line: {sourceKey?:string|null;kind:string;description:string},index:number){return JSON.stringify([line.sourceKey??null,line.kind,line.description,index]);}
 type TargetView = {
   holdingId: string;
   month: string;
@@ -486,6 +488,9 @@ export function TargetBillingPanel({
           {error}
         </InlineNotice>
       )}
+      <RecordCollectionDrawer<TargetView> kind="billing_source" title="Measured billing source" endpoint={api} select={(snapshot,id)=>(snapshot.measuredEvidence?.ai.sources?.find(row=>row.sourceKey===id)??snapshot.sources?.find(row=>row.sourceKey===id)) as unknown as Record<string,unknown>??null} render={record=><RecordFacts record={record} fields={['sourceKey','provider','fundingSource','requestStatus','gatewayStatus','kind','description','measuredQuantity','verifiedProviderCostSatang','amountSatang','reconciliationStatus','statementId','evidenceId']}/>}/>
+      <RecordCollectionDrawer<TargetView> kind="billing_statement" title="Provider reconciliation" endpoint={api} select={(snapshot,id)=>snapshot.statementReconciliation?.find(row=>row.statementId===id) as unknown as Record<string,unknown>??null} render={record=><RecordFacts record={record} fields={['provider','statementId','originalCurrency','providerTotalMinor','reconciledTotalMinor','status']}/>}/>
+      <RecordCollectionDrawer<TargetView> kind="billing_line" title="Rated billing line" endpoint={api} select={(snapshot,id)=>snapshot.lines.find((row,index)=>billingLineIdentity(row,index)===id) as unknown as Record<string,unknown>??null} render={(record,snapshot)=><><RecordFacts record={record} fields={['kind','description','measuredQuantity','amountSatang','verifiedProviderCostSatang','provider','fundingSource','requestStatus','statementId','evidenceId','reconciliationStatus']}/><h2>Source records</h2>{snapshot.sources?.filter(row=>row.kind===record.kind&&(!record.sourceKey||row.sourceKey===record.sourceKey)).map((row,index)=><p key={row.sourceKey??index}>{row.sourceKey?<CollectionRecordLink kind="billing_source" id={row.sourceKey}>{row.description}</CollectionRecordLink>:row.description}</p>)}</>}/>
       {!error && !view && <InlineNotice tone="info" role="status">Loading target billing review…</InlineNotice>}
       {view && (
         <>
@@ -667,7 +672,7 @@ export function TargetBillingPanel({
                     <tbody>
                       {evidence.ai.sources.map((source) => (
                         <tr key={source.sourceKey}>
-                          <td>{source.sourceKey}</td>
+                          <td><CollectionRecordLink kind="billing_source" id={source.sourceKey}>{source.sourceKey}</CollectionRecordLink></td>
                           <td>{source.provider ?? "Unknown"}</td>
                           <td>
                             {source.fundingSource} ·{" "}
@@ -907,7 +912,7 @@ export function TargetBillingPanel({
                     {view.statementReconciliation.map((statement) => (
                       <tr key={`${statement.provider}:${statement.statementId}`}>
                         <td>{statement.provider}</td>
-                        <td>{statement.statementId}</td>
+                        <td><CollectionRecordLink kind="billing_statement" id={statement.statementId}>{statement.statementId}</CollectionRecordLink></td>
                         <td>{statement.status}</td>
                         <td>
                           {statement.providerTotalMinor} {statement.originalCurrency} minor units
@@ -951,7 +956,7 @@ export function TargetBillingPanel({
                   {view.lines.map((line, index) => (
                     <tr key={`${line.sourceKey ?? line.kind}:${index}`}>
                       <td>{line.kind}</td>
-                      <td>{line.description}</td>
+                      <td><CollectionRecordLink kind="billing_line" id={billingLineIdentity(line,index)}>{line.description}</CollectionRecordLink></td>
                       <td>{measuredQuantityLabel(line)}</td>
                       {platform && (
                         <>

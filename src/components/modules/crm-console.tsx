@@ -5,6 +5,7 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { hubResultHref } from "@/lib/hub-result";
 import { workFetch } from "@/lib/work-fetch";
 import type { crmDetail, crmWorkspace } from "@/server/crm";
 import type { crmIdentities } from "@/server/crm-identities";
@@ -45,8 +46,10 @@ export function CRMConsole({
         throw new Error(result.error?.message ?? "Unable to save CRM action.");
       }
       last.current = null;
+      window.dispatchEvent(new Event("erpx:hub-saved"));
+      window.dispatchEvent(new Event("erpx:record-saved"));
       if (!(input && typeof input === "object" && "domain" in input && input.domain === "identity"))
-        router.push(`${base}/crm/${result.data.id}`);
+        router.push(hubResultHref(window.location.href, base, `${base}/crm/${result.data.id}`) ?? `${base}/crm/${result.data.id}`, { scroll: false });
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Retry the same command.");

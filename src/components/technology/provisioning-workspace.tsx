@@ -5,7 +5,7 @@ import { PreferredDateTimeField } from "@/components/time/preferred-date-time-fi
 import { TimeText } from "@/components/time/time-preference-context";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { Dialog } from "@/components/ui/dialog";
 import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
 import { workFetch } from "@/lib/work-fetch";

@@ -1,10 +1,48 @@
 # ERPX — ปิด engineering ทั้ง catalogue ก่อนนำเสนอ
 
+## Active Finance expansion — 2026-10-04
+
+User-authorized scope: complete the nine Financial Management capability groups with simple ERPX workflows. Delivery means engineering completion and evidence; Company, bank and government certification and staging/production promotion remain separate. The recorded 2026-10-03 catalogue baseline below does not certify these additions.
+
+- [x] FE-01 Shared dimensions, primary/secondary book mappings, atomic posting and reversal, retained source evidence.
+- [x] FE-02 Approved budget editions, monthly actuals, twelve-month forecasts, saved financial layouts and cash flow.
+- [x] FE-03 Saved CSV mappings, duplicate protection, reviewed bank match groups, cash forecast and collection cases.
+- [x] FE-04 Customer business billing (one-time/recurring/usage, tier/flat pricing, daily proration), source invoices and reviewed revenue plans.
+- [x] FE-05 Asset methods/book plans, fixed-payment leases and fixed-interest loans through recognition, installments and amendments.
+- [x] FE-06 Aligned-period cumulative/interval group reporting, group account mapping, rate types/CTA, intercompany pairs/eliminations and ownership adjustments.
+- [x] FE-07 Golden financial fixtures, two consecutive closes/year close, migration/restore, negative controls and authenticated mobile/desktop development acceptance.
+
+Start with Thailand and supported two-decimal currencies, existing Thai rules and CSV bank input. Jobs prepare drafts; independent people approve posting, reconciliation and publication. Outbound collection delivery uses a test adapter for engineering acceptance. Keep the five Finance areas and right-drawer editors. No task above is complete merely because its table, route or UI exists.
+
+Engineering acceptance is complete for the nine scoped Finance groups. This section remains the sole active Finance delivery checklist. Company release acceptance and staging/production promotion are separate work.
+
+Development acceptance completed 2026-10-05: all seven delivery phases pass their scoped owner examples and regression checks, with additive migrations `0987`–`1015`. Native authenticated desktop/mobile workflows use existing fictional maker, reviewer and Treasury accounts: approved dimensions/books, amended journals and plans, CSV deduplication/matching/reversal, collection revisions/test delivery, renewed billing and deferred recognition, different depreciation policies, amended lease payments, early loan payoff and two consecutive period closes. September cash reconciles at 1,199.02 in both books; October cash at 976.03, primary profit -34.08 and secondary profit -420.75. Retained multi-Company annual reporting has independently approved primary/secondary editions, correct post-year-close profit -1,123.00 and a preserved rejected draft. Advanced pricing/proration/usage/milestones, FX/CTA, intercompany/NCI/equity/goodwill, File Sources, concurrent retry/close guards, dated jobs, additive upgrade and encrypted populated restore have separate automated goldens.
+
+The final frozen whole run passed **304 files / 2,435 cases**, with 2 skipped files / 3 skipped cases and zero failed cases in 1,161.56 seconds. Typecheck, lint (five existing warnings/zero errors), documentation and isolated release build passed. Runtime `61bfe7be68adf0801d6b0385715bc156ffe3b40cb306895b26ee49a95908128f` and verification `2b14148b3311f7a6186113ed5ad4b4ceb248dc1baac4507eb41c202f8e88839e` match before/after; isolated release `2026-10-05T06-33-53-511Z` carries that exact runtime. [Finance acceptance evidence](testing/evidence/2026-10-05-finance-expansion.md) and its [current receipt](testing/evidence/2026-10-05-finance-expansion-checkpoint.json) distinguish real native actions from fixture preparation, retain historical checkpoints and record end-of-work health. Tools are opt-in per Company; only the fictional development Company was enabled. No staging access or production promotion occurred.
+
 ปรับปรุง 2026-10-03 · scope `catalogue-engineering-completion-v1` · Goal ต่อเนื่องตามคำสั่งผู้ใช้ · **ไม่ deploy staging หรือ production**
 
 นี่คือแผน active ฉบับเดียว ปิดงานพัฒนาทั้ง **33 โมดูล / 187 capabilities** จาก `src/data/module-registry.json` แล้วจัด release candidate สำหรับสมัครงานหรือระดมทุน **ไม่รอผู้ตรวจรับภายนอก** ผล engineering แยกจาก business/legal/bank/device/provider production certification อย่างชัดเจน โค้ด หน้า CRUD เทสต์ที่มีอยู่ และ HTTP200 ไม่ใช่ผลตรวจครบ capability
 
 ใช้บริษัทสมมติและบัญชีผู้ทำ ผู้อนุมัติ HR Finance Legal แยกกันผ่าน authentication ปกติ ใช้ Sandbox/provider ที่มีบัญชี และ adapter/fixtures ที่ระบุชัดสำหรับบริการที่ไม่มีบัญชี ไม่เพิ่ม OTA/SiteMinder, offline POS, registered e-Tax, autonomous AI หรือ roadmap ที่ประกาศเลื่อนไว้
+
+
+## Direct PMS booking delivery — 2026-10-05
+
+Authorized scope: our hotel direct booking, guest self-service and hotel staff through Stripe Connect sandbox and existing Finance, THB first; no OTA/marketplace/loyalty, live collection, staging or production deployment. The [PMS owner contract and twelve-group acceptance register](contracts/next/pms.md#acceptance-register--2026-10-05-in-progress) own detailed behavior/evidence. The prior “Hotel PMS / 12 / ผ่าน” capability row below records internal operations acceptance; it does not claim these twelve direct-booking groups passed.
+
+| Work | Current implementation / remaining acceptance |
+| --- | --- |
+| PMS-01 | Separate live gate, cancellation status/occupancy, refund drawers, pending-payment freeze and evidence register implemented; focused verification passed; isolated release and exact-source receipt recorded |
+| PMS-02 | Public galleries/features, guest steps/payment split, Thai/English/themes, publishing readiness/draft preview implemented; authenticated settings/draft preview and populated guest pay-at-hotel flow observed; actual media publication blocked by email setup/extension upload |
+| PMS-03 | Shared Company Connect, direct Checkout/card+PromptPay, full/percentage advance/pay-at-hotel, pinned account/mode and verified reconciliation implemented; all seven real sandbox scenarios replayed on final source with three independently approved card partial refunds; guest entry/return and signed-webhook acceptance remain pending |
+| PMS-04 | Immutable funding/source reservations, unallocated liability, independent approval, partial refunds/generations, closed-period/provider recovery, GL controls and Night Audit guards implemented; real webhook/fee/payout/bank acceptance pending |
+| PMS-05 | Signed/versioned guest and staff proposals, capacity deltas/original-booking retention, accepted fee revenue, documents/history/refund tracking implemented; guest equal/up/down price, dates and partial/all cancellation passed for pay-at-hotel; paid-delta/provider acceptance remains pending |
+| PMS-06 | Today queues/calendar, 50-record operational/directory lists, housekeeping filters, bounded history/report SQL and Front private file adapter implemented; inventory retains occupied folio choices/original movement names, drawer file sections span available width and mobile keyboard focus checks pass; commands retain whole-property lock/snapshot scaling and complete operational/browser acceptance remains pending |
+
+The [sanitized checkpoint receipt](testing/evidence/2026-10-05-pms-direct-booking.json) records 100 focused passing cases and seven real Connect cases bound to the final release `2026-10-05T13-52-17-200Z`, plus the original frozen broad regression/scanner rerun and browser provenance. These checkpoints do not establish final 12/12 acceptance.
+
+User explicitly deferred real email delivery and emailed PromptPay refund instructions on 2026-10-05. Durable delivery/failure behavior is tested with a fake provider; deferred cases remain visible and are not counted as real provider acceptance. Browser account switching is authorized through normal login with existing development fixture credentials. Migrations `1016`–`1019` are additive and development only. Do not declare 12/12 until every remaining required case has evidence on the same source/release candidate.
 
 ## สถานะปัจจุบัน
 
@@ -136,3 +174,7 @@ Thai payroll และ Thai Finance rule sources/effective dates/source digests/
 ผล availability 2026-10-03 18:42 ICT: local dev3100/public dev/private production3101 `/api/health` **HTTP200 ทั้งสาม**, persistent pinned Bun1.2.17/Node24.20.0 dev/jobs พร้อม heartbeat ใหม่, uploads enabled/unfrozen, PostgreSQL18.6 port5432 พร้อมใช้. Read-only metadata ตรวจ development ทั้ง8 migration tracks ไม่มี pending/unrecognized checksum mismatch; exact recognized historical checksum exceptions เก็บไว้ ไม่แก้ receipts. Development migration table total2,225 แยกจาก recovery fixture2,234. Actual authenticated public [My work](https://console-dev-erpx.jesadakorn.com/holdings/acme/work) ตรวจภาพ/controls/typed cards และ reload แล้ว hydrated ใช้งานได้ โดยไม่ bypass login. ผลตรวจอยู่ใน `final-availability.json`, `final-http-availability.json`, `public-development-ui-receipt.json`.
 
 Historical checkpoints, failed/interrupted run receipts และ original dirty snapshot เก็บใน ignored engineering-completion history; ไม่ restamp เป็นผล final และไม่มีการ reset working tree. แผนนี้เป็น active delivery plan ฉบับเดียว. ไม่มี staging access หรือ production deployment ในรอบนี้.
+
+## Skills, Performance & Compensation (2026-10-05)
+
+People owns the annual evidence and comparison module described in [the owner contract](contracts/next/people-evaluation.md), with [primary-source research](testing/workforce-compensation-research-2026-10-05.md). Company-confirmed criteria, independent result/pay approvals and missing-data/privacy gates are mandatory; this feature does not authorize production or staging rollout. Implementation and verification evidence is recorded in `docs/testing/people-evaluation-2026-10-05.md`.

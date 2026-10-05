@@ -1,8 +1,19 @@
-import Link from 'next/link';
-import {requireWorkContext,publicScope} from '@/server/authorization';
-import {workspaceBase} from '@/lib/workspace';
-import {customerDirectory} from '@/server/customer-timeline';
-import {pageError} from '@/server/page-error';
-import { PageContent, Card, Table, TableFrame } from "@/components/ui/foundation";
-export const dynamic='force-dynamic';
-export default async function Page({params}:{params:Promise<{holdingSlug:string}>}){const {holdingSlug}=await params,a=await requireWorkContext(holdingSlug),base=workspaceBase(publicScope(a)),rows=await customerDirectory(a).catch(e=>pageError(e,holdingSlug));return <PageContent as="div" className="ui-page-content"><Link href={`${base}/commerce?view=sales`}>Sales</Link><h1>Customer 360</h1><p>Customers with a sales document or qualified opportunity visible in your current workspace.</p><Card as="section" appearance="standard" className="ui-panel"><TableFrame appearance="standard" label="Customer directory"><Table><thead><tr><th>Customer code</th><th>Name</th></tr></thead><tbody>{rows.slice(0,200).map(r=><tr key={r.id}><td><Link href={`${base}/customers/${r.id}`}>{r.code}</Link></td><td>{r.name}</td></tr>)}</tbody></Table></TableFrame>{!rows.length&&<p>No customers with visible source records.</p>}{rows.length>200&&<p>Showing the first 200 customers. Open additional customer timelines from their sales documents.</p>}</Card></PageContent>;}
+import { forbidden } from "next/navigation";
+import { publicScope, requireWorkContext } from "@/server/authorization";
+import { workspaceBase } from "@/lib/workspace";
+import { pageError } from "@/server/page-error";
+import { queryValue, type HubQuery, type CustomersView } from "@/lib/sales-customers";
+import { customerReviewCounts, salesCustomersAccess } from "@/server/sales-customers";
+import { HubShell } from "@/components/sales-customers/hub-shell";
+import { CustomerContactsView, CustomerDirectoryView, CustomerReviewsView, CustomerSupportView } from "@/components/sales-customers/customer-views";
+export const dynamic = "force-dynamic";
+export default async function Page({ params, searchParams }: { params: Promise<{ holdingSlug: string }>; searchParams: Promise<HubQuery> }) {
+  const { holdingSlug } = await params, actor = await requireWorkContext(holdingSlug), base = workspaceBase(publicScope(actor)), access = await salesCustomersAccess(actor), query = await searchParams;
+  const view = (queryValue(query, "view") || (["directory", "contacts", "support", "reviews"] as const).find(view => access[view])) as CustomersView;
+  if (!["directory", "contacts", "support", "reviews"].includes(view) || !access[view]) forbidden();
+  if (view === "reviews" && !["identity", "duplicates", "access"].includes(queryValue(query, "review", "identity"))) forbidden();
+  const props = { actor, base, query: { ...query, view } };
+  const content = await (view === "directory" ? CustomerDirectoryView(props) : view === "contacts" ? CustomerContactsView(props) : view === "support" ? CustomerSupportView(props) : CustomerReviewsView(props)).catch(error => pageError(error, holdingSlug));
+  const counts = await customerReviewCounts(actor).catch(error => pageError(error, holdingSlug));
+  return <HubShell base={base} hub="customers" view={view} access={access} reviewCount={counts ? counts.identity + counts.duplicates + counts.access : null}>{content}</HubShell>;
+}

@@ -5,6 +5,7 @@ import { Dialog, FormDrawer } from "@/components/ui/dialog";
 import { Button, Field, Select, Table, TableFrame, TextInput } from "@/components/ui/foundation";
 
 import { workFetch } from "@/lib/work-fetch";
+import { minorToDecimal } from "@/lib/finance-money";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { LedgerRow } from "@/server/ledger";
@@ -51,27 +52,35 @@ export function JournalEditor({
   chart,
   accounts,
   periods,
+  dimensions = [],
+  dimensionValues = [],
   initialOpen = false,
+  draft,
+  draftLines=[],
 }: {
   base: string;
   chart: LedgerRow;
   accounts: LedgerRow[];
   periods: LedgerRow[];
+  dimensions?:LedgerRow[];
+  dimensionValues?:LedgerRow[];
   initialOpen?: boolean;
+  draft?:LedgerRow;
+  draftLines?:LedgerRow[];
 }) {
   const { send, pending, error } = useFinanceCommand(base);
   const [open, setOpen] = useState(initialOpen);
-  const [lines, setLines] = useState([
+  const [lines, setLines] = useState<Array<{accountId:string;debit:string;credit:string;description?:string;dimensions?:Record<string,string>}>>(draft?draftLines.map(l=>({accountId:String(l.account_id),debit:minorToDecimal(Number(l.debit_minor)),credit:minorToDecimal(Number(l.credit_minor)),description:String(l.description??""),dimensions:JSON.parse(String(l.dimension_json??"{}"))})):[
     { accountId: "", debit: "0", credit: "0" },
     { accountId: "", debit: "0", credit: "0" },
   ]);
   return (
     <Card as="section" appearance="standard" className="ui-panel">
       <div className="ui-section-header">
-        <h2>Manual journal</h2>
+        <h2>{draft?"Edit manual draft":"Manual journal"}</h2>
         {!initialOpen && (
           <Button appearance="standard" type="submit" variant="primary" onClick={() => setOpen(!open)}>
-            {open ? "Close form" : "Create journal"}
+            {open ? "Close form" : draft?"Edit draft":"Create journal"}
           </Button>
         )}
       </div>
@@ -81,17 +90,17 @@ export function JournalEditor({
         </InlineNotice>
       )}
       {open && (
-        <FormDrawer appearance="standard" inline={initialOpen} open={open} onClose={() => setOpen(false)} title="Create journal" dismissDisabled={pending}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<form
+        <FormDrawer appearance="standard" inline={initialOpen} open={open} onClose={() => setOpen(false)} title={draft?"Edit manual draft":"Create journal"} dismissDisabled={pending}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<form
           onSubmit={(e) => {
             e.preventDefault();
             const f = new FormData(e.currentTarget);
-            void send("journals", {
+            void send(draft?`journals/${draft.id}/edit`:"journals", {
+              ...(draft?{expectedVersion:Number(draft.version),reason:f.get("reason")}:{sourceType:"manual"}),
               chartId: chart.id,
               periodId: f.get("periodId"),
               entryDate: f.get("entryDate"),
-              currency: chart.base_currency,
+              currency: draft?.currency??chart.base_currency,
               memo: f.get("memo"),
-              sourceType: "manual",
               lines,
             });
           }}
@@ -99,7 +108,7 @@ export function JournalEditor({
           <FormGrid as="div" className="ui-form-grid">
             <Field appearance="standard">
               Accounting period
-              <Select appearance="standard" name="periodId" required>
+              <Select appearance="standard" name="periodId" required defaultValue={draft?String(draft.period_id):undefined}>
                 <option value="">Select period</option>
                 {periods
                   .filter((p) => p.state === "open")
@@ -116,13 +125,14 @@ export function JournalEditor({
                 name="entryDate"
                 type="date"
                 required
-                defaultValue={new Date().toISOString().slice(0, 10)}
+                defaultValue={draft?String(draft.entry_date):new Date().toISOString().slice(0, 10)}
               />
             </Field>
             <Field appearance="standard">
               Journal memo
-              <TextInput appearance="standard" name="memo" required maxLength={2000} />
+              <TextInput appearance="standard" name="memo" required maxLength={2000} defaultValue={draft?String(draft.memo):undefined} />
             </Field>
+            {draft&&<Field appearance="standard">Reason for this draft revision<TextInput appearance="standard" name="reason" required minLength={10} maxLength={2000}/></Field>}
           </FormGrid>
           {lines.map((l, i) => (
             <FormGrid as="div" className="ui-form-grid" key={i}>
@@ -173,6 +183,7 @@ export function JournalEditor({
                   }
                 />
               </Field>
+              {dimensions.map(d=><Field key={String(d.id)} appearance="standard">{String(d.name)} · line {i+1}<Select appearance="standard" required={Number(d.required)===1} value={l.dimensions?.[String(d.code)]??''} onChange={e=>setLines(lines.map((v,j)=>j===i?{...v,dimensions:Object.fromEntries(Object.entries({...v.dimensions,[String(d.code)]:e.target.value}).filter(([,value])=>value))}:v))}><option value="">Choose {String(d.name)}</option>{dimensionValues.filter(v=>v.dimension_id===d.id).map(v=><option key={String(v.id)} value={String(v.code)}>{String(v.code)} · {String(v.name)}</option>)}</Select></Field>)}
               {lines.length > 2 && (
                 <Button appearance="standard"
                   variant="secondary"

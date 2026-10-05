@@ -1,11 +1,12 @@
 "use client";
+import { RecordLink } from "@/components/records/record-link";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, Table, TableFrame, TextInput } from "@/components/ui/foundation";
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { workFetch } from "@/lib/work-fetch";
+import { financeCommandFetch as workFetch } from "@/lib/finance-command-fetch";
 import { minorToDecimal } from "@/lib/finance-money";
 import { RecordDocumentDrawer } from "@/components/attachments/record-document-drawer";
 import { Card, FormLayout } from "@/components/ui/foundation";
@@ -152,7 +153,7 @@ export function AccrualScheduleConsole({
             {data.schedules.map((schedule) => (
               <tr key={String(schedule.id)}>
                 <td>
-                  <strong>{String(schedule.description)}</strong>
+                  <RecordLink href={`${base}/record-details/accrual_schedule/${encodeURIComponent(String(schedule.id))}`}>{String(schedule.description)}</RecordLink>
                   <br />
                   <small>{String(schedule.frequency)}</small>
                 </td>
@@ -250,7 +251,7 @@ export function AccrualScheduleConsole({
           <tbody>
             {data.runs.map((item) => (
               <tr key={String(item.id)}>
-                <td>{String(item.description)}</td>
+                <td><RecordLink href={`${base}/record-details/accrual_run/${encodeURIComponent(String(item.id))}`}>{String(item.description)}</RecordLink></td>
                 <td>
                   {String(item.period_start)} → {String(item.period_end)}
                 </td>

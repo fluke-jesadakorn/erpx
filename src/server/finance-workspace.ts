@@ -9,7 +9,9 @@ import { calculateCloseReconciliations, type CloseReconciliation } from "./finan
 import { intercompanyWorkspace } from "./finance-intercompany";
 import { consolidationRunWorkspace } from "./finance-consolidation";
 import { pendingVatReviewSql,type VatCloseEvidence } from "./finance-tax-register";
+import {financeExpansionClosePending} from "./finance-expansion-close";
 import { readListPage } from "./list-page";
+import {financeSetupAuthority} from "./finance-starter";
 
 type PaymentRecord = { id: string; page_key: string; payment_number: string; kind: string; payment_date: string; currency: string; amount_minor: number; outstanding_minor: number; status: string; party_name: string | null };
 export async function paymentRecordsWorkspace(actor: WorkContext, query: { q?: string; paymentStatus?: string; paymentCursor?: string }, limit=30) {
@@ -71,6 +73,7 @@ export type ClosePeriodRow = {
   open_manufacturing: number;
   pending_calculations: number;
   pending_tax: number;
+  pending_source_tasks: number;
   blockers: number;
   reconciliation_ready: number;
   reconciliations: CloseReconciliation[];
@@ -189,9 +192,9 @@ export async function paymentObligationsWorkspace(actor: WorkContext, filters: P
       WHERE b.company_id=? AND b.status IN ('draft','approved','exported')
         AND (b.status IN ('draft','approved') OR EXISTS (SELECT 1 FROM finance_supplier_instructions pending WHERE pending.batch_id=b.id AND pending.status IN ('exported','unknown','failed')))
       GROUP BY b.id ORDER BY b.planned_date,b.id`).bind(actor.companyId).all<Record<string,string|number|null>>(),
-    write.prepare(`SELECT o.id,o.return_id,o.direction,r.return_date due_date,o.currency,o.status,o.outstanding_minor amount_minor
-      FROM finance_refund_obligations o JOIN commerce_returns r ON r.id=o.return_id
-      WHERE o.company_id=? AND o.status IN ('pending','approved') AND o.outstanding_minor>0 ORDER BY r.return_date,o.id`).bind(actor.companyId).all<Record<string,string|number|null>>(),
+    write.prepare(`SELECT o.id,o.return_id,o.direction,COALESCE(r.return_date,c.entry_date) due_date,o.currency,o.status,o.outstanding_minor amount_minor
+      FROM finance_refund_obligations o LEFT JOIN commerce_returns r ON r.id=o.return_id LEFT JOIN finance_billing_corrections c ON c.id=o.billing_correction_id AND c.company_id=o.company_id
+      WHERE o.company_id=? AND o.status IN ('pending','approved') AND o.outstanding_minor>0 ORDER BY COALESCE(r.return_date,c.entry_date),o.id`).bind(actor.companyId).all<Record<string,string|number|null>>(),
     canReadPeoplePayments
       ? write.prepare(`SELECT b.id,b.source_type,b.source_id,b.currency,b.status,r.pay_date due_date,
           COALESCE(SUM(CASE WHEN i.status IN ('outstanding','failed') THEN i.amount_minor ELSE 0 END),0) amount_minor
@@ -234,11 +237,12 @@ export async function closeWorkspace(actor: WorkContext) {
     .all<ClosePeriodSource>();
   return Promise.all(periods.results.map(async(period): Promise<ClosePeriodRow> => {
     const reconciliation=await calculateCloseReconciliations(write,actor,period);
-    const pendingTax=Number(await write.prepare(pendingVatReviewSql).bind(period.end_date,actor.companyId).first("value")??0);
+    const pendingTax=Number(await write.prepare(pendingVatReviewSql).bind(period.end_date,actor.companyId).first("value")??0),expansionPending=await financeExpansionClosePending(write,actor.companyId,String(period.start_date),String(period.end_date));
     return {
       ...period,
       pending_tax:pendingTax,
-      blockers: Number(period.draft_journals) + Number(period.unmatched_bank) + Number(period.draft_invoices) + Number(period.open_manufacturing) + Number(period.pending_calculations) + pendingTax + (reconciliation.ready?0:1),
+      pending_source_tasks:expansionPending.length,
+      blockers: Number(period.draft_journals) + Number(period.unmatched_bank) + Number(period.draft_invoices) + Number(period.open_manufacturing) + Number(period.pending_calculations) + pendingTax + expansionPending.length + (reconciliation.ready?0:1),
       reconciliation_ready: reconciliation.ready?1:0,
       reconciliations: reconciliation.rows,
       vat_reconciliation: reconciliation.vat,
@@ -256,13 +260,16 @@ export async function groupFinanceWorkspace(actor: WorkContext) {
 export async function financeSetupWorkspace(actor: WorkContext) {
   actor = requirePermission(actor, "finance.read");
   const { write } = await holdingResources(actor.holdingId);
-  const [charts, accounts, periods, taxes, bankStatements, parties] = await Promise.all([
+  const [charts, accounts, periods, taxes, bankStatements, parties,authority,profiles,controls] = await Promise.all([
     write.prepare("SELECT * FROM finance_charts WHERE company_id=? ORDER BY created_at").bind(actor.companyId).all<Record<string, string | number | null>>(),
     write.prepare("SELECT count(*) count FROM finance_accounts WHERE company_id=? AND status='active'").bind(actor.companyId).first<{ count: number }>(),
     write.prepare("SELECT count(*) count FROM finance_periods WHERE company_id=?").bind(actor.companyId).first<{ count: number }>(),
     write.prepare("SELECT count(*) count FROM finance_tax_codes WHERE company_id=? AND status='active'").bind(actor.companyId).first<{ count: number }>(),
     write.prepare("SELECT count(DISTINCT bank_account) count FROM finance_bank_statements WHERE company_id=?").bind(actor.companyId).first<{ count: number }>(),
     write.prepare("SELECT id,kind,code,name,currency,status,version,updated_at FROM finance_parties WHERE company_id=? AND kind IN ('customer','supplier') AND status='active' ORDER BY kind,name").bind(actor.companyId).all<Record<string, string | number | null>>(),
+    financeSetupAuthority(write,actor.companyId),
+    write.prepare("SELECT count(*) count FROM finance_accounting_profiles p JOIN finance_charts c ON c.id=p.statutory_chart_id AND c.company_id=p.company_id AND c.status='active' WHERE p.company_id=? AND p.status='approved' AND p.effective_date<=?").bind(actor.companyId,new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())).first<{count:number}>(),
+    write.prepare("SELECT count(*) count FROM (SELECT a.chart_id FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id AND c.status='active' WHERE a.company_id=? AND a.status='active' AND NOT EXISTS(SELECT 1 FROM finance_book_rules r WHERE r.secondary_chart_id=a.chart_id AND r.status='approved') GROUP BY a.chart_id HAVING bool_or(a.control_kind='bank' AND a.category='asset') AND bool_or(a.control_kind='receivable' AND a.category='asset') AND bool_or(a.control_kind='payable' AND a.category='liability')) configured").bind(actor.companyId).first<{count:number}>(),
   ]);
   return {
     charts: charts.results,
@@ -270,6 +277,9 @@ export async function financeSetupWorkspace(actor: WorkContext) {
     checks: [
       { id: "chart", label: "Chart of accounts and base currency", complete: charts.results.length > 0, detail: `${charts.results.length} chart(s)` },
       { id: "accounts", label: "Posting accounts", complete: Number(accounts?.count ?? 0) > 0, detail: `${Number(accounts?.count ?? 0)} active account(s)` },
+      {id:'controls',label:'Bank, receivable and payable controls',complete:Number(controls?.count??0)>0,detail:`${Number(controls?.count??0)} primary book(s) with all three control mappings`},
+      {id:'profile',label:'Reviewed Company accounting policy',complete:Number(profiles?.count??0)>0,detail:`${Number(profiles?.count??0)} effective independently approved profile(s)`},
+      {id:'approvers',label:'Independent Finance preparer and approver',complete:authority.independent,detail:`${authority.preparerCount} preparer(s), ${authority.approverCount} approver(s) with current Company authority`},
       { id: "periods", label: "Accounting periods", complete: Number(periods?.count ?? 0) > 0, detail: `${Number(periods?.count ?? 0)} period(s)` },
       { id: "tax", label: "Tax codes", complete: Number(taxes?.count ?? 0) > 0, detail: `${Number(taxes?.count ?? 0)} active code(s)` },
       { id: "bank", label: "Bank accounts", complete: Number(bankStatements?.count ?? 0) > 0, detail: `${Number(bankStatements?.count ?? 0)} account(s) from statements` },

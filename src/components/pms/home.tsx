@@ -1,4 +1,6 @@
 "use client";
+import {PmsHotelSources} from "@/components/records/pms-hotel-sources";
+import {CollectionRecordLink} from "@/components/records/record-collection";
 import { Button, Field, Select, Table, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -306,7 +308,7 @@ export function PmsToday({
       </div>
     );
   return (
-    <div className={styles.today}>
+    <div className={styles.today}><PmsHotelSources api={api} frontHref={frontHref}/>
       <header className={styles.intro}>
         <div>
           <p className={styles.eyebrow}>
@@ -470,24 +472,15 @@ export function PmsToday({
                     {data.hotels.map((hotel) => (
                       <tr key={hotel.id}>
                         <td>
-                          <a
-                            href={`${frontHref}dashboard?property=${encodeURIComponent(hotel.id)}`}
-                          >
-                            {hotel.name}
-                          </a>
+                          <CollectionRecordLink kind="pms_hotel_sources" id={hotel.id} args={{metric:'occupancy',businessDate:hotel.businessDate}}>{hotel.name}</CollectionRecordLink>
                           <small>{hotel.businessDate}</small>
                         </td>
-                        <td>{hotel.occupancy === null ? "—" : `${hotel.occupancy.toFixed(1)}%`}</td>
+                        <td>{hotel.occupancy === null ? "—" : <CollectionRecordLink kind="pms_hotel_sources" id={hotel.id} args={{metric:"occupancy",businessDate:hotel.businessDate}}>{`${(hotel.occupancy * 100).toFixed(1)}%`}</CollectionRecordLink>}</td>
                         {[hotel.adr, hotel.revpar, hotel.roomRevenue].map((amount, index) => (
                           <td key={index}>
                             {amount === null
                               ? "—"
-                              : formatMoney(
-                                  Math.round(amount),
-                                  hotel.currency,
-                                  hotel.businessDate,
-                                  2,
-                                )}
+                              : <CollectionRecordLink kind="pms_hotel_sources" id={hotel.id} args={{metric:['adr','revpar','room_revenue'][index],businessDate:hotel.businessDate}}>{formatMoney(Math.round(amount),hotel.currency,hotel.businessDate,2)}</CollectionRecordLink>}
                           </td>
                         ))}
                       </tr>

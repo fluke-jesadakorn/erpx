@@ -1,5 +1,5 @@
 import {requireWorkContext} from '@/server/authorization';
-import {approvePmsStripeRefund,requestPmsStripeRefund} from '@/server/pms-stripe';
+import {approvePmsStripeRefund,requestPmsStripeRefund,recoverPmsStripeRefund} from '@/server/pms-stripe';
 import {ApiError,errorResponse} from '@/server/http';
 import {requestPublicOrigin} from '@/server/public-origin';
 import {holdingResources} from '@/server/runtime';
@@ -11,7 +11,7 @@ export async function POST(request:Request,{params}:Context){try{
  const actor=await requireWorkContext((await params).holdingSlug),body=await request.json();
  if(typeof body?.id!=='string')throw new ApiError(422,'PMS_REFUND_ID_REQUIRED','Select a payment');
  const {write}=await holdingResources(actor.holdingId);if(!isTransactionalSqlDatabase(write))throw new Error('POSTGRES_REQUIRED');
- const data=body.action==='approve'?await approvePmsStripeRefund(write,actor,body.id):body.action==='request'?await requestPmsStripeRefund(write,actor,body.id,body.amountMinor,body.reason):null;
+ const data=body.action==='recover'?await recoverPmsStripeRefund(write,actor,body.id,typeof body.reason==='string'?body.reason:'',body.payerEmail):body.action==='approve'?await approvePmsStripeRefund(write,actor,body.id):body.action==='request'?await requestPmsStripeRefund(write,actor,body.id,body.amountMinor,body.reason):null;
  if(!data)throw new ApiError(422,'PMS_REFUND_ACTION','Select a refund action');
  return Response.json({data},{headers:{'Cache-Control':'private, no-store'}});
 }catch(error){return errorResponse(error);}}

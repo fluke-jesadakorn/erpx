@@ -102,10 +102,12 @@ export function financeContextHref(href: string, context: Pick<URLSearchParams, 
 
 export function financeDestinationForRoute(section: string | undefined, kind?: string | null) {
   return ({
-    ledger: "finance-ledger", accounting: "finance-ledger", journals: "finance-ledger",
+    "due-drafts":"finance-overview",
+    ledger: "finance-ledger", accounting: "finance-ledger", journals: "finance-ledger", assets: "finance-ledger", "book-adjustments": "finance-ledger", instruments: "finance-ledger", "asset-policies": "finance-ledger",
     invoices: kind === "payable" ? "finance-payables" : "finance-receivables",
+    contracts: "finance-receivables", collections: "finance-payments",
     payments: "finance-payments", bank: "finance-bank", hotels: "finance-hotels", close: "finance-close",
-    tax: "finance-tax", reports: "finance-reports", engines: "finance-engines", group: "finance-group",
+    tax: "finance-tax", reports: "finance-reports", engines: "finance-engines", group: "finance-group", "group-editions":"finance-group",
     setup: "finance-setup", refunds: "finance-refunds", "supplier-batches": "finance-supplier-batches",
   } as Record<string, string>)[section ?? ""] ?? "finance-overview";
 }

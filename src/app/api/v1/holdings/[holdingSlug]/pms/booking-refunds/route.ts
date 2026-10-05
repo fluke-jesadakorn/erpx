@@ -1,5 +1,6 @@
 import { requireWorkContext } from '@/server/authorization';
 import { approveBookingRefund } from '@/server/pms-booking';
+import { retryBookingRefund,recoverBookingReceipt } from '@/server/pms-booking-refunds';
 import { ApiError,errorResponse } from '@/server/http';
 import { requestPublicOrigin } from '@/server/public-origin';
 import { holdingResources } from '@/server/runtime';
@@ -14,6 +15,8 @@ export async function POST(request:Request,{params}:Context){
   if(typeof body?.id!=='string')throw new ApiError(422,'PMS_REFUND_ID_REQUIRED','Select a refund request');
   const {write}=await holdingResources(actor.holdingId);
   if(!isTransactionalSqlDatabase(write))throw new Error('POSTGRES_REQUIRED');
-  return Response.json({data:await approveBookingRefund(write,actor,body.id)},{headers:{'Cache-Control':'private, no-store'}});
+  if(body.action && !['approve','retry','recover-receipt'].includes(body.action))throw new ApiError(422,'PMS_REFUND_ACTION','Choose an available refund action');
+  const reason=typeof body.reason==='string'?body.reason:'';
+  return Response.json({data:body.action==='recover-receipt'?await recoverBookingReceipt(write,actor,body.id,reason):body.action==='retry'?await retryBookingRefund(write,actor,body.id,reason):await approveBookingRefund(write,actor,body.id)},{headers:{'Cache-Control':'private, no-store'}});
  }catch(error){return errorResponse(error);}
 }

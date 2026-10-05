@@ -1,5 +1,8 @@
 "use client";
-import { Button, Table, TableFrame } from "@/components/ui/foundation";
+import {RecordLink} from "@/components/records/record-link";
+import {recordCanonicalHref} from "@/lib/record-drawer";
+import { Button, Field, TextInput, Table, TableFrame } from "@/components/ui/foundation";
+import {FormDisclosure} from "@/components/ui/form-disclosure";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -46,7 +49,7 @@ export function CounterRefunds({
           <tbody>
             {rows.map((row) => (
               <tr key={row.id}>
-                <td>{row.id.slice(0, 8)}</td>
+                <td><RecordLink href={recordCanonicalHref(base,{kind:"pms_counter_refund",id:row.id})}>{row.id.slice(0, 8)}</RecordLink></td>
                 <td>THB {((row.refund_amount_minor ?? row.amount_minor) / 100).toFixed(2)}</td>
                 <td>{row.refund_reason ?? "Late payment review"}</td>
                 <td>
@@ -81,6 +84,8 @@ export function CounterRefunds({
                     >
                       Approve Stripe refund
                     </Button>
+                  ) : row.refund_state === "requires_action" ? (
+                    "Waiting for guest bank details"
                   ) : row.refund_state === "processing" ? (
                     "Waiting for Stripe"
                   ) : row.refund_state === "succeeded" ? (
@@ -88,6 +93,9 @@ export function CounterRefunds({
                   ) : (
                     "Finance review"
                   )}
+                  {canApprove && ['approved','processing','requires_action','failed'].includes(row.refund_state) && <FormDisclosure appearance="standard" dismissDisabled={Boolean(busy)} error={error}><summary>Review refund recovery</summary><form onSubmit={async event=>{
+                    event.preventDefault();const form=new FormData(event.currentTarget);setBusy(row.id);setError('');try{const email=String(form.get('payerEmail')??'').trim();const response=await workFetch(`/api/v1${base}/pms/stripe-refunds`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:row.id,action:'recover',reason:String(form.get('reason')??''),...(email?{payerEmail:email}:{})})});const result=await response.json();if(!response.ok)throw new Error(result.error?.message??'Refund recovery unavailable');router.refresh();}catch(error){setError(error instanceof Error?error.message:'Refund recovery unavailable');}finally{setBusy('');}
+                  }}><p>The original refund liability remains outstanding. A new provider attempt starts only after Stripe confirms the previous attempt failed.</p><Field appearance="standard">Payer email<TextInput appearance="standard" name="payerEmail" type="email" defaultValue={row.payer_email??''}/></Field><Field appearance="standard">Recovery reason<TextInput appearance="standard" name="reason" required minLength={3}/></Field><Button appearance="standard" clientManaged type="submit" variant="primary" disabled={Boolean(busy)}>Approve recovery</Button></form></FormDisclosure>}
                 </td>
               </tr>
             ))}

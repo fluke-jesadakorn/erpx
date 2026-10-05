@@ -1,3 +1,4 @@
+import {PlatformOperationDetail,CollectionRecordLink} from "@/components/records/platform-operation-detail";
 
 import { PageContent } from "@/components/ui/patterns";
 import { Table } from "@/components/ui/foundation";
@@ -70,7 +71,7 @@ export default async function ManageErpxPage({
         choice.kind === "holding" && choice.holdingSlug !== "erpx",
     );
     return (
-      <PageContent as={FeaturePage} data-source="live">
+      <PageContent as={FeaturePage} data-source="live"><PlatformOperationDetail/>
         <PageHeader appearance="standard"
           eyebrow="ERPX"
           title="ERPX Management"
@@ -137,7 +138,7 @@ export default async function ManageErpxPage({
                     {operations.holdings.map((holding) => (
                       <tr key={holding.id}>
                         <td>
-                          <strong>{holding.displayName}</strong>
+                          <CollectionRecordLink kind="platform_operation" id={holding.id}>{holding.displayName}</CollectionRecordLink>
                           <br />
                           <small>{holding.slug}</small>
                         </td>

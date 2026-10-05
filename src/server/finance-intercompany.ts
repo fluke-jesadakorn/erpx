@@ -158,3 +158,11 @@ export async function decideIntercompany(actor: WorkContext, id: string, action:
   ];
   return executeCommand(write, actor, key, rule.operation, input, id, version, result, steps);
 }
+
+export async function intercompanyDetail(actor: WorkContext, id: string) {
+ actor = holdingActor(actor, "finance.read");
+ const { write } = await holdingResources(actor.holdingId);
+ const row = await write.prepare("SELECT * FROM finance_intercompany_transactions WHERE id=? AND holding_id=?").bind(id,actor.holdingId).first<IntercompanyRow>();
+ if (!row) throw new ApiError(404,"INTERCOMPANY_NOT_FOUND","Intercompany transaction not found.");
+ return { row, data: { ...await intercompanyWorkspace(actor), transactions: [row] } };
+}

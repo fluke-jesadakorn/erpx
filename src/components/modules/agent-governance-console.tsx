@@ -1,4 +1,6 @@
 "use client";
+import {RecordLink} from "@/components/records/record-link";
+import {recordCanonicalHref} from "@/lib/record-drawer";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
@@ -8,10 +10,10 @@ import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
 import type { agentWorkspace } from "@/server/agent-governance";
 import { FormLayout, Card } from "@/components/ui/foundation";
-export function AgentGovernanceConsole({
+export function AgentGovernanceConsole({ recordOnly=false,
   base,
   data,
-}: {
+}: { recordOnly?:boolean;
   base: string;
   data: Awaited<ReturnType<typeof agentWorkspace>>;
 }) {
@@ -51,7 +53,7 @@ export function AgentGovernanceConsole({
   return (
     <>
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
-      <FormLayout
+      {!recordOnly && <FormLayout
         className="ui-panel ui-form-grid"
         onSubmit={(e) => {
           e.preventDefault();
@@ -70,13 +72,13 @@ export function AgentGovernanceConsole({
         <Button appearance="standard" type="submit" clientManaged variant="primary" disabled={busy}>
           Draft agent
         </Button>
-      </FormLayout>
+      </FormLayout>}
       {data.agents
         .filter((x) => x.status === "draft")
         .map((x) => (
           <Review key={String(x.id)} entity="agent" row={x} send={send} busy={busy} />
         ))}
-      <FormLayout
+      {!recordOnly && <FormLayout
         className="ui-panel ui-form-grid"
         onSubmit={(e) => {
           e.preventDefault();
@@ -112,7 +114,7 @@ export function AgentGovernanceConsole({
         <Button appearance="standard" type="submit" clientManaged variant="primary" disabled={busy}>
           Draft version
         </Button>
-      </FormLayout>
+      </FormLayout>}
       {data.versions
         .filter((x) => x.status === "draft")
         .map((x) => (
@@ -126,7 +128,7 @@ export function AgentGovernanceConsole({
           <Lifecycle entity="version" row={x} actions={["retire"]} send={send} busy={busy}/>
         </Card>
       ))}
-      <FormLayout
+      {!recordOnly && <FormLayout
         className="ui-panel ui-form-grid"
         onSubmit={(e) => {
           e.preventDefault();
@@ -155,7 +157,7 @@ export function AgentGovernanceConsole({
         <Button appearance="standard" type="submit" clientManaged variant="primary" disabled={busy}>
           Create pool
         </Button>
-      </FormLayout>
+      </FormLayout>}
       {data.pools.filter(x=>x.status==="active").map(pool=>(
         <Card as="section" appearance="standard" className="ui-panel" key={String(pool.id)}>
           <h2>Routing pool · {String(pool.name)}</h2>
@@ -176,7 +178,7 @@ export function AgentGovernanceConsole({
           <details><summary>Pool membership history</summary><ul>{data.poolHistory.filter(revision=>revision.pool_id===pool.id).map(revision=><li key={String(revision.id)}>Revision {String(revision.version)} · {String(revision.reason)} · {(JSON.parse(String(revision.members_json)) as string[]).join(", ")}</li>)}</ul></details>
         </Card>
       ))}
-      <FormLayout
+      {!recordOnly && <FormLayout
         className="ui-panel ui-form-grid"
         onSubmit={(e) => {
           e.preventDefault();
@@ -233,7 +235,7 @@ export function AgentGovernanceConsole({
         <Button appearance="standard" type="submit" clientManaged variant="primary" disabled={busy}>
           Assign
         </Button>
-      </FormLayout>
+      </FormLayout>}
       {data.assignments.filter(x=>x.status==="active").map(row=><Card as="section" appearance="standard" className="ui-panel" key={String(row.id)}>
         <h2>Active assignment · {String(row.agent_name)} v{String(row.version_number)}</h2>
         <p>Scope {String(row.scope_path)} · {String(row.user_id??row.pool_id)}</p>
@@ -243,7 +245,7 @@ export function AgentGovernanceConsole({
         <h2>Private session retention</h2>
         <p>A hold preserves evidence. Expiry starts a fresh private conversation and keeps retained evidence out of the new history.</p>
         {data.sessions.map(session=><article key={String(session.id)}>
-          <h3>{String(session.conversation_key)} · generation {String(session.generation)}</h3>
+          <h3><RecordLink href={recordCanonicalHref(base,{kind:"agent_session",id:String(session.id)})}>{String(session.conversation_key)} · generation {String(session.generation)}</RecordLink></h3>
           <p>{String(session.user_id)} · {String(session.effective_status)} · expires {new Date(Number(session.expires_at)).toISOString()} {session.legal_hold?"· evidence held":""}</p>
           <Lifecycle entity="session" row={session} actions={[session.legal_hold?"release-hold":"hold",...(session.effective_status==="active"?["expire"]:[])]} send={send} busy={busy}/>
         </article>)}

@@ -4,7 +4,8 @@ import type { WorkContext } from "../authorization";
 import { holdingResources } from "../runtime";
 import { ApiError } from "../http";
 import { requirePermission } from "../iam-permissions";
-import { pmsHome } from "./home";
+import { pmsWorkspace } from "../pms";
+import { pmsHome,pmsHotelSources } from "./home";
 import { postAction, postComments, postView, postDraftSchema, publishPost, savePostDraft } from "../social-home";
 import { acknowledgeHandover, handoverAcknowledgement, publishHandover } from "../handover";
 import { textSuggestions, mentionsSchema } from "../social-text";
@@ -22,6 +23,8 @@ const homeQuery=z.object({property:z.string().max(160).optional(),view:z.enum(["
 export async function pmsHomeRead(actor:WorkContext,path:string[],search:URLSearchParams) {
   requirePermission(actor,"pms.read");
   const {write}=await holdingResources(actor.holdingId);
+  if(path.length===2&&path[0]==='hotel-sources')return pmsHotelSources(actor,path[1],z.enum(['occupancy','adr','revpar','room_revenue']).parse(search.get('metric')),z.iso.date().parse(search.get('businessDate')),z.coerce.number().int().min(1).max(100000).default(1).parse(search.get('page')??undefined));
+  if(path.length===2&&path[0]==='hotel-record')return pmsWorkspace(actor,z.string().min(1).parse(search.get('property')),false,true,{view:'detail',id:path[1]});
   if(!path.length) {
     const query=homeQuery.parse(Object.fromEntries(search));
     if(query.post)await assertPostScope(actor,query.post);

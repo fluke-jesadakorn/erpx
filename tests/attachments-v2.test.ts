@@ -71,10 +71,20 @@ function singleCleanupDatabase(){return new PostgresDatabase({connectionString:d
 describe("canonical attachment lifecycle",()=>{
   it("keeps a closed exact policy inventory",()=>{
     const combinations=attachmentPolicyRegistry.flatMap(policy=>policy.componentKinds.map(kind=>`${policy.targetType}\0${policy.purposeKey}\0${kind}`));
-    const exactInventoryHash=createHash("sha256").update([...combinations].sort().join("\n")).digest("hex");
-    expect(attachmentPolicyRegistry).toHaveLength(202);
-    expect(combinations).toHaveLength(217);
+    const addedFinanceTargets=["finance_billing_correction","finance_business_bill","finance_plan_edition","finance_book_rule","finance_book_adjustment","finance_bank_match_group","finance_collection_case","finance_business_contract","finance_recognition_run","finance_instrument","finance_instrument_run","finance_asset_policy","finance_asset_policy_run","finance_group_report","finance_ownership_interest","finance_acquisition","finance_intercompany_pair"];
+    const bookingMedia=["pms_property\0booking_media\0record","pms_room_type\0booking_media\0record"];
+    const evaluationEvidence="hr_evaluation_assessment\0evaluation_evidence\0record";
+    const originalCombinations=combinations.filter(tuple=>!addedFinanceTargets.includes(tuple.split("\0")[0])&&!bookingMedia.includes(tuple)&&tuple!==evaluationEvidence);
+    const exactInventoryHash=createHash("sha256").update([...originalCombinations].sort().join("\n")).digest("hex");
+    expect(attachmentPolicyRegistry).toHaveLength(222);
+    expect(combinations).toHaveLength(237);
+    expect(combinations.filter(tuple=>tuple.startsWith("hr_evaluation_assessment\0"))).toEqual([evaluationEvidence]);
+    expect(attachmentPolicy("hr_evaluation_assessment","evaluation_evidence","record")).toMatchObject({classification:"restricted",publication:false,portalUpload:false});
+    expect(originalCombinations).toHaveLength(217);
+    expect(combinations.filter(tuple=>addedFinanceTargets.includes(tuple.split("\0")[0])).sort()).toEqual(addedFinanceTargets.map(target=>`${target}\0finance_support\0record`).sort());
     expect(exactInventoryHash).toBe("65cd89ee3db08feb4c8d2bdde1b21776541c663ec8338eb1cc78959cb9dfcafd");
+    expect(combinations.filter(tuple=>bookingMedia.includes(tuple)).sort()).toEqual(bookingMedia.sort());
+    for(const target of ["pms_property","pms_room_type"])expect(attachmentPolicy(target,"booking_media","record")).toMatchObject({publication:true,classification:"internal",mediaTypes:["image/jpeg","image/png","image/webp","image/heic","image/heif"]});
     expect(new Set(combinations).size).toBe(combinations.length);
     expect(attachmentPolicyRegistry.every(policy=>policy.maxFiles>=1&&policy.maxFiles<=100)).toBe(true);
     expect(attachmentPolicy("product","product_image","record").componentKinds).toEqual(["record"]);
@@ -522,6 +532,23 @@ describe("canonical attachment lifecycle",()=>{
     await revokeAttachmentPublication(db,peerA,firstId,"Replaced by a newer approved view",key());
     await expect(publicAttachmentPublication(db,env.H001_FILES,firstId)).rejects.toMatchObject({status:404,code:"PUBLICATION_NOT_FOUND"});
     await expect(publicAttachmentPublication(db,env.H001_FILES,secondId)).resolves.toMatchObject({row:{alt_text:"Detail view"}});
+  });
+
+  it("keeps hotel and room originals private and publishes only independently approved booking images",async()=>{
+    const property=`property-${key()}`,roomType=`room-type-${key()}`;
+    await db.transaction(async tx=>{await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();await tx.prepare("INSERT INTO pms_properties(id,company_id,branch_id,name,business_date,config_json,created_by,updated_at) VALUES(?,?,?,'Media fixture','2026-10-05','{}',?,1)").bind(property,companyA,`branch-${key()}`,actorA.userId).run();await tx.prepare("INSERT INTO pms_records(id,property_id,kind,data_json,updated_at) VALUES(?,?,'room_type','{}',1)").bind(roomType,property).run();});
+    for(const [targetType,targetId] of [["pms_property",property],["pms_room_type",roomType]]){
+      const set=await createAttachmentSet(db,actorA,{targetType,targetId,componentKind:"record",purposeKey:"booking_media",expectedTargetVersion:1},key()),file=await availableProductFile(set.id);
+      await bindRecordAttachmentSet(db,actorA,set.id,1,key());
+      expect(await listAttachmentSets(db,actorB,{targetType,targetId})).toEqual([]);
+      const publication=await createAttachmentPublication(db,env.H001_FILES,actorA,{sourceLinkId:file.attachmentLinkId,targetType,targetId,altText:"Accessible hotel gallery image",ordinal:0},key()),id=String(publication?.id);
+      await expect(publicAttachmentPublication(db,env.H001_FILES,id)).rejects.toMatchObject({status:404});
+      await expect(approveAttachmentPublication(db,actorA,id,key())).rejects.toMatchObject({code:"INDEPENDENT_PUBLICATION_REVIEW"});
+      await approveAttachmentPublication(db,peerA,id,key());
+      expect((await publicAttachmentPublication(db,env.H001_FILES,id)).row.alt_text).toBe("Accessible hotel gallery image");
+      expect(publication?.derivative_object_key).not.toBe((await db.prepare("SELECT object_key FROM attachments WHERE id=?").bind(file.sourceId).first<{object_key:string}>())?.object_key);
+      await revokeAttachmentPublication(db,peerA,id,"Replace hotel gallery image",key());await expect(publicAttachmentPublication(db,env.H001_FILES,id)).rejects.toMatchObject({status:404});
+    }
   });
 
   it("binds Brand media privately before independent approval selects the sanitized public pointer",async()=>{

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import {TimeText} from "@/components/time/time-preference-context";
 import {requireWorkContext,publicScope} from "@/server/authorization";
 import {workspaceBase} from "@/lib/workspace";

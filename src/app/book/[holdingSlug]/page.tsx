@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { bookingCatalog, bookingDatabase } from "@/server/pms-booking";
 import { BookingFlow } from "@/components/pms/booking-flow";
+import { BookingGallery } from "@/components/pms/booking-gallery";
+import { BookingCopy } from "@/components/pms/booking-copy";
 import styles from "@/components/pms/booking.module.css";
 export const dynamic = "force-dynamic";
 export default async function BookingPage({
@@ -11,8 +13,7 @@ export default async function BookingPage({
   params: Promise<{ holdingSlug: string }>;
 }) {
   if (
-    process.env.PMS_STRIPE_BOOKING_ENABLED === "false" ||
-    (process.env.NODE_ENV === "production" && process.env.PMS_STRIPE_LIVE_ENABLED !== "true")
+    process.env.PMS_STRIPE_BOOKING_ENABLED === "false"
   )
     notFound();
   const { holdingSlug } = await params;
@@ -24,12 +25,12 @@ export default async function BookingPage({
   return (
     <main className={styles.wrap}>
       <header className={styles.hero}>
-        <span className={styles.eyebrow}>A place for your next chapter</span>
-        <h1>Find a stay that feels right.</h1>
-        <p>
+        <BookingCopy className={styles.eyebrow}>A place for your next chapter</BookingCopy>
+        <BookingCopy as="h1">Find a stay that feels right.</BookingCopy>
+        <BookingCopy as="p">
           Explore our hotels, compare room options and reserve your stay. Book directly and complete
           payment securely online.
-        </p>
+        </BookingCopy>
       </header>
       {hotels.length ? (
         <>
@@ -41,10 +42,11 @@ export default async function BookingPage({
             }).format(new Date())}
           />
           <section className={styles.surface}>
-            <h2>Our hotels</h2>
+            <BookingCopy as="h2">Our hotels</BookingCopy>
             {hotels.map((h) => (
               <article className={styles.offer} key={h.id}>
                 <div>
+                  <BookingGallery slug={holdingSlug} compact images={h.images}/>
                   <h3>
                     <Link href={`/book/${holdingSlug}/${h.id}`}>{h.name}</Link>
                   </h3>
@@ -56,7 +58,7 @@ export default async function BookingPage({
                   className={styles.secondary}
                   href={`/book/${holdingSlug}/${h.id}`}
                 >
-                  View hotel
+                  <BookingCopy>View hotel</BookingCopy>
                 </UiActionLink>
               </article>
             ))}
@@ -64,8 +66,8 @@ export default async function BookingPage({
         </>
       ) : (
         <section className={styles.surface}>
-          <h2>Online reservations are not open yet</h2>
-          <p>Our hotels will appear here when they are ready to accept direct bookings.</p>
+          <BookingCopy as="h2">Online reservations are not open yet</BookingCopy>
+          <BookingCopy as="p">Our hotels will appear here when they are ready to accept direct bookings.</BookingCopy>
         </section>
       )}
     </main>

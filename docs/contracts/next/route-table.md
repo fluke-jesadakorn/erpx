@@ -8,6 +8,8 @@ Directory & access at scoped /people/access owns the People, Groups, Access poli
 
 | Route | Method | Context | Contract | Status |
 |---|---|---|---|---|
+| `/api/mcp/executive` | POST | Executive | Token-authenticated Streamable HTTP for five read-only dashboard/KPI tools | Development; production rollout separate |
+| `/api/v1/holdings/{holdingSlug}/executive/connections` | GET/POST | Executive | Own connection metadata, one-time token issuance and revocation via browser work context | Implemented |
 | `/api/auth/[...all]` | GET/POST | identity | Better Auth handler with device multi-session account switching | Implemented |
 | `/api/v1/platform/assignments/active` | POST | platform identity/access | Select an active Platform-only assignment | Implemented |
 | `/api/v1/platform/operations` | GET | platform operations | Read-only live control-plane and per-Holding outbox health; requires Platform context and returns private no-store data | Implemented |
@@ -246,3 +248,10 @@ The existing Company setup API remains compatible. [Release acceptance contract]
 | `/api/v1/holdings/{holdingSlug}/business-readiness/releases/{id}` | GET | Release acceptance | Company-scoped evidence and effective gates |
 | `/api/v1/holdings/{holdingSlug}/business-readiness/releases/{id}/review` | POST | Release acceptance | Independent criterion review |
 | `/api/v1/holdings/{holdingSlug}/business-readiness/releases/{id}/revoke` | POST | Release acceptance | Revoke while preserving history |
+
+## People evaluation
+
+| Route | Owner | Access |
+| --- | --- | --- |
+| `/holdings/{holdingSlug}/people/evaluation` | People evaluation | Scoped `people.read`; compensation separately gated |
+| `/api/v1/holdings/{holdingSlug}/people/evaluation/[[...path]]` | People evaluation | Fresh IAM; typed versioned commands; no-store reads |

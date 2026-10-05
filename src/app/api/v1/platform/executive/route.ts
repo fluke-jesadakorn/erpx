@@ -1,7 +1,7 @@
 import { requireManageErpxContext } from "@/server/authorization";
 import { runtimeEnv } from "@/server/runtime";
 import { ApiError, errorResponse } from "@/server/http";
-import { platformExecutiveSnapshot, requirePlatformExecutive } from "@/server/platform-executive";
+import { platformExecutiveSnapshot, platformExecutiveSources, requirePlatformExecutive } from "@/server/platform-executive";
 
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     const filters = query.has("from") || query.has("to")
       ? { from: query.get("from"), to: query.get("to") }
       : undefined;
-    const data = await platformExecutiveSnapshot(before, env.CONTROL_DB, env.CONTROL_READ_DB, filters);
+    const data = query.has('metric')?await platformExecutiveSources(before,env.CONTROL_DB,env.CONTROL_READ_DB,{metric:query.get('metric'),label:query.get('group'),from:query.get('from'),to:query.get('to'),page:query.get('page')??'1'}):await platformExecutiveSnapshot(before, env.CONTROL_DB, env.CONTROL_READ_DB, filters);
     const after = requirePlatformExecutive((await requireManageErpxContext()).platform);
     if (before.assignmentId !== after.assignmentId
       || before.iam?.roleRevision !== after.iam?.roleRevision

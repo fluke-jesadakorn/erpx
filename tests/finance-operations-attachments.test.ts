@@ -67,7 +67,8 @@ describe("Finance, hospitality, Organization and system attachment policy", () =
       "iam_review:sanitized_review_evidence:action",
       "company_release_acceptance:sanitized_release_evidence:record",
     ]));
-    expect(combinations.some((entry) => /ledger|report|today|executive/i.test(entry))).toBe(false);
+    expect(combinations).toContain("finance_group_report:finance_support:record");
+    expect(combinations.some((entry) => entry.split(":")[0]!=="finance_group_report" && /ledger|report|today|executive/i.test(entry))).toBe(false);
     for (const purpose of ["password", "private_key", "secret", "config_dump", "database_dump"])
       expect(() => attachmentPolicy("iam_review", purpose, "record")).toThrow(/not registered/i);
   });

@@ -71,6 +71,7 @@ add(
 add("hr_person", ["compensation_authorization"], {
   classification: "restricted",
 });
+add("hr_evaluation_assessment", ["evaluation_evidence"], { classification: "restricted" });
 add("people_lifecycle_case", ["offer_document", "transfer_document", "offboarding_document"], {
   classification: "restricted",
 });
@@ -112,7 +113,7 @@ add("benefit_election", ["election_document", "provider_proof"], {
 
 /**
  * Closed policy inventory for sensitive workforce documents. Deliberately do
- * not register evaluation, investigation or internal-HR-memo purposes: an
+ * not register investigation or internal-HR-memo purposes: an
  * unknown purpose fails before any owner metadata can be returned.
  */
 export const sensitiveAttachmentPolicies: readonly AttachmentPolicy[] = Object.freeze(
@@ -631,6 +632,15 @@ export async function authorizeSensitiveAttachmentTarget(
   switch (policy.targetType) {
     case "hr_person":
       return employeePerson(db, actor, policy, targetId, operation);
+    case "hr_evaluation_assessment": {
+      const evaluation = await import("../people-evaluation");
+      actor = await evaluation.evaluationAuthority(db, actor, operation === "read" ? "people.read" : "people.manage");
+      if (!hasPermission(actor, "people.compensation.read") || !hasPermission(actor, operation === "read" ? "people.documents.read" : "people.documents.manage")) privateNotFound();
+      const { row, employee } = await evaluation.evaluationAssessment(db, actor, targetId);
+      const cycle = await evaluation.evaluationDefinition(db, actor, row.cycle_id, "cycle");
+      if (operation !== "read" && (!["draft", "calibrating"].includes(row.status) || cycle.data.status !== "open")) privateNotFound();
+      return { companyId: actor.companyId, branchId: employee.branchId, departmentId: employee.departmentId, version: row.version, editable: operation !== "read" };
+    }
     case "people_lifecycle_case":
       return lifecycleCase(db, actor, targetId, operation);
     case "people_clearance_task":
@@ -661,6 +671,7 @@ export async function authorizeSensitiveAttachmentTarget(
 }
 
 const sensitiveTables: Record<string, string> = {
+  hr_evaluation_assessment: "hr_evaluation_assessments",
   hr_person: "hr_people",
   people_lifecycle_case: "people_lifecycle_cases",
   people_clearance_task: "people_preparation_tasks",
@@ -697,6 +708,7 @@ export function sensitiveAttachmentTargetVersionGuard(
 }
 
 const sensitiveRecordTables = new Set([
+  "hr_evaluation_assessment",
   "hr_person",
   "people_lifecycle_case",
   "payroll_advance",

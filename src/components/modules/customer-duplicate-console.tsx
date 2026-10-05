@@ -5,6 +5,7 @@ import { Button, Field, Select, TextArea } from "@/components/ui/foundation";
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { hubResultHref } from "@/lib/hub-result";
 import { workFetch } from "@/lib/work-fetch";
 import type {
   customerDuplicateDetail,
@@ -41,7 +42,9 @@ export function CustomerDuplicateConsole({
         throw new Error(result.error?.message ?? "Unable to save duplicate review.");
       }
       last.current = null;
-      router.push(`${base}/customer-duplicates/${result.data.id}`);
+      window.dispatchEvent(new Event("erpx:hub-saved"));
+      window.dispatchEvent(new Event("erpx:record-saved"));
+      router.push(hubResultHref(window.location.href, base, `${base}/customer-duplicates/${result.data.id}`) ?? `${base}/customer-duplicates/${result.data.id}`, { scroll: false });
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Retry this command.");

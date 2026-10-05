@@ -7,6 +7,7 @@ import { TimeText } from "@/components/time/time-preference-context";
 import { PreferredDateTimeField } from "@/components/time/preferred-date-time-field";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { hubResultHref } from "@/lib/hub-result";
 import { workFetch } from "@/lib/work-fetch";
 import type { customerAccessHistory, customerAccessWorkspace } from "@/server/customer-access";
 import { Card, FormLayout } from "@/components/ui/foundation";
@@ -43,7 +44,9 @@ export function CustomerAccessConsole({
         throw new Error(result.error?.message ?? "Unable to save customer access.");
       }
       last.current = null;
-      router.push(`${base}/customer-access/${result.data.id}`);
+      window.dispatchEvent(new Event("erpx:hub-saved"));
+      window.dispatchEvent(new Event("erpx:record-saved"));
+      router.push(hubResultHref(window.location.href, base, `${base}/customer-access/${result.data.id}`) ?? `${base}/customer-access/${result.data.id}`, { scroll: false });
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Retry this command.");

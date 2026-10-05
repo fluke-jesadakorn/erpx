@@ -13,7 +13,7 @@ import { minorToDecimal } from "@/lib/finance-money";
 import { workspaceBase } from "@/lib/workspace";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import { canPrepareCounts, countOptions, countsPage } from "@/server/inventory-counts";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { pageError } from "@/server/page-error";
 import { FilterBar } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";

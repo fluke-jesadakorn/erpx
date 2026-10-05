@@ -1,5 +1,5 @@
 import { RecordSections } from "@/components/workplace/record-sections";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { WorkReturn } from "@/components/workplace/work-return";
 import { LeaveDecisions, LeaveEditor } from "@/components/self-service/leave-editor";
 import styles from "@/components/leave/leave-flow.module.css";

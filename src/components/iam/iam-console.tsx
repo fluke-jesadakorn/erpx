@@ -1,4 +1,5 @@
 "use client";
+import { CollectionRecordLink, RecordCollectionDrawer, RecordFacts } from "@/components/records/record-collection";
 import { Card, FilterBar } from "@/components/ui/foundation";
 
 import { InlineNotice } from "@/components/ui/foundation";
@@ -42,7 +43,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./iam.module.css";
@@ -301,6 +302,7 @@ export function IamConsole({
   function renderRoleSelect() {
     return (
       <Field appearance="standard">
+
         Role
         <Select appearance="standard" name="roleId" required>
           <option value="">Choose a role</option>
@@ -447,6 +449,8 @@ export function IamConsole({
   );
   return (
     <section className={styles.console}>
+      <RecordCollectionDrawer<Data> kind="iam_assignment" title="Work assignment" endpoint={api} select={(snapshot,id)=>snapshot.assignments.find(row=>text(row.id)===id)??null} render={(record,snapshot)=><><p>{snapshot.users.find(user=>user.id===record.user_id)?.name}</p><RecordFacts record={record}/>{can("iam.manage")&&!!record.active&&record.user_id!==snapshot.currentUserId&&<Button appearance="standard" variant="secondary" disabled={busy} onClick={()=>send(`assignments/${record.id}/revoke`,{expectedVersion:record.version,reason:"Revoked from IAM user administration"})}>Revoke</Button>}</>}/>
+      <RecordCollectionDrawer<Data> kind="iam_group" title="Directory group" endpoint={api} select={(snapshot,id)=>snapshot.groups.find(row=>`${text(row.connection_id)}:${text(row.external_id)}`===id)??null}/>
       {!embedded && (
         <header className={styles.header}>
           <div>
@@ -605,7 +609,7 @@ export function IamConsole({
                         <tr key={text(a.id)}>
                           <td>
                             <strong>
-                              {data.users.find((u) => u.id === a.user_id)?.name ?? text(a.user_id)}
+                              <CollectionRecordLink kind="iam_assignment" id={text(a.id)}>{data.users.find((u) => u.id === a.user_id)?.name ?? text(a.user_id)}</CollectionRecordLink>
                             </strong>
                             <small>
                               {a.login_policy === "directory"
@@ -1790,7 +1794,7 @@ export function IamConsole({
                         {data.groups.map((g) => (
                           <tr key={text(g.connection_id) + text(g.external_id)}>
                             <td>
-                              {text(g.name)}
+                              <CollectionRecordLink kind="iam_group" id={`${text(g.connection_id)}:${text(g.external_id)}`}>{text(g.name)}</CollectionRecordLink>
                               <small>{text(g.external_id)}</small>
                             </td>
                             <td>

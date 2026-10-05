@@ -5,11 +5,14 @@ import { workspaceBase } from "@/lib/workspace";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import { reportDateSchema } from "@/server/finance";
 import { ledgerWorkspace } from "@/server/ledger";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { FinanceReportingConsole } from "@/components/modules/finance-reporting-console";
 import { reportingWorkspace } from "@/server/finance-reporting";
 import { hasPermission } from "@/lib/permissions";
 import { FormLayout } from "@/components/ui/foundation";
+import { financePlanningWorkspace } from "@/server/finance-planning";
+import { FinancePlanningControls } from "@/components/finance/finance-planning-controls";
+import { financeCompanyTools } from "@/server/finance-company-tools";
 
 export const dynamic = "force-dynamic";
 export default async function ReportsPage({
@@ -37,6 +40,8 @@ export default async function ReportsPage({
     }),
     report = data.report;
   const reporting = !actor.branchId && !actor.departmentId ? await reportingWorkspace(actor,String(data.chart.id)) : null;
+  const planning = !actor.branchId && !actor.departmentId ? await financePlanningWorkspace(actor,String(data.chart.id)) : null;
+  const planningEnabled=(await financeCompanyTools(actor)).some(r=>r.tool==="planning"&&r.enabled===1);
   const selectedPeriod = data.periods.find((period) => period.id === query.periodId);
   const accountingHref = `${base}/finance/accounting?chart=${encodeURIComponent(String(data.chart.id))}#journal-entries`;
   const cards = [
@@ -105,7 +110,7 @@ export default async function ReportsPage({
               <strong>
                 {String(data.chart.base_currency)} {String(value)}
               </strong>
-              <Link href={accountingHref}>Trace journal entries →</Link>
+              <Link href={`${base}/record-details/finance_report/${String(label).toLowerCase()}`} record={{kind:"finance_report",id:String(label).toLowerCase(),args:{chartId:String(data.chart.id),...(report.dates.startDate?{startDate:report.dates.startDate}:{}),...(report.dates.endDate?{endDate:report.dates.endDate}:{})}}}>Trace journal entries →</Link>
             </article>
           ))}
         </section>
@@ -141,7 +146,7 @@ export default async function ReportsPage({
                 {report.trialBalance.map((row) => (
                   <tr key={String(row.id)}>
                     <td>
-                      {String(row.code)} · {String(row.name)}
+                      <Link href={`${base}/record-details/trial_balance/${encodeURIComponent(String(row.id))}`} record={{kind:"trial_balance",id:String(row.id),args:{chartId:String(data.chart.id),...(report.dates.startDate?{startDate:report.dates.startDate}:{}),...(report.dates.endDate?{endDate:report.dates.endDate}:{})}}}>{String(row.code)} · {String(row.name)}</Link>
                     </td>
                     <td>{String(row.category)}</td>
                     <td>{String(row.debit)}</td>
@@ -154,6 +159,7 @@ export default async function ReportsPage({
           </TableFrame>
         </section>
         {reporting && <FinanceReportingConsole base={base} chartId={String(data.chart.id)} currency={String(data.chart.base_currency)} data={reporting} periods={data.periods} userId={actor.userId} canPrepare={hasPermission(actor,"finance.write")} canApprove={hasPermission(actor,"finance.approve")}/>}
+        {planning&&(planningEnabled||planning.editions.length>0)&&<FinancePlanningControls base={base} chartId={String(data.chart.id)} data={planning} userId={actor.userId} canWrite={hasPermission(actor,"finance.write")&&planningEnabled} canApprove={hasPermission(actor,"finance.approve")}/>}
       </FinanceWorkspace>
     </FeaturePage>
   );

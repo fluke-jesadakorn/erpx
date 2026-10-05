@@ -43,6 +43,7 @@ export type WorkItem = {
     | "pms"
     | "pos"
     | "organization_change"
+    | "finance_review"
     | "company_business_acceptance"
     | "people_lifecycle"
     | "overtime"
@@ -68,6 +69,7 @@ export type WorkItem = {
   relationships?: ("requested" | "assigned" | "approval" | "team")[];
 };
 export const workTypes = [
+  ["finance_review", "Finance plan and evidence reviews"],
   ["operational_exception", "Operational exceptions"],
   ["customer_identity", "Customer identity changes"],
   ["customer_duplicate", "Customer duplicate reviews"],

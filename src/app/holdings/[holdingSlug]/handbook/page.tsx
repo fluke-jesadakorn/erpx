@@ -13,7 +13,7 @@ import { handbookEditorOptions,handbookList } from "@/server/handbook";
 import { companyMembers } from "@/server/member-directory";
 import { pageError } from "@/server/page-error";
 import { holdingResources } from "@/server/runtime";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { Card } from "@/components/ui/foundation";
 export default async function Handbook({
   params,

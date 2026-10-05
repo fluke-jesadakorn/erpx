@@ -32,7 +32,7 @@ it("shows only permission-filtered app cards before launcher search", () => {
  expect(launcher.results).toEqual([]);
  expect(launcher.categories.map(category => category.id)).toEqual(["people-organization","customers-sales","purchasing","inventory-quality","projects-routines","services","finance","pos","pms","knowledge","insights","administration"]);
  const destinations=launcher.categories.flatMap(category=>category.apps);
- expect(destinations.map(item=>item.id)).toEqual(expect.arrayContaining(["people-directory","customer-timeline","operations-sales","operations-purchasing","quality-holds","pilot-features"]));
+ expect(destinations.map(item=>item.id)).toEqual(expect.arrayContaining(["people-directory","customers-hub","sales-hub","operations-purchasing","quality-holds","pilot-features"]));
  expect(destinations.every(item=>!item.submodules?.length)).toBe(true);
 
 });

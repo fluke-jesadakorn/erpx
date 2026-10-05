@@ -1,5 +1,6 @@
+import { recordCanonicalHref } from "@/lib/record-drawer";
 import { Table } from "@/components/ui/foundation";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { WorkReturn } from "@/components/workplace/work-return";
 import { TransitNextAction } from "@/components/workplace/transit-next-action";
 import { requireWorkContext, publicScope } from "@/server/authorization";
@@ -51,7 +52,7 @@ export default async function Page({
             {data.lines.map((l) => (
               <tr key={String(l.id)}>
                 <td>
-                  {String(l.sku)} · {String(l.name)}
+                  <Link href={recordCanonicalHref(base,{kind:"product",id:String(l.product_id)})}>{String(l.sku)} · {String(l.name)}</Link>
                 </td>
                 <td>{Number(l.quantity_milli) / 1000}</td>
                 <td>{Number(l.received_milli) / 1000}</td>
@@ -95,9 +96,9 @@ export default async function Page({
               {data.lots.map((lot) => (
                 <tr key={String(lot.id)}>
                   <td>
-                    {lot.serial_number
+                    <Link href={recordCanonicalHref(base,{kind:"inventory_lot",id:String(lot.lot_id)})}>{lot.serial_number
                       ? `Serial ${String(lot.serial_number)}`
-                      : `Lot ${String(lot.lot_code)}`}
+                      : `Lot ${String(lot.lot_code)}`}</Link>
                     {lot.expiry_date ? ` · expires ${String(lot.expiry_date)}` : ""}
                   </td>
                   <td>{Number(lot.quantity_milli) / 1000}</td>

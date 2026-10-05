@@ -1,0 +1,2345 @@
+{
+  "version": 2,
+  "collections": [
+    {
+      "source": "src/app/holdings/[holdingSlug]/ecommerce/page.tsx",
+      "components": [
+        "RecordCatalog"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/learning/page.tsx",
+      "components": [
+        "RecordCatalog"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/agents/page.tsx",
+      "components": [
+        "RecordCatalog"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/benefits/page.tsx",
+      "components": [
+        "RecordCatalog"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/talent/page.tsx",
+      "components": [
+        "RecordCatalog"
+      ]
+    },
+    {
+      "source": "src/components/records/platform-operation-detail.tsx",
+      "components": [
+        "RecordCollectionDrawer"
+      ]
+    },
+    {
+      "source": "src/components/records/platform-executive-sources.tsx",
+      "components": [
+        "RecordCollectionDrawer"
+      ]
+    },
+    {
+      "source": "src/components/records/pms-entry-detail.tsx",
+      "components": [
+        "RecordCollectionDrawer"
+      ]
+    },
+    {
+      "source": "src/components/records/pms-hotel-sources.tsx",
+      "components": [
+        "RecordCollectionDrawer"
+      ]
+    },
+    {
+      "source": "src/components/platform/platform-holding-provisioning.tsx",
+      "components": [
+        "RecordCollectionDrawer"
+      ]
+    },
+    {
+      "source": "src/components/usage/usage-console.tsx",
+      "components": [
+        "RecordCollectionDrawer"
+      ]
+    },
+    {
+      "source": "src/components/pms/workspace.tsx",
+      "components": [
+        "RecordSurface"
+      ]
+    },
+    {
+      "source": "src/components/iam/iam-console.tsx",
+      "components": [
+        "RecordCollectionDrawer"
+      ]
+    },
+    {
+      "source": "src/components/finance/finance-bank-automation-controls.tsx",
+      "components": [
+        "RecordCatalog"
+      ]
+    },
+    {
+      "source": "src/components/billing/target-billing-panel.tsx",
+      "components": [
+        "RecordCollectionDrawer"
+      ]
+    },
+    {
+      "source": "src/components/billing/billing-console.tsx",
+      "components": [
+        "RecordCollectionDrawer"
+      ]
+    }
+  ],
+  "baseline": {
+    "tables": 105,
+    "files": 70,
+    "modules": 33
+  },
+  "modules": [
+    {
+      "id": "brand",
+      "name": "Brand",
+      "recordKinds": [
+        "brand_draft",
+        "brand_version"
+      ]
+    },
+    {
+      "id": "commercial",
+      "name": "Commercial",
+      "recordKinds": [
+        "billing_cost",
+        "billing_line",
+        "billing_source",
+        "billing_statement",
+        "usage_item",
+        "usage_group"
+      ]
+    },
+    {
+      "id": "identity_access",
+      "name": "Identity & Access",
+      "recordKinds": [
+        "iam_assignment",
+        "iam_group"
+      ]
+    },
+    {
+      "id": "organization",
+      "name": "Organization",
+      "recordKinds": [
+        "person"
+      ]
+    },
+    {
+      "id": "platform_administration",
+      "name": "Platform Admin",
+      "recordKinds": [
+        "platform_provision",
+        "platform_operation",
+        "platform_executive_sources"
+      ]
+    },
+    {
+      "id": "customer_360",
+      "name": "Customer 360",
+      "recordKinds": [
+        "customer"
+      ]
+    },
+    {
+      "id": "customer_authority",
+      "name": "Customer Authority",
+      "recordKinds": [
+        "customer_identity",
+        "customer_duplicate",
+        "customer_access"
+      ]
+    },
+    {
+      "id": "support",
+      "name": "Support",
+      "recordKinds": [
+        "support_ticket",
+        "support_incident",
+        "support_session"
+      ]
+    },
+    {
+      "id": "finance",
+      "name": "Finance",
+      "recordKinds": [
+        "finance_group_edition",
+        "finance_group_ownership",
+        "finance_group_acquisition",
+        "finance_group_pair",
+        "finance_group_sources",
+        "finance_group_source",
+        "invoice",
+        "journal",
+        "payment",
+        "refund",
+        "bank_transaction",
+        "bank_statement",
+        "finance_account",
+        "finance_report",
+        "trial_balance",
+        "aging_bucket",
+        "statement_package",
+        "statement_sources",
+        "finance_period",
+        "finance_asset",
+        "accrual_schedule",
+        "accrual_run",
+        "intercompany",
+        "consolidation",
+        "calculation_run",
+        "tax_document",
+        "vat_entry",
+        "vat_correction",
+        "vat_package",
+        "supplier_batch",
+        "consolidation_elimination",
+        "finance_instrument",
+        "finance_instrument_run",
+        "finance_asset_policy",
+        "finance_asset_policy_run",
+        "finance_plan",
+        "finance_book",
+        "finance_budget_sources",
+        "finance_report_row",
+        "finance_report_snapshot",
+        "finance_business_contract",
+        "finance_business_bill",
+        "finance_recognition",
+        "finance_obligation",
+        "bank_match_group",
+        "bank_profile",
+        "collection_case",
+        "cash_forecast_sources",
+        "executive_sources",
+        "executive_source",
+        "pms_control_sources"
+      ]
+    },
+    {
+      "id": "pos",
+      "name": "Point of Sale",
+      "recordKinds": [
+        "pos_sale",
+        "pos_report"
+      ]
+    },
+    {
+      "id": "sales",
+      "name": "Sales",
+      "recordKinds": [
+        "order",
+        "price_list",
+        "party"
+      ]
+    },
+    {
+      "id": "assets",
+      "name": "Assets",
+      "recordKinds": [
+        "asset"
+      ]
+    },
+    {
+      "id": "inventory",
+      "name": "Inventory",
+      "recordKinds": [
+        "product",
+        "warehouse",
+        "stock_position",
+        "inventory_movement",
+        "inventory_lot",
+        "stock_count",
+        "stock_transfer",
+        "stock_transit",
+        "reorder_policy"
+      ]
+    },
+    {
+      "id": "maintenance",
+      "name": "Maintenance",
+      "recordKinds": [
+        "maintenance",
+        "maintenance_plan"
+      ]
+    },
+    {
+      "id": "operations",
+      "name": "Operations",
+      "recordKinds": [
+        "operation",
+        "request",
+        "staff_task",
+        "work_flow"
+      ]
+    },
+    {
+      "id": "procurement",
+      "name": "Procurement",
+      "recordKinds": [
+        "order",
+        "rfq",
+        "supplier_bill",
+        "landed_cost",
+        "party"
+      ]
+    },
+    {
+      "id": "quality",
+      "name": "Quality",
+      "recordKinds": [
+        "quality_hold"
+      ]
+    },
+    {
+      "id": "legal",
+      "name": "Legal",
+      "recordKinds": [
+        "legal"
+      ]
+    },
+    {
+      "id": "people_payroll",
+      "name": "People & Payroll",
+      "recordKinds": [
+        "person",
+        "payroll_run",
+        "payroll_month",
+        "payslip",
+        "leave",
+        "overtime",
+        "clearance",
+        "expense"
+      ]
+    },
+    {
+      "id": "crm",
+      "name": "CRM",
+      "recordKinds": [
+        "crm_lead"
+      ]
+    },
+    {
+      "id": "marketing",
+      "name": "Marketing",
+      "recordKinds": [
+        "marketing_candidate",
+        "marketing_campaign_sources"
+      ]
+    },
+    {
+      "id": "manufacturing",
+      "name": "Manufacturing",
+      "recordKinds": [
+        "manufacturing_order",
+        "manufacturing_spec"
+      ]
+    },
+    {
+      "id": "planning",
+      "name": "Planning",
+      "recordKinds": [
+        "planning_scenario"
+      ]
+    },
+    {
+      "id": "projects",
+      "name": "Projects",
+      "recordKinds": [
+        "project",
+        "routine_template"
+      ]
+    },
+    {
+      "id": "ecommerce",
+      "name": "E-commerce",
+      "recordKinds": [
+        "ecommerce_checkout",
+        "ecommerce_listing",
+        "ecommerce_cart",
+        "ecommerce_channel"
+      ]
+    },
+    {
+      "id": "benefits",
+      "name": "Benefits",
+      "recordKinds": [
+        "benefit_plan",
+        "benefit_enrollment"
+      ]
+    },
+    {
+      "id": "learning",
+      "name": "Learning",
+      "recordKinds": [
+        "learning_course",
+        "learning_assignment"
+      ]
+    },
+    {
+      "id": "talent",
+      "name": "Talent",
+      "recordKinds": [
+        "talent_requisition",
+        "talent_candidate",
+        "talent_application"
+      ]
+    },
+    {
+      "id": "field_service",
+      "name": "Field Service",
+      "recordKinds": [
+        "field_service"
+      ]
+    },
+    {
+      "id": "agent",
+      "name": "Agents",
+      "recordKinds": [
+        "agent_pool",
+        "agent_version",
+        "agent_assignment",
+        "agent_invocation",
+        "agent_session"
+      ]
+    },
+    {
+      "id": "collaboration",
+      "name": "Collaboration",
+      "recordKinds": [
+        "work_flow"
+      ]
+    },
+    {
+      "id": "pms",
+      "name": "Hotel PMS",
+      "recordKinds": [
+        "pms_record",
+        "pms_entry",
+        "pms_document",
+        "pms_hotel_sources",
+        "pms_hotel_record",
+        "pms_booking_refund",
+        "pms_counter_refund",
+        "pms_snapshot_entry"
+      ]
+    },
+    {
+      "id": "manage_erpx",
+      "name": "ERPX Management",
+      "recordKinds": [
+        "platform_operation",
+        "platform_provision",
+        "platform_executive_sources"
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "id": "src/app/holdings/[holdingSlug]/commerce/orders/[id]/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/commerce/orders/[id]/page.tsx",
+      "line": 250,
+      "headers": [
+        "Product",
+        "Traceability",
+        "Ordered",
+        "{order.kind === \"purchase\" ? \"Received\" : \"Delivered\"}",
+        "Unit price",
+        "List / discount",
+        "Tax",
+        "Subtotal"
+      ],
+      "category": "record-lines",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "57f558dd22d89ad6a6f957cd2780abe5b434670c36af70451f0cc584278c3e2f"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/commerce/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/commerce/page.tsx",
+      "line": 257,
+      "headers": [
+        "Document",
+        "Customer / supplier",
+        "Required date",
+        "Total",
+        "Status"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "89c9fbf7ec2da8e5ccf88a5c5a2f8313ef91730ae201ae7954b0f2f1aa12b69f"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/commerce/page.tsx#2",
+      "source": "src/app/holdings/[holdingSlug]/commerce/page.tsx",
+      "line": 372,
+      "headers": [
+        "SKU / product",
+        "Warehouse",
+        "Traceability",
+        "On hand",
+        "Reserved",
+        "Quarantined",
+        "In transit",
+        "Available",
+        "Inventory value ({data.currency})"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "73c382bec31ff4bd32813859774eebb89cb95ee8093ef4c8e14f565b25296935"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/commerce/page.tsx#3",
+      "source": "src/app/holdings/[holdingSlug]/commerce/page.tsx",
+      "line": 546,
+      "headers": [
+        "Code",
+        "Name",
+        "Details",
+        "Status",
+        "Action"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "28da8b920492bb3b17dfe814b97aa77b7a1e0dccc4686647153cb05312d68762"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/settings/business-readiness/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/settings/business-readiness/page.tsx",
+      "line": 83,
+      "headers": [
+        "Release criterion",
+        "Responsible reviewer",
+        "Acceptance"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Capability acceptance checklist",
+      "fingerprint": "81ae37618175c8de3f03f40e11d91144071e9a060c5a6d87a948ea98e1c43269"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/settings/business-readiness/page.tsx#2",
+      "source": "src/app/holdings/[holdingSlug]/settings/business-readiness/page.tsx",
+      "line": 187,
+      "headers": [
+        "Package / capability",
+        "Owner / coverage",
+        "Implementation / remaining work",
+        "Independent gates",
+        "Scoped observations"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Capability acceptance checklist",
+      "fingerprint": "321864f78c4e16afbf95c987f173f65da1a65271e1d7cd1513963242580e0d55"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/supplier-bills/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/supplier-bills/page.tsx",
+      "line": 11,
+      "headers": [
+        "Reference",
+        "Supplier",
+        "Order",
+        "Receipts",
+        "Status",
+        "Due date"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "2732fcc3e60615de8d92c46c635fc1d39922bd64357ba9c055f5606a85626f91"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/quality/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/quality/page.tsx",
+      "line": 74,
+      "headers": [
+        "Product / warehouse",
+        "Lot or serial",
+        "Quantity held",
+        "Due date",
+        "Status",
+        "Next team"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "ef5a84293fc115ca73781d0be81aacd45ffaf314c6ba0b84a7bcfc980a164273"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/stock-transit/[id]/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/stock-transit/[id]/page.tsx",
+      "line": 40,
+      "headers": [
+        "Product",
+        "Approved",
+        "Received",
+        "Approved loss",
+        "Disputed",
+        "Remaining transport value ({String(d.currency)})"
+      ],
+      "category": "record-lines",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "cfb70fa704649791d7dbba1485b27ad328ea8d27d1fd4be65cc8fb0c3299bd8c"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/stock-transit/[id]/page.tsx#2",
+      "source": "src/app/holdings/[holdingSlug]/stock-transit/[id]/page.tsx",
+      "line": 84,
+      "headers": [
+        "Lot / serial",
+        "Dispatched",
+        "Received",
+        "Approved loss",
+        "Disputed",
+        "Remaining"
+      ],
+      "category": "record-lines",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "63feaf00514394afca62614f14f5a96a815ad5256f6dc46c56dad92a4615996c"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/stock-transit/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/stock-transit/page.tsx",
+      "line": 26,
+      "headers": [
+        "Transfer",
+        "Route",
+        "Expected arrival",
+        "Status",
+        "Pending discrepancies"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "b7218c916fec7e9c1e3be3caf722e24d3616ed927968d31a3cd1fb93d46c3258"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/procurement-rfqs/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/procurement-rfqs/page.tsx",
+      "line": 12,
+      "headers": [
+        "Request",
+        "Required date",
+        "Status"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "29be1956c13b9ffb6bf757dbce9da0043c91dcc9e1e6c30cc6887ccf56907a9a"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/customer-duplicates/[id]/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/customer-duplicates/[id]/page.tsx",
+      "line": 33,
+      "headers": [
+        "Identity field",
+        "{String(r.left_name)}",
+        "{String(r.right_name)}",
+        "Customer code",
+        "Tax registration",
+        "Record status"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Identity comparison",
+      "fingerprint": "effee09d9a6d3fd39496d688a7d23d757b47ad7f84323111aaf41c4a3cf4ccbd"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/pms/documents/[id]/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/pms/documents/[id]/page.tsx",
+      "line": 138,
+      "headers": [
+        "Date",
+        "Description",
+        "Net",
+        "Service Charge",
+        "Tax",
+        "Total"
+      ],
+      "category": "record-lines",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "ba3a38462cb26405ff52acf802ec674a39dbf404b3e86f39edcf256978ed23d2"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/stock-transfers/[id]/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/stock-transfers/[id]/page.tsx",
+      "line": 123,
+      "headers": [
+        "Product",
+        "Traceability",
+        "Transfer quantity",
+        "Recorded source quantity",
+        "Value ({String(transfer.currency)})"
+      ],
+      "category": "record-lines",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "eb88286dc471e883848e5c148ebb9d66fe6800310b5979e89532a6c271b2fa4d"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/stock-transfers/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/stock-transfers/page.tsx",
+      "line": 89,
+      "headers": [
+        "Document",
+        "From warehouse",
+        "To warehouse",
+        "Date / purpose",
+        "Value",
+        "Status"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "8bbe47daa17643c65b880244dcae356a28c3689561fad74ee55e0987a0ab1eba"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/landed-costs/[id]/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/landed-costs/[id]/page.tsx",
+      "line": 78,
+      "headers": [
+        "Item",
+        "Received",
+        "Receipt value",
+        "Allocated cost"
+      ],
+      "category": "record-lines",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "a1d911b38d29e71394401f4c0a97f7b5bd896c61163a2b7b4aa922b208d2bf01"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/landed-costs/[id]/page.tsx#2",
+      "source": "src/app/holdings/[holdingSlug]/landed-costs/[id]/page.tsx",
+      "line": 108,
+      "headers": [
+        "Lot / serial",
+        "Quantity",
+        "Receipt value",
+        "Allocated cost"
+      ],
+      "category": "record-lines",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "5e199dc1e26b051fda8d10239e582f94afa7d0390ca9dea289b9253d77f28bfd"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/work/routing/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/work/routing/page.tsx",
+      "line": 54,
+      "headers": [
+        "Record",
+        "State / next action",
+        "Responsible team",
+        "Blocker"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "65f60e3d162ce976a50c4398c8145ad2ab6c161377401e1628db9d55649e4949"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/work/reports/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/work/reports/page.tsx",
+      "line": 13,
+      "headers": [
+        "{[\"Request\",\"Status / current step\",\"Requester / department\",\"Responsible person\",\"Waiting\",\"Next action\"].map(h=>{h}"
+      ],
+      "category": "aggregate",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "6af8dcc077ce1753c9848263197493dbc4984b90f6d6cdb38a3bff3ee6bd8705"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/people/payroll/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/people/payroll/page.tsx",
+      "line": 59,
+      "headers": [
+        "Pay month",
+        "Currency",
+        "Runs",
+        "People",
+        "Gross",
+        "Deductions",
+        "Employer cost",
+        "Net"
+      ],
+      "category": "aggregate",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "701bdbf076d36f182138e65e40588d54a23ec543e501146f0d038df6f3e743cc"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/marketing/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/marketing/page.tsx",
+      "line": 72,
+      "headers": [
+        "Campaign",
+        "Source",
+        "Captured",
+        "Pending",
+        "CRM handoffs",
+        "Rejected"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "72e8266326a9578eae3a5058bcf42123724b3cdd7c0c8fa249ebcc23520c25db"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/finance/accounting/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/finance/accounting/page.tsx",
+      "line": 133,
+      "headers": [
+        "Number",
+        "Date",
+        "Source",
+        "Debit",
+        "Credit",
+        "Status"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "d08e545fa9f58a3e63559224727d93a8002705222cf06baf0eb0256ab35492f3"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/finance/payments/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/finance/payments/page.tsx",
+      "line": 126,
+      "headers": [
+        "Source",
+        "Due",
+        "Currency",
+        "Remaining",
+        "Status",
+        "Next action"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "b09468ee05509f2cd7643137f77a253058c21e86ed35f61e66f7d644e444130e"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/finance/payments/page.tsx#2",
+      "source": "src/app/holdings/[holdingSlug]/finance/payments/page.tsx",
+      "line": 193,
+      "headers": [
+        "Reference",
+        "Party",
+        "Date",
+        "Type",
+        "Amount",
+        "Unallocated",
+        "Status"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "faa579587fd28183a3e59b669f2308f2b7dc11c6c17402e6972d35113c0db011"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/finance/close/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/finance/close/page.tsx",
+      "line": 89,
+      "headers": [
+        "Period",
+        "Dates",
+        "State",
+        "Blockers"
+      ],
+      "category": "aggregate",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "94f02d934f1a238a53e7144a42925e9ec05645f88f1e60e39e4c487fc789d72c"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/finance/close/page.tsx#2",
+      "source": "src/app/holdings/[holdingSlug]/finance/close/page.tsx",
+      "line": 164,
+      "headers": [
+        "Reconciliation",
+        "Account",
+        "GL",
+        "Source",
+        "Difference",
+        "Evidence"
+      ],
+      "category": "aggregate",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "ceca7913db7cf0e0e4817d17389f0883a3f3807eab057562be577923c7fb22bc"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/finance/close/page.tsx#3",
+      "source": "src/app/holdings/[holdingSlug]/finance/close/page.tsx",
+      "line": 222,
+      "headers": [
+        "Account",
+        "Type",
+        "GL (THB)",
+        "Register (THB)",
+        "Difference (THB)"
+      ],
+      "category": "aggregate",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "ef6c3932b6d0b2cd37cadca186bb79423aa65b298d5abb367d60c9e4cbd6a701"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/finance/group-editions/[id]/source/[journalId]/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/finance/group-editions/[id]/source/[journalId]/page.tsx",
+      "line": 50,
+      "headers": [
+        "Account",
+        "Debit {String(j.currency ?? entity.base_currency)}",
+        "Credit",
+        "Base debit {String(entity.base_currency)}",
+        "Base credit",
+        "Dimensions"
+      ],
+      "category": "record-lines",
+      "trigger": "not-applicable",
+      "reason": "Immutable retained journal lines within the scoped owner detail; the current Company journal link remains available in its header without granting live access to another Company.",
+      "fingerprint": "fbf0e28ae2e10b98d891013aa5b6e9140a3f5f35a59749f4a15d5cd0462e9b20"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/finance/statement-packages/[id]/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/finance/statement-packages/[id]/page.tsx",
+      "line": 19,
+      "headers": [
+        "Presentation",
+        "{snapshot.current.dates.end}",
+        "{snapshot.comparative.dates.end}"
+      ],
+      "category": "record-lines",
+      "trigger": "owner-record-or-source",
+      "reason": "Current/comparative amount helper links statement_sources with line key, retained snapshot and exact period.",
+      "fingerprint": "370947f67d393dadd0e811881ba39da2debaec1a5e9150c4500eab36496320d0"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/finance/statement-packages/[id]/page.tsx#2",
+      "source": "src/app/holdings/[holdingSlug]/finance/statement-packages/[id]/page.tsx",
+      "line": 20,
+      "headers": [
+        "Period",
+        "Opening",
+        "Owner movements",
+        "Result",
+        "Closing"
+      ],
+      "category": "record-lines",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "b780cb9f330c606e725546d97b67f2b6e007fbbe491f949407c318d99999a9a6"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/finance/statement-packages/[id]/page.tsx#3",
+      "source": "src/app/holdings/[holdingSlug]/finance/statement-packages/[id]/page.tsx",
+      "line": 20,
+      "headers": [
+        "Component",
+        "Opening",
+        "Owner movements",
+        "Transfer",
+        "Closing"
+      ],
+      "category": "record-lines",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "73218700eebff08419695439086d9eeb63e59beb32940bdb7b3c152b509ff348"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/finance/invoices/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/finance/invoices/page.tsx",
+      "line": 114,
+      "headers": [
+        "Bucket",
+        "Currency",
+        "Open documents",
+        "Outstanding",
+        "Oldest due"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "723c67932a8698fcaf69475da72aaca6169bd2cc20941d817b5cd7411e056c46"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/finance/invoices/page.tsx#2",
+      "source": "src/app/holdings/[holdingSlug]/finance/invoices/page.tsx",
+      "line": 275,
+      "headers": [
+        "Invoice",
+        "Party",
+        "Due date",
+        "Total",
+        "Outstanding",
+        "Status"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "61c2d1d73a2117d4c7b0b1fd77f10146406b6f5f19338e44867dfc2cbfe4b982"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/finance/bank/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/finance/bank/page.tsx",
+      "line": 173,
+      "headers": [
+        "Date",
+        "Bank reference / description",
+        "Statement",
+        "Amount",
+        "Status",
+        "Next step"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "a423fa0ffbe9942491e547a94e92b698e01378200a127f47d4a003e57558892d"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/finance/hotels/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/finance/hotels/page.tsx",
+      "line": 50,
+      "headers": [
+        "Hotel / Business date",
+        "Account",
+        "PMS",
+        "Posted GL",
+        "Difference",
+        "Review"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "664ab95caa1818b212df9edbf989949cb5cda7bf116d7f6c10de83b5b00a5442"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/finance/hotels/page.tsx#2",
+      "source": "src/app/holdings/[holdingSlug]/finance/hotels/page.tsx",
+      "line": 139,
+      "headers": [
+        "Reference",
+        "Amount",
+        "State",
+        "Trace"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "f98a3cf538daa3e4c061482ec135232c255bda7ed2a944d7562701069534ccb6"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/finance/hotels/page.tsx#3",
+      "source": "src/app/holdings/[holdingSlug]/finance/hotels/page.tsx",
+      "line": 217,
+      "headers": [
+        "Document",
+        "Guest account",
+        "Finance",
+        "Journal"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "23656f784ddc24b8e92dde2d999296ea9ba1dd992b77f9c89b2fa30cc50b98d4"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/finance/tax/packages/[id]/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/finance/tax/packages/[id]/page.tsx",
+      "line": 114,
+      "headers": [
+        "Document",
+        "Tax-point date",
+        "Type",
+        "Taxable amount",
+        "VAT",
+        "Reviewer"
+      ],
+      "category": "record-lines",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "fec6cd9ad5dd13b415fa83926520d4a2d2c0b49d10441b4fba250b3c8c5f3e22"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/finance/tax/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/finance/tax/page.tsx",
+      "line": 112,
+      "headers": [
+        "VAT account",
+        "Type",
+        "Cumulative GL",
+        "Register by accounting date",
+        "Difference"
+      ],
+      "category": "aggregate",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "2045f5d4aa464a6189e01369e63674da517e264da4d50c03cc980c8e6183d75a"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/finance/tax/corrections/[id]/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/finance/tax/corrections/[id]/page.tsx",
+      "line": 68,
+      "headers": [
+        "Review field",
+        "Original evidence",
+        "Replacement entry",
+        "Document reference",
+        "Tax-point date",
+        "Claim month",
+        "VAT treatment",
+        "Taxable amount (THB)",
+        "VAT (THB)"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Immutable original/replacement tax evidence comparison; source documents are linked above this matrix.",
+      "fingerprint": "1f8709959018617927fe1b1e2f7217c0506b5f3c61f58d6f3b938c03b0be2ff4"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/finance/journals/[id]/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/finance/journals/[id]/page.tsx",
+      "line": 138,
+      "headers": [
+        "Account",
+        "Debit ({String(journal.currency)})",
+        "Credit ({String(journal.currency)})"
+      ],
+      "category": "record-lines",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "ad3652fe4327c79f254d599534ffb648076241faeca3fd7858b2cef2d97fa819"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/finance/engines/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/finance/engines/page.tsx",
+      "line": 76,
+      "headers": [
+        "Type",
+        "Currency",
+        "Status",
+        "Prepared by",
+        "Result and decision"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "8cd09eb1e8f46003df52a8ba28ff79898d29981080f4b85b0af4f425ec48d8d5"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/finance/refunds/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/finance/refunds/page.tsx",
+      "line": 60,
+      "headers": [
+        "Source return",
+        "Counterparty",
+        "Direction",
+        "Amount",
+        "Remaining",
+        "Status"
+      ],
+      "category": "aggregate",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "13d56e1229ee1812225d51ba371eaa35bfebad46d0aeaec187585a708a414749"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/finance/supplier-batches/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/finance/supplier-batches/page.tsx",
+      "line": 59,
+      "headers": [
+        "Planned date",
+        "Currency",
+        "State",
+        "Pending instructions"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "d2d97e628f86cf0d5c4fae2725c1348f02b50771dc7736b623d0c8783967087b"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/finance/reports/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/finance/reports/page.tsx",
+      "line": 135,
+      "headers": [
+        "Account",
+        "Category",
+        "Debit",
+        "Credit",
+        "Balance"
+      ],
+      "category": "aggregate",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "94caa3a338e3e7a85fc7cb2b940199f562bc63f8d67cb0459ceb40961baf3d97"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/manage-erpx/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/manage-erpx/page.tsx",
+      "line": 125,
+      "headers": [
+        "Holding",
+        "Status",
+        "Pending",
+        "Dead letters",
+        "Claimed",
+        "Jobs heartbeat",
+        "Oldest pending"
+      ],
+      "category": "aggregate",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "c87060b26678545b2f5b89eb20feb3bd7de98dd981e9b1b6f6f42cc8708425f2"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/manage-erpx/executive/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/manage-erpx/executive/page.tsx",
+      "line": 41,
+      "headers": [
+        "{metric.id === \"failed-provisioning\" ? \"UTC month\" : \"Service and status\"}",
+        "Count"
+      ],
+      "category": "aggregate",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "6272a71af6758afb5595f3c14d16a9e19c0efeb1373307dd899fb232f44385b3"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/assets/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/assets/page.tsx",
+      "line": 3,
+      "headers": [
+        "Asset code",
+        "Name",
+        "Condition",
+        "Status"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "2437b52abdb6c776bcb7e35ce8b38d5797ed434e387b8ffd5b3107809c379ee5"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/stock-counts/[id]/page.tsx#1",
+      "source": "src/app/holdings/[holdingSlug]/stock-counts/[id]/page.tsx",
+      "line": 95,
+      "headers": [
+        "Product",
+        "Recorded quantity",
+        "Counted quantity",
+        "Difference",
+        "Value difference ({String(count.currency)})"
+      ],
+      "category": "aggregate",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "064a3054976e4fa0200e7c41da97701f5b737a3a7db03db1697b5339fed7c28b"
+    },
+    {
+      "id": "src/app/holdings/[holdingSlug]/stock-counts/[id]/page.tsx#2",
+      "source": "src/app/holdings/[holdingSlug]/stock-counts/[id]/page.tsx",
+      "line": 158,
+      "headers": [
+        "Identity",
+        "Recorded",
+        "Counted",
+        "Value difference ({String(count.currency)})",
+        "Result"
+      ],
+      "category": "aggregate",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "867a6fb19edf5ae41dd1a7ac84174b4d91126bee29d15cb91f0081939b32d316"
+    },
+    {
+      "id": "src/app/dev/ui/page.tsx#1",
+      "source": "src/app/dev/ui/page.tsx",
+      "line": 145,
+      "headers": [
+        "Invoice",
+        "Customer",
+        "Status",
+        "Amount"
+      ],
+      "category": "presentation-fixture",
+      "trigger": "not-applicable",
+      "reason": "UI foundation demonstration with fictional invoices; no owner records.",
+      "fingerprint": "0b132f80b71bd50378f84f523a89a72bdd1ae6c4182b9ae316db0f78ef273ce7"
+    },
+    {
+      "id": "src/components/hospitality/setup-guide.tsx#1",
+      "source": "src/components/hospitality/setup-guide.tsx",
+      "line": 479,
+      "headers": [
+        "Mapping",
+        "Finance account"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Setup input and proposal matrix",
+      "fingerprint": "19250ba73ee922b43b786d2018a8ad7123824253432f55b596839d6b182acd9f"
+    },
+    {
+      "id": "src/components/hospitality/setup-guide.tsx#2",
+      "source": "src/components/hospitality/setup-guide.tsx",
+      "line": 637,
+      "headers": [
+        "Room numbers / range",
+        "Room type",
+        "Floor"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Setup input and proposal matrix",
+      "fingerprint": "1306114e1df94b72955bb799b3c4281b9f6cd5e6d49c59da15589a91d7d46914"
+    },
+    {
+      "id": "src/components/hospitality/setup-guide.tsx#3",
+      "source": "src/components/hospitality/setup-guide.tsx",
+      "line": 826,
+      "headers": [
+        "Table",
+        "Seats"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Setup input and proposal matrix",
+      "fingerprint": "c2bf4a3f118cc08ee2ca7e832c46b38b4e4cc1d42a029662bd9852db29637b6f"
+    },
+    {
+      "id": "src/components/hospitality/setup-guide.tsx#4",
+      "source": "src/components/hospitality/setup-guide.tsx",
+      "line": 927,
+      "headers": [
+        "SKU",
+        "Menu name",
+        "THB price",
+        "Kind",
+        "Station",
+        "Ingredient",
+        "Quantity"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Setup input and proposal matrix",
+      "fingerprint": "48f7e7ae7357645b20e167906ab026030ac50e7d31467f7afa23c0463e31c2c1"
+    },
+    {
+      "id": "src/components/records/record-supplement.tsx#1",
+      "source": "src/components/records/record-supplement.tsx",
+      "line": 50,
+      "headers": [
+        "Account",
+        "Debit / credit",
+        "Base debit / credit",
+        "Dimensions"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "978680ab106e7631e9b9ffdf74fdf9fbaa97e54a8de05787fba2cfeba01b62cf"
+    },
+    {
+      "id": "src/components/records/record-supplement.tsx#2",
+      "source": "src/components/records/record-supplement.tsx",
+      "line": 79,
+      "headers": [
+        "Record",
+        "Date / location",
+        "Amount / quantity",
+        "Status"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "0c50df5ce10262b319a18da97b03cf914f82323a257344f6daf18d293b42a2b3"
+    },
+    {
+      "id": "src/components/records/platform-executive-sources.tsx#1",
+      "source": "src/components/records/platform-executive-sources.tsx",
+      "line": 12,
+      "headers": [
+        "Observation",
+        "State",
+        "Time"
+      ],
+      "category": "immutable-observations",
+      "trigger": "not-applicable",
+      "reason": "Owner-authorized redacted service/provisioning source observations. Event identities and Holding identifiers are intentionally absent from the Platform executive projection.",
+      "fingerprint": "c6f01c3dcfd60202931bd58980cedd5634c2149b09e62db317bf78fe2fce46e3"
+    },
+    {
+      "id": "src/components/records/pms-hotel-sources.tsx#1",
+      "source": "src/components/records/pms-hotel-sources.tsx",
+      "line": 12,
+      "headers": [
+        "Record",
+        "Type",
+        "Date / state",
+        "Net room revenue (minor units)"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "adb7118f93254a3d70519d0dc8497abb0d5faa18b13e42a2651a8288a32b8f22"
+    },
+    {
+      "id": "src/components/calendar/calendar-workspace.tsx#1",
+      "source": "src/components/calendar/calendar-workspace.tsx",
+      "line": 1093,
+      "headers": [
+        "People & coverage",
+        "{label(day, { weekday: \"short\" })}\n                      {label(day, { day: \"numeric\" })}",
+        "Team events & open slots",
+        "{p.name[0]} {p.name}"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Coverage calendar matrix",
+      "fingerprint": "618634eb18b1ca92dbb99c027b1430c4f6d277af6696c538daa63aaf794acfe7"
+    },
+    {
+      "id": "src/components/technology/organization-access-workspace.tsx#1",
+      "source": "src/components/technology/organization-access-workspace.tsx",
+      "line": 2751,
+      "headers": [
+        "Policy target",
+        "Before",
+        "After"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Before / after policy comparison",
+      "fingerprint": "8098753962ce1085a6219ad99836c5fab142e50b8824d72335fd50c8612a9343"
+    },
+    {
+      "id": "src/components/technology/organization-access-workspace.tsx#2",
+      "source": "src/components/technology/organization-access-workspace.tsx",
+      "line": 2817,
+      "headers": [
+        "Placement",
+        "Before",
+        "After"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Before / after policy comparison",
+      "fingerprint": "27dcf39675908b4a9892dc6afa6a52dc6646d58294d3f07ea5be094ca05ce99d"
+    },
+    {
+      "id": "src/components/technology/organization-access-workspace.tsx#3",
+      "source": "src/components/technology/organization-access-workspace.tsx",
+      "line": 2920,
+      "headers": [
+        "Placement",
+        "Before",
+        "After"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Before / after policy comparison",
+      "fingerprint": "a3207caa7d1e211fb7bb8909d255301194e82083d4325d228a3c3fac5732a5dd"
+    },
+    {
+      "id": "src/components/platform/platform-holding-provisioning.tsx#1",
+      "source": "src/components/platform/platform-holding-provisioning.tsx",
+      "line": 86,
+      "headers": [
+        "Holding",
+        "State",
+        "Resource slot",
+        "Requested",
+        "Reason"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "d39f10965e261969448d50b9f9dda753a002ffe2dea02f0d044880b40e474a9a"
+    },
+    {
+      "id": "src/components/usage/usage-console.tsx#1",
+      "source": "src/components/usage/usage-console.tsx",
+      "line": 312,
+      "headers": [
+        "Holding",
+        "AI requests",
+        "Input tokens",
+        "Output tokens",
+        "Original files",
+        "Storage coverage",
+        "Historical storage preview",
+        "Unpriced meter groups",
+        "Overall estimate"
+      ],
+      "category": "aggregate",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "62d279c2eb44d62fdddf34e2898d320f333ff6e0483b4dff09cbfda7ccc7b805"
+    },
+    {
+      "id": "src/components/usage/usage-console.tsx#2",
+      "source": "src/components/usage/usage-console.tsx",
+      "line": 421,
+      "headers": [
+        "Location",
+        "AI requests",
+        "Input tokens",
+        "Output tokens",
+        "Original files"
+      ],
+      "category": "aggregate",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "7b7e7799dfa89795cca5b2307fc4c83f5a411fff656e1088a5125e7886e64c03"
+    },
+    {
+      "id": "src/components/usage/usage-console.tsx#3",
+      "source": "src/components/usage/usage-console.tsx",
+      "line": 468,
+      "headers": [
+        "Type",
+        "Company",
+        "Branch",
+        "Quantity",
+        "Period",
+        "Source",
+        "Price used",
+        "Estimate / status"
+      ],
+      "category": "aggregate",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "ddd6218d6732cdc62e29f8c3527f44f86705ddae60f346507301d1d092bb0750"
+    },
+    {
+      "id": "src/components/usage/usage-console.tsx#4",
+      "source": "src/components/usage/usage-console.tsx",
+      "line": 523,
+      "headers": [
+        "Source",
+        "Quantity",
+        "Status"
+      ],
+      "category": "aggregate",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "6f3953c6616ec285483bcb74dfb51e7fec0e53d5b30afc08d198ad01fed9c279"
+    },
+    {
+      "id": "src/components/pms/counter-refunds.tsx#1",
+      "source": "src/components/pms/counter-refunds.tsx",
+      "line": 38,
+      "headers": [
+        "Payment",
+        "Amount",
+        "Reason",
+        "Status",
+        "Action"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "a1625d65e42984f3a504a7487f9129df64c182807c873a42d9a9eb0231a91d8a"
+    },
+    {
+      "id": "src/components/pms/home.tsx#1",
+      "source": "src/components/pms/home.tsx",
+      "line": 461,
+      "headers": [
+        "{t(\"โรงแรม / วันที่ธุรกิจ\", \"Hotel / business date\")}",
+        "Occupancy",
+        "ADR",
+        "RevPAR",
+        "{t(\"รายได้ค่าห้อง\", \"Room revenue\")}"
+      ],
+      "category": "aggregate",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "9b00de385f607b1c7c9280112921a9754ab97660764c4e8b4db20cbe6b788a74"
+    },
+    {
+      "id": "src/components/pms/workspace.tsx#1",
+      "source": "src/components/pms/workspace.tsx",
+      "line": 1361,
+      "headers": [
+        "{tr(\"Date\")}",
+        "{tr(\"Item\")}",
+        "{tr(\"Amount\")}",
+        "{tr(\"Correction\")}"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "2b32826789fe75d51bc442a30aa57e73029d095358898e7e6ac6527b397f3101"
+    },
+    {
+      "id": "src/components/pms/workspace.tsx#2",
+      "source": "src/components/pms/workspace.tsx",
+      "line": 2274,
+      "headers": [
+        "Room type",
+        "{d.slice(5)}",
+        "{r.data.name}"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Specialized comparison / input matrix",
+      "fingerprint": "9026b29597789a7dbde3304c91e0b92bf10331f2732576622d5df4240b61fd1d"
+    },
+    {
+      "id": "src/components/pms/workspace.tsx#3",
+      "source": "src/components/pms/workspace.tsx",
+      "line": 2857,
+      "headers": [
+        "Date",
+        "Item",
+        "Amount",
+        "Actions"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "b259d1ac12783b3b613f2c2d7d085a0e2b49ae9f144b104872e07866a3691a18"
+    },
+    {
+      "id": "src/components/pms/workspace.tsx#4",
+      "source": "src/components/pms/workspace.tsx",
+      "line": 3796,
+      "headers": [
+        "Control account",
+        "PMS",
+        "GL",
+        "Variance",
+        "{key === \"due\" ? \"Receivable\" : key === \"advance\" ? \"Advance\" : \"Deposit\"}"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "700b802b94f3c98db5ea2e271a015247c1788d6945b75429f6e2b702824a043f"
+    },
+    {
+      "id": "src/components/pms/booking-flow.tsx#1",
+      "source": "src/components/pms/booking-flow.tsx",
+      "line": 67,
+      "headers": [
+        "Room / night",
+        "Rooms",
+        "Room charge",
+        "Service",
+        "Tax",
+        "Total"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Booking quotation preview",
+      "fingerprint": "55e540b33993049ce450863d29d42823ecef30c919dda85969b9d873a7b4e438"
+    },
+    {
+      "id": "src/components/pms/booking-refunds.tsx#1",
+      "source": "src/components/pms/booking-refunds.tsx",
+      "line": 37,
+      "headers": [
+        "Booking payment",
+        "Amount",
+        "Status",
+        "Provider review"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "33a6cf4f16867259bfe27bb38e034d6439143f7cda1cee7d066cb35e077ba44d"
+    },
+    {
+      "id": "src/components/iam/iam-console.tsx#1",
+      "source": "src/components/iam/iam-console.tsx",
+      "line": 597,
+      "headers": [
+        "User / source",
+        "Role and scope",
+        "Status",
+        "Validity",
+        "Actions"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "07b29cf18d9b9fc8beb7527c70394f7851d70ed106900f1be7646924e729ac53"
+    },
+    {
+      "id": "src/components/iam/iam-console.tsx#2",
+      "source": "src/components/iam/iam-console.tsx",
+      "line": 1089,
+      "headers": [
+        "Page or business action",
+        "{c.label}",
+        "{p.label}\n                            {title(p.module)}"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Specialized comparison / input matrix",
+      "fingerprint": "d16f30f2677b869f52b6c956412ed3d742d48e11339fc6ad2280b1c51e0835d0"
+    },
+    {
+      "id": "src/components/iam/iam-console.tsx#3",
+      "source": "src/components/iam/iam-console.tsx",
+      "line": 1785,
+      "headers": [
+        "Group",
+        "Connection",
+        "Observed"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "9078521c4ecf11b8ca1400655969baac142a9c20a21a3bd5073ab05fc6ff33f4"
+    },
+    {
+      "id": "src/components/pos/pos-console.tsx#1",
+      "source": "src/components/pos/pos-console.tsx",
+      "line": 668,
+      "headers": [
+        "{tr(\"Receipt\")}",
+        "{tr(\"Date\")}",
+        "{tr(\"Total\")}",
+        "{tr(\"Status\")}"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "6ddca82e6995086c017002e24aa4e613fc43dec65af74766e9ec38c5ca54ac6a"
+    },
+    {
+      "id": "src/components/pos/pos-console.tsx#2",
+      "source": "src/components/pos/pos-console.tsx",
+      "line": 2266,
+      "headers": [
+        "Receipt",
+        "Register",
+        "Date",
+        "Total",
+        "Status"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "141947160028cec56993ad8ebf0a0fa6ee150df10fb70c096ad53f2e323db04f"
+    },
+    {
+      "id": "src/components/pos/pos-console.tsx#3",
+      "source": "src/components/pos/pos-console.tsx",
+      "line": 2550,
+      "headers": [
+        "Date",
+        "Register",
+        "Receipt",
+        "Sales",
+        "Discount",
+        "Tax",
+        "Approved refunds",
+        "Net cost",
+        "Gross profit"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "4f9ea38f494faaa01a4f77353ae6cae5314690cc5c346d694123cb74edae6b98"
+    },
+    {
+      "id": "src/components/pos/pos-closing.tsx#1",
+      "source": "src/components/pos/pos-closing.tsx",
+      "line": 293,
+      "headers": [
+        "{t(\"ต้นทาง\", \"Source\")}",
+        "{t(\"เลขที่\", \"Reference\")}",
+        "{t(\"เปิดดู\", \"Open\")}"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "787f82d397479e465ca1af91611d9c23f169c183428e8765d113943ebdafaa29"
+    },
+    {
+      "id": "src/components/finance/finance-accrual-controls.tsx#1",
+      "source": "src/components/finance/finance-accrual-controls.tsx",
+      "line": 141,
+      "headers": [
+        "Schedule",
+        "Accounts",
+        "Total",
+        "Next period",
+        "Status",
+        "Actions"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "aa22431a22371619567e48b33ed7e5a5e9420fc031485e8828bda38dbc55cc86"
+    },
+    {
+      "id": "src/components/finance/finance-accrual-controls.tsx#2",
+      "source": "src/components/finance/finance-accrual-controls.tsx",
+      "line": 241,
+      "headers": [
+        "Schedule",
+        "Period",
+        "Amount",
+        "Status",
+        "Action"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "6179fa05650b43ab433010ea94a518ec58ee6ca5fe9d71b61514b2cbbad30f18"
+    },
+    {
+      "id": "src/components/finance/finance-group-edition-controls.tsx#1",
+      "source": "src/components/finance/finance-group-edition-controls.tsx",
+      "line": 960,
+      "headers": [
+        "Account",
+        "Debit {String(s.journal.currency)}",
+        "Credit"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Unsaved group account mapping and translation rate inputs; retained report and journal tables below have owner links.",
+      "fingerprint": "14e2640e19f5073114b9d7e57f3cdee583a641f8354c7d783fdbc2369b16abf9"
+    },
+    {
+      "id": "src/components/finance/finance-group-edition-controls.tsx#2",
+      "source": "src/components/finance/finance-group-edition-controls.tsx",
+      "line": 1065,
+      "headers": [
+        "Group account",
+        "Amount {String(e.currency)}"
+      ],
+      "category": "record-lines",
+      "trigger": "not-applicable",
+      "reason": "Immutable paired-document lines inside their own scoped evidence viewer; the pair header opens its owner record drawer.",
+      "fingerprint": "247bb95fc92b64047a057116631d713ba0a099825340f1e28505a7ee877fedb3"
+    },
+    {
+      "id": "src/components/finance/intercompany-console.tsx#1",
+      "source": "src/components/finance/intercompany-console.tsx",
+      "line": 220,
+      "headers": [
+        "Reference",
+        "Companies",
+        "Amount",
+        "Status",
+        "Next action"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "6ba3b54cb4a6b1aefbd094ae5fe488c07c8dc11dc95a83a5929d5824861fd5ed"
+    },
+    {
+      "id": "src/components/finance/finance-bank-automation-controls.tsx#1",
+      "source": "src/components/finance/finance-bank-automation-controls.tsx",
+      "line": 232,
+      "headers": [
+        "Bank movement",
+        "Suggestion / exception",
+        "Prepare review"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "c7ea4904139b01ced4728a0c2f4bc2a5a6d8119a94b5657a5be7a7f44cc75823"
+    },
+    {
+      "id": "src/components/finance/finance-bank-automation-controls.tsx#2",
+      "source": "src/components/finance/finance-bank-automation-controls.tsx",
+      "line": 364,
+      "headers": [
+        "Group / evidence",
+        "Status",
+        "Review"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "51c46ec15e037a08e71b9b5e8318f5ce63b8e366efcbf7f406dae352b293bf51"
+    },
+    {
+      "id": "src/components/finance/consolidation-run-console.tsx#1",
+      "source": "src/components/finance/consolidation-run-console.tsx",
+      "line": 175,
+      "headers": [
+        "As of",
+        "Currency",
+        "Status",
+        "Source snapshot",
+        "Next action"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "cbd93eacf717a57a8740410afe52d9b134e6632e65daa235902a38c520f00164"
+    },
+    {
+      "id": "src/components/finance/consolidation-run-console.tsx#2",
+      "source": "src/components/finance/consolidation-run-console.tsx",
+      "line": 354,
+      "headers": [
+        "Description",
+        "Accounts",
+        "Amount",
+        "Status",
+        "Next action"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "755f63dde1c56ef72b94f8dfe78511eb99173a51979a76a21927b1457ec201bf"
+    },
+    {
+      "id": "src/components/finance/finance-business-contract-controls.tsx#1",
+      "source": "src/components/finance/finance-business-contract-controls.tsx",
+      "line": 669,
+      "headers": [
+        "Obligation",
+        "Due",
+        "Amount",
+        "Action"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "2c9b0b6dbf0ebc64465b7a330d6265b2a98e12866eaabee1b168af40903ae305"
+    },
+    {
+      "id": "src/components/finance/finance-collection-controls.tsx#1",
+      "source": "src/components/finance/finance-collection-controls.tsx",
+      "line": 145,
+      "headers": [
+        "Invoice / customer",
+        "Due",
+        "Outstanding"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "c1e36b69ccb2e615edab7c9065550a8fbb9296d8712a029bfb20417a7c7421dd"
+    },
+    {
+      "id": "src/components/finance/finance-collection-controls.tsx#2",
+      "source": "src/components/finance/finance-collection-controls.tsx",
+      "line": 173,
+      "headers": [
+        "Message / source",
+        "Status",
+        "Review / test delivery"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "45a9fed7406eea193bb9fb045ea377e6dbe174644c9917514ab42efb5b7746b2"
+    },
+    {
+      "id": "src/components/finance/finance-collection-controls.tsx#3",
+      "source": "src/components/finance/finance-collection-controls.tsx",
+      "line": 259,
+      "headers": [
+        "Month",
+        "Movement",
+        "Forecast closing cash",
+        "Source obligations"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "874546eb553b2b2f8c6a2ddb5eebbf792cf9c8159c831f2d85d531c1b0250b39"
+    },
+    {
+      "id": "src/components/finance/finance-book-controls.tsx#1",
+      "source": "src/components/finance/finance-book-controls.tsx",
+      "line": 271,
+      "headers": [
+        "Books",
+        "Effective",
+        "Status",
+        "Opening / review"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "6eb4fadf1bb0c103668a8d46887a9aff98f15d00e8775ec2c38bb6d3a8d2d704"
+    },
+    {
+      "id": "src/components/finance/journal-batch-review.tsx#1",
+      "source": "src/components/finance/journal-batch-review.tsx",
+      "line": 86,
+      "headers": [
+        "Select",
+        "Journal number",
+        "Date",
+        "Period",
+        "Debit",
+        "Credit",
+        "Lines"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "4560dd1537400c48cb004f43e9994a24d42fea45732f0ed7b84dc4e674983300"
+    },
+    {
+      "id": "src/components/finance/finance-instrument-controls.tsx#1",
+      "source": "src/components/finance/finance-instrument-controls.tsx",
+      "line": 395,
+      "headers": [
+        "Due",
+        "Cash",
+        "Interest",
+        "Principal",
+        "Balance",
+        "ROU depreciation"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Immutable calculated payment schedule; retained actual payment runs have owner links below",
+      "fingerprint": "bcb4978aacefa7f0023f34e8cb64f2634cfe818f5e96cba6d2a8786c984572c0"
+    },
+    {
+      "id": "src/components/finance/finance-planning-controls.tsx#1",
+      "source": "src/components/finance/finance-planning-controls.tsx",
+      "line": 475,
+      "headers": [
+        "Plan",
+        "Edition",
+        "Status",
+        "Review and reports",
+        "Month / account",
+        "Base",
+        "Good",
+        "Bad"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "46cd18a047b6ff1c790d4cafbe0ea151f3b1782896ff753e2bf0a152a1ddc78d"
+    },
+    {
+      "id": "src/components/finance/finance-planning-controls.tsx#2",
+      "source": "src/components/finance/finance-planning-controls.tsx",
+      "line": 502,
+      "headers": [
+        "Month / account",
+        "Base",
+        "Good",
+        "Bad"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "e126a36588dc1c2266661910567cef3b82f17bba61a4e4a72f08a69723c11a30"
+    },
+    {
+      "id": "src/components/finance/finance-planning-controls.tsx#3",
+      "source": "src/components/finance/finance-planning-controls.tsx",
+      "line": 656,
+      "headers": [
+        "Row / month",
+        "Budget / amount",
+        "Actual",
+        "Variance"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "d6dd7dd3526843db03dd844e77356b9eee1667aa2556bf5df81069422fbedc05"
+    },
+    {
+      "id": "src/components/finance/finance-planning-controls.tsx#4",
+      "source": "src/components/finance/finance-planning-controls.tsx",
+      "line": 679,
+      "headers": [
+        "Cash flow",
+        "Amount"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "878cb30f61f54dd5f1f140f1052ee7f9d73ebe0be396daf960feb6ea5a602cc2"
+    },
+    {
+      "id": "src/components/legal/legal-workspace.tsx#1",
+      "source": "src/components/legal/legal-workspace.tsx",
+      "line": 1386,
+      "headers": [
+        "Record",
+        "Status",
+        "Due",
+        "Classification"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "0358c8547ca8d2a7abcf4523c381cfe7d927f7a5a0adb07d98b303e6b314e3ec"
+    },
+    {
+      "id": "src/components/modules/document-posting-preview.tsx#1",
+      "source": "src/components/modules/document-posting-preview.tsx",
+      "line": 117,
+      "headers": [
+        "Account",
+        "Debit",
+        "Credit",
+        "Total"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Calculated document posting preview",
+      "fingerprint": "8457a37e8109c593293e7697f3b3c2989c6ff60d7a8445b543bbdb643a447d69"
+    },
+    {
+      "id": "src/components/modules/analytics-report.tsx#1",
+      "source": "src/components/modules/analytics-report.tsx",
+      "line": 214,
+      "headers": [
+        "Campaign ID",
+        "Source",
+        "Leads",
+        "Wins",
+        "Posted revenue",
+        "Posted cost",
+        "ROI",
+        "Records"
+      ],
+      "category": "aggregate",
+      "trigger": "owner-record-or-source",
+      "reason": "SourceLinks helper opens marketing_campaign_sources using the same campaign/source cohort and individual candidate IDs.",
+      "fingerprint": "4b426ff69d152e36db0f984e12f603efe1c08efbca33bb26dcf1feabaecd352e"
+    },
+    {
+      "id": "src/components/modules/sales-pricing-console.tsx#1",
+      "source": "src/components/modules/sales-pricing-console.tsx",
+      "line": 425,
+      "headers": [
+        "Price list",
+        "Products / unit prices",
+        "Customer scope",
+        "Effective dates",
+        "Automatic discount",
+        "Version",
+        "Status",
+        "Actions"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "bebc83bba0dbd8942b267def7fb26d2373083a48d1d7f7bfa3d3bc39fef63592"
+    },
+    {
+      "id": "src/components/modules/expense-posting-preview.tsx#1",
+      "source": "src/components/modules/expense-posting-preview.tsx",
+      "line": 33,
+      "headers": [
+        "Account",
+        "Debit",
+        "Credit"
+      ],
+      "category": "record-lines",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "7778531437251309c7376a1cd4ae51c5a7a57827796ac41896fe602a33501be7"
+    },
+    {
+      "id": "src/components/modules/expense-posting-preview.tsx#2",
+      "source": "src/components/modules/expense-posting-preview.tsx",
+      "line": 111,
+      "headers": [
+        "Account",
+        "Debit",
+        "Credit",
+        "Total"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Unsaved computed journal proposal; actual posted journal and accounts have owner links in the first table.",
+      "fingerprint": "f3735bcd3eda7d5c55816e7e77bfd8a7ba789a944c02afa4d03dc3b54af282bd"
+    },
+    {
+      "id": "src/components/modules/finance-chart-controls.tsx#1",
+      "source": "src/components/modules/finance-chart-controls.tsx",
+      "line": 354,
+      "headers": [
+        "Code",
+        "Name",
+        "Category",
+        "Currency",
+        "Control role",
+        "Status",
+        "Change status"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "3291231efc6098481e67b539a9f950e102b349b18e5d15cde38c99f285ff8caf"
+    },
+    {
+      "id": "src/components/modules/supplier-promise-console.tsx#1",
+      "source": "src/components/modules/supplier-promise-console.tsx",
+      "line": 88,
+      "headers": [
+        "Product",
+        "Still to receive",
+        "Not confirmed by supplier"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Supplier confirmation quantity inputs",
+      "fingerprint": "7a45ff86fcb47226393403746a817261b33f5da36bf947f4a35484270ec4d542"
+    },
+    {
+      "id": "src/components/modules/finance-reporting-console.tsx#1",
+      "source": "src/components/modules/finance-reporting-console.tsx",
+      "line": 25,
+      "headers": [
+        "Reporting dates",
+        "Edition",
+        "Status",
+        "Evidence"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "d56d8ae19256300f46f7c0e459a8fb880de3a7910c8f526066c0279d0af675ab"
+    },
+    {
+      "id": "src/components/modules/ledger-controls.tsx#1",
+      "source": "src/components/modules/ledger-controls.tsx",
+      "line": 732,
+      "headers": [
+        "Account",
+        "Schedule",
+        "Debit",
+        "Credit"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Journal preparation preview",
+      "fingerprint": "288c54ab0ef8c0996ceffe0fa88d6c063e0c04109045816e27e0807c2af87573"
+    },
+    {
+      "id": "src/components/modules/procurement-rfq-console.tsx#1",
+      "source": "src/components/modules/procurement-rfq-console.tsx",
+      "line": 123,
+      "headers": [
+        "Approved item",
+        "Requested",
+        "Already allocated",
+        "Remaining"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Demand allocation and supplier comparison inputs",
+      "fingerprint": "f80df38dedda24e848d60fdc024f9bd57dd1a48bd18602e2388c5b9e68e7c7f9"
+    },
+    {
+      "id": "src/components/modules/procurement-rfq-console.tsx#2",
+      "source": "src/components/modules/procurement-rfq-console.tsx",
+      "line": 373,
+      "headers": [
+        "Product demand",
+        "Source allocation",
+        "Conversion evidence"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Demand allocation and supplier comparison inputs",
+      "fingerprint": "e9161b8b5ffca343d59ca228805e03e3d90f2e0c30fb4be0e7c2e87fa92fa334"
+    },
+    {
+      "id": "src/components/modules/procurement-rfq-console.tsx#3",
+      "source": "src/components/modules/procurement-rfq-console.tsx",
+      "line": 403,
+      "headers": [
+        "Supplier / reference",
+        "Total ({String(r.currency)})",
+        "Arrival",
+        "Valid through",
+        "Selection"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Demand allocation and supplier comparison inputs",
+      "fingerprint": "d8c6899f80af40fcf2f2ea5d2e56f4d7edf6d16daff58a9469962409199742e7"
+    },
+    {
+      "id": "src/components/modules/payroll-accounting-panel.tsx#1",
+      "source": "src/components/modules/payroll-accounting-panel.tsx",
+      "line": 300,
+      "headers": [
+        "{\"Account\"}",
+        "{\"Description\"}",
+        "{\"Unit\"}",
+        "{\"Debit\"}",
+        "{\"Credit\"}"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Accounting posting preview",
+      "fingerprint": "ac4f56e6f01ce442c76de4be88fd353a4b234fdbff4283fe623b48fcaf6c3304"
+    },
+    {
+      "id": "src/components/modules/supplier-bill-console.tsx#1",
+      "source": "src/components/modules/supplier-bill-console.tsx",
+      "line": 371,
+      "headers": [
+        "PO / receipt / item",
+        "Received / invoiced",
+        "PO subtotal",
+        "Supplier subtotal",
+        "Supplier tax"
+      ],
+      "category": "input-or-comparison",
+      "trigger": "not-applicable",
+      "reason": "Matching inputs and comparison against immutable PO / receipt lines",
+      "fingerprint": "0a7ad062be950e86e449e0516e791e5386a1c40d25adf23e336f6d681a0038f3"
+    },
+    {
+      "id": "src/components/modules/inventory-reorder-console.tsx#1",
+      "source": "src/components/modules/inventory-reorder-console.tsx",
+      "line": 184,
+      "headers": [
+        "Product",
+        "Warehouse",
+        "Approved point",
+        "Proposed point",
+        "State",
+        "Review"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "41d71efd1ad13b7df2cdd45e6ac261c306e8f64061f3809bff71ba3090bb5dee"
+    },
+    {
+      "id": "src/components/sales-customers/hub-list.tsx#1",
+      "source": "src/components/sales-customers/hub-list.tsx",
+      "line": 18,
+      "headers": [
+        "{columns.map(column => {column}"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "reason": "Generic rows delegate record links to typed Sales/Customers owner callers.",
+      "fingerprint": "117bd0307202ef407f007beeb80061e30dd7c6885d968910bf27bc149345e107"
+    },
+    {
+      "id": "src/components/billing/target-billing-panel.tsx#1",
+      "source": "src/components/billing/target-billing-panel.tsx",
+      "line": 661,
+      "headers": [
+        "Source",
+        "Provider",
+        "Funding / result",
+        "Provider units",
+        "Cost status",
+        "Verified cost"
+      ],
+      "category": "aggregate",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "708e189341ab9ee9ec686dddc53a5d11cb73a645ee4b98fbc09e550c2d521efa"
+    },
+    {
+      "id": "src/components/billing/target-billing-panel.tsx#2",
+      "source": "src/components/billing/target-billing-panel.tsx",
+      "line": 901,
+      "headers": [
+        "Provider",
+        "Statement",
+        "Reconciliation",
+        "Provider amount",
+        "Reconciled source amount"
+      ],
+      "category": "aggregate",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "1b7f8926063d124191491a5914bfa205775381e801a1189d7ec36871fcdb4356"
+    },
+    {
+      "id": "src/components/billing/target-billing-panel.tsx#3",
+      "source": "src/components/billing/target-billing-panel.tsx",
+      "line": 939,
+      "headers": [
+        "Type",
+        "Description",
+        "Measured quantity",
+        "Provider units",
+        "Provider / funding",
+        "Verified provider cost",
+        "Rated charge"
+      ],
+      "category": "aggregate",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "7d4140425096c78f29c06b02dc48a5abe8dce4385d4d46d848c1e230095518ef"
+    },
+    {
+      "id": "src/components/billing/billing-console.tsx#1",
+      "source": "src/components/billing/billing-console.tsx",
+      "line": 629,
+      "headers": [
+        "Cost",
+        "Service period",
+        "Amount",
+        "Status"
+      ],
+      "category": "records",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "2483866ab48278bfee455f621fae805a597d22aac1f063316f1a4789e2a2b161"
+    },
+    {
+      "id": "src/components/executive/widget.tsx#1",
+      "source": "src/components/executive/widget.tsx",
+      "line": 128,
+      "headers": [
+        "{data.unit === \"quantity\"\n                            ? data.metric === \"available-stock\"\n                              ? \"Product / warehouse\"\n                              : data.metric === \"inventory-movements\"\n                                ? \"Movement group\"\n                                : \"Group\"\n                            : \"Group\"}",
+        "{data.unit === \"money\"\n                            ? data.currency\n                            : data.unit === \"percent\"\n                              ? \"Rate\"\n                              : data.unit === \"duration\"\n                                ? \"Duration\"\n                                : data.unit === \"quantity\"\n                                  ? data.metric === \"available-stock\"\n                                    ? \"Available quantity\"\n                                    : data.metric === \"approved-leave-duration\"\n                                      ? \"Leave days\"\n                                      : data.metric === \"inventory-movements\"\n                                        ? \"Signed quantity\"\n                                        : \"Quantity\"\n                                  : \"Count\"}"
+      ],
+      "category": "aggregate",
+      "trigger": "owner-record-or-source",
+      "fingerprint": "489c07af794da24a9e362a80f736b11b4a34350e160e3a164109e5a717d4467d"
+    }
+  ]
+}

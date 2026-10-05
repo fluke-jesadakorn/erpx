@@ -9,7 +9,7 @@ import { loadPms } from "@/server/pms";
 import { pmsImportBatches } from "@/server/pms/import";
 import { PmsImport } from "@/components/pms/import";
 import { pageError } from "@/server/page-error";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 export const dynamic="force-dynamic";
 export default async function ImportPage({params,searchParams}:{params:Promise<{holdingSlug:string}>;searchParams:Promise<{property?:string}>}){
   const {holdingSlug}=await params,actor=requirePermission(await requireWorkContext(holdingSlug),"pms.reports"),base=workspaceBase(publicScope(actor));

@@ -1,5 +1,9 @@
 "use client";
 import { DraftFormDrawer } from "@/components/ui/draft-form-drawer";
+import { useRouter } from "next/navigation";
+import { useEmbeddedRecord } from "@/components/records/record-context";
+import { recordDrawerHref } from "@/lib/record-drawer";
+import { RecordLink } from "@/components/records/record-link";
 import { DialogClose } from "@/components/ui/dialog";
 import { FormGrid, FormLayout } from "@/components/ui/patterns";
 import { Card } from "@/components/ui/foundation";
@@ -58,6 +62,7 @@ export function LegalWorkspace({
   initialCreate?: boolean;
   initialKind?: LegalKind;
 }) {
+  const router = useRouter(), embedded = useEmbeddedRecord();
   const [data, setData] = useState(initial),
     [kind, setKind] = useState<LegalKind>(initialDetail?.item.kind ?? initialKind),
     [search, setSearch] = useState(""),
@@ -128,6 +133,7 @@ export function LegalWorkspace({
     setData(await call(`?kind=${k}&page=${page}&search=${encodeURIComponent(q)}&state=${status}`));
   }
   async function open(id: string) {
+    if (!embedded || selected?.item.id !== id) { router.push(recordDrawerHref(window.location.href, { kind: "legal", id, args: { kind } }), { scroll: false }); return; }
     setBusy(true);
     setError("");
     try {
@@ -1390,15 +1396,7 @@ export function LegalWorkspace({
                     {data.items.map((i) => (
                       <tr key={i.id}>
                         <td>
-                          <Button appearance="standard"
-                            type="submit"
-                            variant="ghost"
-                            className={s.link}
-                            disabled={busy}
-                            onClick={() => open(i.id)}
-                          >
-                            {i.title}
-                          </Button>
+                          <RecordLink href={`${base}/legal?record=${encodeURIComponent(i.id)}&kind=${kind}`}>{i.title}</RecordLink>
                           <div className={s.small}>{i.jurisdiction}</div>
                         </td>
                         <td>

@@ -1,4 +1,8 @@
 "use client";
+import { PosRecordDetail } from "@/components/records/pos-record-detail";
+import { RecordDrawer } from "@/components/records/record-drawer";
+import { RecordLink } from "@/components/records/record-link";
+import { recordCanonicalHref } from "@/lib/record-drawer";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import {
   ActionAnchor as UiActionAnchor,
@@ -273,7 +277,7 @@ function FrontPosDaily({
   const pick = (row: Row) => {
     setSelected(s(row, "id"));
     setRegisterId(s(row, "register_id"));
-    setTab("sale");
+    const url = new URL(window.location.href); url.searchParams.set("detailKind", "pos_sale"); url.searchParams.set("detailId", s(row,"id")); window.history.pushState(null,"",url);
   };
   return (
     <FrontLocalizedTree>
@@ -687,7 +691,7 @@ function FrontPosDaily({
                             <Tag value={s(row, "state")} />
                           </td>
                           <td>
-                            <Button secondary onClick={() => pick(row)}>
+                            <Button secondary data-record-link="true" onClick={() => pick(row)}>
                               {tr("Open receipt")}
                             </Button>
                           </td>
@@ -737,6 +741,7 @@ export function PosConsole({
   frontMode = false,
   commandScopeKey = base,
   frontHref,
+  recordOnly = false,
 }: {
   initial: PosWorkspace;
   base: string;
@@ -745,6 +750,7 @@ export function PosConsole({
   frontMode?: boolean;
   commandScopeKey?: string;
   frontHref?: string;
+  recordOnly?: boolean;
 }) {
   const formatSelectedMoney = useMoneyFormatter();
   const online = useSyncExternalStore(
@@ -786,7 +792,7 @@ export function PosConsole({
   };
   const [data, setData] = useState(initial),
     [loadedTab, setLoadedTab] = useState(tab),
-    [selected, setSelectedState] = useState(initial.sale ? s(initial.sale, "id") : ""),
+    [selected, setSelectedState] = useState(searchParams.get("detailKind") === "pos_sale" ? searchParams.get("detailId") ?? "" : initial.sale ? s(initial.sale, "id") : ""),
     [registerId, setRegisterId] = useState(
       initial.sale ? s(initial.sale, "register_id") : s(initial.registers[0] ?? {}, "id"),
     ),
@@ -809,10 +815,10 @@ export function PosConsole({
       window.history.replaceState(null, "", url);
     }
   };
-  const requestedSale = searchParams.get("sale"),
+  const requestedSale = searchParams.get("detailKind") === "pos_sale" ? searchParams.get("detailId") : searchParams.get("sale"),
     priorSaleQuery = useRef(requestedSale);
   useEffect(() => {
-    if (!frontMode || priorSaleQuery.current === requestedSale) return;
+    if (priorSaleQuery.current === requestedSale) return;
     priorSaleQuery.current = requestedSale;
     let cancelled = false;
     queueMicrotask(() => {
@@ -1061,7 +1067,7 @@ export function PosConsole({
   const pickSale = (row: Row) => {
     setSelected(s(row, "id"));
     setRegisterId(s(row, "register_id"));
-    setTab("sale");
+    const url = new URL(window.location.href); url.searchParams.set("detailKind", "pos_sale"); url.searchParams.set("detailId", s(row,"id")); window.history.pushState(null,"",url);
     setPrinting(false);
   };
   const filtered = data.products.filter(
@@ -1080,9 +1086,14 @@ export function PosConsole({
       </Button>
     </div>
   );
+  const receiptDrawer = searchParams.get("detailKind") === "pos_sale" && searchParams.get("detailId") ? <RecordDrawer title={data.sale ? s(data.sale,"number") : "Receipt"} fullHref={`?tab=sale&sale=${encodeURIComponent(searchParams.get("detailId")!)}`}>
+    {error && <p role="alert">{error}<Button onClick={()=>void refresh().catch(()=>{})}>Retry</Button></p>}
+    {data.sale && s(data.sale,"id") === searchParams.get("detailId") ? <PosRecordDetail key={s(data.sale,"id")} canEdit={can("pos.sell")} data={data} api={api} erpBase={erpBase} busy={busy} send={send} registerId={registerId} setRegisterId={setRegisterId} pickSale={pickSale} openShifts={()=>setTab("shifts")}/> : <p role="status">Loading receipt…</p>}
+  </RecordDrawer> : null;
+  if (recordOnly) return <div className="ui-stack">{error && <p role="alert">{error}<Button onClick={()=>void refresh().catch(()=>{})}>Retry</Button></p>}{data.sale ? <PosRecordDetail key={s(data.sale,"id")} canEdit={can("pos.sell")} data={data} api={api} erpBase={erpBase} busy={busy} send={send} registerId={registerId} setRegisterId={setRegisterId} pickSale={pickSale} openShifts={()=>setTab("shifts")}/> : <p role="alert">Receipt unavailable in this work scope.</p>}</div>;
   if (frontMode)
     return (
-      <FrontPosDaily
+      <>{receiptDrawer}<FrontPosDaily
         online={online}
         loading={!currentTabLoaded}
         data={data}
@@ -1102,10 +1113,11 @@ export function PosConsole({
         recovery={recovery}
         approvalHref={`${erpBase}/pos?tab=history&queue=approval`}
         erpBase={erpBase}
-      />
+      /></>
     );
   return (
     <FrontLocalizedTree>
+      {receiptDrawer}
       <div className={styles.workspace} data-source="live">
         {recovery}
         <div className={styles.header}>
@@ -2279,7 +2291,7 @@ export function PosConsole({
                                 <Tag value={s(row, "state")} />
                               </td>
                               <td>
-                                <Button secondary onClick={() => pickSale(row)}>
+                                <Button secondary data-record-link="true" onClick={() => pickSale(row)}>
                                   Open receipt
                                 </Button>
                               </td>
@@ -2552,7 +2564,7 @@ export function PosConsole({
                         <tbody>
                           {data.reports.map((r, i) => (
                             <tr key={i}>
-                              <td>{s(r, "business_date")}</td>
+                              <td><RecordLink href={recordCanonicalHref(erpBase,{kind:'pos_report',id:s(r,'business_date'),args:{registerId:s(r,'register_id'),shiftId:s(r,'shift_id'),currency:s(r,'currency')}})} record={{kind:'pos_report',id:s(r,'business_date'),args:{registerId:s(r,'register_id'),shiftId:s(r,'shift_id'),currency:s(r,'currency')}}}>{s(r, "business_date")}</RecordLink></td>
                               <td>
                                 {s(
                                   data.registers.find((reg) => reg.id === r.register_id) ?? {},

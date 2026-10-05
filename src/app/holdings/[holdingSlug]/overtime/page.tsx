@@ -9,7 +9,7 @@ import { publicScope,requireWorkContext } from "@/server/authorization";
 import { ApiError } from "@/server/http";
 import { listOvertime,overtimeSetup } from "@/server/overtime";
 import { holdingResources } from "@/server/runtime";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 export default async function Overtime({params}:{params:Promise<{holdingSlug:string}>}) {
  const actor=await requireWorkContext((await params).holdingSlug),base=workspaceBase(publicScope(actor)),{write}=await holdingResources(actor.holdingId);
  const [requests,setup]=await Promise.all([listOvertime(actor),overtimeSetup(write,actor).then(s=>({blockers:s.blockers,canDraft:true})).catch(e=>{if(e instanceof ApiError)return {blockers:[e.message],canDraft:false};throw e;})]);

@@ -2,11 +2,13 @@
 
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { X } from "lucide-react";
-import { useRef, type ReactNode } from "react";
+import { useRef, useState, useEffect, type ReactNode } from "react";
 import type { UiAppearance } from "./appearance";
 import { cn } from "@/lib/ui";
 import { buttonVariants } from "./button-variants";
 import "./dialog.css";
+import { useEmbeddedRecord } from "@/components/records/record-context";
+import { Button } from "./button";
 
 export const DialogClose = DialogPrimitive.Close;
 
@@ -35,6 +37,7 @@ export function Dialog({
   dismissDisabled = false,
   closeLabel = "Close dialog",
   showHeader = true,
+  finalFocus,
   "data-testid": testId,
 }: {
   id?: string;
@@ -49,9 +52,12 @@ export function Dialog({
   dismissDisabled?: boolean;
   closeLabel?: string;
   showHeader?: boolean;
+  finalFocus?: () => HTMLElement | null;
   "data-testid"?: string;
 }) {
   const popup = useRef<HTMLDivElement>(null);
+  const embedded = useEmbeddedRecord();
+  if (embedded && presentation === "form-drawer") return open ? <EmbeddedForm title={title} onClose={onClose} dismissDisabled={dismissDisabled}>{children}</EmbeddedForm> : null;
   const panel = presentation !== "default";
   const positions = {
     default:
@@ -89,6 +95,7 @@ export function Dialog({
             data-presentation={presentation}
             data-appearance={appearance}
             data-testid={testId}
+            finalFocus={finalFocus}
             initialFocus={() =>
               popup.current?.querySelector<HTMLElement>("[data-autofocus]") ??
               (presentation === "form-drawer"
@@ -142,4 +149,15 @@ export function Dialog({
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
   );
+}
+
+function EmbeddedForm({ title, onClose, children, dismissDisabled }: { title: string; onClose: () => void; children: ReactNode; dismissDisabled: boolean }) {
+  const [dirty, setDirty] = useState(false), [confirming, setConfirming] = useState(false);
+  const root=useRef<HTMLElement>(null);
+  useEffect(() => { const saved = (event:Event) => {const form=(event as CustomEvent<{form?:Element|null}>).detail?.form;if(form&&root.current?.contains(form))setDirty(false);}; window.addEventListener("erpx:record-command-saved", saved); return () => window.removeEventListener("erpx:record-command-saved", saved); }, []);
+  return <section ref={root} data-record-editor onChangeCapture={() => setDirty(true)}>
+    <header className="ui-section-header"><h2>{title}</h2><Button appearance="standard" variant="secondary" disabled={dismissDisabled} onClick={() => dirty ? setConfirming(true) : onClose()}>Back to details</Button></header>
+    {children}
+    <Dialog appearance="standard" open={confirming} title="Discard unsaved changes?" onClose={() => setConfirming(false)}><p>Your changes have not been saved.</p><div className="ui-form-actions"><Button appearance="standard" onClick={() => setConfirming(false)}>Keep editing</Button><Button appearance="standard" variant="danger" onClick={() => {window.dispatchEvent(new CustomEvent("erpx:record-saved",{detail:{root:root.current}}));onClose();}}>Discard changes</Button></div></Dialog>
+  </section>;
 }

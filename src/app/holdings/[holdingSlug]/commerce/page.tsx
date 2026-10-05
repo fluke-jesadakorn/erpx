@@ -21,8 +21,9 @@ import { canApproveCounts, canPrepareCounts, canReadCounts } from "@/server/inve
 import { listInventoryReorderPolicies } from "@/server/inventory-reorder-policies";
 import { pageError } from "@/server/page-error";
 import { holdingResources } from "@/server/runtime";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { redirect } from "next/navigation";
+import { salesCustomerLegacyDestination } from "@/lib/sales-customers";
 import { SalesPricingConsole } from "@/components/modules/sales-pricing-console";
 import { pricingWorkspace } from "@/server/sales-pricing";
 import { CustomerNotificationSettingsForm } from "@/components/modules/commerce-controls";
@@ -92,6 +93,8 @@ export default async function CommercePage({
       redirect(`${base}/commerce?${target}`);
     }
   }
+  const destination = salesCustomerLegacyDestination(base, "commerce", { ...search, view, kind: partyKind });
+  if (destination) redirect(destination);
   if (view === "pricing") return <PriceListPage actor={actor} base={base} />;
   const data = await commercePage(actor, { ...search, view, kind: partyKind }).catch((error) =>
     pageError(error, holdingSlug),
@@ -393,7 +396,7 @@ export default async function CommercePage({
                         return (
                           <tr key={`${s.warehouse_id}-${s.product_id}`}>
                             <td>
-                              {String(s.sku)} · {String(s.name)}
+                              <Link href={`${base}/record-details/stock_position/${encodeURIComponent(String(s.product_id))}`} record={{kind:"stock_position",id:String(s.product_id),args:{warehouseId:String(s.warehouse_id)}}}>{String(s.sku)} · {String(s.name)}</Link>
                             </td>
                             <td>{String(s.warehouse_name)}</td>
                             <td>{s.tracking_mode === "none" ? "None" : String(s.tracking_mode)}</td>
@@ -432,7 +435,7 @@ export default async function CommercePage({
                         <UiActionLink appearance="standard"
                           variant="secondary"
                           key={String(lot.id)}
-                          href={`?view=stock&lotFiles=${encodeURIComponent(String(lot.id))}`}
+                          href={`${base}/record-details/inventory_lot/${encodeURIComponent(String(lot.id))}`}
                         >
                           {String(lot.sku)} ·{" "}
                           {lot.serial_number
@@ -553,7 +556,7 @@ export default async function CommercePage({
                 <tbody>
                   {data[view as "products" | "parties" | "warehouses"].map((row) => (
                     <tr key={String(row.id)}>
-                      <td>{String(row.sku ?? row.code)}</td>
+                      <td><Link href={`${base}/record-details/${view === "products" ? "product" : view === "parties" ? "party" : "warehouse"}/${encodeURIComponent(String(row.id))}`} record={{kind:view === "products" ? "product" : view === "parties" ? "party" : "warehouse",id:String(row.id)}}>{String(row.sku ?? row.code)}</Link></td>
                       <td>{String(row.name)}</td>
                       <td>
                         {view === "products"

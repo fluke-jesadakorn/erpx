@@ -17,7 +17,7 @@ import { pageError } from "@/server/page-error";
 import { readablePost } from "@/server/social-source";
 import { staffPage } from "@/server/staff-page";
 import { taskDetail } from "@/server/staff-tasks";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 export default async function Task({
   params,
   searchParams,

@@ -1,6 +1,6 @@
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Table } from "@/components/ui/foundation";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { requireWorkContext, publicScope } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { pageError } from "@/server/page-error";
@@ -83,7 +83,7 @@ export default async function Page({
             <tbody>
               {data.campaignSummary.map((row) => (
                 <tr key={`${String(row.campaign)}:${String(row.source)}`}>
-                  <td>{String(row.campaign)}</td>
+                  <td><Link record={{kind:"marketing_campaign_sources",id:String(row.campaign),args:{source:String(row.source)}}} href={`${base}/record-details/marketing_campaign_sources/${encodeURIComponent(String(row.campaign))}`}>{String(row.campaign)}</Link></td>
                   <td>{String(row.source)}</td>
                   <td>{Number(row.captured)}</td>
                   <td>{Number(row.pending)}</td>

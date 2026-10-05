@@ -1310,8 +1310,9 @@ a.workspaceChoice:hover {
   display: grid;
   min-width: 0;
 }
-.navCategoryButton {
-  display: flex;
+.nav button.navCategoryButton[data-slot="button"] {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 20px;
   width: 100%;
   min-height: 44px;
   align-items: center;
@@ -1324,8 +1325,16 @@ a.workspaceChoice:hover {
   cursor: pointer;
   font: inherit;
   font-size: 14px;
+  line-height: 20px;
   font-weight: 650;
   text-align: left;
+}
+.navCategoryButton > span {
+  min-width: 0;
+}
+.navCategoryButton > .navGroupChevron {
+  justify-self: center;
+  margin-left: 0;
 }
 .navCategoryButton:hover,
 .navCategory[data-active="true"] > .navCategoryButton {

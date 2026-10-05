@@ -194,12 +194,12 @@ it("preserves return filters on creation and keeps beta conversation creation on
     "queue=waiting&type=service_request&responsibility=requested&q=receipt",
   );
   const query = new URL(href, "http://localhost:3100").searchParams;
-  expect(Object.fromEntries(query)).toEqual({
+  expect(new URL(href, "http://localhost:3100").pathname).toBe(`${base}/expenses/new`);
+  expect(Object.fromEntries(new URLSearchParams(query.get("return") ?? ""))).toEqual({
     queue: "waiting",
     type: "service_request",
     responsibility: "requested",
     q: "receipt",
-    new: "expense",
   });
   const conversation = {
     kind: "conversation" as const,

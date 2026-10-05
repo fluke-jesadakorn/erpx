@@ -1,5 +1,6 @@
 import { requireWorkContext, publicScope } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";
+import {pmsListSelection} from "@/lib/pms-read-selection";
 import { pmsWorkspace } from "@/server/pms";
 import { PmsWorkspaceView } from "@/components/pms/workspace";
 import { pmsSections } from "@/lib/pms-model";
@@ -15,7 +16,7 @@ export default async function PmsPage({
   searchParams,
 }: {
   params: Promise<{ holdingSlug: string; section?: string[] }>;
-  searchParams: Promise<{ property?: string; folio?: string; queue?: string; task?: string; night?: string;record?:string }>;
+  searchParams: Promise<{ q?:string;from?:string;to?:string;page?:string;status?:string;property?: string; folio?: string; queue?: string; task?: string; night?: string;record?:string;detailKind?:string;detailId?:string }>;
 }) {
   const { holdingSlug, section } = await params;
   if (
@@ -33,14 +34,14 @@ export default async function PmsPage({
   if (frontHref && dailySections.has(requestedSection) && !reviewRoute) {
     const target = requestedSection === "dashboard" ? frontHref : frontHref + requestedSection;
     const query = new URLSearchParams();
-    for (const [key, value] of Object.entries({ property: search.property, folio: search.folio, task: search.task, night: search.night,record:search.record,queue:search.queue }))
+    for (const [key, value] of Object.entries({ q:search.q,from:search.from,to:search.to,page:search.page,status:search.status,property: search.property, folio: search.folio, task: search.task, night: search.night,record:search.record,queue:search.queue }))
       if (value) query.set(key, value);
     redirect(`${target}${query.size ? "?" + query : ""}`);
   }
   let data;
   try {
     data = await pmsWorkspace(actor, search.property, section?.[0] === "night-audit", false,
-      requestedSection === "dashboard" ? { view: "dashboard" } : undefined);
+      requestedSection === "dashboard" ? { view: "dashboard" } : pmsListSelection(requestedSection,search));
   } catch (error) {
     return pageError(error, actor.holdingSlug);
   }
@@ -56,7 +57,7 @@ export default async function PmsPage({
       base={workspaceBase(publicScope(actor))}
       section={section?.[0] ?? "dashboard"}
       selectedFolio={search.folio}
-      selectedRecord={search.record}
+      selectedRecord={search.detailKind === "pms_record" ? search.detailId : search.record}
       crossLinks={pmsCrossLinks(actor, enabled ?? undefined)}
       frontHref={frontHref ?? undefined}
       frontPosHref={frontPosHref ?? undefined}

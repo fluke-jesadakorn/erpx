@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { requireWorkContext, publicScope } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { pageError } from "@/server/page-error";
@@ -34,7 +34,7 @@ export default async function Page({
           <Card as="section" appearance="standard" className="ui-panel">
             <div className="ui-section-header">
               <div>
-                <h2>{String(scenario.specification_name)}</h2>
+                <h2><Link href={`${base}/record-details/planning_scenario/${scenario.id}`} record={{kind:"planning_scenario",id:String(scenario.id)}}>{String(scenario.specification_name)}</Link></h2>
                 <p className="muted">
                   Planning sources · due {String(scenario.due_date)}
                 </p>

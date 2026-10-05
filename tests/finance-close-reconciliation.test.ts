@@ -61,10 +61,11 @@ describe("finance close reconciliation",()=>{
 
   it("rejects changed evidence after close preparation",async()=>{
     const prepared=await beginClose(preparer,"close-mar","close-mar-begin");
-    await db.exec(`
-      INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,memo,status,created_by,posted_by,posted_at,created_at,updated_at) VALUES('close-late','close-company','close-chart','close-mar','LATE-1','2026-03-31','THB',1000000,'manual','Late change','posted','close-preparer','close-approver',4,4,4);
-      INSERT INTO finance_journal_lines(id,journal_id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,ordinal) VALUES('close-late-1','close-late','close-bank',100,0,100,0,0),('close-late-2','close-late','close-equity',0,100,0,100,1);
-    `);
+    const lateJournal="INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,memo,status,created_by,posted_by,posted_at,created_at,updated_at) VALUES('close-late','close-company','close-chart','close-mar','LATE-1','2026-03-31','THB',1000000,'manual','Late change','posted','close-preparer','close-approver',4,4,4)";
+    await expect(db.exec(lateJournal)).rejects.toThrow("PERIOD_CLOSED");
+    expect(Number(await db.prepare("SELECT COUNT(*) n FROM finance_journals WHERE id='close-late'").first("n"))).toBe(0);
+    // A bank evidence reference can change without admitting any closing-date GL.
+    await db.exec("UPDATE finance_bank_statements SET statement_number='MAR-2026-CORRECTED' WHERE id='close-bank-mar'");
     await expect(closePeriod(approver,"close-mar",{expectedVersion:Number(prepared.version),proof:"Evidence changed"},"close-mar-approve")).rejects.toMatchObject({code:"CLOSE_RECONCILIATION_STALE"});
     await expect(cancelClose(preparer,"close-mar",{expectedVersion:99,reason:"Stale preparation cancellation"},"close-mar-cancel-stale")).rejects.toMatchObject({code:"VERSION_CONFLICT"});
     const cancellation={expectedVersion:Number(prepared.version),reason:"Retain the old evidence and correct changed bank support"};
@@ -72,6 +73,7 @@ describe("finance close reconciliation",()=>{
     expect(await cancelClose(preparer,"close-mar",cancellation,"close-mar-cancel")).toEqual(cancelled);
     expect(cancelled).toMatchObject({state:"open",version:2});
     expect(await db.prepare("SELECT COUNT(*) n FROM finance_close_reconciliations WHERE period_id='close-mar' AND close_version=1").first("n")).toBe(3);
+    await db.exec(lateJournal+"; INSERT INTO finance_journal_lines(id,journal_id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,ordinal) VALUES('close-late-1','close-late','close-bank',100,0,100,0,0),('close-late-2','close-late','close-equity',0,100,0,100,1)");
     await db.exec("UPDATE finance_bank_statements SET closing_minor=100100,base_closing_minor=100100 WHERE id='close-bank-mar'");
     const refreshed=await beginClose(preparer,"close-mar","close-mar-reprepare");
     expect(refreshed).toMatchObject({state:"closing",version:3});

@@ -2,7 +2,7 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { TimeText } from "@/components/time/time-preference-context";
 import {supportEvidence} from "@/server/support-evidence";
 import {SupportEvidenceConsole} from "@/components/modules/support-evidence-console";
-import Link from 'next/link';
+import { RecordLink as Link } from "@/components/records/record-link";
 import {requireWorkContext,publicScope} from '@/server/authorization';
 import {workspaceBase} from '@/lib/workspace';
 import {pageError} from '@/server/page-error';

@@ -11,7 +11,7 @@ import type { ecommerceWorkspace } from "@/server/ecommerce";
 import { Stack, FormLayout, Card } from "@/components/ui/foundation";
 
 type Workspace = Awaited<ReturnType<typeof ecommerceWorkspace>>;
-export function EcommerceConsole({ base, data }: { base: string; data: Workspace }) {
+export function EcommerceConsole({ recordOnly=false, base, data }: { recordOnly?:boolean; base: string; data: Workspace }) {
   const router = useRouter();
   const last = useRef<{ body: string; key: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -52,7 +52,7 @@ export function EcommerceConsole({ base, data }: { base: string; data: Workspace
   return (
     <Stack as="div" className="ui-stack">
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
-      <FormLayout
+      {!recordOnly && <FormLayout
         className="ui-panel ui-form-grid"
         onSubmit={(event) => {
           event.preventDefault();
@@ -85,7 +85,7 @@ export function EcommerceConsole({ base, data }: { base: string; data: Workspace
         <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
           Create channel
         </Button>
-      </FormLayout>
+      </FormLayout>}
       {data.channels
         .filter((x) => x.status === "draft")
         .map((x) => (
@@ -113,7 +113,7 @@ export function EcommerceConsole({ base, data }: { base: string; data: Workspace
             </Button>
           </FormLayout>
         ))}
-      <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Create product listing</summary><FormLayout
+      {!recordOnly && <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Create product listing</summary><FormLayout
         className="ui-panel ui-form-grid"
         onSubmit={(event) => {
           event.preventDefault();
@@ -164,7 +164,7 @@ export function EcommerceConsole({ base, data }: { base: string; data: Workspace
         <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
           Create listing
         </Button>
-      </FormLayout></FormDisclosure>
+      </FormLayout></FormDisclosure>}
       {data.listings
         .filter((x) => x.status === "draft")
         .map((x) => (
@@ -192,7 +192,7 @@ export function EcommerceConsole({ base, data }: { base: string; data: Workspace
             </Button>
           </FormLayout>
         ))}
-      <FormLayout
+      {!recordOnly && <FormLayout
         className="ui-panel ui-form-grid"
         onSubmit={(event) => {
           event.preventDefault();
@@ -244,7 +244,7 @@ export function EcommerceConsole({ base, data }: { base: string; data: Workspace
         <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
           Open cart
         </Button>
-      </FormLayout>
+      </FormLayout>}
       {data.carts
         .filter((x) => x.status === "open")
         .map((cart) => (

@@ -13,7 +13,7 @@ import {
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { workFetch } from "@/lib/work-fetch";
 import { minorToDecimal } from "@/lib/finance-money";
 import {

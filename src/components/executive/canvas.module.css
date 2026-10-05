@@ -758,6 +758,7 @@
   margin-top: 7px;
 }
 .tableWrap {
+  flex-shrink: 0;
   overflow: auto;
   max-height: 280px;
 }
@@ -1448,6 +1449,7 @@
   }
   .libraryTop {
     align-items: flex-start;
+    flex-wrap: wrap;
     gap: 10px;
   }
   .libraryTop > .eyebrow {

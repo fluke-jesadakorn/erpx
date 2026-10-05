@@ -15,6 +15,7 @@ describe("Finance area navigation", () => {
       ["finance/supplier-batches/batch-1", "finance-supplier-batches", "finance-payments"],
       ["finance/refunds/refund-1", "finance-refunds", "finance-payments"],
       ["finance/journals/journal-1", "finance-ledger", "finance-ledger"],
+      ["finance/assets/asset-1", "finance-ledger", "finance-ledger"],
       ["finance/tax/filing-1", "finance-tax", "finance-ledger"],
       ["finance/engines", "finance-engines", "finance-ledger"],
       ["finance/group", "finance-group", "finance-reports"],

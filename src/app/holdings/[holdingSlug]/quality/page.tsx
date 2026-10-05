@@ -2,7 +2,7 @@ import { Table } from "@/components/ui/foundation";
 import { notFound } from "next/navigation";
 import { accessPage } from "@/server/page-error";
 import { ApiError } from "@/server/http";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { requireWorkContext, publicScope } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { qualityWorkspace } from "@/server/quality";

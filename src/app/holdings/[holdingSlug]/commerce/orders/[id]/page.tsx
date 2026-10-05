@@ -29,7 +29,7 @@ import { publicScope, requireWorkContext } from "@/server/authorization";
 import { commerceOverview, commercePermissions, getOrder } from "@/server/commerce";
 import { getEmployeeRequest } from "@/server/employee-requests";
 import { holdingResources } from "@/server/runtime";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { supplierPromiseDetail } from "@/server/supplier-promises";
 import { SupplierBillCapture } from "@/components/modules/supplier-bill-console";
 import { supplierBillWorkspace, supplierInvoicePolicy } from "@/server/supplier-bill-matching";
@@ -264,7 +264,7 @@ export default async function OrderPage({
                   {lines.map((l) => (
                     <tr key={String(l.id)}>
                       <td>
-                        {String(l.sku)} · {String(l.description)}
+                        <Link href={`${base}/record-details/product/${encodeURIComponent(String(l.product_id))}`}>{String(l.sku)} · {String(l.description)}</Link>
                       </td>
                       <td>{l.tracking_mode === "none" ? "None" : String(l.tracking_mode)}</td>
                       <td>

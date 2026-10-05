@@ -133,6 +133,24 @@ Business language for ERPX, independent of implementation. Current delivery scop
 
 ## People & pay
 
+**Skill**: A Company-defined capability described by five levels of observable behavior. A demonstrated level is an evaluator's evidence-backed assessment, distinct from course completion.
+
+**Role Profile**: The confirmed skill requirements and job demands of a Position at a Staff Level, job family and location. It describes the job rather than the employee's performance.
+
+**Annual Review Cycle**: A January–December period using the Company's confirmed evaluation criteria. Employees may have separate role periods within it.
+
+**Employee Assessment**: An attributable evaluation of an Engagement's demonstrated skills, goal outcomes and actual work within a role period. Unknown dimensions remain unassessed.
+
+**Skill Fit**: The weighted proportion of a Role Profile's requirements demonstrated by evidence. Evidence coverage separately describes the proportion of requirements assessed.
+
+**Target Role Readiness**: Human-confirmed evidence that a person meets a selected target Role Profile. It is distinct from strong skills, outperforming in the current role, and approval to promote.
+
+**Pay Band**: A confirmed minimum, midpoint and maximum full-time monthly base for a job family, Staff Level, location and currency.
+
+**Market Benchmark**: Company-imported salary reference data with a named source, observation date and validity period. It is distinct from approved employee pay.
+
+**Compa-ratio**: An approved base wage normalized to an HR-confirmed full-time monthly basis, divided by the applicable Pay Band midpoint and expressed as a percentage.
+
 - **Roster Week** — A department’s plan of staff work shifts for a Monday–Sunday week in a named timezone, shared with staff when published.
 - **Work Shift** — A dated interval of planned work with a required headcount; it may cross midnight.
 - **Shift Template** — Reusable work times and headcount used to prepare a Work Shift. Changing a template does not change an existing shift.
@@ -214,6 +232,31 @@ Business language for ERPX, independent of implementation. Current delivery scop
 - **Consolidation Adjustment** — A versioned Group-only entry for eliminations, currency translation, non-controlling interests, equity accounting, or acquisition accounting. _Avoid_: Group journal, which suggests a Company-ledger posting.
 - **Finance Proposal** — A human-reviewed suggestion derived from pinned record versions and evidence. It may prepare or explain work but cannot approve, post, pay, reconcile, or close.
 - **Finance Country Pack** — A versioned jurisdiction rule set for tax, statutory documents, and filing exports. Activation requires accountable review and does not itself certify regulatory compliance.
+
+- **Book Mapping** — An independently approved, effective-dated relationship between a Company's primary and secondary accounting books and their accounts. One business transaction retains its identity across all participating books.
+- **Book Policy Adjustment** — An independently reviewed accounting difference in one book, linked to the shared business source. It preserves that source and the other books; correction retains the original adjustment and its reversal.
+- **Business Contract Edition** — A retained version of a Company's customer agreement, prices, service term and performance obligations. An approved amendment or renewal replaces the terms used for future service windows while retaining earlier billing evidence.
+- **Financing Agreement Edition** — An independently reviewed version of fixed lease or loan terms, with a retained repayment schedule. A lease amendment preserves settled instalments and records a reviewed change to its remaining liability and right-of-use carrying value.
+- **Book Depreciation Policy** — A Company's reviewed method for allocating an asset's depreciable value in one accounting book. Different books may have different methods while referring to the same physical asset.
+- **Asset Carrying Basis** — Independently reviewed cost, accumulated depreciation, completed service months and usage readings retained when adopting an existing asset or changing its depreciation policy. Future allocations use its remaining carrying value while preserving earlier postings.
+- **Asset Service Month** — The month of an asset's use to which depreciation belongs. A correction may retain that service month while being posted in a later open Accounting Period.
+- **Usage Reading** — Retained evidence of an asset's physical use during a stated period. A verified zero reading is evidence, rather than an absent reading.
+- **Loan Payoff** — Reviewed settlement of the remaining loan principal and the interest determined by its agreed early-settlement convention, backed by actual bank evidence.
+- **Budget Edition** — A reviewed Company plan of amounts by accounting period, account and reporting dimensions. An amendment retains the earlier approved edition.
+- **Recognition Plan** — An approved allocation and dated schedule for recognizing a contract's revenue or expense. Billing, recognition and receipt of money are separate events.
+- **Business Billing Run** — A source-versioned calculation of charges owed by a Company's customer for a service period. It produces the Company's ordinary invoice, independently of ERPX platform subscriptions.
+- **Billing Edition** — A retained recalculation of the same service window, linked to its earlier Billing Run. Corrected terms and usage retain their own evidence alongside the earlier calculation.
+- **Billing Credit and Replacement** — An independently reviewed correction that credits an issued service bill, reverses its recognized revenue and retains a replacement bill. Collected money becomes a separately controlled refund obligation.
+- **Manual Draft Edition** — A retained version of a manually prepared accounting draft, including its amounts, reporting dimensions and reason for change before posting.
+- **Finance Starter** — A Company's chosen initial accounts, reporting dimensions and accounting periods. It prepares configuration for independent policy and balance review.
+- **Zero-Usage Review** — Independent confirmation that a retained service-window reading results in no customer charge. It preserves the usage evidence without creating an invoice or recognizing revenue.
+- **Scheduled Finance Draft** — A dated instruction from an authorized Company Finance preparer to prepare a particular source-versioned draft. Missing information becomes an exception for people to resolve before independent review.
+- **Group Report Edition** — A retained set of group statements for an explicit reporting interval, selected Company books and presentation currency. A reviewed amendment preserves the original statements and sources.
+- **Intercompany Document Pair** — Two independently reviewed, opposing Company journal-account balances that describe the same intercompany transaction. Their group elimination retains both original Company documents.
+- **Ownership Edition** — Effective-dated evidence of an investor's ownership, voting rights and accounting method for an investee. A later review retains the earlier assessment and its reporting boundary.
+- **Acquisition Evidence** — Reviewed consideration, identifiable net assets and non-controlling interest at an acquisition date. It explains the acquisition's goodwill or bargain purchase alongside the investment eliminated in group statements. A corrected measurement is a separately reviewed edition of the same dated acquisition; it supersedes the current measurement and preserves every earlier group statement and source.
+- **Collection Case** — The retained follow-up work for an overdue customer obligation, including reviewed communication drafts and disposition.
+- **Collection Edition** — A retained revision of an unsent collection message in the same aging stage. It replaces the current work, preserves earlier text and decisions, and needs a new independent review before its one test delivery.
 
 ## Commercial & platform
 

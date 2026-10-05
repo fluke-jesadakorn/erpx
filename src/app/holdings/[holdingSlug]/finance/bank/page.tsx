@@ -1,6 +1,6 @@
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Button, Field, Select, Table, TableFrame, TextInput } from "@/components/ui/foundation";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { BusinessDocumentBranding } from "@/components/brand/business-document";
 import { RecordDocumentDrawer } from "@/components/attachments/record-document-drawer";
 import { FeaturePage, FeatureWidget, WidgetGrid } from "@/components/features/feature-page";
@@ -14,6 +14,9 @@ import { publicScope, requireWorkContext } from "@/server/authorization";
 import { bankWorkspace, listCharts } from "@/server/finance";
 import { pageError } from "@/server/page-error";
 import { FilterBar } from "@/components/ui/foundation";
+import { bankAutomationWorkspace } from "@/server/finance-bank-automation";
+import { financeCompanyTools } from "@/server/finance-company-tools";
+import { FinanceBankAutomationControls } from "@/components/finance/finance-bank-automation-controls";
 
 export const dynamic = "force-dynamic";
 type Query = {
@@ -21,6 +24,10 @@ type Query = {
   brand?: string;
   transactionCursor?: string;
   statementCursor?: string;
+  bankCursor?: string;
+  cashCursor?: string;
+  groupCursor?: string;
+  cashQuery?: string;
   match?: string;
   new?: string;
   chart?: string;
@@ -41,6 +48,8 @@ export default async function BankPage({
   const [data, charts] = await Promise.all([bankWorkspace(actor, query), listCharts(actor)]).catch(
     (error) => pageError(error, actor.holdingSlug),
   );
+  const tools=await financeCompanyTools(actor),automationEnabled=tools.some(r=>r.tool==="bank_automation"&&r.enabled===1),automation=!printing?await bankAutomationWorkspace(actor,query):null;
+  const importAccounts=automationEnabled?(await bankWorkspace(actor,{new:"1"})).accounts:[];
   const link = (changes: Record<string, string | undefined>) => {
     const values = new URLSearchParams(
       Object.entries({ ...query, ...changes }).flatMap(([key, value]) =>
@@ -181,7 +190,7 @@ export default async function BankPage({
                           <tr key={String(t.id)}>
                             <td>{String(t.transaction_date)}</td>
                             <td>
-                              <strong>{String(t.external_id)}</strong>
+                              <Link record={{kind:"bank_transaction",id:String(t.id)}} href={`${base}/record-details/bank_transaction/${t.id}`}>{String(t.external_id)}</Link>
                               <div className="muted">{String(t.description ?? "")}</div>
                             </td>
                             <td>{String(t.statement_number)}</td>
@@ -232,7 +241,7 @@ export default async function BankPage({
                     {data.statements.map((s) => (
                       <div className={styles.statement} key={String(s.id)}>
                         <div>
-                          <strong>{String(s.statement_number)}</strong>
+                          <Link record={{kind:"bank_statement",id:String(s.id)}} href={`${base}/record-details/bank_statement/${s.id}`}>{String(s.statement_number)}</Link>
                           <p className="muted">
                             {String(s.statement_date)} · {String(s.currency)} · Functional currency{" "}
                             {String(s.base_currency)}
@@ -293,6 +302,7 @@ export default async function BankPage({
             </>
           )}
         </WidgetGrid>
+        {automation&&(automationEnabled||automation.groups.length>0)&&<FinanceBankAutomationControls key={`${actor.companyId}:${query.chart??''}`} base={base} data={automation} query={query} accounts={importAccounts} canWrite={hasPermission(actor,"finance.write")&&automationEnabled} canApprove={hasPermission(actor,"finance.approve")} userId={actor.userId}/>}
       </FinanceWorkspace>
     </FeaturePage>
   );

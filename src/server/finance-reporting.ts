@@ -1,3 +1,4 @@
+import { fiscalCloseSourceSql } from "./finance-fiscal-close-source";
 import "server-only";
 import {z} from "zod";
 import {createHash} from "node:crypto";
@@ -48,9 +49,9 @@ async function totals(db:SqlDatabase,actor:WorkContext,chartId:string,startDate:
   SELECT a.id,a.code,a.name,a.category,a.currency,a.status,
    COALESCE(SUM(l.base_debit_minor-l.base_credit_minor) FILTER(WHERE j.entry_date<=d.ends),0) balance_minor,
    COALESCE(SUM(l.base_debit_minor-l.base_credit_minor) FILTER(WHERE j.entry_date<d.starts),0) opening_minor,
-   COALESCE(SUM(l.base_debit_minor-l.base_credit_minor) FILTER(WHERE j.entry_date BETWEEN d.starts AND d.ends AND j.source_type<>'fiscal_close'),0) income_minor,
-   COALESCE(SUM(l.base_credit_minor-l.base_debit_minor) FILTER(WHERE j.entry_date BETWEEN d.starts AND d.ends AND j.source_type<>'fiscal_close' AND a.category='equity'),0) owner_movements_minor,
-   COALESCE(SUM(l.base_credit_minor-l.base_debit_minor) FILTER(WHERE j.entry_date BETWEEN d.starts AND d.ends AND j.source_type='fiscal_close' AND a.category='equity'),0) closing_transfer_minor
+   COALESCE(SUM(l.base_debit_minor-l.base_credit_minor) FILTER(WHERE j.entry_date BETWEEN d.starts AND d.ends AND NOT ${fiscalCloseSourceSql()}),0) income_minor,
+   COALESCE(SUM(l.base_credit_minor-l.base_debit_minor) FILTER(WHERE j.entry_date BETWEEN d.starts AND d.ends AND NOT ${fiscalCloseSourceSql()} AND a.category='equity'),0) owner_movements_minor,
+   COALESCE(SUM(l.base_credit_minor-l.base_debit_minor) FILTER(WHERE j.entry_date BETWEEN d.starts AND d.ends AND ${fiscalCloseSourceSql()} AND a.category='equity'),0) closing_transfer_minor
   FROM finance_accounts a CROSS JOIN dates d LEFT JOIN finance_journals j ON j.company_id=a.company_id AND j.chart_id=a.chart_id AND j.status IN ('posted','reversed') AND j.entry_date<=d.ends
   LEFT JOIN finance_journal_lines l ON l.journal_id=j.id AND l.account_id=a.id
   WHERE a.company_id=? AND a.chart_id=? GROUP BY a.id,a.code,a.name,a.category,a.currency,a.status ORDER BY a.code,a.id`)
@@ -178,4 +179,21 @@ export async function decideYearClosing(actor:WorkContext,id:string,action:"post
   write.prepare("UPDATE finance_year_closings SET status=?,journal_id=?,reviewed_by=?,review_reason=?,reviewed_at=?,version=version+1,updated_at=? WHERE id=?").bind(status,journal?.result.id??null,actor.userId,input.reason,now,now,id),
   write.prepare("INSERT INTO finance_year_closing_events VALUES(?,?,?,?,?,?,?,?,?)").bind(`year-closing-event-${key}`,id,actor.companyId,status,actor.userId,next,input.reason,key,now),
  ]);
+}
+
+/** Retained editions can only be drilled into while their exact source fingerprint still matches. */
+export async function statementSourceAccounts(actor:WorkContext,id:string,args:Record<string,string>,page=1){
+ const {row,snapshot}=await statementPackageDetail(actor,id),{write}=await holdingResources(actor.holdingId);
+ const [current,evidence]=await Promise.all([totals(write,actor,String(row.chart_id),snapshot.current.dates.start,snapshot.current.dates.end),sourceEvidence(write,actor,String(row.chart_id),snapshot.current.dates.end)]);
+ if(digest({chart:snapshot.chart,profile:snapshot.profile,accounts:current,evidence})!==snapshot.sourceFingerprint)throw new ApiError(409,'STATEMENT_SOURCES_CHANGED','The ledger has changed since this retained edition. Open a current report or the retained statement; current entries cannot reproduce this edition.');
+ const period=z.enum(['current','comparative']).default('current').parse(args.period),set=snapshot[period];
+ const accounts=period==='current'?current:await totals(write,actor,String(row.chart_id),set.dates.start,set.dates.end);
+ const presentation=JSON.parse(String(row.presentation_json)) as Presentation,byAccount=new Map(presentation.map(item=>[item.accountId,item.line]));
+ const incomeCategories=new Set(['revenue','other_income','expense','other_expense']);
+ const selection=args.line??'equity';
+ const income=selection==='result'||(selection in financialPresentation && financialPresentation[selection as FinancialPresentationCode].statement==='income');
+ const matching=accounts.filter(account=>args.accountId?account.id===args.accountId:selection==='equity'?account.category==='equity'||incomeCategories.has(account.category):selection==='unclosed'||selection==='result'?incomeCategories.has(account.category):byAccount.get(account.id)===selection||selection==='retained_earnings'&&incomeCategories.has(account.category));
+ const value=(account:Account)=>Number(income?account.income_minor:account.balance_minor)*(['asset','expense','other_expense'].includes(account.category)&&selection!=='result'?1:-1);
+ const sourceArgs={chartId:String(row.chart_id),endDate:set.dates.end,...(income?{startDate:set.dates.start,excludeYearClose:'1'}:{}),statementId:id};
+ return {row:{name:`${selection} · ${set.dates.start} – ${set.dates.end}`,currency:snapshot.chart.base_currency,total_minor:matching.reduce((sum,account)=>sum+value(account),0),version:row.edition},rows:matching.slice((page-1)*30,page*30).map(account=>({...account,balance:minorToDecimal(value(account))})),sourceArgs,page,hasNext:matching.length>page*30};
 }

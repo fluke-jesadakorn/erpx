@@ -13,12 +13,12 @@ import {
   type AttachmentPanelChange,
 } from "@/components/attachments/attachment-panel";
 import { FormLayout, Card } from "@/components/ui/foundation";
-export function ProductionConsole({
+export function ProductionConsole({ recordOnly=false,
   base,
   module,
   data,
   detail,
-}: {
+}: { recordOnly?:boolean;
   base: string;
   module: "planning" | "manufacturing";
   data?: Awaited<ReturnType<typeof productionWorkspace>>;
@@ -65,11 +65,11 @@ export function ProductionConsole({
   return (
     <>
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
-      {data && module === "manufacturing" && <ProductionAccounting data={data} send={send} busy={busy} />}
-      {data && module === "planning" && data.canManageResources && <ProductionResources data={data} send={send} busy={busy} />}
+      {!recordOnly && data && module === "manufacturing" && <ProductionAccounting data={data} send={send} busy={busy} />}
+      {!recordOnly && data && module === "planning" && data.canManageResources && <ProductionResources data={data} send={send} busy={busy} />}
       {data && module === "manufacturing" && (
         <>
-          <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Draft BOM or formula</summary><FormLayout
+          {!recordOnly && <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Draft BOM or formula</summary><FormLayout
             className="ui-panel ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -148,7 +148,7 @@ export function ProductionConsole({
             <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Draft specification
             </Button>
-          </FormLayout></FormDisclosure>
+          </FormLayout></FormDisclosure>}
           {data.specifications
             .filter((x) => x.status === "draft")
             .map((x) => (
@@ -180,7 +180,7 @@ export function ProductionConsole({
       )}
       {data && module === "planning" && (
         <>
-          <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Calculate plan</summary><FormLayout
+          {!recordOnly && <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Calculate plan</summary><FormLayout
             className="ui-panel ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -250,7 +250,7 @@ export function ProductionConsole({
             <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Calculate scenario
             </Button>
-          </FormLayout></FormDisclosure>
+          </FormLayout></FormDisclosure>}
           {data.recommendations
             .filter((x) => x.status === "proposed")
             .map((x) => (

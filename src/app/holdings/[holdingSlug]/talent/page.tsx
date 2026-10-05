@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { RecordCatalog } from "@/components/records/record-catalog";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { requireWorkContext, publicScope } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { pageError } from "@/server/page-error";
@@ -39,6 +40,6 @@ export default async function Page({
           </Link>
         ))}
       </Card>
-    </PageContent>
+    <RecordCatalog base={base} kind="talent_requisition" title="Requisitions" rows={data.requisitions} label="job_title"/><RecordCatalog base={base} kind="talent_candidate" title="Candidates" rows={data.candidates} label="name"/></PageContent>
   );
 }

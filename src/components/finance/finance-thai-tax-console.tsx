@@ -4,7 +4,7 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import {useRef,useState} from "react";
 import {useRouter} from "next/navigation";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import {Button,Field,Select,TextArea,TextInput} from "@/components/ui/foundation";
 import {RecordDocumentPanel} from "@/components/attachments/record-document-panel";
 import {workFetch} from "@/lib/work-fetch";

@@ -1,6 +1,6 @@
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { notFound, redirect } from "next/navigation";
 import { FeaturePage, FeatureWidget, WidgetGrid } from "@/components/features/feature-page";
 import { IamConsole } from "@/components/iam/iam-console";

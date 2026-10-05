@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import {FinanceWorkspace} from "@/components/finance/finance-workspace";
 import {TaxIdentityConsole,ThaiMonthlyWithholdingConsole} from "@/components/finance/finance-thai-tax-console";
 import {hasPermission} from "@/lib/permissions";

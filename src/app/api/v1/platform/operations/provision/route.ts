@@ -3,7 +3,7 @@ import { requireManageErpxContext } from "@/server/authorization";
 import { errorResponse, ApiError } from "@/server/http";
 import { resourceSlots } from "@/lib/holding-registry";
 import { holdingResources, runtimeEnv } from "@/server/runtime";
-import { provisionHolding } from "@/server/platform-operations";
+import { provisionHolding, platformProvisioningSnapshot } from "@/server/platform-operations";
 
 const schema = z.object({
   holdingId: z.string().regex(/^[a-z0-9]{3,24}$/),
@@ -37,4 +37,12 @@ export async function POST(request: Request) {
   } catch (error) {
     return errorResponse(error);
   }
+}
+
+export async function GET() {
+  try {
+    await requireManageErpxContext();
+    const env=await runtimeEnv();
+    return Response.json({data:await platformProvisioningSnapshot(env.CONTROL_DB,resourceSlots(env))},{headers:{"Cache-Control":"private, no-store"}});
+  } catch(error) {return errorResponse(error);}
 }

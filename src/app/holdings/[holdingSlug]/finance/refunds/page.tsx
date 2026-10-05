@@ -1,7 +1,7 @@
 import { Table, TableFrame } from "@/components/ui/foundation";
 import { FeaturePage } from "@/components/features/feature-page";
 import { FinanceWorkspace, financeStyles as styles } from "@/components/finance/finance-workspace";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { requireWorkContext, publicScope } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { listRefunds } from "@/server/refunds";

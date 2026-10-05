@@ -53,6 +53,7 @@ export async function decideCalculationRun(actor:WorkContext,runId:string,input:
   actor=requirePermission(actor,action==="review"?"finance.write":"finance.approve");const {write}=await holdingResources(actor.holdingId),run=await write.prepare("SELECT * FROM finance_calculation_runs WHERE id=? AND company_id=?").bind(runId,actor.companyId).first<Row>();
   if(!run)throw new ApiError(404,"CALCULATION_NOT_FOUND","Calculation run not found.");
   if(JSON.parse(String(run.explanation_json)).engine==="source-vat-register-v1")throw new ApiError(409,"VAT_PACKAGE_WORKFLOW_REQUIRED","Review this source-derived calculation through its VAT filing package.");
+  if(JSON.parse(String(run.explanation_json)).engine==="source-acquisition-v1")throw new ApiError(409,"ACQUISITION_WORKFLOW_REQUIRED","Review this source-derived calculation through its acquisition evidence.");
   const expected=action==="review"?"prepared":"reviewed",next=action==="reject"?"rejected":action==="review"?"reviewed":"approved";
   if(run.status!==expected&&!(action==="reject"&&["prepared","reviewed"].includes(String(run.status))))throw new ApiError(409,"INVALID_CALCULATION_TRANSITION",`Calculation must be ${expected} before ${action}.`);
   if(Number(run.version)!==input.expectedVersion)throw new ApiError(409,"VERSION_CONFLICT","The calculation changed. Refresh and review again.");

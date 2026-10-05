@@ -1,209 +1,56 @@
 "use client";
-import { Button, Field, TextInput } from "@/components/ui/foundation";
-
-import { useEffect, useState } from "react";
-import { money } from "@/lib/pms-model";
-import type { manageBooking } from "@/server/pms-booking";
-import styles from "./booking.module.css";
-type Booking = Awaited<ReturnType<typeof manageBooking>>;
-export function GuestBookingManager({ slug }: { slug: string }) {
-  const [token, setToken] = useState(""),
-    [booking, setBooking] = useState<Booking | null>(null),
-    [error, setError] = useState(""),
-    [notice, setNotice] = useState(""),
-    [busy, setBusy] = useState(false),
-    [confirmCancel, setConfirmCancel] = useState(false);
-  const base = `/api/public/booking/${encodeURIComponent(slug)}`;
-  useEffect(() => {
-    const key = `booking-access:${slug}`,
-      fragment = new URLSearchParams(window.location.hash.slice(1)),
-      value = fragment.get("token") ?? sessionStorage.getItem(key) ?? "";
-    if (fragment.has("token")) {
-      sessionStorage.setItem(key, value);
-      history.replaceState(null, "", window.location.pathname);
-    }
-    if (value) {
-      let active = true;
-      fetch(`${base}/manage`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${value}`,
-        },
-        body: "{}",
-      })
-        .then(async (r) => {
-          const j = await r.json();
-          if (!r.ok) throw new Error(j.error?.message ?? "Unable to load booking");
-          if (active) {
-            setToken(value);
-            setBooking(j.data);
-          }
-        })
-        .catch((e) => {
-          if (active) setError(e.message);
-        });
-      return () => {
-        active = false;
-      };
-    }
-  }, [base, slug]);
-  return (
-    <div className={styles.wrap}>
-      {error && (
-        <div className={styles.error} role="alert">
-          {error}
-        </div>
-      )}
-      {notice && (
-        <div className={styles.notice} role="status">
-          {notice}
-        </div>
-      )}
-      {booking && (
-        <section className={styles.surface}>
-          <span className={styles.eyebrow}>{booking.state.replaceAll("_", " ")}</span>
-          <h2>{booking.hotel.name}</h2>
-          <p>Confirmation {booking.number}</p>
-          {booking.refundState && <p>Refund status: {booking.refundState.replaceAll("_", " ")}</p>}
-          <p>{booking.guest.name}</p>
-          {booking.rooms.map((r, i) => (
-            <div key={i} className={styles.offer}>
-              <div>
-                <h3>{r.roomName}</h3>
-                <p>
-                  {r.arrival} → {r.departure}
-                </p>
-                <p>
-                  {r.adults} adult(s), {r.childAges.length} child(ren) ·{" "}
-                  {r.state.replaceAll("_", " ")}
-                </p>
-              </div>
-              <strong>
-                {money(
-                  r.nights.reduce((n, p) => n + p.total, 0),
-                  booking.currency,
-                )}
-              </strong>
-            </div>
-          ))}
-          <p>{booking.policy?.text ?? "Contact the hotel for booking terms."}</p>
-          <p>
-            {booking.hotel.address} · {booking.hotel.contactPhone} ·{" "}
-            <a href={`mailto:${booking.hotel.contactEmail}`}>{booking.hotel.contactEmail}</a>
-          </p>
-          <p>{booking.cancellation.reason}</p>
-          {booking.cancellation.allowed &&
-            (confirmCancel ? (
-              <form
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  setBusy(true);
-                  setError("");
-                  try {
-                    const r = await fetch(`${base}/cancel`, {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                      },
-                      body: "{}",
-                    });
-                    const j = await r.json();
-                    if (!r.ok) throw new Error(j.error?.message ?? "Cancellation failed");
-                    setBooking(j.data);
-                    setNotice(
-                      "All rooms have been cancelled without a fee. Finance will approve the refund, and Stripe will confirm it. A cancellation email is on its way.",
-                    );
-                    setConfirmCancel(false);
-                  } catch (e) {
-                    setError(e instanceof Error ? e.message : "Please try again");
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-              >
-                <Field orientation="inline" className={styles.check}>
-                  <TextInput type="checkbox" required />
-                  Cancel every room in this reservation
-                </Field>
-                <div className={styles.actions}>
-                  <Button
-                    clientManaged type="submit"
-                    variant="primary"
-                    className={styles.primary}
-                    disabled={busy}
-                  >
-                    Confirm cancellation
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    className={styles.secondary}
-                    type="button"
-                    onClick={() => setConfirmCancel(false)}
-                  >
-                    Keep booking
-                  </Button>
-                </div>
-              </form>
-            ) : (
-              <Button
-                type="submit"
-                variant="secondary"
-                className={styles.secondary}
-                onClick={() => setConfirmCancel(true)}
-              >
-                Cancel booking
-              </Button>
-            ))}
-        </section>
-      )}
-      <form
-        className={styles.surface}
-        onSubmit={async (e) => {
-          e.preventDefault();
-          const f = new FormData(e.currentTarget);
-          setBusy(true);
-          setError("");
-          try {
-            const r = await fetch(`${base}/recover`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                number: f.get("number"),
-                email: f.get("email"),
-              }),
-            });
-            const j = await r.json();
-            if (!r.ok) throw new Error(j.error?.message ?? "Please try again");
-            setNotice(j.data.message);
-          } catch (e) {
-            setError(e instanceof Error ? e.message : "Please try again");
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <h2>Request a booking access link</h2>
-        <p className={styles.small}>
-          Use the confirmation number and email from your reservation. No account is needed.
-        </p>
-        <div className={styles.grid}>
-          <Field>
-            Confirmation number
-            <TextInput name="number" required maxLength={100} />
-          </Field>
-          <Field>
-            Booking email
-            <TextInput name="email" type="email" required />
-          </Field>
-        </div>
-        <div className={styles.actions}>
-          <Button clientManaged type="submit" variant="primary" className={styles.primary} disabled={busy}>
-            Email a private link
-          </Button>
-        </div>
-      </form>
-    </div>
-  );
+import { Button,Field,Select,TextInput } from '@/components/ui/foundation';
+import { Dialog } from '@/components/ui/dialog';
+import { useEffect,useRef,useState } from 'react';
+import { money } from '@/lib/pms-model';
+import { FrontLocalizedTree } from '@/components/front/front-language';
+import {BookingPolicySummary} from "./booking-policy-summary";
+import { QuoteDetails } from './booking-flow';
+import type { manageBooking } from '@/server/pms-booking';
+import type { publicChangeQuote } from '@/server/pms-booking-changes';
+import type {guestBookingDocument} from '@/server/pms/guest-document';
+import type { RoomSelection } from '@/lib/pms-booking';
+import styles from './booking.module.css';
+type Booking=Awaited<ReturnType<typeof manageBooking>>;
+type Proposal=Awaited<ReturnType<typeof publicChangeQuote>>;
+export function GuestBookingManager({slug}:{slug:string}){
+ const [token,setToken]=useState(''),[booking,setBooking]=useState<Booking|null>(null),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
+ const [selected,setSelected]=useState<string[]>([]),[editor,setEditor]=useState<'change'|'cancel'|null>(null),[proposal,setProposal]=useState<Proposal|null>(null),[drafts,setDrafts]=useState<Array<{stayId:string;room:RoomSelection}>>([]),[checkout,setCheckout]=useState<string|null>(null);
+ const submission=useRef<string|null>(null),base=`/api/public/booking/${encodeURIComponent(slug)}`;
+ async function request(action:string,body:unknown={},access=token,key?:string){const r=await fetch(`${base}/${action}`,{method:'POST',headers:{'Content-Type':'application/json',...(access?{Authorization:`Bearer ${access}`} : {}),...(key?{'Idempotency-Key':key}:{})},body:JSON.stringify(body)});const result=await r.json();if(!r.ok)throw new Error(result.error?.message??'Please try again');return result.data;}
+ useEffect(()=>{
+  const storageKey=`booking-access:${slug}`,fragment=new URLSearchParams(window.location.hash.slice(1)),value=fragment.get('token')??sessionStorage.getItem(storageKey)??'';
+  if(fragment.has('token')){sessionStorage.setItem(storageKey,value);history.replaceState(null,'',window.location.pathname);}
+  if(!value)return;let active=true;
+  fetch(`${base}/manage`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${value}`},body:'{}'}).then(async r=>{const body=await r.json();if(!r.ok)throw new Error(body.error?.message??'Unable to load booking');if(active){setToken(value);setBooking(body.data);}}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};
+ },[base,slug]);
+ async function downloadDocument(id:string){
+  const d=await request('document',{id}) as Awaited<ReturnType<typeof guestBookingDocument>>;
+  const escape=(value:unknown)=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
+  const content=`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escape(d.number)}</title><style>body{font:16px system-ui;max-width:900px;margin:40px auto;padding:20px;color:#203631}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:12px;border-bottom:1px solid #ddd}td:last-child{text-align:right}@media print{body{margin:0}}</style><h1>${escape(d.hotel)}</h1><h2>${escape(d.kind)} · ${escape(d.number)}</h2><p>${escape(d.date)} · ${escape(d.guest)} · ${escape(d.folio)}</p><table><thead><tr><th>Date</th><th>Description</th><th>Net</th><th>Service</th><th>Tax</th><th>Total</th></tr></thead><tbody>${d.entries.map(e=>`<tr><td>${escape(e.date)}</td><td>${escape(e.description)}</td><td>${escape(money(e.net,d.currency))}</td><td>${escape(money(e.service,d.currency))}</td><td>${escape(money(e.tax,d.currency))}</td><td>${escape(money(e.total,d.currency))}</td></tr>`).join('')}</tbody></table><h2>Total ${escape(money(d.amount,d.currency))}</h2><p>Balance due at issue ${escape(money(d.dueAtIssue,d.currency))}</p><p>Use your browser's Print command to print or save as PDF.</p></html>`;
+  const url=URL.createObjectURL(new Blob([content],{type:'text/html;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download=`${d.number}.html`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ }
+ async function action(fn:()=>Promise<void>){setBusy(true);setError('');try{await fn();}catch(e){setError(e instanceof Error?e.message:'Please try again');}finally{setBusy(false);}}
+ function open(kind:'change'|'cancel'){setProposal(null);submission.current=null;setDrafts(booking!.rooms.filter(r=>selected.includes(r.id)).map(r=>({stayId:r.id,room:{typeId:r.typeId,rateId:r.rateId,arrival:r.arrival,departure:r.departure,adults:r.adults,childAges:r.childAges,quantity:1}})));setEditor(kind);}
+ return <FrontLocalizedTree><div className={styles.wrap}>
+  {error&&<p className={styles.error} role="alert">{error}</p>}{notice&&<p className={styles.notice} role="status">{notice}</p>}
+  {booking&&<section className={styles.surface}>
+   <span className={styles.eyebrow}>{booking.state.replaceAll('_',' ')}</span><h2>{booking.hotel.name}</h2><p>Confirmation {booking.number}</p><p>{booking.guest.name}</p>
+   <div className={styles.paymentSplit}><p>Current stay total<strong>{money(booking.total,booking.currency)}</strong></p><p>Pay at hotel<strong>{money(booking.dueAtHotel,booking.currency)}</strong></p></div>
+   {booking.rooms.map(room=><article className={styles.offer} key={room.id}><div><Field orientation="inline"><TextInput type="checkbox" aria-label={`Select ${room.roomName} ${room.arrival}`} disabled={room.state!=='reserved'||Boolean(booking.pendingChange)} checked={selected.includes(room.id)} onChange={e=>setSelected(e.target.checked?[...selected,room.id]:selected.filter(id=>id!==room.id))}/><h3>{room.roomName}</h3></Field><p>{room.arrival} → {room.departure}</p><p>{room.adults} adult(s) · {room.childAges.length} child(ren) · {room.state.replaceAll('_',' ')}</p><BookingPolicySummary policy={room.policy}/></div><strong>{money(room.nights.reduce((n,p)=>n+p.total,0),booking.currency)}</strong></article>)}
+   {checkout&&<a className={styles.primary} href={checkout}>Continue to secure payment</a>}
+   {booking.pendingChange&&<div className={styles.notice}><p>Your original booking remains confirmed while the change awaits payment.</p><Button type="button" variant="secondary" disabled={busy} onClick={()=>action(async()=>{const r=await fetch(`${base}/reservations?attempt=${encodeURIComponent(booking.pendingChange!.attemptToken)}`);const body=await r.json();if(!r.ok)throw new Error(body.error?.message??'Payment status unavailable');setCheckout(body.data.checkoutUrl);setBooking(await request('manage'));})}>Refresh payment status</Button></div>}
+   <div className={styles.actions}><Button type="button" variant="primary" disabled={!selected.length||busy} onClick={()=>open('change')}>Change selected rooms</Button><Button type="button" variant="secondary" disabled={!selected.length||busy} onClick={()=>open('cancel')}>Cancel selected rooms</Button><Button type="button" variant="secondary" disabled={busy} onClick={()=>action(async()=>setBooking(await request('manage')))}>Refresh booking</Button></div>
+   {booking.refunds.length>0&&<div><h3>Refund tracking</h3>{booking.refunds.map(r=><p key={r.id}>{money(Number(r.amount_minor),booking.currency)} · {r.state==='requested'?'Awaiting independent approval':r.state==='requires_action'?'Waiting for bank details':r.state==='processing'?'Refund in progress':r.state==='succeeded'?'Refund completed':r.state==='failed'?'Refund failed; hotel review required':'Refund approved'} · {r.reason}</p>)}</div>}
+   {booking.documents.length>0&&<div><h3>Documents</h3>{booking.documents.map(d=><p key={d.id}>{d.kind} · {new Date(Number(d.created_at)).toLocaleDateString()} · <Button type="button" variant="secondary" disabled={busy} onClick={()=>action(()=>downloadDocument(d.id))}>Download document</Button></p>)}</div>}
+   {booking.history.length>0&&<details><summary>Booking history</summary>{booking.history.map((h,i)=><p key={i}>{new Date(h.at).toLocaleString()} · {h.action}</p>)}</details>}
+   <p>{booking.hotel.address} · {booking.hotel.contactPhone} · <a href={`mailto:${booking.hotel.contactEmail}`}>{booking.hotel.contactEmail}</a></p>
+  </section>}
+  <Dialog presentation="form-drawer" appearance="standard" open={Boolean(editor)} onClose={()=>{if(!busy){setEditor(null);setProposal(null);}}} title={editor==='change'?'Change your stay':'Review cancellation'} dismissDisabled={busy}>
+   {proposal?<div><p>Review the changes before confirming. Your original booking remains confirmed until any additional payment succeeds.</p>{proposal.proposal.items.map(item=><div key={item.stayId}>{item.quote?<QuoteDetails quote={item.quote}/>:<p>Cancel room · {money(item.oldTotal,booking!.currency)}</p>}</div>)}<p>Cancellation fee: {money(proposal.proposal.fee,booking!.currency)}</p><p>Selected rooms: pay at hotel after this change: {money(proposal.proposal.items.reduce((n,p)=>n+p.dueAtHotel,0),booking!.currency)}</p><div className={styles.paymentSplit}><p>Additional payment<strong>{money(proposal.proposal.dueNow,booking!.currency)}</strong></p><p>Refund to request<strong>{money(proposal.proposal.refund,booking!.currency)}</strong></p></div><p>Refunds need independent approval. Cancelled rooms are released immediately.</p>{error&&<p role="alert">{error}</p>}<div className={styles.actions}><Button appearance="standard" type="button" variant="secondary" disabled={busy} onClick={()=>setProposal(null)}>Back</Button><Button appearance="standard" type="button" variant="primary" disabled={busy} onClick={()=>action(async()=>{submission.current??=crypto.randomUUID();const result=await request(`${editor}-confirm`,{proposalToken:proposal.token},token,submission.current);setCheckout(result.checkoutUrl??null);setBooking(await request('manage'));setSelected([]);setEditor(null);setNotice(result.checkoutUrl?'Complete the additional payment to apply your change. Your original booking remains confirmed.':proposal.proposal.refund>0?'Your booking has been updated. The refund request is awaiting independent approval.':'Your booking has been updated.');})}>Confirm changes</Button></div></div>:<form onSubmit={e=>{e.preventDefault();void action(async()=>{setProposal(await request(`${editor}-quote`,{items:drafts.map(d=>editor==='change'?d:{stayId:d.stayId})}));submission.current=null;});}}>
+    {drafts.map((draft,i)=><fieldset key={draft.stayId}><legend>{booking?.rooms.find(r=>r.id===draft.stayId)?.roomName}</legend>{editor==='change'?<div className={styles.grid}>{(['arrival','departure'] as const).map(k=><Field appearance="standard" key={k}>{k==='arrival'?'Check-in':'Check-out'}<TextInput appearance="standard" type="date" required value={draft.room[k]} onChange={e=>setDrafts(drafts.map((d,j)=>j===i?{...d,room:{...d.room,[k]:e.target.value}}:d))}/></Field>)}<Field appearance="standard">Room and rate<Select appearance="standard" required value={draft.room.rateId} onChange={e=>{const rate=booking!.editableRates.find(r=>r.id===e.target.value)!;setDrafts(drafts.map((d,j)=>j===i?{...d,room:{...d.room,rateId:rate.id,typeId:rate.typeId}}:d));}}>{booking?.editableRates.map(rate=><option key={rate.id} value={rate.id}>{rate.roomName} · {rate.name}</option>)}</Select></Field></div>:<p>This room will be cancelled according to its accepted cancellation terms.</p>}</fieldset>)}{error&&<p role="alert">{error}</p>}<Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>Review price and terms</Button>
+   </form>}
+  </Dialog>
+  <form className={styles.surface} onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);void action(async()=>{await request('recover',{number:f.get('number'),email:f.get('email')});setNotice('If these details match a booking, an access link will be emailed to you');});}}><h2>Find your booking</h2><div className={styles.grid}><Field>Confirmation number<TextInput name="number" required/></Field><Field>Booking email<TextInput name="email" type="email" required/></Field></div><div className={styles.actions}><Button clientManaged type="submit" variant="primary" disabled={busy}>Email a private link</Button></div></form>
+ </div></FrontLocalizedTree>;
 }

@@ -31,7 +31,7 @@ expenseOptions,
 import { pageError } from "@/server/page-error";
 import { holdingResources } from "@/server/runtime";
 import { staffSettings } from "@/server/staff-settings";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Expense({

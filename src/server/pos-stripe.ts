@@ -27,6 +27,7 @@ async function stripeRequest(live:boolean,path:string,options:StripeOptions={}):
  return response.json();
 }
 export async function stripeCall(live:boolean,path:string,options:StripeOptions={}):Promise<StripeObject>{return objectSchema.parse(await stripeRequest(live,path,options));}
+export async function stripeListCall(live:boolean,path:string,options:StripeOptions={}) { return z.object({object:z.literal('list'),data:z.array(z.record(z.string(),z.unknown())),has_more:z.boolean()}).parse(await stripeRequest(live,path,options)); }
 async function promptPayIntent(p:PosRow,saleNumber:string){
  const base={amount:String(p.amount_minor),currency:'thb','payment_method_types[0]':'promptpay','payment_method_data[type]':'promptpay',confirm:'true',description:saleNumber,'metadata[pos_payment_id]':str(p,'id')};
  const body={...base,'payment_method_data[billing_details][email]':String(p.payer_email),receipt_email:String(p.payer_email)};
@@ -57,7 +58,7 @@ export function verifyPosStripeSignature(raw:string,signature:string,signingSecr
 export async function posStripeWebhook(raw:string,signature:string){
  const secrets=[process.env.POS_STRIPE_TEST_WEBHOOK_SECRET,process.env.POS_STRIPE_LIVE_WEBHOOK_SECRET].filter((s):s is string=>Boolean(s));
  if(!verifyPosStripeSignature(raw,signature,secrets))fail('POS_WEBHOOK_SIGNATURE','Invalid signature',400);
- const event=z.object({id:z.string(),type:z.string(),account:z.string(),livemode:z.boolean(),data:z.object({object:z.record(z.string(),z.unknown())})}).parse(JSON.parse(raw));
+ const event=z.object({id:z.string(),type:z.string(),account:z.string(),livemode:z.boolean(),created:z.number().int().positive().optional(),data:z.object({object:z.record(z.string(),z.unknown())})}).parse(JSON.parse(raw));
  const modeSecret=process.env[event.livemode?'POS_STRIPE_LIVE_WEBHOOK_SECRET':'POS_STRIPE_TEST_WEBHOOK_SECRET'];
  if(!modeSecret||!verifyPosStripeSignature(raw,signature,[modeSecret]))fail('POS_WEBHOOK_MODE','Webhook signing mode mismatch',400);
  const env=await runtimeEnv(),route=await one(env.CONTROL_DB,'SELECT * FROM pos_stripe_routes WHERE account_id=? AND livemode=?',event.account,event.livemode);
@@ -65,6 +66,7 @@ export async function posStripeWebhook(raw:string,signature:string){
  const db=registeredResources(env,str(route,'holding_id')).write as PostgresDatabase;
  await db.transaction(async tx=>{
   await run(tx,'INSERT INTO pos_stripe_events(id,account_id,livemode,company_id,event_type,payload_json,received_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING',event.id,event.account,event.livemode,route.company_id,event.type,JSON.stringify(event.data.object),Date.now());
+  if(event.created)await run(tx,'UPDATE pos_stripe_events SET provider_created_at=COALESCE(provider_created_at,?) WHERE id=?',event.created*1000,event.id);
   await enqueue(tx,str(route,'company_id'),'event',event.id);
  });return {received:true};
 }
@@ -154,12 +156,14 @@ async function stripeEvent(db:PostgresDatabase,job:PosRow,holdingId:string){
   if(counterId){
    const payment=await one(db,'SELECT id FROM pms_stripe_payments WHERE id=? AND company_id=? AND account_id=? AND livemode=?',counterId,job.company_id,event.account_id,event.livemode);
    if(!payment)throw new Error('PMS_PROVIDER_PAYMENT_MISMATCH');
+   if(type==='payment_intent.succeeded'&&event.provider_created_at)await run(db,'UPDATE pms_stripe_payments SET provider_succeeded_at=COALESCE(provider_succeeded_at,?) WHERE id=?',event.provider_created_at,counterId);
    await (await import('./pms-stripe')).reconcilePmsStripePayment(db,counterId);
   }
   const bookingId=(obj.metadata as Record<string,string>|undefined)?.pms_booking_payment_id;
   if(bookingId){
    const payment=await one(db,'SELECT id FROM pms_booking_payments WHERE id=? AND company_id=? AND account_id=? AND livemode=?',bookingId,job.company_id,event.account_id,event.livemode);
    if(!payment)throw new Error('PMS_PROVIDER_BOOKING_MISMATCH');
+   if(type==='payment_intent.succeeded' && event.provider_created_at)await run(db,'UPDATE pms_booking_payments SET provider_succeeded_at=COALESCE(provider_succeeded_at,?) WHERE id=?',event.provider_created_at,bookingId);
    await (await import('./pms-booking')).reconcileBookingPayment(db,bookingId,await (await import('./pms-booking')).bookingEnv());
   }
   const pid=(obj.metadata as Record<string,string>|undefined)?.pos_payment_id;
@@ -209,8 +213,8 @@ async function balanceTransaction(db:PostgresDatabase,event:PosRow,btId:string,d
   const paymentId=(charge.metadata as Record<string,string>|undefined)?.pos_payment_id;
   const bookingId=(charge.metadata as Record<string,string>|undefined)?.pms_booking_payment_id;
   const counterId=(charge.metadata as Record<string,string>|undefined)?.pms_counter_payment_id;
-  owned=Boolean(paymentId&&await one(db,'SELECT id FROM pos_payments WHERE id=? AND company_id=? AND stripe_account=? AND livemode=?',paymentId,event.company_id,event.account_id,event.livemode))||Boolean(bookingId&&await one(db,"SELECT id FROM pms_booking_payments WHERE id=? AND company_id=? AND account_id=? AND livemode=? AND status IN ('confirmed','cancelled')",bookingId,event.company_id,event.account_id,event.livemode))||Boolean(counterId&&await one(db,"SELECT id FROM pms_stripe_payments WHERE id=? AND company_id=? AND account_id=? AND livemode=? AND state='succeeded'",counterId,event.company_id,event.account_id,event.livemode));
- }else if(source.startsWith('re_')||source.startsWith('pyr_'))owned=Boolean(await one(db,'SELECT rp.id FROM pos_refund_payments rp JOIN pos_payments p ON p.id=rp.payment_id WHERE rp.provider_id=? AND p.company_id=? AND p.stripe_account=? AND p.livemode=?',source,event.company_id,event.account_id,event.livemode))||Boolean(await one(db,"SELECT id FROM pms_booking_payments WHERE refund_id=? AND company_id=? AND account_id=? AND livemode=? AND status='cancelled'",source,event.company_id,event.account_id,event.livemode))||Boolean(await one(db,"SELECT id FROM pms_stripe_payments WHERE refund_id=? AND company_id=? AND account_id=? AND livemode=? AND state='succeeded'",source,event.company_id,event.account_id,event.livemode));
+  owned=Boolean(paymentId&&await one(db,'SELECT id FROM pos_payments WHERE id=? AND company_id=? AND stripe_account=? AND livemode=?',paymentId,event.company_id,event.account_id,event.livemode))||Boolean(bookingId&&await one(db,"SELECT id FROM pms_booking_payments WHERE id=? AND company_id=? AND account_id=? AND livemode=? AND status IN ('confirmed','cancelled','refund_review')",bookingId,event.company_id,event.account_id,event.livemode))||Boolean(counterId&&await one(db,"SELECT id FROM pms_stripe_payments WHERE id=? AND company_id=? AND account_id=? AND livemode=? AND state='succeeded'",counterId,event.company_id,event.account_id,event.livemode));
+ }else if(source.startsWith('re_')||source.startsWith('pyr_'))owned=Boolean(await one(db,'SELECT rp.id FROM pos_refund_payments rp JOIN pos_payments p ON p.id=rp.payment_id WHERE rp.provider_id=? AND p.company_id=? AND p.stripe_account=? AND p.livemode=?',source,event.company_id,event.account_id,event.livemode))||Boolean(await one(db,"SELECT r.id FROM pms_booking_refund_requests r JOIN pms_booking_payments p ON p.id=r.payment_id WHERE r.provider_id=? AND p.company_id=? AND p.account_id=? AND p.livemode=?",source,event.company_id,event.account_id,event.livemode))||Boolean(await one(db,"SELECT id FROM pms_stripe_payments WHERE refund_id=? AND company_id=? AND account_id=? AND livemode=? AND state='succeeded'",source,event.company_id,event.account_id,event.livemode));
  else if(source.startsWith('dp_'))owned=true;
  if(!owned){
   await run(db,"INSERT INTO pos_settlements(id,company_id,account_id,livemode,kind,provider_id,amount_minor,fee_minor,currency,state,details_json,created_at) VALUES(?,?,?,?,'balance',?,?,?,'THB','unmapped',?,?) ON CONFLICT(account_id,livemode,kind,provider_id) DO NOTHING",id(),event.company_id,event.account_id,event.livemode,btId,amount,fee,JSON.stringify({source,net:bt.net,type:bt.type}),Date.now());return;

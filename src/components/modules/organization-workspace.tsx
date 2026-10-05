@@ -26,7 +26,7 @@ import {
 } from "@/lib/organization";
 import type { PeopleLifecycleData } from "@/lib/people-lifecycle";
 import { Network, UserPlus, Users } from "lucide-react";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { OrganizationChart } from "./organization-chart";

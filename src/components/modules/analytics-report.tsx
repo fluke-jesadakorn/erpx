@@ -1,5 +1,5 @@
 import { Button, Field, Select, Table, TextInput } from "@/components/ui/foundation";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import type {
   crmAnalytics,
   marketingAnalytics,
@@ -24,11 +24,13 @@ export function AnalyticsReport({
   base,
   report,
   options,
+  workspaceHref,
 }: {
   kind: "crm" | "marketing";
   base: string;
   report: CRM | Marketing;
   options: Options;
+  workspaceHref?: string;
 }) {
   const f = report.filters;
   const select = (
@@ -51,7 +53,8 @@ export function AnalyticsReport({
   return (
     <Card as="section" appearance="standard" className="ui-panel">
       <h2>{kind === "crm" ? "CRM analytics" : "Marketing analytics"}</h2>
-      <FilterBar className="ui-filter-bar" method="get" action={`${base}/${kind}`}>
+      <FilterBar className="ui-filter-bar" method="get" action={workspaceHref ?? `${base}/${kind}`}>
+        {workspaceHref && <input type="hidden" name="view" value="reports" />}
         <Field appearance="standard">
           From
           <TextInput appearance="standard" name="from" type="date" defaultValue={f.from} required />

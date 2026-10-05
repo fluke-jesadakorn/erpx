@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { notFound } from "next/navigation";
 import { FeaturePage } from "@/components/features/feature-page";
 import { PageHeader } from "@/components/ui/primitives";

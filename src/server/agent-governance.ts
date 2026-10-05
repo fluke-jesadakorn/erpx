@@ -514,3 +514,15 @@ export async function recordAssistantInvocation(
     )
     .run();
 }
+
+/** Individual evidence reads retain the workspace authority and session projection. */
+export async function agentEvidenceRecord(a:WorkContext,kind:'agent_invocation'|'agent_session',id:string){
+ access(a);const {write}=await holdingResources(a.holdingId);
+ const row=kind==='agent_invocation'
+  ?await write.prepare('SELECT id,turn_id,company_id,user_id,agent_version_id,question_digest,sources_digest,outcome,input_tokens,output_tokens,error,created_at FROM ai_invocation_evidence WHERE company_id=? AND id=?').bind(a.companyId,id).first<Row>()
+  :await write.prepare('SELECT s.id,s.user_id,s.assignment_id,s.conversation_key,s.generation,s.created_at,c.* FROM ai_private_sessions s JOIN ai_private_session_controls c ON c.session_id=s.id WHERE s.company_id=? AND s.id=? AND (s.user_id=? OR ?)').bind(a.companyId,id,a.userId,hasPermission(a,'ai.manage')?1:0).first<Row>();
+ if(!row)throw new ApiError(404,'AGENT_RECORD_NOT_FOUND','Agent record not found in this work scope.');
+ const effective_status=row.status==='active'&&Number(row.expires_at)<=Date.now()?'expired':String(row.status);
+ const sessionData=kind==='agent_session'?{agents:[],versions:[],pools:[],assignments:[],invocations:[],people:[],members:[],poolHistory:[],sessions:[{...row,effective_status}]}:undefined;
+ return {row:{...row,name:String(row.turn_id??row.conversation_key??id),...(kind==='agent_session'?{effective_status}:{})},sessionData};
+}

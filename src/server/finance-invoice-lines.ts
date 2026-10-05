@@ -60,5 +60,7 @@ export async function nativeInvoicePosting(db: SqlDatabase, actor: WorkContext, 
     for (const [key, account] of Object.entries({ net: snapshot.netAccount, tax: snapshot.taxAccount, control: snapshot.controlAccount })) if (account) guards.push(assertion(db, commandId, `invoice-line-${index}-${key}`, "EXISTS(SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND version=? AND status='active')", [account.id, actor.companyId, account.version]));
     if (snapshot.party) guards.push(assertion(db, commandId, `invoice-line-${index}-party`, "EXISTS(SELECT 1 FROM finance_parties WHERE id=? AND company_id=? AND version=? AND status='active')", [snapshot.party.id, actor.companyId, Number(snapshot.party.version)]));
   }
-  return { lines, guards };
+  const billing=await db.prepare("SELECT COALESCE(b.contract_content_json,c.content_json) content_json FROM finance_business_billing_runs b JOIN finance_business_contracts c ON c.id=b.contract_id WHERE b.invoice_id=? AND b.company_id=?").bind(invoice.id,actor.companyId).first<{content_json:string}>();
+  const dimensions=billing?(JSON.parse(billing.content_json) as {dimensions:Record<string,string>}).dimensions:undefined;
+  return { lines:dimensions?lines.map(line=>({...line,dimensions})):lines, guards };
 }

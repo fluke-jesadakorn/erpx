@@ -1,6 +1,7 @@
+import {recordCanonicalHref} from "@/lib/record-drawer";
 import { Table, TableFrame } from "@/components/ui/foundation";
 import { notFound } from "next/navigation";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { FeaturePage } from "@/components/features/feature-page";
 import { FinanceWorkspace, financeStyles as styles } from "@/components/finance/finance-workspace";
 import { FxRevaluationControls } from "@/components/finance/fx-revaluation-controls";
@@ -151,6 +152,7 @@ export default async function ClosePage({
                   <span className="eyebrow">VAT awaiting review</span>
                   <strong>{Number(period.pending_tax)}</strong>
                 </Card>
+                <Card as="div" appearance="standard" className="ui-panel"><span className="eyebrow">Due Finance source tasks</span><strong>{Number(period.pending_source_tasks)}</strong><Link href={`${base}/finance`}>Open Today to prepare or review sources</Link></Card>
               </div>
               {period.reconciliations.length > 0 && (
                 <TableFrame appearance="standard"
@@ -178,7 +180,7 @@ export default async function ClosePage({
                           <td>
                             {row.chartName}
                             <br />
-                            {row.accountCode} · {row.accountName}
+                            <Link href={recordCanonicalHref(base,{kind:"trial_balance",id:row.accountId,args:{endDate:String(period.end_date)}})}>{row.accountCode} · {row.accountName}</Link>
                           </td>
                           <td>
                             {row.currency} {(row.ledgerMinor / 100).toFixed(2)}
@@ -232,7 +234,7 @@ export default async function ClosePage({
                         {period.vat_reconciliation.rows.map((row) => (
                           <tr key={`${row.id}:${row.direction}`}>
                             <td>
-                              {String(row.code)} · {String(row.name)}
+                              <Link href={recordCanonicalHref(base,{kind:"trial_balance",id:String(row.id),args:{endDate:String(period.end_date)}})}>{String(row.code)} · {String(row.name)}</Link>
                             </td>
                             <td>{row.direction === "output" ? "Output VAT" : "Input VAT"}</td>
                             <td>{(Number(row.ledger_minor) / 100).toFixed(2)}</td>

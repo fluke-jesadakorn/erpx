@@ -9,6 +9,7 @@ import {
   useState,
   useSyncExternalStore,
   type ReactNode,
+  type CSSProperties,
   type PointerEvent,
   type KeyboardEvent,
 } from "react";
@@ -17,9 +18,11 @@ import dynamic from "next/dynamic";
 import {
   ArrowLeft,
   BriefcaseBusiness,
+  Building2,
   ChevronDown,
   ChevronRight,
   GripVertical,
+  Folder,
   MoreHorizontal,
   Search,
   Settings2,
@@ -103,6 +106,55 @@ function companyOf(data: HoldingPeopleDirectory, selection: OrganizationSelectio
     return data.positions.find((p) => p.id === selection.id)?.companyId;
   if (selection.kind === "level") return data.levels.find((l) => l.id === selection.id)?.companyId;
   return data.nodes.find((n) => n.id === selection.id)?.companyId;
+}
+
+function locationPath(data: HoldingPeopleDirectory, selection: OrganizationSelection) {
+  const person = selection.kind === "person"
+    ? data.people.find((item) => item.engagementId === selection.id)
+    : undefined;
+  const position = data.positions.find((item) =>
+    item.id === (selection.kind === "position" ? selection.id : person?.positionId),
+  );
+  let node = data.nodes.find((item) => item.id === (
+    ["branch", "department", "team"].includes(selection.kind)
+      ? selection.id
+      : position?.departmentId ?? person?.departmentId
+  ));
+  const companyId = companyOf(data, selection);
+  const nodes: HoldingPeopleDirectory["nodes"] = [];
+  const visited = new Set<string>();
+  while (node && node.kind !== "company" && node.companyId === companyId && !visited.has(node.id)) {
+    visited.add(node.id);
+    nodes.unshift(node);
+    node = data.nodes.find((item) => item.id === node?.parentId);
+  }
+  const branchId = position?.branchId ?? person?.branchId ?? nodes[0]?.branchId;
+  const branch = data.nodes.find((item) => item.id === branchId && item.companyId === companyId);
+  if (branch && !visited.has(branch.id)) nodes.unshift(branch);
+  const path: OrganizationSelection[] = companyId ? [{ kind: "company", id: companyId }] : [];
+  path.push(...nodes.map((item) => ({
+    kind: item.kind === "headquarters" ? "branch" as const : item.kind,
+    id: item.id,
+  })));
+  if (position && selection.kind === "person") path.push({ kind: "position", id: position.id });
+  if (!path.some((item) => item.kind === selection.kind && item.id === selection.id)) path.push(selection);
+  return path;
+}
+
+function LocationPath({ data, path, onSelect, label: navLabel }: {
+  data: HoldingPeopleDirectory;
+  path: OrganizationSelection[];
+  onSelect: (selection: OrganizationSelection) => void;
+  label: string;
+}) {
+  return <nav className={styles.locationPath} aria-label={navLabel}>
+    <ol>{path.map((item, index) => <li key={`${item.kind}:${item.id}`}>
+      {index > 0 && <ChevronRight size={12} aria-hidden="true" />}
+      {index === path.length - 1
+        ? <strong aria-current="location">{item.kind === "unassigned" ? "Without position" : label(data, item)}</strong>
+        : <Button variant="plain" size="layout" onClick={() => onSelect(item)}>{label(data, item)}</Button>}
+    </li>)}</ol>
+  </nav>;
 }
 function descendants(data: HoldingPeopleDirectory, id: string) {
   const ids = new Set([id]);
@@ -580,6 +632,7 @@ export function PeopleStructureWorkspace({
     () =>
       new Set([
         people.currentCompanyId,
+        ...locationPath(data, selection ?? unit).slice(0, -1).map((item) => item.id),
         ...people.data.nodes
           .filter(
             (n) =>
@@ -599,6 +652,16 @@ export function PeopleStructureWorkspace({
   const suppressTouchClick = useRef(false);
   const drawerRef = useRef<HTMLElement>(null),
     returnFocus = useRef<HTMLElement | null>(null);
+  const locationBarRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const bar = locationBarRef.current;
+    if (!bar) return;
+    const measure = () => bar.parentElement?.style.setProperty("--people-location-height", `${bar.getBoundingClientRect().height}px`);
+    const observer = new ResizeObserver(measure);
+    observer.observe(bar);
+    measure();
+    return () => observer.disconnect();
+  }, []);
   const canOpenHrSettings = people.canOpenHrSettings ?? people.canManage;
   const panel = query.get("panel"),
     settingsOpen = panel === "settings" && canOpenHrSettings;
@@ -608,6 +671,9 @@ export function PeopleStructureWorkspace({
     (["position", "unit"].includes(addKind ?? "") && people.canManageStructure);
   const detailOpen =
     (adding || !!selection) && !settingsOpen && panel !== "schedule" && panel !== "move";
+  const unitPath = locationPath(data, unit);
+  const detailPath = selection ? locationPath(data, selection) : [];
+  const activePath = detailOpen && selection ? detailPath : unitPath;
   const moveOpen =
     panel === "move" &&
     query.get("kind") &&
@@ -637,6 +703,7 @@ export function PeopleStructureWorkspace({
     );
   }
   function selectUnit(next: OrganizationSelection) {
+    setExpanded((old) => new Set([...old, ...locationPath(data, next).map((item) => item.id)]));
     update({
       ...Object.fromEntries(selectionKinds.map((kind) => [kind, null])),
       unit: `${next.kind}:${next.id}`,
@@ -667,6 +734,7 @@ export function PeopleStructureWorkspace({
     });
   }
   function choose(next: OrganizationSelection) {
+    setExpanded((old) => new Set([...old, ...locationPath(data, next).slice(0, -1).map((item) => item.id)]));
     returnFocus.current = document.activeElement as HTMLElement;
     update({
       ...Object.fromEntries(selectionKinds.map((kind) => [kind, null])),
@@ -868,10 +936,15 @@ export function PeopleStructureWorkspace({
       );
     if (!matches) return null;
     return (
-      <div key={node.id}>
+      <div key={node.id} className={styles.unitGroup} style={{
+        "--unit-indent": `${Math.min(depth, 4) * 16}px`,
+      } as CSSProperties}>
         <div
           className={styles.unitRow}
-          style={{ paddingLeft: Math.min(depth, 4) * 16 }}
+          style={{ marginLeft: Math.min(depth, 4) * 16 }}
+          data-unit-kind={kind}
+          data-detail-selected={detailOpen && selection?.id === node.id && unit.id !== node.id || undefined}
+          data-ancestor={activePath.some((item) => item.id === node.id) && unit.id !== node.id && selection?.id !== node.id || undefined}
           data-people-drag-card={kind}
           data-selected={unit.id === node.id || undefined}
           data-testid={`people-${kind}-${node.id}`}
@@ -889,7 +962,7 @@ export function PeopleStructureWorkspace({
               {expanded.has(node.id) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             </Button>
           ) : (
-            <span className={styles.expand} />
+            <span className={styles.expand}><Folder size={14} aria-hidden="true" /></span>
           )}
           <Button
             variant="plain"
@@ -898,6 +971,9 @@ export function PeopleStructureWorkspace({
             aria-pressed={unit.id === node.id}
             onClick={() => selectUnit(item)}
           >
+            {kind === "branch" && <small className={styles.unitKind}>Branch{unit.id === node.id ? " · Viewing" : ""}</small>}
+            {kind !== "branch" && unit.id === node.id && <small className={styles.unitKind}>Viewing {kind}</small>}
+            {detailOpen && selection?.id === node.id && unit.id !== node.id && <small className={styles.unitKind}>Details open</small>}
             {node.name}
             {kind === "department" && change({ kind, id: node.id }) && (
               <span className={styles.dot} title="Pending change" />
@@ -1211,6 +1287,9 @@ export function PeopleStructureWorkspace({
             <div key={company.id} className={styles.company}>
               <div
                 className={styles.unitRow}
+                data-unit-kind="company"
+                data-ancestor={activePath.some((item) => item.kind === "company" && item.id === company.id) && unit.id !== company.id && selection?.id !== company.id || undefined}
+                data-detail-selected={detailOpen && selection?.kind === "company" && selection.id === company.id && unit.id !== company.id || undefined}
                 data-selected={(unit.kind === "company" && unit.id === company.id) || undefined}
               >
                 <Button
@@ -1234,6 +1313,7 @@ export function PeopleStructureWorkspace({
                   aria-pressed={unit.kind === "company" && unit.id === company.id}
                   onClick={() => selectUnit({ kind: "company", id: company.id })}
                 >
+                  <small className={styles.unitKind}><Building2 size={12} aria-hidden="true" /> Company{unit.kind === "company" && unit.id === company.id ? " · Viewing" : detailOpen && selection?.kind === "company" && selection.id === company.id ? " · Details open" : ""}</small>
                   {company.name}
                 </Button>
               </div>
@@ -1265,6 +1345,10 @@ export function PeopleStructureWorkspace({
           ))}
         </aside>
         <div className={styles.main} inert={backgroundInert}>
+          <div ref={locationBarRef} className={styles.locationBar}>
+            <span className={styles.locationLabel}>{term ? "Searching" : "Viewing"}</span>
+            {term ? <strong>All companies</strong> : <LocationPath data={data} path={unitPath} onSelect={selectUnit} label="Viewing location" />}
+          </div>
           {panel === "schedule" ? (
             <PeopleTeamSchedule
               base={people.base}
@@ -1519,6 +1603,7 @@ export function PeopleStructureWorkspace({
                       ? `Add ${addKind}`
                       : selection && label(data, selection)}
                 </h2>
+                {!settingsOpen && !adding && selection && <LocationPath data={data} path={detailPath} onSelect={choose} label="Details location" />}
               </div>
               <Button
                 variant="plain"

@@ -3,7 +3,7 @@ import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 
 import { Button } from "@/components/ui/foundation";
 
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { usePathname, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { ChevronDown, Settings2, Sparkles } from "lucide-react";

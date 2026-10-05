@@ -1,6 +1,6 @@
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Button, Field, Select, Table } from "@/components/ui/foundation";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { flowKinds } from "@/lib/flow";
 import { requireWorkContext, publicScope } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";

@@ -312,3 +312,20 @@ export async function decideConsolidationRun(actor: WorkContext, runId: string, 
   ];
   return executeCommand(write, actor, key, rule.operation, input, runId, version, { id: runId, status: rule.to, version }, steps);
 }
+
+export async function consolidationDetail(actor: WorkContext, id: string) {
+ actor = holdingActor(actor, "finance.read");
+ const { write } = await holdingResources(actor.holdingId);
+ const row = await write.prepare("SELECT * FROM finance_consolidation_runs WHERE id=? AND holding_id=?").bind(id,actor.holdingId).first<ConsolidationRun>();
+ if (!row) throw new ApiError(404,"CONSOLIDATION_NOT_FOUND","Consolidation run not found.");
+ const data = await consolidationRunWorkspace(actor);
+ return { row, data: { ...data, runs: [row], eliminations: (await write.prepare("SELECT * FROM finance_consolidation_eliminations WHERE run_id=? ORDER BY created_at,id").bind(id).all<ConsolidationElimination>()).results } };
+}
+
+export async function consolidationEliminationDetail(actor:WorkContext,id:string){
+ actor=holdingActor(actor,'finance.read');const {write}=await holdingResources(actor.holdingId);
+ const elimination=await write.prepare('SELECT e.* FROM finance_consolidation_eliminations e JOIN finance_consolidation_runs r ON r.id=e.run_id WHERE e.id=? AND r.holding_id=?').bind(id,actor.holdingId).first<ConsolidationElimination>();
+ if(!elimination)throw new ApiError(404,'ELIMINATION_NOT_FOUND','Elimination not found.');
+ const detail=await consolidationDetail(actor,String(elimination.run_id));
+ return {row:elimination,data:{...detail.data,eliminations:[elimination]}};
+}

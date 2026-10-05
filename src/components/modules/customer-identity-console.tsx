@@ -4,6 +4,7 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { hubResultHref } from "@/lib/hub-result";
 import { workFetch } from "@/lib/work-fetch";
 import type {
   customerIdentityDetail,
@@ -40,7 +41,9 @@ export function CustomerIdentityConsole({
         throw new Error(result.error?.message ?? "Unable to save identity change.");
       }
       last.current = null;
-      router.push(`${base}/customer-identity/${result.data.id}`);
+      window.dispatchEvent(new Event("erpx:hub-saved"));
+      window.dispatchEvent(new Event("erpx:record-saved"));
+      router.push(hubResultHref(window.location.href, base, `${base}/customer-identity/${result.data.id}`) ?? `${base}/customer-identity/${result.data.id}`, { scroll: false });
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Retry this command.");

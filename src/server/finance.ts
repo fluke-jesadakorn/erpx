@@ -1,7 +1,9 @@
+import { fiscalCloseSourceSql } from "./finance-fiscal-close-source";
 import { readListPage } from "./list-page";
 import { prepareFlowCommand } from "./flow-routing";
 import { invoiceHistoryCte } from "./finance-history";
 import { calculateVatCloseEvidence,pendingVatReviewSql,vatCloseGuards } from "./finance-tax-register";
+import {financeExpansionClosePending,financeExpansionCloseCountSql} from "./finance-expansion-close";
 import { requirePermission } from "@/server/iam-permissions";
 import { samePerson } from "@/lib/iam";
 import { hasPermission } from "@/lib/permissions";
@@ -186,6 +188,7 @@ async function ensurePeriod(write: SqlDatabase, actor: WorkContext, periodId: st
   if (!period) throw new ApiError(404, "PERIOD_NOT_FOUND", "Accounting period not found.");
   if (entryDate < String(period.start_date) || entryDate > String(period.end_date)) throw new ApiError(422, "DATE_OUTSIDE_PERIOD", "Entry date is outside the accounting period.");
   if (period.state === "closed" || (!allowClosing && period.state === "closing")) throw new ApiError(409, "PERIOD_CLOSED", "The accounting period does not accept postings.");
+  if(await write.prepare("SELECT 1 FROM finance_periods WHERE company_id=? AND state IN ('closed','closing') AND ? BETWEEN start_date AND end_date LIMIT 1").bind(actor.companyId,entryDate).first())throw new ApiError(409,"PERIOD_CLOSED","This date is covered by a closed or closing Company period. Use the next open date or independently reopen the period.");
   return period;
 }
 
@@ -308,21 +311,25 @@ export async function prepareJournal(write:SqlDatabase,actor:WorkContext,input:z
     const existing = await write.prepare("SELECT id FROM finance_journals WHERE company_id=? AND chart_id=? AND is_opening=1 AND status IN ('draft','in_review','posted') LIMIT 1").bind(actor.companyId,input.chartId).first();
     if (existing) throw new ApiError(409,"OPENING_BALANCE_EXISTS","Reverse or finish the existing opening balance before importing another one.");
   }
-  const steps:SqlStatement[]=[
+  const guards:SqlStatement[]=[
     assertion(write,key,"posting-period","EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='open' AND start_date<=? AND end_date>=?)",[input.periodId,actor.companyId,input.entryDate,input.entryDate]),
     assertion(write,key,"posting-chart","EXISTS(SELECT 1 FROM finance_charts WHERE id=? AND company_id=? AND status='active')",[input.chartId,actor.companyId]),
     ...(input.isOpening ? [assertion(write,key,"opening-balance","NOT EXISTS(SELECT 1 FROM finance_journals WHERE company_id=? AND chart_id=? AND is_opening=1 AND status IN ('draft','in_review','posted'))",[actor.companyId,input.chartId])] : []),
     ...accountIds.map((accountId,index)=>assertion(write,key,`posting-account-${index}`,"EXISTS(SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND status='active')",[accountId,actor.companyId,input.chartId])),
+  ];
+  const steps:SqlStatement[]=[...guards,
     write.prepare("INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,source_id,memo,is_opening,status,created_by,posted_by,posted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(journalId,actor.companyId,input.chartId,input.periodId,number,input.entryDate,input.currency,fx,input.sourceType,input.sourceId??null,input.memo,input.isOpening?1:0,status,actor.userId,status==="posted"?actor.userId:null,status==="posted"?now:null,now,now),
     ...values.map((l,index)=>write.prepare("INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(`${journalId}-${index}`,journalId,l.accountId,l.description??"",l.debit,l.credit,l.baseDebit,l.baseCredit,JSON.stringify(l.dimensions??{}),index)),
   ];
   // Owner adapters consume these exact retained amounts; public journal results
   // and command receipts keep their existing shape.
-  return {steps,preparedLines:values,preparedFxEvidence,result:{id:journalId,number,status,version:1,debit:minorToDecimal(Number(total("debit"))),credit:minorToDecimal(Number(total("credit"))),fxRateMicros:fx,baseCurrency:chart.base_currency}};
+  return {steps,guards,preparedLines:values,preparedFxEvidence,result:{id:journalId,number,status,version:1,debit:minorToDecimal(Number(total("debit"))),credit:minorToDecimal(Number(total("credit"))),fxRateMicros:fx,baseCurrency:chart.base_currency}};
 }
 export async function createJournal(actor:WorkContext,input:z.infer<typeof createJournalSchema>,id:string) {
   actor = requirePermission(actor,"finance.write");
   if(input.sourceType==="fiscal_close")throw new ApiError(422,"FISCAL_CLOSING_OWNER_REQUIRED","Prepare and independently review a fiscal closing through the Finance year-closing workflow.");
+  if(input.sourceType.startsWith("book_"))throw new ApiError(422,"BOOK_OWNER_REQUIRED","Book openings, projections and adjustments require their owning review workflow.");
+  if(["business_recognition","business_billing_credit","instrument_activation","instrument_payment","asset_policy_depreciation"].includes(input.sourceType))throw new ApiError(422,"FINANCE_SOURCE_OWNER_REQUIRED","Prepare this journal through its originating Finance workflow.");
 
   const {write}=await resources(actor),journalId=`journal-${id}`;
   const previous=await replayCommand<{id:string;number:string;status:string;version:number;debit:string;credit:string}>(write,actor,id,"finance.journal.create",journalId,input);if(previous)return previous;
@@ -536,6 +543,7 @@ export async function reversePayment(actor:WorkContext,paymentId:string,input:z.
   if(input.entryDate<String(payment.journal_entry_date))throw new ApiError(422,"REVERSAL_BEFORE_SOURCE","The reversal cannot precede the payment date.");
   const allocations=await write.prepare("SELECT a.*,i.total_minor,i.outstanding_minor,i.source_type FROM finance_allocations a JOIN finance_invoices i ON i.id=a.invoice_id WHERE a.payment_id=? AND a.company_id=? ORDER BY a.id").bind(paymentId,actor.companyId).all<FinanceRow>();
   if(!allocations.results.length)throw new ApiError(409,"PAYMENT_ALLOCATION_REQUIRED","Only an allocated payment can be corrected here.");
+  if(await write.prepare("SELECT 1 FROM finance_billing_corrections c JOIN finance_allocations a ON a.invoice_id=c.invoice_id WHERE a.payment_id=? AND c.company_id=? AND c.status='posted'").bind(paymentId,actor.companyId).first())throw new ApiError(409,"PAYMENT_CREDITED_SOURCE_REVIEW","Reconcile the credited bill and its refund before correcting the original receipt.");
   if(allocations.results.some(row=>["expense_claim","pms"].includes(String(row.source_type))))throw new ApiError(409,"REVERSE_AT_SOURCE","Reverse this payment from its originating module.");
   const now=Date.now(),reversal=`payment-reversal-${id}`,fxReversal=payment.fx_journal_id?`payment-fx-reversal-${id}`:null;
   const steps:SqlStatement[]=[
@@ -543,6 +551,7 @@ export async function reversePayment(actor:WorkContext,paymentId:string,input:z.
     assertion(write,id,"bank-match","(SELECT COUNT(*) FROM finance_bank_transactions WHERE company_id=? AND matched_type='payment' AND matched_id=? AND match_status='matched')<=1",[actor.companyId,paymentId]),
     assertion(write,id,"period","EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='open' AND start_date<=? AND end_date>=?)",[input.periodId,actor.companyId,input.entryDate,input.entryDate]),
     assertion(write,id,"not-reversed","NOT EXISTS(SELECT 1 FROM finance_payment_reversals WHERE payment_id=?)",[paymentId]),
+    assertion(write,id,"credited-payment-source","NOT EXISTS(SELECT 1 FROM finance_billing_corrections c JOIN finance_allocations a ON a.invoice_id=c.invoice_id WHERE a.payment_id=? AND c.company_id=? AND c.status='posted')",[paymentId,actor.companyId]),
     write.prepare("INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,source_id,memo,status,created_by,posted_by,posted_at,created_at,updated_at) SELECT ?,company_id,chart_id,?,?,?,currency,fx_rate_micros,'payment_reversal',?,?,'posted',?,?,?,?,? FROM finance_journals WHERE id=?").bind(reversal,input.periodId,`PAY-REV-${id}`,input.entryDate,paymentId,input.reason,actor.userId,actor.userId,now,now,now,payment.journal_id),
     write.prepare("INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) SELECT ?||'-'||ordinal,?,account_id,description,credit_minor,debit_minor,base_credit_minor,base_debit_minor,dimension_json,ordinal FROM finance_journal_lines WHERE journal_id=?").bind(reversal,reversal,payment.journal_id),
     write.prepare("UPDATE finance_journals SET status='reversed',version=version+1,reversed_by=?,reversed_at=?,updated_at=? WHERE id=?").bind(actor.userId,now,now,payment.journal_id),
@@ -650,6 +659,10 @@ export async function reverseJournal(actor: WorkContext, journalId: string, id: 
   if(opening&&await write.prepare("SELECT 1 FROM finance_allocations a JOIN finance_invoices i ON i.id=a.invoice_id WHERE i.company_id=? AND i.source_type='opening_import' AND i.source_id=? LIMIT 1").bind(actor.companyId,journalId).first())throw new ApiError(409,"OPENING_SUBLEDGER_SETTLED","This opening journal has payment or receipt allocations. Reverse those settlements and correct the affected documents instead.");
   if(input.entryDate<String(journal.entry_date))throw new ApiError(422,"REVERSAL_BEFORE_SOURCE","The reversal cannot precede the original accounting date.");
   if(journal.source_type==="reversal"&&await write.prepare("SELECT 1 FROM finance_journals WHERE id=? AND source_type='opening_import'").bind(journal.source_id).first())throw new ApiError(409,"REIMPORT_OPENING_BALANCE","Prepare a corrected opening import instead of reversing an opening reversal.");
+  if(journal.source_type==="reversal"){
+    const root=await write.prepare("WITH RECURSIVE lineage AS (SELECT id,source_type,source_id,0 depth FROM finance_journals WHERE id=? AND company_id=? UNION ALL SELECT p.id,p.source_type,p.source_id,l.depth+1 FROM finance_journals p JOIN lineage l ON p.id=l.source_id AND l.source_type='reversal' WHERE p.company_id=? AND l.depth<100) SELECT source_type FROM lineage ORDER BY depth DESC LIMIT 1").bind(journalId,actor.companyId,actor.companyId).first<{source_type:string}>();
+    if(root?.source_type!=="manual")throw new ApiError(409,"REVERSE_AT_SOURCE","Correct the originating business workflow so its retained subledger and reversal evidence stay consistent.");
+  }
   const reversal=`reversal-${id}`,now=Date.now();return executeCommand(write,actor,id,"finance.journal.reverse",input,journalId,Number(journal.version)+1,{reversalJournalId:reversal,reversedJournalId:journalId},[
     assertion(write,id,"source","EXISTS(SELECT 1 FROM finance_journals WHERE id=? AND version=? AND status='posted')",[journalId,journal.version]),
     ...(opening?[assertion(write,id,"opening-unsettled","NOT EXISTS(SELECT 1 FROM finance_allocations a JOIN finance_invoices i ON i.id=a.invoice_id WHERE i.company_id=? AND i.source_type='opening_import' AND i.source_id=?)",[actor.companyId,journalId])]:[]),
@@ -669,7 +682,7 @@ export async function trialBalance(actor: WorkContext, periodId?: string, chartI
   dates=reportDateSchema.parse(dates);
 
   const { write } = await resources(actor,true); const clauses = ["j.company_id=?", "j.status IN ('posted','reversed')"]; const args: (string | number)[] = [actor.companyId]; if (periodId) { clauses.push("j.period_id=?"); args.push(periodId); }
-  if(options.excludeYearClose)clauses.push("j.source_type<>'fiscal_close'");
+  if(options.excludeYearClose)clauses.push(`NOT ${fiscalCloseSourceSql()}`);
   if(!chartId){
     const charts=await write.prepare("SELECT id FROM finance_charts WHERE company_id=?").bind(actor.companyId).all<{id:string}>();
     if(charts.results.length>1)throw new ApiError(422,"CHART_REQUIRED","Select a ledger explicitly when the Company has multiple ledgers, including archived ledgers.");
@@ -717,12 +730,15 @@ export async function calculateCloseReconciliations(write: SqlDatabase, actor: W
   for (const account of accounts.results) {
     const kind = String(account.control_kind) as CloseReconciliation["kind"];
     const accountId = String(account.id);
+    const bookSource = await write.prepare(`SELECT m.primary_account_id FROM finance_book_account_mappings m JOIN finance_book_rules r ON r.id=m.rule_id
+      WHERE r.company_id=? AND r.status='approved' AND m.secondary_account_id=? AND r.effective_date<=? ORDER BY r.effective_date DESC LIMIT 1`).bind(actor.companyId,accountId,period.end_date).first<{primary_account_id:string}>();
+    const sourceAccountId = bookSource?.primary_account_id ?? accountId;
     const ledgerSigned = Number(await write.prepare(`SELECT COALESCE(SUM(l.base_debit_minor-l.base_credit_minor),0) value FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id=? AND l.account_id=? AND j.status IN ('posted','reversed') AND j.entry_date<=?`).bind(actor.companyId,accountId,period.end_date).first("value") ?? 0);
     const ledgerMinor = ledgerSigned===0?0:kind === "payable" ? -ledgerSigned : ledgerSigned;
     if (kind === "bank") {
-      const statement = await write.prepare("SELECT id,statement_number,statement_date,closing_minor,closing_fx_rate_micros,base_closing_minor,status FROM finance_bank_statements WHERE company_id=? AND bank_account=? AND statement_date<=? ORDER BY statement_date DESC,created_at DESC LIMIT 1").bind(actor.companyId,accountId,period.end_date).first<FinanceRow>();
+      const statement = await write.prepare("SELECT id,statement_number,statement_date,closing_minor,closing_fx_rate_micros,base_closing_minor,status FROM finance_bank_statements WHERE company_id=? AND bank_account=? AND statement_date<=? ORDER BY statement_date DESC,created_at DESC LIMIT 1").bind(actor.companyId,sourceAccountId,period.end_date).first<FinanceRow>();
       const sourceMinor = statement ? Number(Number(statement.base_closing_minor)===0&&Number(statement.closing_minor)!==0&&Number(statement.closing_fx_rate_micros??1_000_000)===1_000_000?statement.closing_minor:statement.base_closing_minor) : 0;
-      rows.push({kind,accountId,accountCode:String(account.code),accountName:String(account.name),chartName:String(account.chart_name),currency:String(account.currency),ledgerMinor,sourceMinor,differenceMinor:ledgerMinor-sourceMinor,source:{statementId:statement?.id??null,statementNumber:statement?.statement_number??null,statementDate:statement?.statement_date??null,transactionClosingMinor:statement?.closing_minor??null,closingFxRateMicros:statement?.closing_fx_rate_micros??null,periodEnd:period.end_date,evidenceComplete:statement?.statement_date===period.end_date}});
+      rows.push({kind,accountId,accountCode:String(account.code),accountName:String(account.name),chartName:String(account.chart_name),currency:String(account.currency),ledgerMinor,sourceMinor,differenceMinor:ledgerMinor-sourceMinor,source:{sourceAccountId,statementId:statement?.id??null,statementNumber:statement?.statement_number??null,statementDate:statement?.statement_date??null,transactionClosingMinor:statement?.closing_minor??null,closingFxRateMicros:statement?.closing_fx_rate_micros??null,periodEnd:period.end_date,evidenceComplete:statement?.statement_date===period.end_date}});
       continue;
     }
     const source = await write.prepare(`${invoiceHistoryCte}
@@ -733,9 +749,9 @@ export async function calculateCloseReconciliations(write: SqlDatabase, actor: W
         COUNT(*) FILTER(WHERE i.legacy_date_evidence) legacy_date_count
       FROM historical_invoice_balances i WHERE i.kind=? AND
         CASE WHEN i.kind='receivable' THEN i.debit_account_id ELSE i.credit_account_id END=?`)
-      .bind(actor.companyId,period.end_date,account.base_currency,period.id,kind,accountId).first<FinanceRow>();
+      .bind(actor.companyId,period.end_date,account.base_currency,period.id,kind,sourceAccountId).first<FinanceRow>();
     const sourceMinor=Number(source?.value??0);
-    rows.push({kind,accountId,accountCode:String(account.code),accountName:String(account.name),chartName:String(account.chart_name),currency:String(account.currency),ledgerMinor,sourceMinor,differenceMinor:ledgerMinor-sourceMinor,source:{invoiceCount:Number(source?.invoice_count??0),foreignOpenCount:Number(source?.foreign_open_count??0),legacyDateCount:Number(source?.legacy_date_count??0),asOf:period.end_date}});
+    rows.push({kind,accountId,accountCode:String(account.code),accountName:String(account.name),chartName:String(account.chart_name),currency:String(account.currency),ledgerMinor,sourceMinor,differenceMinor:ledgerMinor-sourceMinor,source:{sourceAccountId,invoiceCount:Number(source?.invoice_count??0),foreignOpenCount:Number(source?.foreign_open_count??0),legacyDateCount:Number(source?.legacy_date_count??0),asOf:period.end_date}});
   }
   const vat=await calculateVatCloseEvidence(write,actor,String(period.end_date));
   const ready=(!vat||vat.ready)&&rows.every(row=>row.differenceMinor===0&&Number(row.source.foreignOpenCount??0)===0&&Number(row.source.legacyDateCount??0)===0&&(row.kind!=="bank"||row.source.evidenceComplete===true));
@@ -745,21 +761,22 @@ export async function calculateCloseReconciliations(write: SqlDatabase, actor: W
 
 function reconciliationAssertions(write:SqlDatabase,actor:WorkContext,period:FinanceRow,key:string,rows:CloseReconciliation[]) {
   return rows.flatMap((row,index)=>{
+    const sourceAccountId=String(row.source.sourceAccountId??row.accountId);
     const signedLedger=row.kind==="payable"?-row.ledgerMinor:row.ledgerMinor;
     const checks=[assertion(write,key,`reconciliation-ledger-${index}`,"COALESCE((SELECT SUM(l.base_debit_minor-l.base_credit_minor) FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id=? AND l.account_id=? AND j.status IN ('posted','reversed') AND j.entry_date<=?),0)=?",[actor.companyId,row.accountId,period.end_date,signedLedger])];
-    if(row.kind==="bank")checks.push(assertion(write,key,`reconciliation-bank-${index}`,"EXISTS(SELECT 1 FROM finance_bank_statements WHERE company_id=? AND bank_account=? AND statement_date=? AND CASE WHEN base_closing_minor=0 AND closing_minor!=0 AND closing_fx_rate_micros=1000000 THEN closing_minor ELSE base_closing_minor END=?)",[actor.companyId,row.accountId,period.end_date,row.sourceMinor]));
+    if(row.kind==="bank")checks.push(assertion(write,key,`reconciliation-bank-${index}`,"EXISTS(SELECT 1 FROM finance_bank_statements WHERE company_id=? AND bank_account=? AND statement_date=? AND CASE WHEN base_closing_minor=0 AND closing_minor!=0 AND closing_fx_rate_micros=1000000 THEN closing_minor ELSE base_closing_minor END=?)",[actor.companyId,sourceAccountId,period.end_date,row.sourceMinor]));
     else {
       checks.push(assertion(write,key,`reconciliation-subledger-${index}`,`${invoiceHistoryCte}
         SELECT COALESCE(SUM(historical_base_outstanding_minor),0)=? AND COUNT(*) FILTER(WHERE legacy_date_evidence)=0 FROM historical_invoice_balances
         WHERE kind=? AND CASE WHEN kind='receivable' THEN debit_account_id ELSE credit_account_id END=?`,
-        [actor.companyId,period.end_date,row.sourceMinor,row.kind,row.accountId]));
+        [actor.companyId,period.end_date,row.sourceMinor,row.kind,sourceAccountId]));
       checks.push(assertion(write,key,`reconciliation-foreign-${index}`,`${invoiceHistoryCte}
         SELECT COUNT(*)=? FROM historical_invoice_balances i JOIN finance_charts c ON c.id=i.chart_id
         WHERE i.kind=? AND CASE WHEN i.kind='receivable' THEN i.debit_account_id ELSE i.credit_account_id END=?
           AND i.currency<>c.base_currency AND i.historical_outstanding_minor>0 AND NOT EXISTS(
             SELECT 1 FROM finance_fx_revaluation_lines l JOIN finance_fx_revaluation_runs r ON r.id=l.run_id
             WHERE l.invoice_id=i.id AND r.period_id=? AND r.status='posted')`,
-        [actor.companyId,period.end_date,Number(row.source.foreignOpenCount??0),row.kind,row.accountId,period.id]));
+        [actor.companyId,period.end_date,Number(row.source.foreignOpenCount??0),row.kind,sourceAccountId,period.id]));
     }
     return checks;
   });
@@ -853,11 +870,13 @@ export async function beginClose(actor: WorkContext, periodId: string, id: strin
 
   const { write } = await resources(actor); const previous = await replayCommand(write,actor,id,"finance.period.begin-close",periodId,{periodId}); if (previous) return previous;
   const period = await write.prepare("SELECT * FROM finance_periods WHERE id=? AND company_id=?").bind(periodId, actor.companyId).first<FinanceRow>(); if (!period) throw new ApiError(404, "PERIOD_NOT_FOUND", "Accounting period not found."); if (period.state !== "open") throw new ApiError(409, "INVALID_PERIOD_TRANSITION", "Only an open period can begin close.");
-  const draftJournals = await write.prepare("SELECT COUNT(*) AS count FROM finance_journals WHERE company_id=? AND period_id=? AND status IN ('draft','in_review')").bind(actor.companyId, periodId).first<{ count: number }>();
+  const draftJournals = await write.prepare("SELECT COUNT(*) AS count FROM finance_journals WHERE company_id=? AND (period_id=? OR entry_date BETWEEN ? AND ?) AND status IN ('draft','in_review')").bind(actor.companyId, periodId,period.start_date,period.end_date).first<{ count: number }>();
   const draftInvoices = await write.prepare("SELECT COUNT(*) AS count FROM finance_invoices WHERE company_id=? AND status IN ('draft','in_review') AND invoice_date BETWEEN ? AND ?").bind(actor.companyId, period.start_date, period.end_date).first<{ count: number }>();
   const unmatchedBank = await write.prepare("SELECT COUNT(*) AS count FROM finance_bank_transactions WHERE company_id=? AND match_status IN ('unmatched','proposed') AND transaction_date BETWEEN ? AND ?").bind(actor.companyId,period.start_date,period.end_date).first<{ count: number }>();
   const openManufacturing=await write.prepare("SELECT COUNT(*) count FROM manufacturing_orders WHERE company_id=? AND status IN ('reserved','in_progress','awaiting_qc')").bind(actor.companyId).first<{count:number}>();
   const calculationPending=await write.prepare("SELECT COUNT(*) count FROM finance_calculation_runs WHERE company_id=? AND period_id=? AND status IN ('prepared','reviewed','stale')").bind(actor.companyId,periodId).first<{count:number}>();
+  const expansionPending=await financeExpansionClosePending(write,actor.companyId,String(period.start_date),String(period.end_date));
+  if(expansionPending.length)throw new ApiError(409,"CLOSE_NOT_READY",`Resolve ${expansionPending.length} Finance source tasks before close: ${[...new Set(expansionPending.map(r=>r.kind))].join(', ')}. Open Finance Today for the source workflows.`);
   const pendingTax=Number(await write.prepare(pendingVatReviewSql).bind(period.end_date,actor.companyId).first("value")??0);
   if(pendingTax)throw new ApiError(409,"CLOSE_NOT_READY",`Review ${pendingTax} source VAT documents in the statutory ledger before beginning close.`);
   const billsPending=await write.prepare("SELECT COUNT(*) n FROM procurement_bill_matches WHERE company_id=? AND status IN ('review','approved','invoiced') AND invoice_date<=?").bind(actor.companyId,period.end_date).first('n');
@@ -874,12 +893,13 @@ export async function beginClose(actor: WorkContext, periodId: string, id: strin
   const nextVersion=Number(period.close_version)+1,checkSource=await hash({periodId,closeVersion:period.close_version,readiness,reconciliation:reconciliation.reconciliationHash}),checkedAt=Date.now();
   return executeCommand(write,actor,id,"finance.period.begin-close",{periodId},periodId,nextVersion,{id:periodId,state:"closing",version:nextVersion,reconciliationHash:reconciliation.reconciliationHash,reconciliations:reconciliation.rows},[
     assertion(write,id,"period","EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='open' AND close_version=?)",[periodId,actor.companyId,period.close_version]),
-    assertion(write,id,"journals","NOT EXISTS(SELECT 1 FROM finance_journals WHERE company_id=? AND period_id=? AND status IN ('draft','in_review'))",[actor.companyId,periodId]),
+    assertion(write,id,"journals","NOT EXISTS(SELECT 1 FROM finance_journals WHERE company_id=? AND (period_id=? OR entry_date BETWEEN ? AND ?) AND status IN ('draft','in_review'))",[actor.companyId,periodId,period.start_date,period.end_date]),
     assertion(write,id,"invoices","NOT EXISTS(SELECT 1 FROM finance_invoices WHERE company_id=? AND status IN ('draft','in_review') AND invoice_date BETWEEN ? AND ?)",[actor.companyId,period.start_date,period.end_date]),
     assertion(write,id,"bank","NOT EXISTS(SELECT 1 FROM finance_bank_transactions WHERE company_id=? AND match_status IN ('unmatched','proposed') AND transaction_date BETWEEN ? AND ?)",[actor.companyId,period.start_date,period.end_date]),
     assertion(write,id,"manufacturing","NOT EXISTS(SELECT 1 FROM manufacturing_orders WHERE company_id=? AND status IN ('reserved','in_progress','awaiting_qc'))",[actor.companyId]),
     assertion(write,id,"calculations","NOT EXISTS(SELECT 1 FROM finance_calculation_runs WHERE company_id=? AND period_id=? AND status IN ('prepared','reviewed','stale'))",[actor.companyId,periodId]),
     assertion(write,id,"vat-review",`(${pendingVatReviewSql})=0`,[period.end_date,actor.companyId]),
+    assertion(write,id,"finance-source-work",`(${financeExpansionCloseCountSql})=0`,[actor.companyId,period.start_date,period.end_date]),
     ...refundCloseGuards(write,actor,period,id),
     ...reconciliationAssertions(write,actor,period,id,reconciliation.rows),
     ...vatCloseGuards(write,actor,id,String(period.end_date),reconciliation.vat),
@@ -917,12 +937,13 @@ export async function closePeriod(actor: WorkContext, periodId: string, input: z
     ...(attachmentBinding?.guards??[]),
     assertion(write,id,"period","EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='closing' AND close_version=? AND close_started_by!=?)",[periodId,actor.companyId,version,actor.userId]),
     ...refundCloseGuards(write,actor,period,id),
-    assertion(write,id,"close-journals","NOT EXISTS(SELECT 1 FROM finance_journals WHERE company_id=? AND period_id=? AND status IN ('draft','in_review'))",[actor.companyId,periodId]),
+    assertion(write,id,"close-journals","NOT EXISTS(SELECT 1 FROM finance_journals WHERE company_id=? AND (period_id=? OR entry_date BETWEEN ? AND ?) AND status IN ('draft','in_review'))",[actor.companyId,periodId,period.start_date,period.end_date]),
     assertion(write,id,"close-invoices","NOT EXISTS(SELECT 1 FROM finance_invoices WHERE company_id=? AND status IN ('draft','in_review') AND invoice_date BETWEEN ? AND ?)",[actor.companyId,period.start_date,period.end_date]),
     assertion(write,id,"close-bank","NOT EXISTS(SELECT 1 FROM finance_bank_transactions WHERE company_id=? AND match_status IN ('unmatched','proposed') AND transaction_date BETWEEN ? AND ?)",[actor.companyId,period.start_date,period.end_date]),
     assertion(write,id,"close-manufacturing","NOT EXISTS(SELECT 1 FROM manufacturing_orders WHERE company_id=? AND status IN ('reserved','in_progress','awaiting_qc'))",[actor.companyId]),
     assertion(write,id,"close-calculations","NOT EXISTS(SELECT 1 FROM finance_calculation_runs WHERE company_id=? AND period_id=? AND status IN ('prepared','reviewed','stale'))",[actor.companyId,periodId]),
     assertion(write,id,"close-vat-review",`(${pendingVatReviewSql})=0`,[period.end_date,actor.companyId]),
+    assertion(write,id,"close-finance-source-work",`(${financeExpansionCloseCountSql})=0`,[actor.companyId,period.start_date,period.end_date]),
     ...reconciliationAssertions(write,actor,period,id,reconciliation.rows),
     ...vatCloseGuards(write,actor,id,String(period.end_date),reconciliation.vat),
     write.prepare("UPDATE finance_periods SET state='closed',closed_by=?,closed_at=?,close_version=close_version+1 WHERE id=?").bind(actor.userId,now,periodId),
@@ -952,11 +973,13 @@ export async function createParty(actor: WorkContext, input: z.infer<typeof part
  const { write } = await resources(actor); const pendingStatements:SqlStatement[]=[]; const previous = await priorCommand(write, actor, id, "finance.party.create", input); if (previous) return previous; await requireFinanceMoneyScale(write,actor.companyId,input.currency); const partyId = `party-${crypto.randomUUID()}`; const now = Date.now(); pendingStatements.push(write.prepare("INSERT INTO finance_parties(id,company_id,kind,code,name,currency,tax_registration,payment_terms_days,credit_limit_minor,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(partyId, actor.companyId, input.kind, input.code, input.name, input.currency, input.taxRegistration ?? null, input.paymentTermsDays, decimalToMinor(input.creditLimit), now, now)); const output = { id: partyId, ...input, creditLimitMinor: decimalToMinor(input.creditLimit) }; return saveCommand(write, actor, id, "finance.party.create", input, output, pendingStatements); }
 
 export const invoiceSchema = z.object({ expectedVersion:z.number().int().positive().optional(), aiProposalId:z.string().max(128).optional(), aiProposalVersion:z.number().int().positive().optional(), aiReason:z.string().trim().min(10).max(2000).optional(), partyId: z.string().min(1), kind: z.enum(["payable", "receivable"]), invoiceNumber: z.string().min(1).max(100), invoiceDate: z.string().date(), dueDate: z.string().date(), currency: z.string().length(3).transform((v) => v.toUpperCase()), subtotal: moneySchema, tax: moneySchema.default("0"), taxCode: z.string().max(64).optional(), taxAccountId:z.string().min(1).optional(), sourceType: z.string().max(64).optional(), sourceId: z.string().max(128).optional(), debitAccountId: z.string().min(1), creditAccountId: z.string().min(1), lines:z.array(invoiceLineSchema).min(1).max(100).optional() });
-export async function createInvoice(actor:WorkContext,input:z.infer<typeof invoiceSchema>,id:string,existingId?:string) {
+export async function createInvoice(actor:WorkContext,input:z.infer<typeof invoiceSchema>,id:string,existingId?:string,ownedTransaction?:SqlDatabase) {
   actor = requirePermission(actor,"finance.write");
   input=invoiceSchema.parse(input);
 
-  const {write}=await resources(actor),invoiceId=existingId??`invoice-${id}`;const operation=existingId?"finance.invoice.update":"finance.invoice.create";const previous=await replayCommand(write,actor,id,operation,invoiceId,input);if(previous)return previous;
+  const runtime=await resources(actor);
+  if(ownedTransaction){const owner=runtime.write as SqlDatabase & {assertActiveTransaction?:(db:SqlDatabase)=>void};if(!owner.assertActiveTransaction)throw new ApiError(503,"TRANSACTION_OWNERSHIP_REQUIRED","Billing requires an owned PostgreSQL transaction.");owner.assertActiveTransaction(ownedTransaction);}
+  const write=ownedTransaction??runtime.write,invoiceId=existingId??`invoice-${id}`;const operation=existingId?"finance.invoice.update":"finance.invoice.create";const previous=await replayCommand(write,actor,id,operation,invoiceId,input);if(previous)return previous;
   await requireFinanceMoneyScale(write,actor.companyId,input.currency);
   const subtotal=decimalToMinor(input.subtotal),tax=decimalToMinor(input.tax),total=subtotal+tax;
   if(subtotal<=0||tax<0||!Number.isSafeInteger(total))throw new ApiError(422,"INVALID_INVOICE_AMOUNT","Provide a positive subtotal and nonnegative tax within supported precision.");
@@ -968,6 +991,7 @@ export async function createInvoice(actor:WorkContext,input:z.infer<typeof invoi
   if(input.aiProposalId&&!existingId)throw new ApiError(422,"AI_DRAFT_REQUIRED","AI coding applies only to an existing standalone draft.");
   const aiSteps=input.aiProposalId?await (await import("./finance-ai")).financeAiDraftApplication(write,actor,await (await import("./runtime")).runtimeEnv(),input.aiProposalId,invoiceId,input,id):[];
   if(existingId){
+    if(await write.prepare("SELECT 1 FROM finance_business_billing_runs WHERE invoice_id=? AND company_id=?").bind(existingId,actor.companyId).first())throw new ApiError(409,"BUSINESS_BILLING_OWNER_REQUIRED","Retain the billed contract evidence. Correct this document through its billing workflow.");
     const existing=await write.prepare("SELECT line_mode FROM finance_invoices WHERE id=? AND company_id=? AND status='draft' AND version=? AND source_type='standalone'").bind(existingId,actor.companyId,input.expectedVersion??0).first<{line_mode:string}>();
     if(!existing)throw new ApiError(409,"VERSION_CONFLICT","Refresh the standalone draft before editing it.");
     if(existing.line_mode==="native_lines"&&!input.lines)throw new ApiError(422,"INVOICE_LINES_REQUIRED","Send the complete line revision when editing a multi-line invoice.");
@@ -986,7 +1010,9 @@ export async function createInvoice(actor:WorkContext,input:z.infer<typeof invoi
 }
 export async function voidDraftInvoice(actor:WorkContext,invoiceId:string,expectedVersion:number,key:string){
   actor = requirePermission(actor,"finance.write");
-const {write}=await resources(actor);return executeCommand(write,actor,key,"finance.invoice.void",{expectedVersion},invoiceId,expectedVersion+1,{id:invoiceId,status:"voided",version:expectedVersion+1},[
+const {write}=await resources(actor);
+if(await write.prepare("SELECT 1 FROM finance_business_billing_runs WHERE invoice_id=? AND company_id=?").bind(invoiceId,actor.companyId).first())throw new ApiError(409,"BUSINESS_BILLING_OWNER_REQUIRED","Correct this invoice through its retained business billing workflow.");
+return executeCommand(write,actor,key,"finance.invoice.void",{expectedVersion},invoiceId,expectedVersion+1,{id:invoiceId,status:"voided",version:expectedVersion+1},[
   assertion(write,key,"draft","EXISTS(SELECT 1 FROM finance_invoices WHERE id=? AND company_id=? AND status='draft' AND source_type='standalone' AND version=?)",[invoiceId,actor.companyId,expectedVersion]),
   write.prepare("UPDATE finance_invoices SET status='voided',outstanding_minor=0,version=version+1,updated_at=? WHERE id=?").bind(Date.now(),invoiceId),
 ]);}
@@ -1003,12 +1029,12 @@ export const invoicePostingSchema=z.object({
   fxRate:moneySchema.optional(),attachmentSetIds:z.array(z.string().min(1)).max(20).optional(),
   fxGainAccountId:z.string().min(1).optional(),fxLossAccountId:z.string().min(1).optional(),
 });
-export async function postInvoice(actor:WorkContext,invoiceId:string,input:z.infer<typeof invoicePostingSchema>,id:string) {
+export async function postInvoice(actor:WorkContext,invoiceId:string,input:z.infer<typeof invoicePostingSchema>,id:string,ownedTransaction?:SqlDatabase) {
   actor = requirePermission(actor,"finance.write");
   input=invoicePostingSchema.parse(input);
 
   requireFinanceRole(actor,true);
-  const {write}=await resources(actor);const previous=await replayCommand(write,actor,id,"finance.invoice.post",invoiceId,input);if(previous)return previous;
+  const runtime=await resources(actor);if(ownedTransaction){const owner=runtime.write as SqlDatabase & {assertActiveTransaction?:(db:SqlDatabase)=>void};if(!owner.assertActiveTransaction)throw new ApiError(503,"TRANSACTION_OWNERSHIP_REQUIRED","Invoice posting requires an owned PostgreSQL transaction.");owner.assertActiveTransaction(ownedTransaction);}const write=ownedTransaction??runtime.write;const previous=await replayCommand(write,actor,id,"finance.invoice.post",invoiceId,input);if(previous)return previous;
   const invoice=await write.prepare("SELECT * FROM finance_invoices WHERE id=? AND company_id=? AND status='draft' AND source_type!='opening_import'").bind(invoiceId,actor.companyId).first<FinanceRow>();if(!invoice)throw new ApiError(404,"INVOICE_NOT_FOUND","A postable draft invoice was not found.");
   if(samePerson(actor,invoice.created_by)||!hasPermission(actor,"finance.approve"))throw new ApiError(403,"INDEPENDENT_APPROVER_REQUIRED","A different finance approver must post a standalone invoice.");
   if(input.expectedVersion!==undefined && input.expectedVersion!==Number(invoice.version))throw new ApiError(409,"VERSION_CONFLICT","The invoice changed. Refresh its Debit / Credit before posting.");
@@ -1164,7 +1190,7 @@ export async function bankWorkspace(actor:WorkContext,query?:{print?:string;tran
  const transactionArgs=[...statementArgs,query?.view??'',query?.q??'',query?.q??''];
  const paged=!!query&&query.print!=='1';
  const [accounts,statements,transactions,payments,selectedTransaction]=await Promise.all([
-  !query||query.new==='1'?write.prepare("SELECT a.id,a.chart_id,a.code,a.name,a.currency,c.base_currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.company_id=? AND a.category='asset' AND a.control_kind IN ('none','bank') AND a.status='active' ORDER BY a.code").bind(actor.companyId).all<FinanceRow>():{results:[] as FinanceRow[]},
+  !query||query.new==='1'?write.prepare("SELECT a.id,a.chart_id,a.code,a.name,a.currency,c.base_currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.company_id=? AND a.category='asset' AND a.control_kind IN ('none','bank') AND a.status='active' AND c.status='active' AND NOT EXISTS(SELECT 1 FROM finance_book_rules r WHERE r.company_id=a.company_id AND r.secondary_chart_id=a.chart_id AND r.status='approved') ORDER BY CASE WHEN a.control_kind='bank' THEN 0 ELSE 1 END,a.code,a.id").bind(actor.companyId).all<FinanceRow>():{results:[] as FinanceRow[]},
   paged?readListPage<FinanceRow & {id:string;page_key:string}>(write,{sql:statementSql,args:statementArgs,cursor:query.statementCursor,descending:true,scope:[actor.companyId,'bank-statements',query?.chart??'']}).then(page=>({results:page.items,page})):
     write.prepare(`${statementSql} ORDER BY s.statement_date DESC,s.id`).bind(...statementArgs).all<FinanceRow>().then(result=>({...result,page:null})),
   paged?readListPage<FinanceRow & {id:string;page_key:string}>(write,{sql:transactionSql,args:transactionArgs,cursor:query.transactionCursor,descending:true,scope:[actor.companyId,'bank-transactions',query?.chart??'',query?.view??'',query?.q??'']}).then(page=>({results:page.items,page})):
@@ -1175,12 +1201,14 @@ export async function bankWorkspace(actor:WorkContext,query?:{print?:string;tran
  if(query?.match&&!selectedTransaction)throw new ApiError(404,"BANK_TRANSACTION_NOT_FOUND","Bank movement not found in this Company.");
  return {accounts:accounts.results,statements:statements.results,statementPage:statements.page,transactions:transactions.results,transactionPage:transactions.page,payments:payments.results,selectedTransaction};
 }
-export async function importBankStatement(actor:WorkContext,input:{bankAccount:string;statementNumber:string;statementDate:string;opening:string;closing:string;closingFxRate?:string;sourceHash:string;rows:Array<{externalId:string;transactionDate:string;description?:string;amount:string;currency:string}>},key:string){
+export async function importBankStatement(actor:WorkContext,input:{bankAccount:string;statementNumber:string;statementDate:string;opening:string;closing:string;closingFxRate?:string;sourceHash:string;rows:Array<{externalId:string;transactionDate:string;description?:string;amount:string;currency:string}>},key:string,ownedTransaction?:SqlDatabase){
   actor = requirePermission(actor,"finance.write");
 
-  const {write}=await resources(actor),id=`statement-${key}`;const previous=await replayCommand(write,actor,key,"finance.bank.import",id,input);if(previous)return previous;
+  const runtime=await resources(actor);
+  if(ownedTransaction){const owner=runtime.write as SqlDatabase & {assertActiveTransaction?:(db:SqlDatabase)=>void};if(!owner.assertActiveTransaction)throw new ApiError(503,"TRANSACTION_OWNERSHIP_REQUIRED","Bank imports require an owned PostgreSQL transaction.");owner.assertActiveTransaction(ownedTransaction);}
+  const write=ownedTransaction??runtime.write,id=`statement-${key}`;const previous=await replayCommand(write,actor,key,"finance.bank.import",id,input);if(previous)return previous;
   if(input.rows.length>500)throw new ApiError(422,"STATEMENT_SIZE","Import at most 500 statement rows.");
-  const account=await write.prepare("SELECT a.currency,a.control_kind,c.base_currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.id=? AND a.company_id=? AND a.category='asset' AND a.control_kind IN ('none','bank') AND a.status='active'").bind(input.bankAccount,actor.companyId).first<{currency:string;control_kind:string;base_currency:string}>();if(!account)throw new ApiError(422,"BANK_ACCOUNT_INVALID","Select an active cash or bank ledger account.");
+  const account=await write.prepare("SELECT a.currency,a.control_kind,c.base_currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.id=? AND a.company_id=? AND a.category='asset' AND a.control_kind IN ('none','bank') AND a.status='active' AND c.status='active' AND NOT EXISTS(SELECT 1 FROM finance_book_rules r WHERE r.company_id=a.company_id AND r.secondary_chart_id=a.chart_id AND r.status='approved')").bind(input.bankAccount,actor.companyId).first<{currency:string;control_kind:string;base_currency:string}>();if(!account)throw new ApiError(422,"BANK_ACCOUNT_INVALID","Select an active cash or bank account from the primary book. Secondary books use the same business statement.");
   await requireFinanceMoneyScale(write,actor.companyId,account.currency);
   await requireFinanceMoneyScale(write,actor.companyId,account.base_currency);
   const opening=decimalToMinor(input.opening),closing=decimalToMinor(input.closing),amounts=input.rows.map(r=>decimalToMinor(r.amount));
@@ -1191,7 +1219,7 @@ export async function importBankStatement(actor:WorkContext,input:{bankAccount:s
   return executeCommand(write,actor,key,"finance.bank.import",input,id,1,{id,imported:input.rows.length,status:"imported"},[
     assertion(write,key,"duplicate-statement","NOT EXISTS(SELECT 1 FROM finance_bank_statements WHERE company_id=? AND bank_account=? AND (statement_number=? OR source_hash=?))",[actor.companyId,input.bankAccount,input.statementNumber,digest]),
     ...input.rows.map((r,i)=>assertion(write,key,`external-${i}`,"NOT EXISTS(SELECT 1 FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.company_id=? AND s.bank_account=? AND t.external_id=?)",[actor.companyId,input.bankAccount,r.externalId])),
-    assertion(write,key,"bank-account","EXISTS(SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND category='asset' AND status='active' AND control_kind IN ('none','bank'))",[input.bankAccount,actor.companyId]),
+    assertion(write,key,"bank-account","EXISTS(SELECT 1 FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.id=? AND a.company_id=? AND a.category='asset' AND a.status='active' AND a.control_kind IN ('none','bank') AND c.status='active' AND NOT EXISTS(SELECT 1 FROM finance_book_rules r WHERE r.company_id=a.company_id AND r.secondary_chart_id=a.chart_id AND r.status='approved'))",[input.bankAccount,actor.companyId]),
     write.prepare("UPDATE finance_accounts SET is_control=1,control_kind='bank',version=version+CASE WHEN control_kind='none' THEN 1 ELSE 0 END,updated_at=? WHERE id=? AND company_id=? AND control_kind='none'").bind(Date.now(),input.bankAccount,actor.companyId),
     write.prepare("INSERT INTO finance_bank_statements(id,company_id,bank_account,statement_number,statement_date,opening_minor,closing_minor,closing_fx_rate_micros,base_closing_minor,source_hash,imported_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,actor.companyId,input.bankAccount,input.statementNumber,input.statementDate,opening,closing,closingFxRate,baseClosing,digest,actor.userId,Date.now()),
     ...input.rows.map((r,i)=>write.prepare("INSERT INTO finance_bank_transactions(id,statement_id,company_id,transaction_date,external_id,description,amount_minor,currency) VALUES(?,?,?,?,?,?,?,?)").bind(`bankrow-${key}-${i}`,id,actor.companyId,r.transactionDate,r.externalId,r.description??"",amounts[i],r.currency.toUpperCase())),
@@ -1207,6 +1235,7 @@ export async function reconcileBankTransaction(actor:WorkContext,transactionId:s
     ...(attachmentBinding?.guards??[]),
     assertion(write,key,"payment-match","EXISTS(SELECT 1 FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id JOIN finance_payments p ON p.id=? JOIN finance_journals j ON j.id=p.journal_id WHERE t.id=? AND t.company_id=? AND p.company_id=t.company_id AND t.version=? AND t.match_status IN ('unmatched','proposed') AND p.currency=t.currency AND p.bank_account=s.bank_account AND p.status IN ('released','settled') AND j.status='posted' AND t.amount_minor=CASE WHEN p.kind='receipt' THEN p.amount_minor ELSE -(p.amount_minor-p.withheld_minor) END)",[input.matchedId,transactionId,actor.companyId,input.expectedVersion]),
     assertion(write,key,"already-matched","NOT EXISTS(SELECT 1 FROM finance_bank_transactions WHERE company_id=? AND matched_type='payment' AND matched_id=? AND match_status='matched')",[actor.companyId,input.matchedId]),
+    assertion(write,key,"group-already-matched","NOT EXISTS(SELECT 1 FROM finance_bank_match_targets t JOIN finance_journal_lines l ON l.id=t.journal_line_id JOIN finance_payments p ON p.journal_id=l.journal_id WHERE p.id=? AND p.company_id=?)",[input.matchedId,actor.companyId]),
     write.prepare("UPDATE finance_bank_transactions SET match_status='matched',matched_type='payment',matched_id=?,version=version+1 WHERE id=?").bind(input.matchedId,transactionId),
     ...(attachmentBinding?.steps??[]),
     write.prepare("INSERT INTO decision_evidence(id,command_id,record_id,action,actor_id,assignment_id,reviewed_version,input_digest,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(),key,transactionId,"finance.bank.reconcile",actor.userId,actor.assignmentId,input.expectedVersion,await hash(input),Date.now()),
@@ -1276,4 +1305,13 @@ export async function invoicesPage(actor:WorkContext,query:{q?:string;kind?:stri
     args:[actor.companyId,query.chartId??'',query.chartId??'',query.kind??'',query.kind??'',query.status??'',query.status??'',query.queue??'',query.q??'',query.q??''],
     descending:true,cursor:query.cursor,scope:[actor.companyId,'invoices',query.chartId??'',query.q??'',query.kind??'',query.status??'',query.queue??''],
   });
+}
+
+/** Read a statement by ID without depending on the current register cursor. */
+export async function bankStatementDetail(actor: WorkContext,id:string,page=1) {
+ actor=requirePermission(actor,'finance.read');const {write}=await resources(actor,true);
+ const row=await write.prepare("SELECT s.*,a.currency,a.code,a.name,c.base_currency FROM finance_bank_statements s JOIN finance_accounts a ON a.id=s.bank_account AND a.company_id=s.company_id JOIN finance_charts c ON c.id=a.chart_id AND c.company_id=s.company_id WHERE s.id=? AND s.company_id=?").bind(id,actor.companyId).first<FinanceRow>();
+ if(!row)throw new ApiError(404,'BANK_STATEMENT_NOT_FOUND','Statement not found in this Company.');
+ const rows=(await write.prepare('SELECT * FROM finance_bank_transactions WHERE statement_id=? AND company_id=? ORDER BY transaction_date,id LIMIT 31 OFFSET ?').bind(id,actor.companyId,(page-1)*30).all<FinanceRow>()).results;
+ return {row,rows,page,hasNext:rows.length>30};
 }

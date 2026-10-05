@@ -46,11 +46,11 @@ function useCommand(base: string) {
   }
   return { send, busy, error };
 }
-export function TalentConsole({
+export function TalentConsole({ recordOnly=false,
   base,
   data,
   detail,
-}: {
+}: { recordOnly?:boolean;
   base: string;
   data?: Awaited<ReturnType<typeof talentWorkspace>>;
   detail?: Awaited<ReturnType<typeof talentDetail>>;
@@ -66,7 +66,7 @@ export function TalentConsole({
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
       {data && (
         <>
-          <FormLayout
+          {!recordOnly && <FormLayout
             className="ui-panel ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -98,7 +98,7 @@ export function TalentConsole({
             <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Draft requisition
             </Button>
-          </FormLayout>
+          </FormLayout>}
           {data.requisitions
             .filter((x) => ["draft", "approved"].includes(String(x.status)))
             .map((x) => (
@@ -128,7 +128,7 @@ export function TalentConsole({
                 </Button>
               </FormLayout>
             ))}
-          <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Record candidate consent</summary><FormLayout
+          {!recordOnly && <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Record candidate consent</summary><FormLayout
             className="ui-panel ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -159,8 +159,8 @@ export function TalentConsole({
             <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Create private candidate
             </Button>
-          </FormLayout></FormDisclosure>
-          <FormLayout
+          </FormLayout></FormDisclosure>}
+          {!recordOnly && <FormLayout
             className="ui-panel ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -211,7 +211,7 @@ export function TalentConsole({
             <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Create application
             </Button>
-          </FormLayout>
+          </FormLayout>}
         </>
       )}
       {a && a.status === "applied" && (
@@ -224,7 +224,7 @@ export function TalentConsole({
         />
       )}
       {a && a.status === "interview" && !p && (
-        <FormLayout
+        (!recordOnly && <FormLayout
           className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -258,7 +258,7 @@ export function TalentConsole({
           <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Submit proposal
           </Button>
-        </FormLayout>
+        </FormLayout>)
       )}
       {a && p?.status === "submitted" && (
         <Action
@@ -281,7 +281,7 @@ export function TalentConsole({
         />
       )}
       {a && a.status === "selected" && !o && (
-        <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Draft offer</summary><FormLayout
+        (!recordOnly && <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Draft offer</summary><FormLayout
           className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -317,7 +317,7 @@ export function TalentConsole({
           <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Draft offer
           </Button>
-        </FormLayout></FormDisclosure>
+        </FormLayout></FormDisclosure>)
       )}
       {o && o.status === "draft" && (
         <Action
@@ -342,7 +342,7 @@ export function TalentConsole({
         />
       )}{" "}
       {o && o.status === "sent" && (
-        <FormLayout
+        (!recordOnly && <FormLayout
           className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -369,7 +369,7 @@ export function TalentConsole({
           <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Accept and hand off
           </Button>
-        </FormLayout>
+        </FormLayout>)
       )}
     </>
   );

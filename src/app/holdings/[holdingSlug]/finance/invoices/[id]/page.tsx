@@ -26,7 +26,7 @@ import { getInvoice,invoiceWorkspace } from "@/server/finance";
 import {holdingResources} from "@/server/runtime";
 import { pageError } from "@/server/page-error";
 import { ArrowLeft,ArrowUpRight } from "lucide-react";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { Card } from "@/components/ui/foundation";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +44,7 @@ export default async function InvoiceDetail({ params, searchParams }: { params: 
   const owningAccount=options.accounts.find(account=>account.id===invoice.debit_account_id),owningChart=options.charts.find(chart=>chart.id===owningAccount?.chart_id);
   const expense=invoice.source_type==="expense_claim"?await getExpense(actor,String(invoice.source_id)):null;
   const canSettle=commercePermissions(actor).finance&&(invoice.kind!=="payable"||(hasPermission(actor,"finance.pay")&&invoice.created_by!==actor.userId))&&(!expense||![expense.created_by,expense.prepared_by,expense.claimant_user_id].includes(actor.userId));
-  const bankAccounts=options.accounts.filter(account=>account.category==="asset"&&account.control_kind==="bank"&&account.currency===invoice.currency);
+  const bankAccounts=options.accounts.filter(account=>account.chart_id===owningChart?.id&&account.category==="asset"&&account.control_kind==="bank"&&account.currency===invoice.currency);
   const flow = await documentFlow(actor,"invoice",id);
   const canIssueThaiVat=invoice.source_type==="standalone"&&invoice.line_mode==="native_lines"&&invoice.kind==="receivable"&&invoice.currency==="THB"&&["posted","partially_paid","paid"].includes(String(invoice.status))&&hasPermission(actor,"finance.approve")&&invoice.created_by!==actor.userId&&!actor.branchId&&!actor.departmentId&&data.thaiDocuments.length===0;
   const taxIdentities=canIssueThaiVat?await taxIdentityWorkspace(actor).catch(error=>pageError(error,actor.holdingSlug)):null;
@@ -73,7 +73,7 @@ export default async function InvoiceDetail({ params, searchParams }: { params: 
       {invoice.journal_id&&<Link href={`${base}/finance/journals/${invoice.journal_id}`}>Open posted journal</Link>}
       {["pos","pms"].includes(String(invoice.source_type))&&<FeatureWidget appearance="standard" id="finance-invoices-detail-external-tax-document" title="External tax document"><TaxDocumentReference base={base} invoiceId={id}/></FeatureWidget>}
       {invoice.source_type!=="expense_claim"&&["posted","partially_paid"].includes(String(invoice.status))&&Number(invoice.outstanding_minor)>0&&hasPermission(actor,"finance.write")&&!actor.branchId&&!actor.departmentId&&<FeatureWidget appearance="standard" id="finance-invoices-detail-controlled-payment" title="Controlled bank settlement"><PrepareControlledPayment base={base} invoice={invoice} bankAccounts={bankAccounts}/></FeatureWidget>}
-      {["commerce_fulfillment","standalone","expense_claim"].includes(String(invoice.source_type)) && ["posted","partially_paid"].includes(String(invoice.status)) && Number(invoice.outstanding_minor)>0 && canSettle && flow.canAct && <SettlementForm base={base} invoice={invoice}/> }
+      {["commerce_fulfillment","standalone","expense_claim"].includes(String(invoice.source_type)) && ["posted","partially_paid"].includes(String(invoice.status)) && Number(invoice.outstanding_minor)>0 && canSettle && flow.canAct && <SettlementForm base={base} invoice={invoice} periods={options.periods} bankAccounts={bankAccounts}/> }
       <FeatureWidget appearance="standard" id="finance-invoices-detail-allocations" title="Allocations">
         <p className="muted">{data.allocations.length} allocated payments</p>
         {data.allocations.length === 0 ? <p className="muted">No payments have been allocated to this invoice.</p> : data.allocations.map((allocation) => <div className="ui-record-item" key={String(allocation.id)}><div className="row-main"><Link className="row-title" href={`${base}/finance/payments/${allocation.payment_id}`}>{String(allocation.payment_number)}</Link>{!!allocation.payment_slip_id&&<a href={`/api/v1${base}/attachments/${allocation.payment_slip_id}/content`}>Bank payment slip</a>}<span className="muted">{String(allocation.status)} · <TimeText appearance="standard" value={Number(allocation.created_at)}/></span></div><strong>{String(invoice.currency)} {minorToDecimal(Number(allocation.amount_minor))}<ArrowUpRight size={14} /></strong></div>)}

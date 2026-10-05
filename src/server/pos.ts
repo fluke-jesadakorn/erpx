@@ -182,3 +182,25 @@ export async function posWork(actor:WorkContext):Promise<import('@/lib/work-item
  const jobs=branch?[]:await all(db,"SELECT * FROM pos_jobs WHERE company_id=? AND state='exception'",company);
  return [...cash.map(r=>({id:str(r,'id'),type:'pos' as const,title:'POS · Review cash drawer',detail:str(r,'reason'),href:'/pos?tab=shifts&queue=approval',status:'requested',updatedAt:Number(r.created_at),queue:'todo' as const,relationships:['approval' as const]})),...refunds.map(r=>({id:str(r,'id'),type:'pos' as const,title:'POS · Review refund request',detail:str(r,'reason'),href:`/pos?tab=history&queue=approval`,status:str(r,'state'),updatedAt:Number(r.created_at),queue:'todo' as const,relationships:['approval' as const]})),...shifts.map(r=>({id:str(r,'id'),type:'pos' as const,title:'POS · Review closed shift',detail:`Variance ${Number(r.variance_minor)/100}`,href:'/pos?tab=shifts&queue=approval',status:str(r,'state'),updatedAt:Number(r.closed_at),queue:'todo' as const,relationships:['approval' as const]})),...jobs.map(r=>({id:str(r,'id'),type:'pos' as const,title:'POS · Payment item requires review',detail:str(r,'last_error'),href:'/pos?tab=reports',status:'exception',updatedAt:Number(r.created_at),queue:'todo' as const,relationships:['team' as const]}))];
 }
+
+/** Source receipts use the same completion, room-charge exclusion and cost allocation as the report. */
+export async function posReportReceipts(actor:WorkContext,group:{businessDate:string;registerId:string;shiftId:string;currency:string},page=1){
+ requirePermission(actor,'pos.read');requirePermission(actor,'pos.reports');
+ if(actor.departmentId)throw new ApiError(403,'POS_BRANCH_REQUIRED','Select a Company or Branch to read POS reports.');
+ const {write:db}=await holdingResources(actor.holdingId);
+ const register=scopeRow(actor,await one(db,'SELECT * FROM pos_registers WHERE id=?',group.registerId));
+ if(!register)throw new ApiError(404,'REGISTER_NOT_FOUND','Register not found.');
+ const rows=await all(db,`WITH allocated AS (
+ SELECT l.*,f.state fulfillment_state,
+ ROUND(f.cost_minor::numeric*SUM(l.quantity_milli) OVER(PARTITION BY f.id ORDER BY l.id)/f.quantity_milli)
+ -ROUND(f.cost_minor::numeric*(SUM(l.quantity_milli) OVER(PARTITION BY f.id ORDER BY l.id)-l.quantity_milli)/f.quantity_milli) cost_share
+ FROM pos_lines l JOIN pos_fulfillments f ON f.id=l.fulfillment_id WHERE f.company_id=?
+ ), totals AS (SELECT sale_id,SUM(refunded_minor) refunds_minor,SUM(refunded_tax_minor) refunded_tax_minor,
+ SUM(CASE WHEN fulfillment_state='delivered' THEN cost_share ELSE 0 END-returned_cost_minor) cost_minor FROM allocated GROUP BY sale_id), sources AS (
+ SELECT s.*,t.refunds_minor,t.cost_minor,s.subtotal_minor-t.refunds_minor+t.refunded_tax_minor-t.cost_minor gross_profit_minor
+ FROM pos_sales s JOIN totals t ON t.sale_id=s.id WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND s.state='completed'
+ AND NOT EXISTS(SELECT 1 FROM pms_sources ps WHERE ps.source_key='pos:'||s.id||':'||s.id)
+ AND s.business_date=? AND s.register_id=? AND s.shift_id=? AND s.currency=?
+ ) SELECT *,SUM(total_minor) OVER() group_total_minor,COUNT(*) OVER() group_count FROM sources ORDER BY created_at DESC,id LIMIT 31 OFFSET ?`,actor.companyId,actor.companyId,actor.branchId,actor.branchId,group.businessDate,group.registerId,group.shiftId,group.currency,(page-1)*30);
+ return {row:{name:`${register.name} · ${group.businessDate}`,currency:group.currency,total_minor:rows[0]?.group_total_minor??0,count:rows[0]?.group_count??0},rows,page,hasNext:rows.length>30};
+}

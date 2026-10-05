@@ -14,6 +14,9 @@ import { uploadDocument, documentAccess, documentBytes } from "../src/server/leg
 import { queueInspection } from "../src/server/legal/processing";
 import { LocalFileStore } from "../src/server/runtime/filesystem";
 import { PDFDocument, StandardFonts } from "pdf-lib";
+import {seedFinanceExpansionRehearsal} from "../fixtures/finance/expansion";
+import {exportFinancialReport} from "../src/server/finance-planning";
+import {groupReportEditionExport} from "../src/server/finance-group-editions";
 vi.mock("../src/server/runtime", () => ({runtimeEnv:async()=>env,holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES})}));
 // Immutable Legal recovery uses a declared scanner fixture. Compiled browser UAT
 // exercises the actual scanner/OCR binaries before production acceptance.
@@ -82,6 +85,8 @@ it("encrypts a complete isolated snapshot, restores immutable money and files, a
   expect(legalSnapshot.holds).toHaveLength(2);expect(legalSnapshot.documents[0].checksum).toBe(hash(Buffer.from(legalBytes)));
   await expect(detail(env.H001_DB,legalOutsider,legal.id)).rejects.toMatchObject({code:"LEGAL_NOT_FOUND"});
   const immutableCommandCounts=await env.H001_DB.prepare("SELECT (SELECT count(*) FROM legal_events WHERE item_id=?) history,(SELECT count(*) FROM command_receipts WHERE record_id=?) receipts,(SELECT count(*) FROM audit_events WHERE record_id=?) audit,(SELECT count(*) FROM outbox_events WHERE aggregate_id=?) outbox").bind(legal.id,legal.id,legal.id,legal.id).first();
+  const financeRehearsal=await seedFinanceExpansionRehearsal(env.H001_DB,env.H001_FILES);
+  expect(financeRehearsal.yearProfit).toBe(-112300);expect(financeRehearsal.reconciliation.ready).toBe(true);
   const before = await tableDigests(), home = await mkdtemp(resolve(".runtime/tests/encrypted-recovery-"));
   try {
     for (const name of ["config","data/config","runtime","releases","offsite"])
@@ -148,6 +153,9 @@ it("encrypts a complete isolated snapshot, restores immutable money and files, a
     await execute("python3",[...args,"restore",snapshot],{timeout:120_000});
     expect(await tableDigests()).toEqual(before);
     expect(await fileDigests(join(home,"data/files"))).toEqual(beforeFiles);
+    expect(await exportFinancialReport(financeRehearsal.preparer,financeRehearsal.snapshotId)).toEqual(financeRehearsal.reportExport);
+    expect(await groupReportEditionExport(financeRehearsal.f.owner,financeRehearsal.groupId)).toEqual(financeRehearsal.groupExport);
+    expect(await env.H001_DB.prepare("SELECT status FROM finance_billing_corrections WHERE id=?").bind(financeRehearsal.correctionId).first("status")).toBe("posted");
     const fileManifest=await readFile(join(home,"data/files/h001",createHash("sha256").update(objectKey).digest("hex"),"current.json"),"utf8");
     const stored=JSON.parse(fileManifest) as {version:string;etag:string};
     expect(await readFile(join(home,"data/files/h001",createHash("sha256").update(objectKey).digest("hex"),stored.version),"utf8")).toBe(originalBytes);

@@ -1,3 +1,4 @@
+import {availableReceiptSources} from "./pms-receipt-funding";
 import { dailyRoomReport, readiness, nightBlockers } from "./pms-read";
 export { dailyRoomReport, readiness, nightBlockers } from "./pms-read";
 import { PmsError } from "./pms-error";
@@ -9,6 +10,7 @@ import {
   bookingQuote,
   bookingSettingsSchema,
   childBandsSchema,
+  collectionPolicySchema,
   guestInputSchema,
   roomSelectionSchema,
 } from "./pms-booking";
@@ -49,7 +51,7 @@ export type Posting = {
   source: string;
   recordId: string;
   date: string;
-  lines: Array<{ account: AccountKey; debit: number; credit: number }>;
+  lines: Array<{ account: AccountKey | "refundPayable" | "unallocated" | "cancellationFee"; debit: number; credit: number }>;
 };
 export type StockEffect = {
   id: string;
@@ -95,6 +97,7 @@ export function executePms(
   };
   const p = s.property,
     c = p.config;
+  s.asOf = actor.now;
   const uuid = actor.uuid,
     now = actor.now,
     user = actor.userId;
@@ -189,6 +192,7 @@ export function executePms(
   }
   function noRefund(folioId: string) {
     need(
+      !(get("folio", folioId).data.refundReserved ?? 0) && !(get("folio", folioId).data.depositRefundReserved ?? 0) &&
       !records(s, "refund").some(
         (r) =>
           r.data.folioId === folioId &&
@@ -199,44 +203,9 @@ export function executePms(
     );
   }
   function funding(folioId: string, pocket: "advance" | "deposit", n: number) {
-    const all = records(s, "entry").filter((r) => r.data.folioId === folioId),
-      used = new Map<string, number>(),
-      applied = new Map<string, number>();
-    for (const r of all) {
-      if (r.data.reference === "deposit-application")
-        for (const part of r.data.funding ?? [])
-          applied.set(
-            part.entryId,
-            (applied.get(part.entryId) ?? 0) + part.amount,
-          );
-      if (
-        r.data.kind === "refund" &&
-        (pocket === "deposit" ||
-          (r.data.refundPocket ?? get("refund", r.data.originalId).data.pocket) === "advance")
-      )
-        for (const part of r.data.funding ?? [])
-          used.set(part.entryId, (used.get(part.entryId) ?? 0) + part.amount);
-    }
     const result: Array<{ entryId: string; amount: number }> = [];
-    for (const r of all
-      .filter((r) =>
-        pocket === "deposit"
-          ? r.data.kind === "deposit"
-          : ["payment", "deposit"].includes(r.data.kind),
-      )
-      .sort((a, b) => a.data.at - b.data.at || a.id.localeCompare(b.id))) {
-      const base =
-        r.data.kind === "deposit"
-          ? pocket === "deposit"
-            ? r.data.total - (applied.get(r.id) ?? 0)
-            : (applied.get(r.id) ?? 0)
-          : r.data.total;
-      const take = Math.min(n, base - (used.get(r.id) ?? 0));
-      if (take > 0) {
-        result.push({ entryId: r.id, amount: take });
-        n -= take;
-      }
-      if (!n) break;
+    for(const source of availableReceiptSources(s,folioId,pocket)){
+      const take=Math.min(n,source.amount);if(take>0){result.push({entryId:source.entryId,amount:take});n-=take;}if(!n)break;
     }
     need(
       n === 0,
@@ -257,7 +226,7 @@ export function executePms(
     return r;
   }
   function allocate(f: PmsRecord<"folio">) {
-    const a = Math.min(f.data.due, f.data.advance);
+    const a = Math.min(f.data.due, Math.max(0, f.data.advance - (f.data.refundReserved ?? 0)));
     if (!a) return;
     const tax =
       a === f.data.advance
@@ -266,6 +235,7 @@ export function executePms(
     const e = entry(f.id, {
       kind: "allocation",
       description: "Allocate advance payment",
+      funding: funding(f.id,"advance",a),
       total: a,
       tax,
     });
@@ -288,6 +258,7 @@ export function executePms(
       total: number;
       stayId?: string;
       sourceKey?: string;
+      cancellationFee?:boolean;
     },
   ) {
     const f = openFolio(folioId);
@@ -309,7 +280,7 @@ export function executePms(
     const e = entry(folioId, { ...values, date: p.businessDate });
     post(e.id, "charge", [
       { account: "receivable", debit: values.total, credit: 0 },
-      { account: "revenue", debit: 0, credit: values.net },
+      { account: values.cancellationFee?"cancellationFee":"revenue", debit: 0, credit: values.net },
       { account: "service", debit: 0, credit: values.service },
       { account: "tax", debit: 0, credit: values.tax },
     ]);
@@ -513,7 +484,7 @@ export function executePms(
     );
   if (
     !op.endsWith(".save") &&
-    !["property.enable", "accounting.approve"].includes(op)
+    !["property.enable", "accounting.approve", "online_accounting.prepare", "online_accounting.approve", "booking_fees.prepare", "booking_fees.approve"].includes(op)
   )
     need(
       p.state !== "setup",
@@ -579,6 +550,27 @@ export function executePms(
         checkOut: v.checkOut,
         cancellationPolicy: v.cancellationPolicy,
       });
+      break;
+    }
+    case "booking_fees.prepare": {
+      const v=z.object({account:idField}).parse(input);
+      need(!c.bookingFees?.approvedBy&&!Object.values(c.accounts).includes(v.account),"PMS_FEE_ACCOUNT_INVALID","Choose a separate cancellation revenue account before approval");
+      c.bookingFees={...v,preparedBy:user,approvedBy:null};break;
+    }
+    case "booking_fees.approve": {
+      need(c.bookingFees&&actor.independent(c.bookingFees.preparedBy),"PMS_INDEPENDENT_APPROVER","A different Finance user must approve cancellation accounting");
+      c.bookingFees.approvedBy=user;break;
+    }
+    case "online_accounting.prepare": {
+      const v = z.object({ refundPayable: idField, unallocated: idField }).parse(input);
+      need(v.refundPayable !== v.unallocated && !Object.values(c.accounts).includes(v.refundPayable) && !Object.values(c.accounts).includes(v.unallocated), "PMS_ACCOUNTS_DISTINCT", "Use distinct liability accounts for refunds and unallocated receipts");
+      need(!c.onlineAccounting?.approvedBy, "PMS_ACCOUNTING_IN_USE", "Approved online mappings are immutable");
+      c.onlineAccounting = { ...v, preparedBy: user, approvedBy: null };
+      break;
+    }
+    case "online_accounting.approve": {
+      need(c.onlineAccounting && actor.independent(c.onlineAccounting.preparedBy), "PMS_INDEPENDENT_APPROVER", "A different Finance user must approve the online liability accounts");
+      c.onlineAccounting.approvedBy = user;
       break;
     }
     case "accounting.save": {
@@ -710,6 +702,7 @@ export function executePms(
           price: amount,
           extraAdult: moneyField.default(0),
           childBands: childBandsSchema.optional(),
+          collection: collectionPolicySchema.optional(),
           includedGuests: z.number().int().min(1).max(50).default(2),
           minNights: z.number().int().min(1).max(730).default(1),
           maxNights: z.number().int().min(1).max(730).default(365),
@@ -734,6 +727,7 @@ export function executePms(
           ...v,
           childBands: v.childBands ?? r.data.childBands,
           calendar: r.data.calendar,
+          collection: v.collection ?? r.data.collection,
         };
         touch(r);
         resultId = r.id;
@@ -896,6 +890,7 @@ export function executePms(
             folioId: f.id,
             prices: nightly,
             segments: [],
+            bookingPolicy: quoted.lines.find(x => x.rateId === line.rateId&&x.arrival===line.arrival&&x.departure===line.departure)!.policy,
           });
           if (block) {
             block.data.pickedStayIds.push(stay.id);
@@ -978,11 +973,14 @@ export function executePms(
           "PMS_TOO_EARLY",
           "The stay date has not arrived",
         );
-      if (v.fee)
+      if (v.fee) {
+        need(c.bookingFees?.approvedBy,"PMS_FEE_ACCOUNT_REQUIRED","Finance must approve separate cancellation and no-show fee accounting");
         charge(stays[0].data.folioId, {
+          cancellationFee:true,
           ...amounts(v.fee, c),
           description: `Fee ${v.reason}`,
         });
+      }
       for (const x of stays) {
         x.data.state = op.endsWith("no_show") ? "no_show" : "cancelled";
         touch(x);
@@ -1010,8 +1008,10 @@ export function executePms(
           "PMS_TOO_EARLY",
           "The stay date has not arrived",
         );
-      if (v.fee)
-        charge(r.data.folioId, { ...amounts(v.fee, c), description: v.reason });
+      if (v.fee) {
+        need(c.bookingFees?.approvedBy,"PMS_FEE_ACCOUNT_REQUIRED","Finance must approve separate cancellation and no-show fee accounting");
+        charge(r.data.folioId, { ...amounts(v.fee, c), cancellationFee:true, description: v.reason });
+      }
       r.data.state = op === "stay.no_show" ? "no_show" : "cancelled";
       touch(r);
       const res = get("reservation", r.data.reservationId),
@@ -1190,6 +1190,58 @@ export function executePms(
       resultId = r.id;
       break;
     }
+    case "stay.replace": {
+      need(user === "guest:self-service" || user === "system:stripe", "PMS_BOOKING_SERVICE_REQUIRED", "Use the signed booking change service");
+      const v = z.object({ id: idField, room: roomSelectionSchema, policy: z.unknown(), nightPrices: z.array(z.object({date:dateField,net:moneyField,service:moneyField,tax:moneyField,total:moneyField})), reason }).parse(input);
+      const r = get("stay", v.id);
+      need(r.data.state === "reserved", "PMS_ALREADY_CHECKED_IN", "Only future stays can be changed online");
+      const replacement = v.nightPrices;
+      need(JSON.stringify(replacement.map(n=>n.date)) === JSON.stringify(dates(v.room.arrival,v.room.departure)) && replacement.every(n=>n.net+n.service+n.tax===n.total), "PMS_PRICE_SNAPSHOT_REQUIRED", "Retain the accepted nightly quote");
+      checkCapacity(v.room.typeId, v.room.arrival, v.room.departure, r.id);
+      Object.assign(r.data, { ...v.room, prices: replacement, roomId: "", segments: [], bookingPolicy: v.policy });
+      touch(r); reconcileCapacity(); resultId = r.id;
+      break;
+    }
+    case "booking.cancellation_fee": {
+      need(user==="guest:self-service"||user==="system:stripe","PMS_PROVIDER_AUTHORITY","Booking revision service required");
+      const v=z.object({stayId:idField,amount,reference:textField}).parse(input),st=get("stay",v.stayId),policy=st.data.bookingPolicy??get("reservation",st.data.reservationId).data.bookingPolicy;
+      need(c.bookingFees?.approvedBy&&st.data.state==="reserved","PMS_FEE_ACCOUNT_REQUIRED","Finance must approve separate cancellation fee accounting");
+      const e=charge(st.data.folioId,{...amounts(v.amount,{taxInclusive:true,serviceBps:0,taxBps:policy?.feeTaxBps??c.taxBps}),description:"Cancellation fee",cancellationFee:true,sourceKey:`cancellation-fee:${st.id}:${v.reference}`});resultId=e.id;break;
+    }
+    case "payment.refund_reserve": {
+      need(user === "system:stripe", "PMS_PROVIDER_AUTHORITY", "Provider refund service required");
+      const v = z.object({ folioId: idField, amount, pocket:z.enum(["advance","deposit"]).default("advance"), sourceEntryId:textField.default(""), release: z.boolean().default(false) }).parse(input), f = openFolio(v.folioId);
+      const key=v.pocket==="advance"?"refundReserved":"depositRefundReserved",reserved = f.data[key] ?? 0;
+      need(v.release ? reserved >= v.amount : f.data[v.pocket] - reserved >= v.amount, "PMS_REFUND_EXCEEDS_BALANCE", "Refund exceeds available room advance");
+      if(v.sourceEntryId){
+        if(!v.release)need((availableReceiptSources(s,f.id,v.pocket).find(p=>p.entryId===v.sourceEntryId)?.amount??0)>=v.amount,"PMS_REFUND_FUNDING_CHANGED","Original receipt funds are unavailable");
+        const held=f.data.refundHolds??=[];let part=held.find(p=>p.entryId===v.sourceEntryId&&p.pocket===v.pocket);if(!part){part={entryId:v.sourceEntryId,amount:0,pocket:v.pocket};held.push(part);}need(!v.release||part.amount>=v.amount,"PMS_REFUND_FUNDING_CHANGED","Original hold changed");part.amount+=v.release?-v.amount:v.amount;
+      }
+      f.data[key] = reserved + (v.release ? -v.amount : v.amount); touch(f); resultId = f.id;
+      break;
+    }
+    case "payment.refund_liability":
+    case "payment.refund_settle":
+    case "payment.unallocated": {
+      need(user === "system:stripe" && c.onlineAccounting?.approvedBy, "PMS_ONLINE_ACCOUNTING_REQUIRED", "Finance must approve online liability mappings");
+      const v = z.object({ folioId: idField, amount, reference: textField, sourceEntryId: textField.default(""), pocket:z.enum(["advance","deposit"]).default("advance") }).parse(input), f = op === "payment.refund_liability" ? openFolio(v.folioId) : get("folio",v.folioId);
+      const e = entry(f.id, { kind: op === "payment.refund_settle" ? "refund" : "allocation", description: op, total: op === "payment.refund_settle" ? -v.amount : v.amount, method: "stripe", reference: v.reference, originalId: op === "payment.refund_settle" ? v.sourceEntryId : "", refundPocket: v.pocket, funding: v.sourceEntryId ? [{ entryId: v.sourceEntryId, amount: v.amount }] : [] });
+      if (op === "payment.refund_liability") {
+        const key=v.pocket==="advance"?"refundReserved":"depositRefundReserved";
+        need((f.data[key] ?? 0) >= v.amount && f.data[v.pocket] >= v.amount, "PMS_REFUND_EXCEEDS_BALANCE", "Reserved advance is unavailable");
+        const tax = v.pocket==="deposit"?0:v.amount === f.data.advance ? f.data.advanceTax : proportion(f.data.advanceTax, v.amount, f.data.advance);
+        f.data[v.pocket] -= v.amount; f.data.advanceTax -= tax; f.data[key]! -= v.amount;
+        const held=f.data.refundHolds?.find(p=>p.entryId===v.sourceEntryId&&p.pocket===v.pocket);if(held){need(held.amount>=v.amount,"PMS_REFUND_FUNDING_CHANGED","Original hold changed");held.amount-=v.amount;}
+        post(e.id, "refund-liability", [{ account: v.pocket, debit: v.amount, credit: 0 }, { account: "refundPayable", debit: 0, credit: v.amount }]);
+        post(e.id, "refund-tax", pair("tax", "prepaidTax", tax));
+      } else if (op === "payment.unallocated") {
+        post(e.id, "unallocated", [{ account: "edc", debit: v.amount, credit: 0 }, { account: "unallocated", debit: 0, credit: v.amount }]);
+      } else {
+        post(e.id, "refund", [{ account: v.sourceEntryId && get("entry",v.sourceEntryId).data.description !== "payment.unallocated" ? "refundPayable" : "unallocated", debit: v.amount, credit: 0 }, { account: "edc", debit: 0, credit: v.amount }]);
+        effects.documents.push({ id: uuid(), kind: "refund", folioId: f.id, entryId: e.id, amount: v.amount });
+      }
+      touch(f); resultId = e.id; break;
+    }
     case "stay.check_out": {
       const v = z
           .object({
@@ -1327,7 +1379,7 @@ export function executePms(
         total: -original.data.total,
       });
       post(e.id, "reverse", [
-        { account: "revenue", debit: original.data.net, credit: 0 },
+        { account: original.data.cancellationFee?"cancellationFee":"revenue", debit: original.data.net, credit: 0 },
         { account: "service", debit: original.data.service, credit: 0 },
         { account: "tax", debit: original.data.tax, credit: 0 },
         { account: "receivable", debit: 0, credit: original.data.total },
@@ -1559,7 +1611,7 @@ export function executePms(
         f = openFolio(v.folioId);
       noRefund(f.id);
       need(
-        v.amount <= f.data.deposit && v.amount <= f.data.due,
+        v.amount <= f.data.deposit - (f.data.depositRefundReserved ?? 0) && v.amount <= f.data.due,
         "PMS_DEPOSIT_AMOUNT",
         "A deposit deduction cannot exceed the deposit or balance due",
       );

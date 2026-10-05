@@ -2,7 +2,7 @@ import { SectionHeader, Card } from "@/components/ui/foundation";
 import { InlineNotice } from "@/components/ui/foundation";
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Button, Field, TextInput } from "@/components/ui/foundation";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { formatMoneyUnits } from "@/lib/company-money";
 import { financeWork, type FinanceWorkView } from "@/lib/finance-work";

@@ -28,7 +28,7 @@ import { accessPage } from "@/server/page-error";
 import { holdingResources, runtimeEnv } from "@/server/runtime";
 import { serviceTeamOptions } from "@/server/service-team-options";
 import { staffSettings } from "@/server/staff-settings";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { notFound, redirect } from "next/navigation";
 import styles from "./settings.module.css";
 import { Card } from "@/components/ui/foundation";

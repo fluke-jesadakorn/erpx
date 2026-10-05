@@ -40,6 +40,16 @@ export const childBandsSchema = z
       }
     }
   });
+export const collectionPolicySchema = z.object({
+  method: z.enum(["full", "deposit", "pay_at_hotel"]),
+  depositPercent: z.number().int().min(1).max(99).default(30),
+  changesAllowed: z.boolean().default(true),
+  cancellationsAllowed:z.boolean().optional(),
+  cancellationDays:z.number().int().min(0).max(365).optional(),
+  cancellationTime:z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+  cancellationFeePercent:z.number().int().min(0).max(100).optional(),
+});
+const imageSchema = z.object({ publicationId: idField, alt: z.string().trim().min(1).max(500) });
 export const bookingSettingsSchema = z.object({
   published: z.boolean(),
   description: z.string().trim().min(1).max(3000),
@@ -48,11 +58,16 @@ export const bookingSettingsSchema = z.object({
   contactPhone: z.string().trim().min(1).max(80),
   cancellationDays: z.number().int().min(0).max(365),
   cancellationTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  images: z.array(imageSchema).max(12).optional(),
   roomContent: z
     .array(
       z.object({
         typeId: idField,
         description: z.string().trim().min(1).max(2000),
+        images: z.array(imageSchema).max(12).optional(),
+        beds: z.string().trim().max(200).optional(),
+        sizeSqm: z.number().positive().max(10000).optional(),
+        amenities: z.string().trim().max(2000).optional(),
       }),
     )
     .max(200),
@@ -87,6 +102,12 @@ export const searchSchema = z
   );
 export type RoomSelection = z.infer<typeof roomSelectionSchema>;
 export type BookingSearch = z.infer<typeof searchSchema>;
+export function collectionAmounts(total: number, collection?: import("./pms-model").CollectionPolicy) {
+  const policy = collection ?? { method: "pay_at_hotel", depositPercent: 30, changesAllowed: true };
+  const dueNow = policy.method === "full" ? total : policy.method === "deposit"
+    ? Number((BigInt(total) * BigInt(policy.depositPercent) + BigInt(99)) / BigInt(100)) : 0;
+  return { dueNow, dueAtHotel: total - dueNow, collection: policy };
+}
 export function nightlyPrices(s: Snapshot, line: RoomSelection) {
   const rate = record(s, "rate", line.rateId).data,
     rt = record(s, "room_type", line.typeId).data;
@@ -177,6 +198,11 @@ export function localDeadline(date: string, time: string, timezone: string) {
   if (local(result - 3600000) === desired) result -= 3600000;
   return result;
 }
+function roomPolicy(s:Snapshot,arrival:string,collection:import('./pms-model').CollectionPolicy|undefined):BookingPolicy|undefined{
+ const c=s.property.config,b=c.booking;if(!b)return undefined;
+ const days=collection?.cancellationDays??b.cancellationDays,time=collection?.cancellationTime??b.cancellationTime,deadlineTime=days===0&&time>c.checkIn?c.checkIn:time,date=plusDays(arrival,-days),fee=collection?.cancellationFeePercent??0;
+ return {deadline:localDeadline(date,deadlineTime,c.timezone),timezone:c.timezone,payment:collection?.method&&collection.method!=='pay_at_hotel'?'online':'pay_at_hotel',collection,feeTaxBps:c.taxBps,text:`${collection?.cancellationsAllowed===false?'Contact the hotel for cancellation.':`${fee?`Cancellation fee ${fee}% of the accepted stay total`:'Free cancellation'} until ${date} ${deadlineTime} (${c.timezone}). After this deadline, contact the hotel.`} ${collection?.method&&collection.method!=='pay_at_hotel'?'Pay the amount due now online; the remaining balance is due at the hotel. Room advances are separate from damage deposits.':'Pay at the hotel.'}`};
+}
 export function bookingQuote(s: Snapshot, raw: unknown, blockId = "") {
   const selections = z.array(roomSelectionSchema).min(1).max(50).parse(raw);
   need(
@@ -204,47 +230,40 @@ export function bookingQuote(s: Snapshot, raw: unknown, blockId = "") {
       consumed.set(k, used + line.quantity);
     }
     const rate = record(s, "rate", line.rateId).data;
+    const total = nights.reduce((n, p) => n + p.total, 0) * line.quantity;
     return {
       ...line,
       roomName: record(s, "room_type", line.typeId).data.name,
       rateName: rate.name,
       inclusions: rate.package,
+      policy:roomPolicy(s,line.arrival,rate.collection),
       nights,
-      total: nights.reduce((n, p) => n + p.total, 0) * line.quantity,
+      total,
+      ...collectionAmounts(nights.reduce((n, p) => n + p.total, 0), rate.collection),
+      dueNow: collectionAmounts(nights.reduce((n, p) => n + p.total, 0), rate.collection).dueNow * line.quantity,
+      dueAtHotel: collectionAmounts(nights.reduce((n, p) => n + p.total, 0), rate.collection).dueAtHotel * line.quantity,
     };
   });
-  const config = s.property.config,
-    settings = config.booking;
-  let policy: BookingPolicy | undefined;
-  if (settings) {
-    const arrival = selections.map((l) => l.arrival).sort()[0];
-    const deadlineTime =
-      settings.cancellationDays === 0 &&
-      settings.cancellationTime > config.checkIn
-        ? config.checkIn
-        : settings.cancellationTime;
-    policy = {
-      deadline: localDeadline(
-        plusDays(arrival, -settings.cancellationDays),
-        deadlineTime,
-        config.timezone,
-      ),
-      timezone: config.timezone,
-      text: `Free cancellation until ${plusDays(arrival, -settings.cancellationDays)} ${deadlineTime} (${config.timezone}). After this deadline, contact the hotel. Pay at the hotel.`,
-      payment: "pay_at_hotel",
-    };
-  }
+  const config=s.property.config;
+  const policy=lines.map(line=>line.policy).filter((p):p is BookingPolicy=>Boolean(p)).sort((a,b)=>a.deadline-b.deadline)[0];
   const total = lines.reduce((n, line) => n + line.total, 0);
   need(
     Number.isSafeInteger(total),
     "PMS_MONEY_OVERFLOW",
     "Booking total exceeds supported amount",
   );
+  const dueNow = lines.reduce((n, line) => n + line.dueNow, 0);
+  if (policy) {
+    policy.payment = dueNow ? "online" : "pay_at_hotel";
+    policy.text = policy.text.replace("Pay at the hotel.", dueNow ? "Pay the amount due now online; the remaining balance is due at the hotel. Room advances are separate from damage deposits." : "Pay at the hotel.");
+  }
   return {
     propertyId: s.property.id,
     currency: config.currency,
     lines,
     total,
+    dueNow,
+    dueAtHotel: total - dueNow,
     ...(policy ? { policy } : {}),
   };
 }
@@ -292,7 +311,7 @@ export function cancellationEligibility(
       allowed: false,
       reason: "Hotel day close is in progress. Please try again shortly",
     };
-  if (!r.data.bookingPolicy || now >= r.data.bookingPolicy.deadline)
+  if (!r.data.bookingPolicy || stays.some(st=>!st.data.bookingPolicy && now >= r.data.bookingPolicy!.deadline || st.data.bookingPolicy && (now >= st.data.bookingPolicy.deadline || st.data.bookingPolicy.collection?.cancellationsAllowed === false)))
     return {
       allowed: false,
       reason: "The free-cancellation deadline has passed. Contact the hotel",
@@ -320,5 +339,5 @@ export function cancellationEligibility(
       reason:
         "This booking has financial activity. Contact the hotel for cancellation",
     };
-  return { allowed: true, reason: "Cancel all rooms without a fee" };
+  return { allowed: true, reason: stays.some(st=>(st.data.bookingPolicy?.collection?.cancellationFeePercent??0)>0) ? "Review cancellation fees and refund before confirming" : "Cancel all rooms without a fee" };
 }

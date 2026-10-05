@@ -18,7 +18,7 @@ export async function ledgerWorkspace(actor:WorkContext,chartId?:string,query?:{
       args:[chart.id,actor.companyId,query.status??'',query.status??''],cursor:query.cursor,descending:true,scope:[actor.companyId,chart.id,query.status??''],
     }).then(page=>({results:page.items,page})) : write.prepare("SELECT j.*,COALESCE(SUM(l.debit_minor),0) debit,COALESCE(SUM(l.credit_minor),0) credit,COUNT(l.id) line_count FROM finance_journals j LEFT JOIN finance_journal_lines l ON l.journal_id=j.id WHERE j.chart_id=? AND j.company_id=? GROUP BY j.id ORDER BY j.created_at DESC,j.id").bind(chart.id,actor.companyId).all<LedgerRow>().then(result=>({...result,page:null})),
     statements(actor,query?.periodId,String(chart.id),query?.reportDates),
-  ]);return {charts:charts as LedgerRow[],chart:chart as LedgerRow,accounts:accounts.results,periods:periods.results,journals:journals.results,journalPage:journals.page,report};
+  ]);const dimensions=(await write.prepare("SELECT id,code,name,required FROM finance_dimension_definitions WHERE company_id=? AND status='active' ORDER BY code").bind(actor.companyId).all<LedgerRow>()).results,dimensionValues=(await write.prepare("SELECT id,dimension_id,code,name FROM finance_dimension_values WHERE company_id=? AND status='active' ORDER BY code").bind(actor.companyId).all<LedgerRow>()).results;return {charts:charts as LedgerRow[],chart:chart as LedgerRow,accounts:accounts.results,periods:periods.results,journals:journals.results,journalPage:journals.page,report,dimensions,dimensionValues};
 }
 export async function workJournalRows(actor: WorkContext) {
   await listCharts(actor);
@@ -27,5 +27,5 @@ export async function workJournalRows(actor: WorkContext) {
 }
 export async function journalDetail(actor:WorkContext,id:string) {
   await listCharts(actor);const {write}=await holdingResources(actor.holdingId);const journal=await write.prepare("SELECT j.*,COALESCE((SELECT p.legal_name FROM hr_people p WHERE p.user_id=j.created_by AND p.company_id=j.company_id AND p.merged_into_id IS NULL LIMIT 1),'Unlinked account') created_by_name,COALESCE((SELECT p.legal_name FROM hr_people p WHERE p.user_id=j.posted_by AND p.company_id=j.company_id AND p.merged_into_id IS NULL LIMIT 1),'Unlinked account') posted_by_name FROM finance_journals j WHERE j.id=? AND j.company_id=?").bind(id,actor.companyId).first<LedgerRow>();if(!journal)throw new ApiError(404,"JOURNAL_NOT_FOUND","Journal not found.");
-  const lines=await write.prepare("SELECT l.*,a.code,a.name FROM finance_journal_lines l JOIN finance_accounts a ON a.id=l.account_id WHERE l.journal_id=? ORDER BY l.ordinal").bind(id).all<LedgerRow>();return {journal,lines:lines.results};
+  const lines=await write.prepare("SELECT l.*,a.code,a.name FROM finance_journal_lines l JOIN finance_accounts a ON a.id=l.account_id WHERE l.journal_id=? ORDER BY l.ordinal").bind(id).all<LedgerRow>();const history=(await write.prepare("SELECT * FROM finance_manual_draft_editions WHERE journal_id=? AND company_id=? ORDER BY journal_version").bind(id,actor.companyId).all<LedgerRow>()).results;return {journal,lines:lines.results,history};
 }

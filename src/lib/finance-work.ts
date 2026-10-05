@@ -1,6 +1,6 @@
 import { compareWork, isMyAction, type WorkItem } from "./work-item";
 
-const financeTypes = new Set<WorkItem["type"]>(["invoice", "journal", "expense", "supplier_bill", "supplier_batch", "refund", "payroll"]);
+const financeTypes = new Set<WorkItem["type"]>(["invoice", "journal", "expense", "supplier_bill", "supplier_batch", "refund", "payroll", "finance_review"]);
 export type FinanceWorkView = "actions" | "waiting" | "team";
 
 /** Use source-owned authority and record identity; queue counters are not tasks. */

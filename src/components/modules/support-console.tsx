@@ -7,6 +7,7 @@ import { useTimePreference } from "@/components/time/time-preference-context";
 import { formatPreferredDateTime } from "@/lib/ui-format";
 import { useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { hubResultHref } from "@/lib/hub-result";
 import { workFetch } from "@/lib/work-fetch";
 import type { supportDetail, supportWorkspace } from "@/server/support";
 import { FormLayout } from "@/components/ui/foundation";
@@ -75,7 +76,9 @@ export function SupportConsole({
         throw new Error(result.error?.message ?? "Unable to save support action.");
       }
       last.current = null;
-      router.push(`${base}/support/${result.data.id}`);
+      window.dispatchEvent(new Event("erpx:hub-saved"));
+      window.dispatchEvent(new Event("erpx:record-saved"));
+      router.push(hubResultHref(window.location.href, base, `${base}/support/${result.data.id}`) ?? `${base}/support/${result.data.id}`, { scroll: false });
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Retry this command.");

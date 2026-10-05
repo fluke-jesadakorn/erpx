@@ -1,6 +1,6 @@
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Button, RecordList, RecordListItem } from "@/components/ui/foundation";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { StatusBadge, EmptyState } from "@/components/ui/primitives";
 import { workTypes, workItemHref, isApprovalAction, type WorkItem } from "@/lib/work-item";
 import { supportsWorkReview } from "@/lib/work-review";

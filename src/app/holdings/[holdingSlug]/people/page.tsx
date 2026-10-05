@@ -19,7 +19,7 @@ import { peopleLifecycleData } from "@/server/people-lifecycle";
 import { getPerson } from "@/server/people-payroll";
 import { holdingResources } from "@/server/runtime";
 import { staffSettings } from "@/server/staff-settings";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { forbidden, redirect } from "next/navigation";
 
 import directory from "./directory.module.css";

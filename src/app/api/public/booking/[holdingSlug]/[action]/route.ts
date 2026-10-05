@@ -15,11 +15,13 @@ import {
 } from "@/server/pms-booking";
 import { ApiError, errorResponse } from "@/server/http";
 import { requestPublicOrigin } from "@/server/public-origin";
+import {guestBookingDocument} from "@/server/pms/guest-document";
+import { publicChangeQuote, confirmBookingChange } from "@/server/pms-booking-changes";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string; action: string }> };
 export async function GET(request: Request, { params }: Context) {
   try {
-    if (process.env.PMS_STRIPE_BOOKING_ENABLED === 'false' || process.env.NODE_ENV === "production" && process.env.PMS_STRIPE_LIVE_ENABLED !== "true")
+    if (process.env.PMS_STRIPE_BOOKING_ENABLED === 'false')
       throw new ApiError(404, "BOOKING_COMING_SOON", "Online booking is not available in the pilot");
     const { holdingSlug, action } = await params;
     if(action==='reservations')return Response.json({data:await bookingPaymentStatus(await bookingDatabase(holdingSlug),new URL(request.url).searchParams.get('attempt')??'',await bookingEnv())},{headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
@@ -35,7 +37,7 @@ export async function GET(request: Request, { params }: Context) {
 }
 export async function POST(request: Request, { params }: Context) {
   try {
-    if (process.env.PMS_STRIPE_BOOKING_ENABLED === 'false' || process.env.NODE_ENV === "production" && process.env.PMS_STRIPE_LIVE_ENABLED !== "true")
+    if (process.env.PMS_STRIPE_BOOKING_ENABLED === 'false')
       throw new ApiError(404, "BOOKING_COMING_SOON", "Online booking is not available in the pilot");
     if (request.headers.get("origin") !== requestPublicOrigin(request))
       throw new ApiError(403, "ORIGIN_FORBIDDEN", "Use the booking website");
@@ -47,7 +49,8 @@ export async function POST(request: Request, { params }: Context) {
         "reservations",
         "manage",
         "cancel",
-        "recover",
+        "recover", "document",
+        "change-quote", "change-confirm", "cancel-quote", "cancel-confirm",
       ].includes(action)
     )
       throw new ApiError(404, "NOT_FOUND", "Page not found");
@@ -69,7 +72,7 @@ export async function POST(request: Request, { params }: Context) {
     await bookingRateLimit(
       db,
       `public:${action}:${ip}`,
-      ["reservations", "recover", "cancel"].includes(action) ? 5 : 60,
+      ["reservations", "recover", "cancel", "change-confirm", "cancel-confirm"].includes(action) ? 5 : 60,
     );
     await bookingRateLimit(
       db,
@@ -101,6 +104,12 @@ export async function POST(request: Request, { params }: Context) {
         env,
       );
     else if (action === "manage") data = await manageBooking(db, token);
+    else if(action === "document")data=await guestBookingDocument(db,token,body);
+    else if (action === "change-quote" || action === "cancel-quote") data = await publicChangeQuote(db, token, action === "change-quote" ? "change" : "cancel", body, env);
+    else if (action === "change-confirm" || action === "cancel-confirm") {
+      const v = z.object({proposalToken:z.string().min(1).max(100000)}).parse(body);
+      data = await confirmBookingChange(db, holdingSlug, token, v.proposalToken, request.headers.get("Idempotency-Key") ?? "", env,Date.now(),undefined,action.startsWith("cancel")?"cancel":"change");
+    }
     else if (action === "cancel")
       data = await cancelPublicReservation(db, holdingSlug, token, env);
     else data = await recoverBooking(db, holdingSlug, body, env);

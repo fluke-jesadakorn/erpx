@@ -1,5 +1,5 @@
 import { InlineNotice } from "@/components/ui/foundation";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { z } from "zod";
 import { LeaveEditor } from "@/components/self-service/leave-editor";
 import styles from "@/components/leave/leave-flow.module.css";

@@ -11,11 +11,13 @@ export const invoiceHistoryCte = `WITH history_cutoff AS (
     i.total_minor
       - COALESCE(settlements.transaction_minor,0)
       - COALESCE(credits.transaction_minor,0)
+      - COALESCE(billing_credits.transaction_minor,0)
       - COALESCE(opening_reversal.transaction_minor,0)
       + COALESCE(refunds.transaction_minor,0) historical_outstanding_minor,
     (CASE WHEN i.base_total_minor=0 AND i.fx_rate_micros=1000000 THEN i.total_minor ELSE i.base_total_minor END)
       - COALESCE(settlements.base_minor,0)
       - COALESCE(credits.base_minor,0)
+      - COALESCE(billing_credits.base_minor,0)
       - COALESCE(opening_reversal.base_minor,0)
       + COALESCE(refunds.base_minor,0)
       + COALESCE(revaluation.base_minor,0) historical_base_outstanding_minor,
@@ -46,6 +48,12 @@ export const invoiceHistoryCte = `WITH history_cutoff AS (
     JOIN finance_journals cj ON cj.id=r.credit_journal_id AND cj.company_id=i.company_id
     WHERE r.invoice_id=i.id AND cj.status IN ('posted','reversed') AND cj.entry_date<=h.as_of
   ) credits ON true
+  LEFT JOIN LATERAL (
+    SELECT SUM(c.total_minor) transaction_minor,
+      SUM((SELECT COALESCE(SUM(l.base_credit_minor-l.base_debit_minor),0) FROM finance_journal_lines l WHERE l.journal_id=cj.id AND l.account_id=a.id)) base_minor
+    FROM finance_billing_corrections c JOIN finance_journals cj ON cj.id=c.credit_journal_id AND cj.company_id=i.company_id
+    WHERE c.invoice_id=i.id AND c.company_id=i.company_id AND c.status='posted' AND cj.status='posted' AND cj.entry_date<=h.as_of
+  ) billing_credits ON true
   LEFT JOIN LATERAL (
     SELECT SUM(CASE WHEN rj.id IS NOT NULL THEN i.total_minor ELSE 0 END) transaction_minor,
       SUM(CASE WHEN rj.id IS NULL THEN 0 WHEN i.base_total_minor=0 AND i.fx_rate_micros=1000000 THEN i.total_minor ELSE i.base_total_minor END) base_minor

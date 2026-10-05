@@ -169,6 +169,31 @@ it("asks before discarding registered unsaved work and stops asking once it is u
   expect(confirmContextSwitch()).toBe(true);
   expect(view.confirm).toHaveBeenCalledTimes(1);
 });
+it('identifies the form that actually saved without marking another draft or a failed command saved',async()=>{
+ const editor={id:'editor'},attachment={id:'attachment'};let active=editor;
+ Object.defineProperty(document,'activeElement',{configurable:true,value:{closest:()=>active}});
+ const saved:unknown[]=[];view.addEventListener('erpx:record-command-saved',event=>saved.push((event as CustomEvent).detail.form));
+ let finish!:(response:Response)=>void;
+ vi.stubGlobal('fetch',vi.fn(()=>new Promise<Response>(resolve=>{finish=resolve;})));
+ const pending=workFetch('/api/v1/holdings/acme/commerce/products/one',{method:'POST'});
+ active=attachment;finish(Response.json({data:{id:'one'}}));await pending;
+ expect(saved).toEqual([editor]);
+ vi.stubGlobal('fetch',vi.fn(async()=>Response.json({error:{code:'CONFLICT'}},{status:409})));
+ await workFetch('/api/v1/holdings/acme/commerce/products/one',{method:'POST'});
+ expect(saved).toEqual([editor]);
+});
+it('acknowledges the submitted field version instead of later edits made while the server is saving',async()=>{
+ let fields='submitted-fields',finish!:(response:Response)=>void;
+ const form={getAttribute:(name:string)=>name==='data-erpx-edit-version'?fields:null};
+ Object.defineProperty(document,'activeElement',{configurable:true,value:{closest:()=>form}});
+ const saved:{form:unknown;formEditVersion:string|null}[]=[];
+ view.addEventListener('erpx:record-command-saved',event=>saved.push((event as CustomEvent).detail));
+ vi.stubGlobal('fetch',vi.fn(()=>new Promise<Response>(resolve=>{finish=resolve;})));
+ const pending=workFetch('/api/v1/holdings/acme/finance/charts',{method:'POST'});
+ fields='later-unsaved-fields';finish(Response.json({data:{id:'saved-chart'}}));await pending;
+ expect(saved).toEqual([{form,formEditVersion:'submitted-fields'}]);
+ expect(saved[0].formEditVersion).not.toBe(form.getAttribute('data-erpx-edit-version'));
+});
 
 it("also confirms a dirty rendered form and exposes pending state until switching finishes", () => {
   dirtyMarker = true;

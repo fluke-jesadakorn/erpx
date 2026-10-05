@@ -1,7 +1,7 @@
 import { InlineNotice } from "@/components/ui/foundation";
 import { ActionAnchor as UiActionAnchor } from "@/components/ui/foundation";
 import { Table, TableFrame } from "@/components/ui/foundation";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { hasPermission } from "@/lib/permissions";

@@ -1,8 +1,9 @@
+import {recordCanonicalHref} from "@/lib/record-drawer";
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Button, Field, Table, TableFrame, TextInput } from "@/components/ui/foundation";
 import { holdingResources } from "@/server/runtime";
 import { listCharts } from "@/server/finance";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { hasPermission } from "@/lib/permissions";
@@ -29,6 +30,7 @@ export default async function TaxPage({
     base = workspaceBase(publicScope(actor)),
     q = await searchParams,
     data = await vatWorkspace(actor, { chartId: q.chart, filingMonth: q.filingMonth });
+  const monthEnd=new Date(Date.UTC(Number(data.filingMonth.slice(0,4)),Number(data.filingMonth.slice(5,7)),0)).toISOString().slice(0,10);
   const [periods, charts] = await Promise.all([
       (await holdingResources(actor.holdingId)).write
         .prepare(
@@ -121,7 +123,7 @@ export default async function TaxPage({
                   {data.reconciliation?.rows.map((r) => (
                     <tr key={`${r.id}-${r.direction}`}>
                       <td>
-                        {String(r.code)} · {String(r.name)}
+                        <Link href={recordCanonicalHref(base,{kind:"trial_balance",id:String(r.id),args:{chartId:data.chartId,endDate:monthEnd}})}>{String(r.code)} · {String(r.name)}</Link>
                       </td>
                       <td>{r.direction === "output" ? "Output VAT" : "Input VAT"}</td>
                       <td>{minorToDecimal(Number(r.ledger_minor))}</td>

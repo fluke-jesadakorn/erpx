@@ -1,3 +1,4 @@
+import {recordCanonicalHref} from "@/lib/record-drawer";
 import { InlineNotice } from "@/components/ui/foundation";
 import { Table } from "@/components/ui/foundation";
 import type { WorkContext } from "@/server/authorization";
@@ -5,7 +6,7 @@ import type { ExpenseRow } from "@/server/expenses";
 import { holdingResources } from "@/server/runtime";
 import { minorToDecimal } from "@/lib/finance-money";
 import { ExpensePosting } from "./expense-posting";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { Card, TableFrame } from "@/components/ui/foundation";
 export async function ExpensePostingPreview({
   actor,
@@ -21,7 +22,7 @@ export async function ExpensePostingPreview({
     const posted = (
       await write
         .prepare(
-          "SELECT a.code,a.name,l.debit_minor,l.credit_minor FROM finance_journals j JOIN finance_journal_lines l ON l.journal_id=j.id JOIN finance_accounts a ON a.id=l.account_id WHERE j.company_id=? AND j.id=? ORDER BY l.ordinal",
+          "SELECT a.id,a.code,a.name,l.debit_minor,l.credit_minor FROM finance_journals j JOIN finance_journal_lines l ON l.journal_id=j.id JOIN finance_accounts a ON a.id=l.account_id WHERE j.company_id=? AND j.id=? ORDER BY l.ordinal",
         )
         .bind(actor.companyId, expense.journal_id)
         .all<ExpenseRow>()
@@ -41,7 +42,7 @@ export async function ExpensePostingPreview({
             {posted.map((l, i) => (
               <tr key={i}>
                 <td>
-                  {String(l.code)} · {String(l.name)}
+                  <Link href={recordCanonicalHref(base,{kind:"finance_account",id:String(l.id)})}>{String(l.code)} · {String(l.name)}</Link>
                 </td>
                 <td>{minorToDecimal(Number(l.debit_minor))}</td>
                 <td>{minorToDecimal(Number(l.credit_minor))}</td>

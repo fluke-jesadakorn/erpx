@@ -1,6 +1,7 @@
+import { RecordCatalog } from "@/components/records/record-catalog";
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { requireWorkContext, publicScope } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { pageError } from "@/server/page-error";
@@ -25,5 +26,5 @@ export default async function Page({ params, searchParams }: {
       {!data.elections.length && <p>No benefit elections are available in this view.</p>}
       {data.elections.map(election => <Link className="ui-record-item" key={String(election.id)} href={`${base}/benefits/${election.id}`}>{String(election.employee_name)} · {String(election.plan_name)} · {String(election.status)}</Link>)}
     </Card>
-  </PageContent>;
+  <RecordCatalog base={base} kind="benefit_plan" title="Benefit plans" rows={data.plans} label="name"/></PageContent>;
 }

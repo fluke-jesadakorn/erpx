@@ -1,7 +1,8 @@
+import { recordCanonicalHref } from "@/lib/record-drawer";
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Table, TableFrame } from "@/components/ui/foundation";
 import { TimeText } from "@/components/time/time-preference-context";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { StatusBadge } from "@/components/ui/primitives";
 import { LandedCostActions } from "@/components/modules/landed-cost-controls";
 import { minorToDecimal } from "@/lib/finance-money";
@@ -87,7 +88,7 @@ export default async function Page({
               {lines.map((l) => (
                 <tr key={String(l.id)}>
                   <td>
-                    {String(l.sku)} · {String(l.name)}
+                    <Link href={recordCanonicalHref(base,{kind:"product",id:String(l.product_id)})}>{String(l.sku)} · {String(l.name)}</Link>
                   </td>
                   <td>
                     {Number(l.quantity_milli) / 1000} {String(l.unit)}
@@ -116,7 +117,7 @@ export default async function Page({
               <tbody>
                 {lots.map((l) => (
                   <tr key={String(l.id)}>
-                    <td>{l.serial_number ? `Serial ${l.serial_number}` : `Lot ${l.lot_code}`}</td>
+                    <td><Link href={recordCanonicalHref(base,{kind:"inventory_lot",id:String(l.lot_id)})}>{l.serial_number ? `Serial ${l.serial_number}` : `Lot ${l.lot_code}`}</Link></td>
                     <td>{Number(l.quantity_milli) / 1000}</td>
                     <td>{minorToDecimal(Number(l.receipt_value_minor))}</td>
                     <td>{minorToDecimal(Number(l.allocated_minor))}</td>

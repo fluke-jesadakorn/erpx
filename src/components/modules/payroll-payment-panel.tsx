@@ -5,7 +5,7 @@ import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MoneyAmount } from "@/components/money/currency-provider";

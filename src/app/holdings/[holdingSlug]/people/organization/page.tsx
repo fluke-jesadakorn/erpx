@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { PageHeader } from "@/components/ui/primitives";
 import { requireWorkContext, publicScope } from "@/server/authorization";
 import { holdingResources } from "@/server/runtime";

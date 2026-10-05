@@ -1,0 +1,235 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-10-05",
+  "complete": false,
+  "status": "acceptance-in-progress",
+  "scope": "Direct THB PMS booking, Connect sandbox, Finance, guest self-service and hotel operations; development only.",
+  "originalCandidate": {
+    "releaseId": "2026-10-05T11-50-22-892Z",
+    "sourceFingerprint": "86ae703bff4bbc79b48afdd6e62eb31008b3a33f3c452847b07ebc40b049407e",
+    "verificationFingerprint": "69a961c4e0cf91ecb7d917dfae37cb2b9b19e35451561a6f90baa1f6a7f5bc6c",
+    "integration": {
+      "initialPassed": 2468,
+      "initialFailed": 1,
+      "pendingUnrelatedProviderCases": 3,
+      "failure": "ClamAV fixture was not connected at the start of the broad run",
+      "scannerRerunPassed": 7,
+      "scannerRerunFailed": 0,
+      "uniquePassingCasesAfterRerun": 2469
+    },
+    "stripe": {
+      "realApi": true,
+      "realHostedCheckout": true,
+      "signedWebhookEndToEndProven": false,
+      "returnPagePaymentProof": false,
+      "cases": [
+        {
+          "name": "card-full",
+          "policy": "full",
+          "state": "confirmed"
+        },
+        {
+          "name": "card-deposit",
+          "policy": "deposit",
+          "state": "confirmed"
+        },
+        {
+          "name": "card-3ds",
+          "policy": "full",
+          "state": "confirmed"
+        },
+        {
+          "name": "card-declined",
+          "policy": "full",
+          "state": "provider_declined"
+        },
+        {
+          "name": "promptpay-full",
+          "policy": "full",
+          "state": "confirmed"
+        },
+        {
+          "name": "promptpay-deposit",
+          "policy": "deposit",
+          "state": "confirmed"
+        },
+        {
+          "name": "promptpay-expired",
+          "policy": "full",
+          "state": "provider_expired"
+        }
+      ],
+      "cardRefunds": {
+        "count": 3,
+        "amount": "50% of each original receipt",
+        "independentApproval": true,
+        "state": "succeeded"
+      },
+      "promptpayExpiry": "Real hosted session expiry; local 30-minute hold clock fault injection is separately labelled.",
+      "mailDelivered": false,
+      "journalBalance": "All resulting PMS journals balanced; repeat provider reconciliation did not duplicate receipts."
+    },
+    "guestBrowser": {
+      "browserFlow": true,
+      "fixturePublication": true,
+      "normalLogin": true,
+      "roomCount": 2,
+      "rateCount": 2,
+      "providerAttempts": 0,
+      "folioEntries": 0,
+      "appliedRevisions": 5,
+      "finalState": "cancelled",
+      "scenarios": [
+        "multi-rate pay at hotel",
+        "same-price date change",
+        "higher-price room change",
+        "lower-price room change",
+        "partial cancellation retains other room",
+        "all cancellation",
+        "mobile dark/Thai observation"
+      ]
+    },
+    "publicationGateProven": false
+  },
+  "latestChanges": [
+    "Explicit RSC guest copy localization",
+    "Compact navigation and mobile margins",
+    "Scoped 50-record PMS lists, recent guest/task/inventory history, setup definitions and report aggregates",
+    "PMS-only Front private file adapter with fresh Company/branch/target authority",
+    "List metadata removes records redacted from Front",
+    "Full-width PMS action attachment sections in desktop and mobile drawers",
+    "Inventory query retains current in-house folio choices and original movement item names without expanding primary page"
+  ],
+  "focusedVerification": {
+    "passed": 100,
+    "failed": 0,
+    "skipped": 0,
+    "scannerInFrontAdapterTest": "Simulated; real ClamAV acceptance is the separate scanner rerun."
+  },
+  "latestBrowser": {
+    "normalAuthentication": true,
+    "guestDevUrl": "https://console-dev-erpx.jesadakorn.com/book/acme",
+    "guestDevState": "No published hotel; publishing gate remains enforced.",
+    "observed": [
+      "Thai Light desktop",
+      "Thai Dark mobile 390x844",
+      "Tablet 768x1024 without horizontal overflow",
+      "Authenticated scoped housekeeping lists, filters and right drawer file panels",
+      "Escape closes drawer",
+      "390px housekeeping drawer, keyboard focus wraps inside drawer and Escape restores trigger focus"
+    ],
+    "actualBrowserFileUpload": false,
+    "fileUploadBlocker": "Chrome extension file access permission; no permission change was made."
+  },
+  "userDeferred": [
+    "Real email delivery",
+    "PromptPay emailed refund instructions"
+  ],
+  "requiredAcceptanceRemaining": [
+    "Setup/publish with real media upload and email configuration",
+    "Signed provider webhook, revocation/restart and controlled recovery matrix",
+    "PMS/Stripe fee, payout and bank reconciliation",
+    "Paid change delta, insufficient capacity and expired change hold in browser/provider flow",
+    "Repeated partial refunds and cancellation fees in browser/provider flow",
+    "Full authenticated arrival-through-departure and independent housekeeping/two consecutive day-close workflows",
+    "Complete responsive, keyboard, loading/error/stale state matrix",
+    "Every required scenario on one final source/release candidate"
+  ],
+  "environment": {
+    "developmentPort": 3100,
+    "privateProductionPort": 3101,
+    "postgresPort": 5432,
+    "stagingAccessed": false,
+    "productionDeployed": false,
+    "livePaymentsEnabled": false,
+    "checkedAt": "2026-10-05T14:16:47.007530+00:00",
+    "httpResults": {
+      "localDevelopmentHealth": 200,
+      "publicDevelopmentHealth": 200,
+      "privateProductionHealth": 200,
+      "publicBookingPage": 200
+    },
+    "developmentWorker": "Detached pinned Bun/Node worker restarted from current source; heartbeat ready.",
+    "method": "curl GET; public booking also inspected in authenticated Chrome",
+    "developmentJobsReady": true
+  },
+  "finalCandidate": {
+    "releaseId": "2026-10-05T13-52-17-200Z",
+    "sourceFingerprint": "be17cb3ad912411a188abb9ec2e469a09bd9c9ac9df9300ea4413e93c3953cb7",
+    "verificationFingerprint": "e0664c02295f7a84832b8298d3b351af3b66ab119f492904c6370f33a3ac7ab8",
+    "fileManifestSha256": "9755a197cd57876e03bf509ba64989789dbcd3f28cc254773915f205c3e4dda2",
+    "checkedAt": "2026-10-05T14:05:59.025Z",
+    "buildPassed": true,
+    "runtimeMatchesCompiledRelease": true,
+    "focusedPassed": 100,
+    "focusedFailed": 0,
+    "focusedSkipped": 0,
+    "sourceBoundary": "Frozen workspace checkpoint with the latest PMS UI/read-model/private-file changes; concurrently edited unrelated workspace modules are not silently attributed to this release.",
+    "originalProviderBrowserAcceptanceReusedAsFinalCandidate": false,
+    "realSandboxReplayed": true
+  },
+  "checks": {
+    "typecheck": "passed",
+    "lint": {
+      "errors": 0,
+      "preExistingWarnings": 4
+    },
+    "documentation": "passed",
+    "isolatedReleaseBuild": "passed"
+  },
+  "finalSandbox": {
+    "sourceFingerprint": "be17cb3ad912411a188abb9ec2e469a09bd9c9ac9df9300ea4413e93c3953cb7",
+    "verificationFingerprint": "e0664c02295f7a84832b8298d3b351af3b66ab119f492904c6370f33a3ac7ab8",
+    "realApi": true,
+    "realHostedCheckout": true,
+    "signedWebhookEndToEndProven": false,
+    "returnPagePaymentProof": false,
+    "cases": [
+      {
+        "name": "card-full",
+        "policy": "full",
+        "state": "confirmed"
+      },
+      {
+        "name": "card-deposit",
+        "policy": "deposit",
+        "state": "confirmed"
+      },
+      {
+        "name": "card-3ds",
+        "policy": "full",
+        "state": "confirmed"
+      },
+      {
+        "name": "card-declined",
+        "policy": "full",
+        "state": "provider_declined"
+      },
+      {
+        "name": "promptpay-full",
+        "policy": "full",
+        "state": "confirmed"
+      },
+      {
+        "name": "promptpay-deposit",
+        "policy": "deposit",
+        "state": "confirmed"
+      },
+      {
+        "name": "promptpay-expired",
+        "policy": "full",
+        "state": "provider_expired"
+      }
+    ],
+    "cardRefunds": {
+      "count": 3,
+      "amount": "50% of each original receipt",
+      "independentApproval": true,
+      "state": "succeeded"
+    },
+    "promptpayExpiry": "Real hosted session expiry; local 30-minute hold clock fault injection is separately labelled.",
+    "mailDelivered": false,
+    "disposableDatabasesDestroyed": true,
+    "journalBalance": "All resulting PMS journals balanced; repeat provider reconciliation did not duplicate receipts."
+  }
+}

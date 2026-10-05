@@ -2,6 +2,7 @@ import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Button, Field, Select, Table, TableFrame, TextInput } from "@/components/ui/foundation";
 import { FeaturePage, FeatureWidget, WidgetGrid } from "@/components/features/feature-page";
 import { FinanceWorkspace, financeStyles as styles } from "@/components/finance/finance-workspace";
+import { financeCompanyTools } from "@/server/finance-company-tools";
 import { listCharts } from "@/server/finance";
 import { ListPagination } from "@/components/ui/list-pagination";
 import { InvoiceEditor } from "@/components/workplace/work-editors";
@@ -12,7 +13,7 @@ import { workspaceBase } from "@/lib/workspace";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import { aging, invoiceWorkspace, invoicesPage } from "@/server/finance";
 import { pageError } from "@/server/page-error";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 type AgingRow = {
@@ -68,12 +69,13 @@ export default async function InvoicesPage({
     base = workspaceBase(publicScope(actor)),
     search = await searchParams,
     asOf = search.asOf || new Date().toISOString().slice(0, 10);
-  const [page, charts, data, receivableAging, payableAging] = await Promise.all([
+  const [page, charts, data, receivableAging, payableAging, tools] = await Promise.all([
     invoicesPage(actor, search),
     listCharts(actor),
     search.new === "1" && hasPermission(actor, "finance.write") ? invoiceWorkspace(actor) : null,
     search.kind === "payable" ? [] : aging(actor, "receivable", asOf, search.chartId),
     search.kind === "receivable" ? [] : aging(actor, "payable", asOf, search.chartId),
+    financeCompanyTools(actor),
   ]).catch((error) => pageError(error, actor.holdingSlug));
   const rows = page.items,
     receivableSummary = summarizeAging(receivableAging as unknown as AgingRow[]),
@@ -122,7 +124,7 @@ export default async function InvoicesPage({
             <tbody>
               {summary.map((item) => (
                 <tr key={`${item.bucket}:${item.currency}`}>
-                  <td>{item.bucket}</td>
+                  <td><Link href={`${base}/record-details/aging_bucket/${encodeURIComponent(item.bucket)}`} record={{kind:"aging_bucket",id:item.bucket,args:{kind,asOf,currency:item.currency,...(search.chartId?{chartId:search.chartId}:{})}}}>{item.bucket}</Link></td>
                   <td>{item.currency}</td>
                   <td>{item.count}</td>
                   <td>{formatMoneyUnits(item.amountMinor, item.currency, 2)}</td>
@@ -179,6 +181,7 @@ export default async function InvoicesPage({
           ) : undefined
         }
       >
+        {tools.some(t=>t.tool==="business_contracts"&&t.enabled===1)&&search.kind!=="payable"&&<UiActionLink appearance="standard" href={`${base}/finance/contracts`}>Contracts and billing</UiActionLink>}
         <WidgetGrid pageKey="finance-invoices">
           {data ? (
             <>

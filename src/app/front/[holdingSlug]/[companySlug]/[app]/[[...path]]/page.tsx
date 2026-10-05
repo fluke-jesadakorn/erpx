@@ -13,6 +13,7 @@ import { frontCompanyApp, frontCompanyBrand, frontCookieName, frontRouteForLocat
 import { posWorkspace } from "@/server/pos";
 import { holdingResources } from "@/server/runtime";
 import { one } from "@/server/pos-core";
+import {pmsListSelection} from "@/lib/pms-read-selection";
 import { pmsWorkspace } from "@/server/pms";
 import { pmsCrossLinks } from "@/lib/pms-cross-links";
 import { companyFeatureCatalogue } from "@/server/hospitality-rollout";
@@ -186,7 +187,7 @@ export default async function FrontAppPage({
   } else {
     const section = explicitSection;
     const data = await pmsWorkspace(actor, typeof query.property === "string" ? query.property : undefined, section === "night-audit", true,
-      section === "dashboard" ? { view: "dashboard" } : undefined);
+      section === "dashboard" ? { view: "dashboard" } : pmsListSelection(section,Object.fromEntries(Object.entries(query).filter((item):item is [string,string]=>typeof item[1]==='string'))));
     const sectionPermissions: Record<string, Array<(typeof data.permissions)[number]>> = {
       dashboard: ["pms.read"],
       reservations: ["pms.reservations"],
@@ -203,7 +204,7 @@ export default async function FrontAppPage({
       : null;
     content = <>
       <FrontPmsNavigation href={frontHref} section={section} permissions={data.permissions} propertyId={data.snapshot?.property.id} />
-      <PmsWorkspaceView initial={data} base={base} erpBase={workspace} section={section} frontHref={frontHref} selectedRecord={typeof query.record === "string" ? query.record : undefined} initialQueue={query.queue === "arrivals" || query.queue === "departures" ? query.queue : undefined} selectedFolio={typeof query.folio === "string" ? query.folio : undefined} crossLinks={pmsCrossLinks(actor, enabled ?? undefined)} frontMode />
+      <PmsWorkspaceView initial={data} base={base} erpBase={workspace} section={section} frontHref={frontHref} selectedRecord={query.detailKind === "pms_record" && typeof query.detailId === "string" ? query.detailId : typeof query.record === "string" ? query.record : undefined} initialQueue={query.queue === "arrivals" || query.queue === "departures" ? query.queue : undefined} selectedFolio={typeof query.folio === "string" ? query.folio : undefined} crossLinks={pmsCrossLinks(actor, enabled ?? undefined)} frontMode />
     </>;
   }
   const quickAccessItems = frontActionItems(app, actor, frontHref);

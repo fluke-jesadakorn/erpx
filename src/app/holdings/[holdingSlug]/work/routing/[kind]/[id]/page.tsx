@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { RecordLink as Link } from "@/components/records/record-link";
 import {z} from 'zod';
 import {flowKinds} from '@/lib/flow';
 import {requireWorkContext,publicScope} from '@/server/authorization';

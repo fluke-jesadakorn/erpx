@@ -169,3 +169,22 @@ export async function pmsHome(actor:WorkContext,options:{propertyId?:string;view
     feedHasMore:posts.length===8,people,userId:actor.userId,view:options.view??"team"};
 }
 export type PmsHome=Awaited<ReturnType<typeof pmsHome>>;
+
+/** Rooms, stays and room-charge lineage exactly mirror the current hotel overview. */
+export async function pmsHotelSources(actor:WorkContext,id:string,metric:'occupancy'|'adr'|'revpar'|'room_revenue',businessDate:string,page=1){
+ requirePermission(actor,'pms.read');if(actor.departmentId||actor.beta)throw new ApiError(403,'PMS_BRANCH_REQUIRED','Choose a Company or Branch.');
+ if(metric!=='occupancy')requirePermission(actor,'pms.reports');
+ const {write}=await holdingResources(actor.holdingId),hotel=(await pmsHotelOverview(write,actor,id))[0];
+ if(!hotel)throw new ApiError(404,'PMS_NOT_FOUND','Hotel not found in this workspace.');
+ if(hotel.businessDate!==businessDate)throw new ApiError(409,'PMS_BUSINESS_DATE_CHANGED','The hotel business date changed. Reload the overview.');
+ const rows=(await write.prepare(`WITH RECURSIVE roots AS (
+ SELECT r.id FROM pms_records r WHERE r.property_id=? AND r.kind='entry' AND r.data_json::jsonb->>'sourceKey' LIKE 'night:%'
+ UNION ALL SELECT r.id FROM pms_records r JOIN roots e ON r.data_json::jsonb->>'originalId'=e.id WHERE r.property_id=? AND r.kind='entry' AND r.id<>e.id
+ ), sources AS (
+ SELECT r.* FROM pms_records r WHERE r.property_id=? AND (
+ (? IN ('occupancy','revpar') AND r.kind='room' AND r.data_json::jsonb->>'active'='true' AND NOT EXISTS(SELECT 1 FROM pms_records b WHERE b.property_id=r.property_id AND b.kind='block' AND b.data_json::jsonb->>'state'='active' AND b.data_json::jsonb->>'kind'='maintenance' AND b.data_json::jsonb->>'from'<=? AND b.data_json::jsonb->>'roomId'=r.id))
+ OR (? IN ('occupancy','adr') AND r.kind='stay' AND r.data_json::jsonb->>'state' IN ('in_house','checked_out') AND r.data_json::jsonb->>'arrival'<=? AND r.data_json::jsonb->>'departure'>?)
+ OR (?<>'occupancy' AND r.kind='entry' AND r.id IN (SELECT id FROM roots) AND r.data_json::jsonb->>'date'=? AND r.data_json::jsonb->>'kind' IN ('charge','adjustment'))
+ )) SELECT id,kind,version,data_json FROM sources ORDER BY kind,id LIMIT 31 OFFSET ?`).bind(id,id,id,metric,businessDate,metric,businessDate,businessDate,metric,businessDate,(page-1)*30).all<{id:string;kind:string;version:number;data_json:string}>()).results;
+ return {hotel,metric,rows:rows.slice(0,30).map(row=>({id:row.id,kind:row.kind,version:row.version,data:Object.fromEntries(Object.entries(JSON.parse(row.data_json) as Record<string,unknown>).filter(([key])=>['name','number','description','kind','state','cleanliness','active','roomId','folioId','arrival','departure','date','reference','quantity','net','service','tax','total'].includes(key)))})),page,hasNext:rows.length>30};
+}

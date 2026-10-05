@@ -1,5 +1,5 @@
 import { Table, TableFrame } from "@/components/ui/foundation";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { pmsFinanceOverview } from "@/server/pms/finance";
@@ -122,6 +122,10 @@ export default async function HotelAccounting({
           </Table>
         </TableFrame>
         {!data.hotels.length && <p>No accessible hotels.</p>}
+      </section>
+      <section className={styles.section}>
+        <h2>Online payment liabilities</h2>
+        <TableFrame appearance="standard" label="Online payment liabilities"><Table className="business-table"><thead><tr><th>Hotel</th><th>Account</th><th>PMS original entries</th><th>Posted GL</th><th>Difference</th></tr></thead><tbody>{data.hotels.flatMap(hotel=>(['refundPayable','unallocated'] as const).map(account=><tr key={`${hotel.id}-${account}`}><td><Link href={`${base}/pms/folios?property=${encodeURIComponent(hotel.id)}&queue=approval`}>{hotel.name}</Link></td><td>{account==='refundPayable'?'Refunds payable':'Unallocated guest receipts'}</td><td><MoneyAmount units={hotel.online[account]} currency={hotel.currency} date={hotel.businessDate} legacyScale={2}/></td><td><MoneyAmount units={hotel.onlineLedger[account]} currency={hotel.currency} date={hotel.businessDate} legacyScale={2}/></td><td><strong data-tone={hotel.onlineDifferences[account]?'danger':'good'}><MoneyAmount units={hotel.onlineDifferences[account]} currency={hotel.currency} date={hotel.businessDate} legacyScale={2}/></strong></td></tr>))}</tbody></Table></TableFrame>
       </section>
       <section className={styles.section}>
         <h2>Bank transfers</h2>

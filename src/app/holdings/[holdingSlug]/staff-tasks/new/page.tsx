@@ -4,7 +4,7 @@ import { FeaturePage } from "@/components/features/feature-page";
 import { TaskEditor } from "@/components/modules/staff-work-controls";
 import { getWorkCapabilities } from "@/server/work-capabilities";
 import { staffPage } from "@/server/staff-page";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { notFound } from "next/navigation";
 
 export default async function NewTask({

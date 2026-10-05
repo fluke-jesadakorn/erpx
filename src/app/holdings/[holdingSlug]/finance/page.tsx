@@ -6,7 +6,7 @@ import { formatMoneyUnits } from "@/lib/company-money";
 import { workspaceBase } from "@/lib/workspace";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import { financeWorkbench } from "@/server/finance-workspace";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { pageError } from "@/server/page-error";
 import { FinanceToday } from "@/components/finance/finance-today";
 import { financeWorkspaceV2Enabled } from "@/server/finance-presentation";

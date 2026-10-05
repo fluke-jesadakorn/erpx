@@ -4,6 +4,7 @@ import type { WorkCardId } from "./work-cards";
 
 /** A record's family determines its color; queue position and pin order do not. */
 export const workTypeTone = {
+  finance_review: "violet",
   customer_identity: "blue",
   customer_duplicate: "blue",
   customer_access: "blue",

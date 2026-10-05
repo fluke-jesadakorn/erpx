@@ -10,7 +10,7 @@ import {
 
 import { Button } from "@/components/ui/foundation";
 
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";

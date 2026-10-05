@@ -1,4 +1,5 @@
 "use client";
+import { RecordLink } from "@/components/records/record-link";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import {
@@ -218,7 +219,7 @@ export function InventoryReorderConsole({
               return (
                 <tr key={policy.id}>
                   <td>
-                    {policy.sku} · {policy.product_name}
+                    <RecordLink href={`${base}/record-details/reorder_policy/${encodeURIComponent(policy.id)}`}>{policy.sku} · {policy.product_name}</RecordLink>
                   </td>
                   <td>{policy.warehouse_name}</td>
                   <td>

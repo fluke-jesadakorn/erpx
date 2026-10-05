@@ -1,4 +1,5 @@
 "use client";
+import { CollectionRecordLink, RecordCollectionDrawer } from "@/components/records/record-collection";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, Table, TableFrame, TextInput } from "@/components/ui/foundation";
@@ -6,7 +7,7 @@ import { Button, Field, Select, Table, TableFrame, TextInput } from "@/component
 import { betaFetch } from "@/lib/beta-client";
 import { sandboxPricingForMonth } from "@/lib/billing-pricing";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import styles from "./usage-console.module.css";
 import { Card } from "@/components/ui/foundation";
@@ -129,7 +130,8 @@ export function UsageConsole({
         if (active)
           setError(reason instanceof Error ? reason.message : "Usage could not be loaded.");
       });
-    return () => {
+    return () =>
+ {
       active = false;
     };
   }, [api, month, holdingId, mode]);
@@ -171,6 +173,19 @@ export function UsageConsole({
       : data?.holdings[0];
   return (
     <div className={`${styles.root} content-stack`}>
+      <RecordCollectionDrawer<UsageView> kind="usage_item" title="Usage source" endpoint={`${api}?${new URLSearchParams({month,...(holdingId?{holdingId}:{})})}`} select={(snapshot,id)=>snapshot.items.find(row=>row.id===id) as unknown as Record<string,unknown>??null}/>
+      <RecordCollectionDrawer<UsageView> kind="usage_group" title="Usage source records" endpoint={`${api}?${new URLSearchParams({month,...(holdingId?{holdingId}:{})})}`} select={(snapshot,id)=>{
+        for(const holding of snapshot.holdings){
+          if(id===holding.holdingId)return {id,name:holding.holdingName,holdingId:holding.holdingId};
+          for(const company of holding.companies){
+            if(id===company.companyId)return {id,name:company.companyName,holdingId:holding.holdingId,companyId:company.companyId};
+            const branch=company.branches.find(branch=>branch.branchId===id);
+            if(branch)return {id,name:branch.branchName,holdingId:holding.holdingId,companyId:company.companyId,branchId:branch.branchId};
+            if(id===`${company.companyId}:unassigned`)return {id,name:'Company-wide / unassigned Branch',holdingId:holding.holdingId,companyId:company.companyId,branchId:null};
+          }
+        }return null;
+      }} render={(record,snapshot)=><UsageSourceRecords record={record} snapshot={snapshot}/>}/>
+
       <header className={styles.heading}>
         <div>
           <h1>
@@ -319,7 +334,7 @@ export function UsageConsole({
                                 onClick={() => selectHolding(holding.holdingId)}
                               >
                                 {holding.holdingName}
-                              </Button>
+                              </Button><CollectionRecordLink kind="usage_group" id={holding.holdingId}>View source records</CollectionRecordLink>
                             </td>
                             <td>{number(holding.totals.ai.requests)}</td>
                             <td>{number(holding.totals.ai.inputTokens)}</td>
@@ -399,7 +414,7 @@ export function UsageConsole({
                   {selected.companies.map((company) => (
                     <details key={company.companyId} className={styles.group} open={branch}>
                       <summary>
-                        <strong>{company.companyName}</strong>
+                        <CollectionRecordLink kind="usage_group" id={company.companyId}>{company.companyName}</CollectionRecordLink>
                         <span>{meterText(company.totals)}</span>
                       </summary>
                       <TableFrame appearance="standard" label="Records" className={styles.tableScroll}>
@@ -416,7 +431,7 @@ export function UsageConsole({
                           <tbody>
                             {company.branches.map((row) => (
                               <tr key={row.branchId}>
-                                <td>{row.branchName}</td>
+                                <td><CollectionRecordLink kind="usage_group" id={row.branchId}>{row.branchName}</CollectionRecordLink></td>
                                 <td>{number(row.totals.ai.requests)}</td>
                                 <td>{number(row.totals.ai.inputTokens)}</td>
                                 <td>{number(row.totals.ai.outputTokens)}</td>
@@ -428,7 +443,7 @@ export function UsageConsole({
                             ))}
                             {!branch && (
                               <tr>
-                                <td>Company-wide / unassigned Branch</td>
+                                <td><CollectionRecordLink kind="usage_group" id={`${company.companyId}:unassigned`}>Company-wide / unassigned Branch</CollectionRecordLink></td>
                                 <td>{number(company.unassigned.ai.requests)}</td>
                                 <td>{number(company.unassigned.ai.inputTokens)}</td>
                                 <td>{number(company.unassigned.ai.outputTokens)}</td>
@@ -470,7 +485,7 @@ export function UsageConsole({
                       <tbody>
                         {data.items.map((item) => (
                           <tr key={item.id}>
-                            <td>{item.type === "ai" ? "AI" : "Original files"}</td>
+                            <td><CollectionRecordLink kind="usage_item" id={item.id}>{item.type === "ai" ? "AI" : "Original files"}</CollectionRecordLink></td>
                             <td>{item.companyName}</td>
                             <td>{item.branchName ?? "Company-wide / unassigned"}</td>
                             <td>
@@ -500,4 +515,10 @@ export function UsageConsole({
       )}
     </div>
   );
+}
+
+function UsageSourceRecords({record,snapshot}:{record:Record<string,unknown>;snapshot:UsageView}){
+ const query=useSearchParams(),page=Math.max(1,Number(query.get('detailPage'))||1),all=snapshot.items.filter(row=>row.holdingId===record.holdingId&&(!record.companyId||row.companyId===record.companyId)&&(!Object.hasOwn(record,'branchId')||row.branchId===record.branchId)),rows=all.slice((page-1)*30,page*30);
+ const href=(value:number)=>{const q=new URLSearchParams(query.toString());q.set('detailPage',String(value));return `?${q}`;};
+ return <div className="ui-stack"><h2>{String(record.name)}</h2><p>{snapshot.month} · {all.length} source records</p><TableFrame appearance="standard" label="Usage sources"><Table><thead><tr><th>Source</th><th>Quantity</th><th>Status</th></tr></thead><tbody>{rows.map(row=><tr key={row.id}><td><CollectionRecordLink kind="usage_item" id={row.id}>{row.source} · {row.companyName} · {row.branchName??'Unassigned'}</CollectionRecordLink></td><td>{number(row.quantity)} {row.unit}</td><td>{itemStatus(row)}</td></tr>)}</tbody></Table></TableFrame><nav aria-label="Usage source pagination">{page>1&&<Link href={href(page-1)}>Previous</Link>}{page*30<all.length&&<Link href={href(page+1)}>Next</Link>}</nav></div>;
 }

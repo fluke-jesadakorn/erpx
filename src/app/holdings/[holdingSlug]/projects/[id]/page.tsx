@@ -14,7 +14,7 @@ import { listProjectMilestones } from "@/server/project-milestones";
 import { listProjectCostAllocations, listProjectCostSources, listProjectWorkLogs } from "@/server/project-actuals";
 import { hasPermission } from "@/lib/permissions";
 import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { Card } from "@/components/ui/foundation";
 export default async function Project({
   params,

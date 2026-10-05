@@ -4415,7 +4415,8 @@ export function ExecutiveCanvas({
                         data={data?.metrics[metricKey(w)]}
                         comparison={data?.comparisons?.[w.id]}
                         document={data?.documents?.[w.id]}
-                        onEvidence={
+                        sourceFilters={periodSelection?.filters ?? filters}
+                          onEvidence={
                           evidenceMetrics.has(w.metric) &&
                           catalog.find((m) => m.id === w.metric)?.available
                             ? () => void loadEvidence(w)

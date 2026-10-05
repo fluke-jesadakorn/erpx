@@ -1,4 +1,5 @@
-import Link, { type LinkProps } from "next/link";
+import type { LinkProps } from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { AlertCircle, CheckCircle2, Info, LoaderCircle, Search, TriangleAlert } from "lucide-react";
 import {
   forwardRef,

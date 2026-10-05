@@ -7,7 +7,7 @@ import { publicScope,requireWorkContext } from "@/server/authorization";
 import { clearanceCase,clearanceOwners } from "@/server/retirement-clearance";
 import { holdingResources } from "@/server/runtime";
 import { pageError } from "@/server/page-error";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 export default async function Page({params}:{params:Promise<{holdingSlug:string;id:string}>}) {
  const {holdingSlug,id}=await params,actor=await requireWorkContext(holdingSlug),base=workspaceBase(publicScope(actor)),{write}=await holdingResources(actor.holdingId);
  const data=await clearanceCase(write,actor,id).catch(error=>pageError(error,holdingSlug));

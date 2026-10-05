@@ -1,7 +1,7 @@
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { SetupChecklist } from "@/components/ui/setup-checklist";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { notFound } from "next/navigation";
 import { approvalView, type ApprovalKind } from "@/server/approvals";
 import { holdingResources } from "@/server/runtime";

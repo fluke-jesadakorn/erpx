@@ -23,6 +23,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import styles from "./canvas.module.css";
+import { ExecutiveExternalConnections } from "./external-connections";
 
 export function ExecutiveLibrary({
   base,
@@ -68,6 +69,7 @@ export function ExecutiveLibrary({
         <span className={styles.pill}>
           <LockKeyhole size={13} /> Private by default
         </span>
+        <ExecutiveExternalConnections api={api}/>
       </div>
       <section className={styles.hero}>
         <div>

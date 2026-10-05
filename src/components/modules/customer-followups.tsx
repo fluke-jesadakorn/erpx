@@ -5,6 +5,7 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { hubResultHref } from "@/lib/hub-result";
 import { workFetch } from "@/lib/work-fetch";
 import type { Row } from "@/server/commerce";
 import type { customerFollowupDetail } from "@/server/customer-followups";
@@ -43,7 +44,9 @@ export function CustomerFollowupForm({
         throw new Error(result.error?.message ?? "Unable to save follow-up.");
       }
       last.current = null;
-      router.push(`${base}/customer-followups/${result.data.id}`);
+      window.dispatchEvent(new Event("erpx:hub-saved"));
+      window.dispatchEvent(new Event("erpx:record-saved"));
+      router.push(hubResultHref(window.location.href, base, `${base}/customer-followups/${result.data.id}`) ?? `${base}/customer-followups/${result.data.id}`, { scroll: false });
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Retry this command.");

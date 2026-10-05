@@ -7,6 +7,7 @@ import {
 } from "./helpers/expense-fixture";
 import {
   agentWorkspace,
+  agentEvidenceRecord,
   changeAgentRecord,
   createAgent,
   createAgentAssignment,
@@ -155,6 +156,15 @@ it("routes an approved immutable version through a pool and records private invo
     user_id: f.claimant.userId,
     agent_assignment_id: expect.any(String),
   });
+  const detail = await agentEvidenceRecord(f.owner, "agent_invocation", String(evidence.id));
+  expect(detail.row).toMatchObject({turn_id:turn,outcome:"succeeded",input_tokens:12,output_tokens:7});
+  expect(detail.row).not.toHaveProperty("provider_snapshot_json");
+  expect(detail.row).not.toHaveProperty("authority_snapshot_json");
+  await expect(agentEvidenceRecord({...f.owner,companyId:"outside-company"}, "agent_invocation", String(evidence.id))).rejects.toMatchObject({status:404});
+  const ownSession = await agentEvidenceRecord({...f.claimant,modules:["agent"]}, "agent_session", String(evidence.session_id));
+  expect(ownSession.sessionData?.sessions).toHaveLength(1);
+  expect(ownSession.row).toMatchObject({user_id:f.claimant.userId,effective_status:"active"});
+  await expect(agentEvidenceRecord({...f.tie,modules:["agent"]}, "agent_session", String(evidence.session_id))).rejects.toMatchObject({status:404});
   expect(JSON.stringify(generate.mock.calls[0][1])).toContain("Explain evidence without changing, approving, signing, or paying any record.");
   expect(JSON.parse(String(evidence.governance_snapshot_json))).toMatchObject({agentVersionId:v.id,allowedSources:["/home","/work"],promptDigest:expect.stringMatching(/^[a-f0-9]{64}$/)});
   await expect(

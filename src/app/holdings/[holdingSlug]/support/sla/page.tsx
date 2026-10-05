@@ -1,5 +1,5 @@
 import { TimeText } from "@/components/time/time-preference-context";
-import Link from 'next/link';
+import { RecordLink as Link } from "@/components/records/record-link";
 import {requireWorkContext,publicScope} from '@/server/authorization';
 import {workspaceBase} from '@/lib/workspace';
 import {pageError} from '@/server/page-error';

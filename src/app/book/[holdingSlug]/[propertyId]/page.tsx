@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { bookingCatalog, bookingDatabase } from "@/server/pms-booking";
 import { BookingFlow } from "@/components/pms/booking-flow";
+import { BookingGallery } from "@/components/pms/booking-gallery";
+import { BookingCopy } from "@/components/pms/booking-copy";
 import styles from "@/components/pms/booking.module.css";
 export const dynamic = "force-dynamic";
 export default async function HotelPage({
@@ -8,7 +10,7 @@ export default async function HotelPage({
 }: {
   params: Promise<{ holdingSlug: string; propertyId: string }>;
 }) {
-  if (process.env.PMS_STRIPE_BOOKING_ENABLED === 'false' || process.env.NODE_ENV === "production" && process.env.PMS_STRIPE_LIVE_ENABLED !== "true") notFound();
+  if (process.env.PMS_STRIPE_BOOKING_ENABLED === 'false') notFound();
   const { holdingSlug, propertyId } = await params;
   const db = await bookingDatabase(holdingSlug).catch((e) => {
     if (e instanceof Error && e.message === "HOLDING_NOT_FOUND") notFound();
@@ -19,17 +21,18 @@ export default async function HotelPage({
   return (
     <main className={styles.wrap}>
       <header className={styles.hero}>
-        <span className={styles.eyebrow}>Book directly · Pay securely online</span>
+        <BookingCopy className={styles.eyebrow}>Book directly · Pay securely online</BookingCopy>
         <h1>{hotel.name}</h1>
         <p>{hotel.description}</p>
         <p>{hotel.address}</p>
         <p>
-          Check-in {hotel.checkIn} · Check-out {hotel.checkOut} ·{" "}
+          <BookingCopy>Check-in</BookingCopy> {hotel.checkIn} · <BookingCopy>Check-out</BookingCopy> {hotel.checkOut} ·{" "}
           {hotel.timezone}
         </p>
         <a href={`mailto:${hotel.contactEmail}`}>{hotel.contactEmail}</a> ·{" "}
         {hotel.contactPhone}
       </header>
+      <BookingGallery slug={holdingSlug} images={hotel.images}/>
       <BookingFlow
         slug={holdingSlug}
         hotels={[hotel]}

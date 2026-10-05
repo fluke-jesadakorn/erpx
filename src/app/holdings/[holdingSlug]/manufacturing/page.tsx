@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { requireWorkContext, publicScope } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { pageError } from "@/server/page-error";
@@ -32,7 +32,7 @@ export default async function Page({
       {data.specifications.map((specification) => (
         <AttachmentFeatureSurface key={`files-${String(specification.id)}`}><details className="ui-panel">
           <summary>
-            Controlled files · {String(specification.name)} · version {String(specification.version)}
+            <Link href={`${base}/record-details/manufacturing_spec/${specification.id}`} record={{kind:"manufacturing_spec",id:String(specification.id)}}>{String(specification.name)} · View details</Link> · Controlled files · version {String(specification.version)}
           </summary>
           <RecordDocumentPanel appearance="standard"
             base={base}

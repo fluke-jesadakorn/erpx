@@ -1,7 +1,7 @@
 import { InlineNotice } from "@/components/ui/foundation";
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Button, Field, Select, Table, TableFrame, TextInput } from "@/components/ui/foundation";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { FeaturePage } from "@/components/features/feature-page";
 import { FinanceWorkspace, financeStyles as styles } from "@/components/finance/finance-workspace";
 import { minorToDecimal } from "@/lib/finance-money";
@@ -10,6 +10,7 @@ import { publicScope, requireWorkContext } from "@/server/authorization";
 import { paymentObligationsWorkspace, paymentRecordsWorkspace } from "@/server/finance-workspace";
 import { ListPagination } from "@/components/ui/list-pagination";
 import { FilterBar } from "@/components/ui/foundation";
+import { financeCompanyTools } from "@/server/finance-company-tools";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,7 @@ export default async function FinancePaymentObligationsPage({
   const actor = await requireWorkContext((await params).holdingSlug);
   const base = workspaceBase(publicScope(actor));
   const query = await searchParams;
+  const collectionsEnabled=(await financeCompanyTools(actor)).some(r=>r.tool==="collections"&&r.enabled===1);
   const source = ["generic_payment", "supplier_batch", "refund", "people_payment"].includes(
     query.source ?? "",
   )
@@ -56,6 +58,7 @@ export default async function FinancePaymentObligationsPage({
         active="cash"
         title="Payments"
         description="One queue for every approved or pending payment source, with the source owner and next action visible."
+        actions={collectionsEnabled?<UiActionLink appearance="standard" href={`${base}/finance/collections`}>Collections and cash forecast</UiActionLink>:undefined}
       >
         <section className={styles.panel} aria-labelledby="payment-obligations-title">
           <div className={styles.sectionHead}>

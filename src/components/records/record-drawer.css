@@ -1,0 +1,14 @@
+[data-record-link="true"] { color: var(--ui-brand-strong); text-decoration: underline; text-underline-offset: 3px; }
+tbody tr:has([data-record-link="true"]) { cursor: pointer; }
+tbody tr:has([data-record-link="true"]):hover { background: var(--ui-brand-soft); }
+.record-drawer-toolbar { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-bottom: 16px; }
+.record-drawer-toolbar a { color: var(--ui-brand-strong); text-decoration: underline; }
+[data-record-drawer-content] .ui-page-content { padding: 0; }
+[data-record-drawer-content] .back-link, [data-record-drawer-content] [data-feature-tabs] { display: none; }
+[data-record-drawer-content] [data-widget-grid] { display: flex; flex-direction: column; gap: 20px; }
+[data-record-drawer-content] h1 { font-size: 1.35rem; overflow-wrap: anywhere; }
+[data-record-drawer-content] [data-record-editor] { border-top: 1px solid var(--ui-line); padding-top: 16px; }
+[data-record-drawer-content] table { font-size: .875rem; }
+
+.ui-record-open-action { white-space: nowrap; font-size: .8rem; }
+.ui-record-open-action a { display: inline-flex; padding: 6px 9px; border: 1px solid var(--ui-line); border-radius: var(--ui-radius-md); }

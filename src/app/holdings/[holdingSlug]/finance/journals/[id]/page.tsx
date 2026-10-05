@@ -12,7 +12,7 @@ import {
   FeatureWidget,
   WidgetGrid,
 } from "@/components/features/feature-page";
-import { JournalAction } from "@/components/modules/ledger-controls";
+import { JournalAction,JournalEditor } from "@/components/modules/ledger-controls";
 import { StatusBadge } from "@/components/ui/primitives";
 import { FlowPanel, documentFlow } from "@/components/workplace/flow-panel";
 import { RecordNextAction } from "@/components/workplace/record-next-action";
@@ -23,7 +23,7 @@ import { workspaceBase } from "@/lib/workspace";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import { journalDetail, ledgerWorkspace } from "@/server/ledger";
 import { pageError } from "@/server/page-error";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 export const dynamic = "force-dynamic";
 export default async function JournalPage({
   params,
@@ -38,7 +38,7 @@ export default async function JournalPage({
     printing = query.print === "1";
   const actor = await requireWorkContext(holdingSlug);
   const base = workspaceBase(publicScope(actor));
-  const { journal, lines } = await journalDetail(actor, id).catch((error) =>
+  const { journal, lines,history } = await journalDetail(actor, id).catch((error) =>
     pageError(error, holdingSlug),
   );
   const data = await ledgerWorkspace(actor, String(journal.chart_id));
@@ -106,6 +106,8 @@ export default async function JournalPage({
               periods={data.periods}
             />
           </FeatureWidget>
+          {journal.status==='draft'&&journal.source_type==='manual'&&hasPermission(actor,'finance.write')&&<FeatureWidget appearance="standard" id="finance-journals-detail-draft-edit" title="Complete or revise draft"><JournalEditor base={base} chart={data.chart} accounts={data.accounts} periods={data.periods} dimensions={data.dimensions} dimensionValues={data.dimensionValues} draft={journal} draftLines={lines}/></FeatureWidget>}
+          {history.length>0&&<FeatureWidget appearance="standard" id="finance-journals-detail-draft-history" title="Retained draft history"><ul>{history.map(h=><li key={String(h.id)}><details><summary>Draft version {Number(h.journal_version)} · {String(h.reason)}</summary>{(()=>{const snapshot=JSON.parse(String(h.snapshot_json)) as {journal:{entry_date:string;memo:string;currency:string};lines:Array<{account_id:string;description:string;debit_minor:number;credit_minor:number;dimension_json:string}>};return <><p>{snapshot.journal.entry_date} · {snapshot.journal.currency} · {snapshot.journal.memo}</p><TableFrame appearance="standard" label={`Draft version ${h.journal_version}`}><Table><thead><tr><th>Account</th><th>Description</th><th>Debit</th><th>Credit</th><th>Reporting dimensions</th></tr></thead><tbody>{snapshot.lines.map((l,i)=><tr key={i}><td>{String(data.accounts.find(a=>a.id===l.account_id)?.code??'Historical account')} · {String(data.accounts.find(a=>a.id===l.account_id)?.name??l.account_id)}</td><td>{l.description}</td><td>{minorToDecimal(l.debit_minor)}</td><td>{minorToDecimal(l.credit_minor)}</td><td>{Object.entries(JSON.parse(l.dimension_json) as Record<string,string>).map(([k,v])=>`${String(data.dimensions.find(d=>d.code===k)?.name??k)}: ${v}`).join(' · ')||'—'}</td></tr>)}</tbody></Table></TableFrame></>})()}</details></li>)}</ul></FeatureWidget>}
           {journal.source_id &&
             ["stock_count", "expense_claim", "reversal"].includes(String(journal.source_type)) && (
               <UiActionLink appearance="standard"
@@ -147,7 +149,7 @@ export default async function JournalPage({
                   {lines.map((l) => (
                     <tr key={String(l.id)}>
                       <td>
-                        {String(l.code)} · {String(l.name)}
+                        <Link href={`${base}/record-details/finance_account/${encodeURIComponent(String(l.account_id))}`}>{String(l.code)} · {String(l.name)}</Link>
                       </td>
                       <td>{minorToDecimal(Number(l.debit_minor))}</td>
                       <td>{minorToDecimal(Number(l.credit_minor))}</td>

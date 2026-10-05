@@ -232,3 +232,19 @@
     text-align: left;
   }
 }
+
+.guestShell { min-height:100dvh; background:var(--ui-bg); color:var(--ui-ink); }
+.guestShell main.wrap { width:calc(100% - 32px); }
+.guestNav { max-width:1160px; margin:auto; padding:24px clamp(16px,4vw,40px); display:flex; align-items:center; gap:20px; border-bottom:1px solid var(--ui-line); }
+.guestNav select[data-slot="select"] { flex:0 0 auto; width:auto; min-width:90px; }
+.brand { margin-right:auto; flex-shrink:0; white-space:nowrap; font-size:1.15rem; font-weight:650; letter-spacing:-.03em; }
+.guestFooter { padding:40px 24px; text-align:center; font-size:.85rem; color:var(--ui-muted); }
+.gallery { position:relative; overflow:hidden; border-radius:var(--ui-radius-xl); margin:24px 0; background:var(--ui-card); }
+.gallery img { width:100%; height:clamp(240px,42vw,560px); object-fit:cover; }
+.gallery figcaption { display:flex; gap:8px; justify-content:center; padding:12px; }
+.galleryCompact { margin:0 0 20px; }
+.galleryCompact img { height:220px; }
+.paymentSplit { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; padding:16px; border:1px solid var(--ui-line); border-radius:var(--ui-radius-lg); }
+.paymentSplit p { display:flex; flex-direction:column; gap:6px; margin:0; }
+.paymentSplit strong { font-size:1.3rem; }
+@media(max-width:640px){.guestNav { flex-wrap:wrap; gap:12px; padding:16px; }.guestNav .brand { flex-basis:45%; }.paymentSplit { position:sticky; bottom:0; z-index:2; background:var(--ui-card); box-shadow:0 -4px 20px #00000012; }.gallery img { height:240px; }}

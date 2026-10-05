@@ -30,7 +30,7 @@ async function profile(write:SqlDatabase,actor:WorkContext,chartId:string,date:s
 }
 
 export const vatEntrySchema=z.object({
-  sourceType:z.enum(["invoice","commerce_return"]),sourceId:z.string().min(1).max(128),expectedSourceVersion:z.number().int().positive(),
+  sourceType:z.enum(["invoice","commerce_return","billing_credit"]),sourceId:z.string().min(1).max(128),expectedSourceVersion:z.number().int().positive(),
   taxPointDate:z.string().date(),claimMonth:month,documentReference:z.string().trim().min(1).max(200),
   treatment:z.enum(["standard","zero","exempt","disallowed","allocated"]),deductibleBps:z.number().int().min(0).max(10000),
   legalBasis:reason,taxPointEvidence:reason,documentEvidence:reason,
@@ -49,11 +49,14 @@ export const pendingVatReviewSql=`WITH scope AS (
   UNION ALL SELECT r.id FROM scope s JOIN commerce_returns r ON r.company_id=s.company_id JOIN finance_invoices i ON i.id=r.invoice_id JOIN finance_journals j ON j.id=r.credit_journal_id
   WHERE r.status='posted' AND j.chart_id=s.statutory_chart_id AND j.status='posted' AND j.entry_date BETWEEN s.effective_date AND s.end_date AND i.tax_account_id IS NOT NULL
     AND NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=r.company_id AND t.source_type='commerce_return' AND t.source_id=r.id AND t.status='approved')
+  UNION ALL SELECT r.id FROM scope s JOIN finance_billing_corrections r ON r.company_id=s.company_id JOIN finance_invoices i ON i.id=r.invoice_id JOIN finance_journals j ON j.id=r.credit_journal_id
+  WHERE r.status='posted' AND j.chart_id=s.statutory_chart_id AND j.status='posted' AND j.entry_date BETWEEN s.effective_date AND s.end_date AND i.tax_account_id IS NOT NULL
+    AND NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=r.company_id AND t.source_type='billing_credit' AND t.source_id=r.id AND t.status='approved')
   UNION ALL SELECT c.id FROM scope s JOIN finance_vat_corrections c ON c.company_id=s.company_id AND c.chart_id=s.statutory_chart_id
     JOIN finance_tax_entries t ON t.id=c.root_entry_id WHERE c.status='prepared' AND t.accounting_date<=s.end_date
 ) pending`;
 
-async function vatSource(write:SqlDatabase,actor:WorkContext,sourceType:"invoice"|"commerce_return",id:string){
+async function vatSource(write:SqlDatabase,actor:WorkContext,sourceType:"invoice"|"commerce_return"|"billing_credit",id:string){
   const source=await write.prepare(sourceType==="invoice"?
     `SELECT i.id,i.version,i.kind,i.invoice_number document_number,i.invoice_date document_date,i.currency,i.subtotal_minor,i.tax_minor,i.tax_account_id,i.journal_id,
       i.party_id,p.name party_name,p.tax_registration,p.version party_version,j.chart_id,j.entry_date accounting_date,j.status journal_status,j.currency journal_currency,c.base_currency,
@@ -61,6 +64,12 @@ async function vatSource(write:SqlDatabase,actor:WorkContext,sourceType:"invoice
       FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id JOIN finance_journals j ON j.id=i.journal_id
       JOIN finance_charts c ON c.id=j.chart_id JOIN finance_financial_events e ON e.journal_id=j.id
       WHERE i.id=? AND i.company_id=?`:
+    sourceType==='billing_credit'?`SELECT r.id,r.version,i.kind,r.number document_number,r.entry_date document_date,i.currency,r.subtotal_minor,r.tax_minor,i.tax_account_id,r.credit_journal_id journal_id,
+      i.party_id,p.name party_name,p.tax_registration,p.version party_version,j.chart_id,j.entry_date accounting_date,j.status journal_status,j.currency journal_currency,c.base_currency,
+      e.id financial_event_id,e.evidence_json financial_evidence,r.invoice_id
+      FROM finance_billing_corrections r JOIN finance_invoices i ON i.id=r.invoice_id AND i.company_id=r.company_id JOIN finance_parties p ON p.id=i.party_id
+      JOIN finance_journals j ON j.id=r.credit_journal_id JOIN finance_charts c ON c.id=j.chart_id JOIN finance_financial_events e ON e.journal_id=j.id
+      WHERE r.id=? AND r.company_id=? AND r.status='posted'`:
     `SELECT r.id,r.version,i.kind,r.number document_number,r.return_date document_date,i.currency,r.subtotal_minor,r.tax_minor,i.tax_account_id,r.credit_journal_id journal_id,
       i.party_id,p.name party_name,p.tax_registration,p.version party_version,j.chart_id,j.entry_date accounting_date,j.status journal_status,j.currency journal_currency,c.base_currency,
       e.id financial_event_id,e.evidence_json financial_evidence,r.invoice_id
@@ -70,14 +79,14 @@ async function vatSource(write:SqlDatabase,actor:WorkContext,sourceType:"invoice
   if(!source||!['posted','reversed'].includes(String(source.journal_status)))throw new ApiError(404,"POSTED_TAX_SOURCE_REQUIRED","A posted document and its immutable journal evidence are required.");
   if(source.currency!=="THB"||source.journal_currency!=="THB"||source.base_currency!=="THB")throw new ApiError(422,"VAT_FX_ADAPTER_REQUIRED","This register currently accepts THB documents in the approved THB statutory ledger.");
   if(!source.tax_account_id)throw new ApiError(422,"TAX_ACCOUNT_REQUIRED","The originating document must identify its posted VAT account.");
-  const negative=sourceType==="commerce_return",sign=negative?-1:1,direction=source.kind==="receivable"?"output":"input";
+  const negative=sourceType!=="invoice",sign=negative?-1:1,direction=source.kind==="receivable"?"output":"input";
   const evidence=JSON.parse(String(source.financial_evidence)) as {lines:Array<{account_id:string;base_debit_minor:number;base_credit_minor:number}>};
   const ledger=evidence.lines.filter(l=>l.account_id===source.tax_account_id).reduce((n,l)=>n+(direction==="output"?Number(l.base_credit_minor)-Number(l.base_debit_minor):Number(l.base_debit_minor)-Number(l.base_credit_minor)),0);
   if(ledger!==sign*Number(source.tax_minor))throw new ApiError(409,"TAX_SOURCE_GL_MISMATCH","Document VAT does not agree with its posted tax-account lines. Correct the originating evidence first.");
   return {source,sourceHash:digest(source),direction,sign,ledger};
 }
-function sourceGuards(write:SqlDatabase,actor:WorkContext,key:string,type:"invoice"|"commerce_return",source:TaxRow,prefix=""){
-  const table=type==="invoice"?"finance_invoices":"commerce_returns";
+function sourceGuards(write:SqlDatabase,actor:WorkContext,key:string,type:"invoice"|"commerce_return"|"billing_credit",source:TaxRow,prefix=""){
+  const table=type==="invoice"?"finance_invoices":type==="billing_credit"?"finance_billing_corrections":"commerce_returns";
   return [
     assertion(write,key,`${prefix}tax-source-version`,`EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND version=?)`,[source.id,actor.companyId,source.version]),
     assertion(write,key,`${prefix}tax-party-version`,"EXISTS(SELECT 1 FROM finance_parties WHERE id=? AND company_id=? AND version=?)",[source.party_id,actor.companyId,source.party_version]),
@@ -94,7 +103,7 @@ function validateVatFacts(input:z.infer<typeof vatEntrySchema>,direction:string,
   if(["zero","exempt"].includes(input.treatment)&&ledger!==0)throw new ApiError(422,"VAT_TREATMENT_MISMATCH","A zero-rated or exempt document must have zero posted VAT.");
   const expectedDeduction=input.treatment==="disallowed"?0:10000;
   if(input.treatment!=="allocated"&&input.deductibleBps!==expectedDeduction)throw new ApiError(422,"VAT_DEDUCTION_INVALID","Use the treatment's full or prohibited deduction; proportional deduction requires allocated treatment.");
-  if(input.sourceType==="commerce_return"){
+  if(input.sourceType!=="invoice"){
     if(!original)throw new ApiError(409,"ORIGINAL_TAX_ENTRY_REQUIRED","Review the original invoice's tax entry before its credit/debit note.");
     if(input.taxPointDate<String(original.tax_point_date)||input.taxPointDate<String(source.document_date))throw new ApiError(422,"RETURN_TAX_DATE_INVALID","A return tax adjustment cannot precede its original VAT point or return document date.");
     if(original.treatment!==input.treatment||original.deductible_bps!==input.deductibleBps)throw new ApiError(422,"RETURN_VAT_POLICY_MISMATCH","The return must retain the original document's reviewed deduction policy.");
@@ -115,7 +124,7 @@ export async function prepareVatEntry(actor:WorkContext,raw:z.infer<typeof vatEn
   const current=await vatSource(write,actor,input.sourceType,input.sourceId),{source,direction,sign,ledger}=current;
   if(Number(source.version)!==input.expectedSourceVersion)throw new ApiError(409,"VERSION_CONFLICT","The originating document changed. Review its latest evidence.");
   await profile(write,actor,String(source.chart_id),String(source.accounting_date));
-  const original=input.sourceType==="commerce_return"?await originalVatEntry(write,actor,source):null;
+  const original=input.sourceType!=="invoice"?await originalVatEntry(write,actor,source):null;
   validateVatFacts(input,direction,ledger,source,original);
   const deductible=sign*Math.round(Math.abs(ledger)*input.deductibleBps/10000);
   const familyId=input.sourceType==="invoice"?source.id:source.invoice_id;
@@ -136,9 +145,9 @@ export async function reviewVatEntry(actor:WorkContext,id:string,action:"approve
   if(samePerson(actor,entry.prepared_by))throw new ApiError(403,"INDEPENDENT_APPROVER_REQUIRED","A different Finance person must review tax facts and source evidence.");
   const steps:SqlStatement[]=[];
   if(action==="approve"){
-    const current=await vatSource(write,actor,entry.source_type as "invoice"|"commerce_return",String(entry.source_id));
+    const current=await vatSource(write,actor,entry.source_type as "invoice"|"commerce_return"|"billing_credit",String(entry.source_id));
     if(current.sourceHash!==entry.source_hash)throw new ApiError(409,"TAX_SOURCE_CHANGED","The source changed after preparation. Reject this draft and prepare the current source.");
-    steps.push(...sourceGuards(write,actor,key,entry.source_type as "invoice"|"commerce_return",current.source));
+    steps.push(...sourceGuards(write,actor,key,entry.source_type as "invoice"|"commerce_return"|"billing_credit",current.source));
   }
   const status=action==="approve"?"approved":"rejected";
   return executeCommand(write,actor,key,operation,input,id,input.expectedVersion+1,{id,status,version:input.expectedVersion+1},[
@@ -150,13 +159,14 @@ export async function reviewVatEntry(actor:WorkContext,id:string,action:"approve
 
 const familyEvidenceSql=`jsonb_build_object(
   'returns',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',r.id,'version',r.version,'status',r.status,'journal',r.credit_journal_id) ORDER BY r.id) FROM commerce_returns r WHERE r.company_id=? AND r.invoice_id=?),'[]'::jsonb),
+  'billingCredits',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',r.id,'version',r.version,'status',r.status,'journal',r.credit_journal_id) ORDER BY r.id) FROM finance_billing_corrections r WHERE r.company_id=? AND r.invoice_id=?),'[]'::jsonb),
   'entries',COALESCE((SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM finance_current_tax_entries t WHERE t.company_id=? AND
-    ((t.source_type='invoice' AND t.source_id=?) OR (t.source_type='commerce_return' AND t.source_id IN (SELECT id FROM commerce_returns WHERE company_id=? AND invoice_id=?)))),'[]'::jsonb))::text`;
+    ((t.source_type='invoice' AND t.source_id=?) OR (t.source_type='commerce_return' AND t.source_id IN (SELECT id FROM commerce_returns WHERE company_id=? AND invoice_id=?)) OR (t.source_type='billing_credit' AND t.source_id IN (SELECT id FROM finance_billing_corrections WHERE company_id=? AND invoice_id=?)))),'[]'::jsonb))::text`;
 async function familyEvidence(write:SqlDatabase,actor:WorkContext,familyId:string){
-  return String(await write.prepare(`SELECT ${familyEvidenceSql} value`).bind(actor.companyId,familyId,actor.companyId,familyId,actor.companyId,familyId).first("value"));
+  return String(await write.prepare(`SELECT ${familyEvidenceSql} value`).bind(actor.companyId,familyId,actor.companyId,familyId,actor.companyId,familyId,actor.companyId,familyId,actor.companyId,familyId).first("value"));
 }
 function familyGuard(write:SqlDatabase,actor:WorkContext,key:string,familyId:string,json:string){
-  return assertion(write,key,"vat-correction-family",`(${familyEvidenceSql})::jsonb=?::jsonb`,[actor.companyId,familyId,actor.companyId,familyId,actor.companyId,familyId,json]);
+  return assertion(write,key,"vat-correction-family",`(${familyEvidenceSql})::jsonb=?::jsonb`,[actor.companyId,familyId,actor.companyId,familyId,actor.companyId,familyId,actor.companyId,familyId,actor.companyId,familyId,json]);
 }
 async function correctionRow(write:SqlDatabase,actor:WorkContext,id:string){
   const row=await write.prepare("SELECT * FROM finance_vat_corrections WHERE id=? AND company_id=?").bind(id,actor.companyId).first<TaxRow>();
@@ -168,22 +178,22 @@ export async function prepareVatCorrection(actor:WorkContext,entryId:string,raw:
   const previous=await write.prepare("SELECT * FROM finance_current_tax_entries WHERE id=? AND company_id=? AND status='approved'").bind(entryId,actor.companyId).first<TaxRow>();
   if(!previous)throw new ApiError(404,"CURRENT_APPROVED_TAX_ENTRY_REQUIRED","Select the latest approved entry in this Company.");
   if(Number(previous.version)!==input.expectedEntryVersion)throw new ApiError(409,"VERSION_CONFLICT","The reviewed entry changed. Refresh its current revision.");
-  const current=await vatSource(write,actor,previous.source_type as "invoice"|"commerce_return",String(previous.source_id));
+  const current=await vatSource(write,actor,previous.source_type as "invoice"|"commerce_return"|"billing_credit",String(previous.source_id));
   if(Number(current.source.version)!==input.expectedSourceVersion)throw new ApiError(409,"VERSION_CONFLICT","The originating document changed. Review its latest evidence.");
   await profile(write,actor,String(previous.chart_id),String(previous.accounting_date));
-  const familyId=String(previous.source_type==="invoice"?previous.source_id:current.source.invoice_id),json=await familyEvidence(write,actor,familyId),family=JSON.parse(json) as {entries:TaxRow[];returns:Array<{id:string;status:string}>};
+  const familyId=String(previous.source_type==="invoice"?previous.source_id:current.source.invoice_id),json=await familyEvidence(write,actor,familyId),family=JSON.parse(json) as {entries:TaxRow[];returns:Array<{id:string;status:string}>;billingCredits:Array<{id:string;status:string}>};
   if(await write.prepare("SELECT 1 FROM finance_vat_corrections WHERE company_id=? AND family_source_id=? AND status='prepared'").bind(actor.companyId,familyId).first())throw new ApiError(409,"VAT_CORRECTION_PENDING","Review or reject the pending correction for this document family first.");
-  if(family.entries.some(e=>e.status==="prepared")||family.returns.some(r=>r.status==="posted"&&!family.entries.some(e=>e.source_type==="commerce_return"&&e.source_id===r.id)))throw new ApiError(409,"VAT_FAMILY_REVIEW_REQUIRED","Review every posted invoice/return VAT entry before correcting this document family.");
+  if(family.billingCredits.some(r=>r.status==='posted'&&!family.entries.some(e=>e.source_type==='billing_credit'&&e.source_id===r.id))||family.entries.some(e=>e.status==="prepared")||family.returns.some(r=>r.status==="posted"&&!family.entries.some(e=>e.source_type==="commerce_return"&&e.source_id===r.id)))throw new ApiError(409,"VAT_FAMILY_REVIEW_REQUIRED","Review every posted invoice/return VAT entry before correcting this document family.");
   if(family.returns.length>1000)throw new ApiError(422,"VAT_CORRECTION_LIMIT","This document family requires a larger-volume correction adapter.");
-  const related=previous.source_type==="invoice"?family.entries.filter(e=>e.source_type==="commerce_return"):[];
+  const related=previous.source_type==="invoice"?family.entries.filter(e=>e.source_type!=="invoice"):[];
   if(related.length>=100)throw new ApiError(422,"VAT_CORRECTION_LIMIT","A correction may replace at most 100 linked VAT entries together.");
-  const facts=vatEntrySchema.parse({...input,sourceType:previous.source_type,sourceId:previous.source_id}),original=previous.source_type==="commerce_return"?await originalVatEntry(write,actor,current.source):null;
+  const facts=vatEntrySchema.parse({...input,sourceType:previous.source_type,sourceId:previous.source_id}),original=previous.source_type!=="invoice"?await originalVatEntry(write,actor,current.source):null;
   validateVatFacts(facts,current.direction,current.ledger,current.source,original);
   const members=[{previous,current,facts,original,id:`${id}-entry-0`}];
   const replacementOriginal:TaxRow={...previous,id:members[0].id,tax_point_date:facts.taxPointDate,claim_month:facts.claimMonth,document_reference:facts.documentReference,treatment:facts.treatment,deductible_bps:facts.deductibleBps};
   for(const old of related){
-    const source=await vatSource(write,actor,"commerce_return",String(old.source_id)),oldFacts=JSON.parse(String(old.evidence_json)).facts;
-    const newFacts=vatEntrySchema.parse({...oldFacts,sourceType:"commerce_return",sourceId:old.source_id,expectedSourceVersion:Number(source.source.version),treatment:facts.treatment,deductibleBps:facts.deductibleBps,legalBasis:facts.legalBasis});
+    const source=await vatSource(write,actor,old.source_type as "commerce_return"|"billing_credit",String(old.source_id)),oldFacts=JSON.parse(String(old.evidence_json)).facts;
+    const newFacts=vatEntrySchema.parse({...oldFacts,sourceType:old.source_type,sourceId:old.source_id,expectedSourceVersion:Number(source.source.version),treatment:facts.treatment,deductibleBps:facts.deductibleBps,legalBasis:facts.legalBasis});
     validateVatFacts(newFacts,source.direction,source.ledger,source.source,replacementOriginal);
     members.push({previous:old,current:source,facts:newFacts,original:replacementOriginal,id:`${id}-entry-${members.length}`});
   }
@@ -212,9 +222,9 @@ export async function reviewVatCorrection(actor:WorkContext,id:string,action:"ap
     if(json!==correction.family_evidence_json)throw new ApiError(409,"VAT_CORRECTION_STALE","The source family changed. Reject this correction and prepare the current evidence.");
     steps.push(familyGuard(write,actor,key,String(correction.family_source_id),json));
     for(const [index,entry] of entries.entries()){
-      const current=await vatSource(write,actor,entry.source_type as "invoice"|"commerce_return",String(entry.source_id));
+      const current=await vatSource(write,actor,entry.source_type as "invoice"|"commerce_return"|"billing_credit",String(entry.source_id));
       if(current.sourceHash!==entry.source_hash)throw new ApiError(409,"TAX_SOURCE_CHANGED","A source changed after preparation. Reject the complete correction and prepare it again.");
-      steps.push(...sourceGuards(write,actor,key,entry.source_type as "invoice"|"commerce_return",current.source,`replacement-${index}-`));
+      steps.push(...sourceGuards(write,actor,key,entry.source_type as "invoice"|"commerce_return"|"billing_credit",current.source,`replacement-${index}-`));
     }
   }
   const status=action==="approve"?"approved":"rejected",now=Date.now();
@@ -250,12 +260,15 @@ const missingSql=`SELECT COUNT(*) FROM (SELECT i.id FROM finance_invoices i JOIN
     AND NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=i.company_id AND t.source_type='invoice' AND t.source_id=i.id AND t.status='approved')
     UNION ALL SELECT r.id FROM commerce_returns r JOIN finance_invoices i ON i.id=r.invoice_id JOIN finance_journals j ON j.id=r.credit_journal_id
     WHERE r.company_id=? AND j.chart_id=? AND r.status='posted' AND j.status='posted' AND j.entry_date BETWEEN ? AND ? AND i.tax_account_id IS NOT NULL
-    AND NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=r.company_id AND t.source_type='commerce_return' AND t.source_id=r.id AND t.status='approved')) pending`;
+    AND NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=r.company_id AND t.source_type='commerce_return' AND t.source_id=r.id AND t.status='approved')
+    UNION ALL SELECT r.id FROM finance_billing_corrections r JOIN finance_invoices i ON i.id=r.invoice_id JOIN finance_journals j ON j.id=r.credit_journal_id
+    WHERE r.company_id=? AND j.chart_id=? AND r.status='posted' AND j.status='posted' AND j.entry_date BETWEEN ? AND ? AND i.tax_account_id IS NOT NULL
+    AND NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=r.company_id AND t.source_type='billing_credit' AND t.source_id=r.id AND t.status='approved')) pending`;
 const pendingCorrectionsSql="SELECT COUNT(*) FROM finance_vat_corrections c JOIN finance_tax_entries t ON t.id=c.root_entry_id WHERE c.company_id=? AND c.chart_id=? AND c.status='prepared' AND t.accounting_date<=?";
 async function vatReconciliation(write:SqlDatabase,actor:WorkContext,chartId:string,endDate:string,effectiveDate:string){
   const args=[actor.companyId,chartId,effectiveDate,endDate];
   const rows=(await write.prepare(reconciliationSql).bind(...args,...args,...args,...args).all<TaxRow>()).results;
-  const missing=Number(await write.prepare(missingSql).bind(...args,...args).first("count")??0);
+  const missing=Number(await write.prepare(missingSql).bind(...args,...args,...args).first("count")??0);
   const pendingCorrections=Number(await write.prepare(pendingCorrectionsSql).bind(actor.companyId,chartId,endDate).first("count")??0);
   return {rows,missing,pendingCorrections,ready:missing===0&&pendingCorrections===0&&rows.every(r=>Number(r.ledger_minor)===Number(r.register_minor))};
 }
@@ -263,7 +276,7 @@ function reconciliationGuards(write:SqlDatabase,actor:WorkContext,key:string,cha
   const args=[actor.companyId,chartId,effectiveDate,endDate];
   return [
     assertion(write,key,"vat-gl-evidence",`COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id,r.direction) FROM (${reconciliationSql}) r),'[]'::jsonb)=?::jsonb`,[...args,...args,...args,...args,JSON.stringify(rows)]),
-    assertion(write,key,"vat-missing-sources",`(${missingSql})=0`,[...args,...args]),
+    assertion(write,key,"vat-missing-sources",`(${missingSql})=0`,[...args,...args,...args]),
     assertion(write,key,"vat-pending-corrections",`(${pendingCorrectionsSql})=0`,[actor.companyId,chartId,endDate]),
   ];
 }
@@ -404,8 +417,12 @@ export async function vatWorkspace(actor:WorkContext,query:{chartId?:string;fili
       UNION ALL SELECT r.id,r.version,r.number,r.return_date,i.kind,-r.subtotal_minor,-r.tax_minor,j.entry_date,p.name,'commerce_return'
       FROM commerce_returns r JOIN finance_invoices i ON i.id=r.invoice_id JOIN finance_parties p ON p.id=i.party_id JOIN finance_journals j ON j.id=r.credit_journal_id
       WHERE r.company_id=? AND j.chart_id=? AND r.status='posted' AND j.status='posted' AND i.currency='THB' AND i.tax_account_id IS NOT NULL
-      AND NOT EXISTS(SELECT 1 FROM finance_tax_entries t WHERE t.company_id=r.company_id AND t.source_type='commerce_return' AND t.source_id=r.id AND t.status<>'rejected')) candidates
-      ORDER BY accounting_date,id LIMIT 100`).bind(actor.companyId,chartId,actor.companyId,chartId).all<TaxRow>(),
+      AND NOT EXISTS(SELECT 1 FROM finance_tax_entries t WHERE t.company_id=r.company_id AND t.source_type='commerce_return' AND t.source_id=r.id AND t.status<>'rejected')
+      UNION ALL SELECT r.id,r.version,r.number,r.entry_date,i.kind,-r.subtotal_minor,-r.tax_minor,j.entry_date,p.name,'billing_credit'
+      FROM finance_billing_corrections r JOIN finance_invoices i ON i.id=r.invoice_id JOIN finance_parties p ON p.id=i.party_id JOIN finance_journals j ON j.id=r.credit_journal_id
+      WHERE r.company_id=? AND j.chart_id=? AND r.status='posted' AND j.status='posted' AND i.currency='THB' AND i.tax_account_id IS NOT NULL
+      AND NOT EXISTS(SELECT 1 FROM finance_tax_entries t WHERE t.company_id=r.company_id AND t.source_type='billing_credit' AND t.source_id=r.id AND t.status<>'rejected')) candidates
+      ORDER BY accounting_date,id LIMIT 100`).bind(actor.companyId,chartId,actor.companyId,chartId,actor.companyId,chartId).all<TaxRow>(),
     write.prepare("SELECT * FROM finance_statutory_packages WHERE company_id=? AND chart_id=? AND filing_month=? AND form_code='PP30' ORDER BY created_at DESC LIMIT 50").bind(actor.companyId,chartId,filingMonth).all<TaxRow>(),
     write.prepare("SELECT c.*,t.document_reference FROM finance_vat_corrections c JOIN finance_tax_entries t ON t.id=c.root_entry_id WHERE c.company_id=? AND c.chart_id=? ORDER BY (c.status='prepared') DESC,c.created_at DESC,c.id LIMIT 100").bind(actor.companyId,chartId).all<TaxRow>(),
   ]);
@@ -425,7 +442,7 @@ export async function taxEntryDetail(actor:WorkContext,id:string){
   const [history,current,source]=await Promise.all([
     write.prepare("SELECT * FROM finance_tax_entries WHERE company_id=? AND source_type=? AND source_id=? ORDER BY created_at,id LIMIT 1000").bind(actor.companyId,entry.source_type,entry.source_id).all<TaxRow>(),
     write.prepare("SELECT id FROM finance_current_tax_entries WHERE company_id=? AND source_type=? AND source_id=? AND status='approved'").bind(actor.companyId,entry.source_type,entry.source_id).first<TaxRow>(),
-    write.prepare(`SELECT version FROM ${entry.source_type==="invoice"?"finance_invoices":"commerce_returns"} WHERE id=? AND company_id=?`).bind(entry.source_id,actor.companyId).first<TaxRow>(),
+    write.prepare(`SELECT version FROM ${entry.source_type==="invoice"?"finance_invoices":entry.source_type==="billing_credit"?"finance_billing_corrections":"commerce_returns"} WHERE id=? AND company_id=?`).bind(entry.source_id,actor.companyId).first<TaxRow>(),
   ]);
   return {entry,history:history.results,currentId:current?.id??null,currentSourceVersion:source?.version??null};
 }

@@ -9,6 +9,7 @@ import { workFetch } from "@/lib/work-fetch";
 import type { AccountingProfile } from "@/server/accounting-profiles";
 import type { FinanceChart } from "@/components/modules/finance-chart-controls";
 import { Card, FormLayout } from "@/components/ui/foundation";
+import { FormDisclosure } from "@/components/ui/form-disclosure";
 
 export function AccountingProfileControls({
   base,
@@ -109,6 +110,8 @@ export function AccountingProfileControls({
         </Card>
       ))}
       {canPrepare && !profiles.some((p) => p.status === "approved") && (
+        <FormDisclosure appearance="standard" drawerTitle="Prepare Company accounting policy">
+          <summary>Prepare Company accounting policy</summary>
         <FormLayout
           className="ui-form-grid"
           onSubmit={(e) => {
@@ -171,6 +174,7 @@ export function AccountingProfileControls({
             Prepare accounting profile for review
           </Button>
         </FormLayout>
+        </FormDisclosure>
       )}
     </Card>
   );

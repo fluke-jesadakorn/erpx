@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
 import { BenefitsConsole } from "@/components/modules/benefits-console";
 import { workspaceBase } from "@/lib/workspace";

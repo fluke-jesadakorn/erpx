@@ -1,3 +1,7 @@
+import {editManualDraft,manualDraftEditSchema} from "@/server/finance-manual-drafts";
+import {prepareBillingCorrection,decideBillingCorrection,billingCorrectionSchema,billingCorrectionDecisionSchema} from "@/server/finance-billing-corrections";
+import {instrumentWorkspace,prepareInstrument,decideInstrument,prepareInstrumentRun,decideInstrumentRun,reverseInstrumentRun,instrumentEditionSchema,instrumentDecisionSchema,instrumentRunSchema,instrumentReversalSchema} from "@/server/finance-instruments";
+import {assetPolicyWorkspace,prepareAssetPolicy,decideAssetPolicy,prepareAssetPolicyRun,decideAssetPolicyRun,reverseAssetPolicyRun,assetPolicySchema,assetPolicyDecisionSchema,assetPolicyRunSchema,assetPolicyReversalSchema} from "@/server/finance-asset-policies";
 import { financeAiWorkspace, saveFinanceAiPolicy, queueFinanceAi, dismissFinanceAi, applyFinanceAiDraft } from "@/server/finance-ai";
 import { financeAiDecisionSchema } from "@/lib/finance-ai";
 import { holdingResources, runtimeEnv } from "@/server/runtime";
@@ -6,9 +10,15 @@ import { vatWorkspace,vatPackageDetail,vatPackageExport,prepareVatEntry,reviewVa
 import {listSupplierBatches,supplierBatchWorkspace,createSupplierBatch,decideSupplierBatch,exportSupplierBatch,recoverSupplierExport,recordSupplierResult,confirmSupplierInstruction,supplierBatchSchema,supplierDecisionSchema,supplierExportSchema,supplierResultSchema,supplierConfirmSchema} from "@/server/supplier-payments";
 import {recoverRefundExport,listRefunds,refundWorkspace,approveRefund,prepareRefundInstruction,exportRefundInstructions,confirmRefundInstruction,recordRefundException,refundApprovalSchema,refundInstructionSchema,refundExportSchema,refundConfirmationSchema,refundExceptionSchema} from "@/server/refunds";
 import { requirePermission } from "@/server/iam-permissions";
+import {prepareGroupReportEdition,decideGroupReportEdition,groupReportEditionExport,groupExpansionWorkspace,groupReportEditionSchema,groupReportDecisionSchema} from "@/server/finance-group-editions";
+import {prepareOwnershipEdition,decideOwnershipEdition,prepareAcquisitionEdition,decideAcquisitionEdition,ownershipEditionSchema,acquisitionEditionSchema,groupEvidenceDecisionSchema} from "@/server/finance-group-ownership";
+import {prepareIntercompanyPair,decideIntercompanyPair,intercompanyPairSchema,intercompanyPairDecisionSchema} from "@/server/finance-intercompany-pairs";
+import {bookAdjustmentWorkspace,prepareBookAdjustment,decideBookAdjustment,reverseBookAdjustment,bookAdjustmentSchema,bookAdjustmentReversalSchema} from "@/server/finance-book-adjustments";
+import { businessContractWorkspace,prepareBusinessContract,decideBusinessContract,prepareBusinessBilling,prepareRecognitionRun,decideRecognitionRun,reverseRecognitionRun,businessContractSchema,businessBillingSchema,businessDecisionSchema,recognitionRunSchema,recognitionReversalSchema } from "@/server/finance-business-contracts";
 import { requestPublicOrigin } from "@/server/public-origin";
 import { requireWorkContext } from "@/server/authorization";
 import { ApiError, errorResponse } from "@/server/http";
+import {createFinanceStarter,financeStarterSchema} from "@/server/finance-starter";
 import {
   aging,
   beginClose,
@@ -83,6 +93,13 @@ import {
   decideFxRevaluationSchema,
 } from "@/server/finance";
 import { z } from "zod";
+import {financeDueWorkspace,scheduleFinanceDraft,decideFinanceDueDraft,financeDueDraftSchema,financeDueDecisionSchema} from "@/server/finance-due-drafts";
+import {decideNoChargeBilling,prepareBusinessBillingRevision,billingRevisionSchema} from "@/server/finance-business-contracts";
+import { bookRuleSchema,dimensionSchema,financeReviewSchema,financeBookWorkspace,createFinanceDimension,prepareBookRule,decideBookRule } from "@/server/finance-books";
+import { budgetEditionSchema,forecastEditionSchema,financialReportSchema,prepareBudgetEdition,importBudgetCsv,prepareForecastEdition,prepareFinancialReport,decideFinancePlan,financePlanningWorkspace,budgetActuals,snapshotFinancialReport,exportFinancialReport } from "@/server/finance-planning";
+import { financeCompanyTools,financeToolSchema,setFinanceCompanyTool } from "@/server/finance-company-tools";
+import { bankCsvMappingSchema,bankCsvImportSchema,bankMatchGroupSchema,createBankCsvMapping,importMappedBankCsv,proposeBankMatchGroup,decideBankMatchGroup,bankAutomationWorkspace } from "@/server/finance-bank-automation";
+import { collectionCaseSchema,reviseCollectionCaseSchema,reviseCollectionCase,prepareCollectionCase,decideCollectionCase,collectionWorkspace,cashDueForecast } from "@/server/finance-collections";
 import { activateAsset,assetActivationSchema,assetDecisionSchema,assetDepreciationSchema,assetDetail,assetDisposalSchema,assetEditSchema,assetPage,cancelDraftAsset,decideAssetDisposal,editAsset,prepareAssetDisposal } from "@/server/finance-assets";
 import { calculationDecisionSchema, calculationRunDetail, calculationRunSchema, createCalculationRun, decideCalculationRun, financeEngineWorkspace, snapshotCloseChecks } from "@/server/finance-engines";
 import { consolidationDecisionSchema, consolidationEliminationDecisionSchema, consolidationEliminationSchema, consolidationRunSchema, consolidationRunWorkspace, createConsolidationElimination, createConsolidationRun, decideConsolidationElimination, decideConsolidationRun } from "@/server/finance-consolidation";
@@ -133,6 +150,21 @@ export async function GET(request: Request, context: FinanceRouteContext) {
     const { holdingSlug, path } = await context.params;
     const actor = requirePermission(await requireWorkContext(holdingSlug),"finance.read");
     const parts = segments(path); const search = new URL(request.url).searchParams;
+    if(parts[0]==="due-drafts"&&parts.length===1)return Response.json({data:await financeDueWorkspace(actor)});
+    if(parts[0]==="group-editions"&&parts.length===1)return Response.json({data:await groupExpansionWorkspace(actor)});
+    if(parts[0]==="group-editions"&&parts.length===3&&parts[2]==="export"){const data=await groupReportEditionExport(actor,parts[1]);return new Response(data.content,{headers:{"Content-Type":"text/csv; charset=utf-8","Content-Disposition":`attachment; filename="${data.filename}"`,"X-Content-SHA256":data.sha256}});}
+    if(parts[0]==="instruments"&&parts.length===1)return Response.json({data:await instrumentWorkspace(actor)});
+    if(parts[0]==="asset-policies"&&parts.length===1)return Response.json({data:await assetPolicyWorkspace(actor)});
+    if(parts[0]==="book-adjustments"&&parts.length===1)return Response.json({data:await bookAdjustmentWorkspace(actor)});
+    if(parts[0]==="business-contracts"&&parts.length===1)return Response.json({data:await businessContractWorkspace(actor)});
+    if(parts[0]==="company-tools"&&parts.length===1)return Response.json({data:await financeCompanyTools(actor)});
+    if(parts[0]==="bank-match-groups"&&parts.length===1)return Response.json({data:await bankAutomationWorkspace(actor,{bankCursor:search.get("bankCursor")??undefined,cashCursor:search.get("cashCursor")??undefined,groupCursor:search.get("groupCursor")??undefined,chart:search.get("chart")??undefined,q:search.get("q")??undefined,cashQuery:search.get("cashQuery")??undefined})});
+    if(parts[0]==="collection-cases"&&parts.length===1)return Response.json({data:await collectionWorkspace(actor,search.get("asOf")??new Date().toISOString().slice(0,10),{invoiceCursor:search.get("invoiceCursor")??undefined,caseCursor:search.get("caseCursor")??undefined,q:search.get("q")??undefined})});
+    if(parts[0]==="cash-forecast"&&parts.length===1)return Response.json({data:await cashDueForecast(actor,{chartId:search.get("chartId")??"",asOf:search.get("asOf")??new Date().toISOString().slice(0,10)})});
+    if(parts.length===1&&parts[0]==="book-mappings")return Response.json({data:await financeBookWorkspace(actor)});
+    if(parts.length===1&&parts[0]==="planning")return Response.json({data:await financePlanningWorkspace(actor,search.get("chartId")??"")});
+    if(parts.length===3&&parts[0]==="budget-revisions"&&parts[2]==="actuals")return Response.json({data:await budgetActuals(actor,parts[1])});
+    if(parts.length===3&&parts[0]==="report-snapshots"&&parts[2]==="export"){const exported=await exportFinancialReport(actor,parts[1]);return new Response(exported.content,{headers:{"Content-Type":"text/csv; charset=utf-8","Content-Disposition":'attachment; filename="financial-report.csv"',"Cache-Control":"private, no-store","X-Content-SHA256":exported.sha256}});}
     if((parts[0]==="statement-packages"||parts[0]==="year-closings")&&parts.length===1)return Response.json({data:await reportingWorkspace(actor,search.get("chartId")??"")});
     if(parts[0]==="statement-packages"&&parts.length===2)return Response.json({data:await statementPackageDetail(actor,parts[1])});
     if(parts[0]==="statement-packages"&&parts.length===3&&parts[2]==="export"){
@@ -203,6 +235,56 @@ export async function POST(request: Request, context: FinanceRouteContext) {
     const { holdingSlug, path } = await context.params;
     const actor = requirePermission(await requireWorkContext(holdingSlug),"finance.read");
     const parts = segments(path); const input = await body(request);
+    if(parts[0]==="zero-usage-bills"&&parts.length===3&&["approve","reject"].includes(parts[2]))return Response.json({data:await decideNoChargeBilling(actor,parts[1],businessDecisionSchema.parse(input),parts[2] as "approve"|"reject",needCommand(request))});
+    if(parts[0]==="due-drafts"&&parts.length===1)return Response.json({data:await scheduleFinanceDraft(actor,financeDueDraftSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="due-drafts"&&parts.length===3&&["retry","cancel"].includes(parts[2]))return Response.json({data:await decideFinanceDueDraft(actor,parts[1],financeDueDecisionSchema.parse(input),parts[2] as "retry"|"cancel",needCommand(request))});
+    if(parts[0]==="instruments"&&parts.length===1)return Response.json({data:await prepareInstrument(actor,instrumentEditionSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="instruments"&&parts.length===3&&["approve","reject"].includes(parts[2]))return Response.json({data:await decideInstrument(actor,parts[1],instrumentDecisionSchema.parse(input),parts[2] as "approve"|"reject",needCommand(request))});
+    if(parts[0]==="instruments"&&parts.length===3&&parts[2]==="runs")return Response.json({data:await prepareInstrumentRun(actor,parts[1],instrumentRunSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="instrument-runs"&&parts.length===3&&["post","reject"].includes(parts[2]))return Response.json({data:await decideInstrumentRun(actor,parts[1],instrumentDecisionSchema.parse(input),parts[2] as "post"|"reject",needCommand(request))});
+    if(parts[0]==="instrument-runs"&&parts.length===3&&parts[2]==="reverse")return Response.json({data:await reverseInstrumentRun(actor,parts[1],instrumentReversalSchema.parse(input),needCommand(request))});
+    if(parts[0]==="asset-policies"&&parts.length===1)return Response.json({data:await prepareAssetPolicy(actor,assetPolicySchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="asset-policies"&&parts.length===3&&["approve","reject"].includes(parts[2]))return Response.json({data:await decideAssetPolicy(actor,parts[1],assetPolicyDecisionSchema.parse(input),parts[2] as "approve"|"reject",needCommand(request))});
+    if(parts[0]==="asset-policies"&&parts.length===3&&parts[2]==="runs")return Response.json({data:await prepareAssetPolicyRun(actor,parts[1],assetPolicyRunSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="asset-policy-runs"&&parts.length===3&&["post","reject"].includes(parts[2]))return Response.json({data:await decideAssetPolicyRun(actor,parts[1],assetPolicyDecisionSchema.parse(input),parts[2] as "post"|"reject",needCommand(request))});
+    if(parts[0]==="asset-policy-runs"&&parts.length===3&&parts[2]==="reverse")return Response.json({data:await reverseAssetPolicyRun(actor,parts[1],assetPolicyReversalSchema.parse(input),needCommand(request))});
+    if(parts[0]==="book-adjustments"&&parts.length===1)return Response.json({data:await prepareBookAdjustment(actor,bookAdjustmentSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="book-adjustments"&&parts.length===3&&["post","reject"].includes(parts[2]))return Response.json({data:await decideBookAdjustment(actor,parts[1],financeReviewSchema.parse(input),parts[2] as "post"|"reject",needCommand(request))});
+    if(parts[0]==="book-adjustments"&&parts.length===3&&parts[2]==="reverse")return Response.json({data:await reverseBookAdjustment(actor,parts[1],bookAdjustmentReversalSchema.parse(input),needCommand(request))});
+    if(parts[0]==="business-contracts"&&parts.length===1)return Response.json({data:await prepareBusinessContract(actor,businessContractSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="business-contracts"&&parts.length===3&&["approve","reject","cancel"].includes(parts[2]))return Response.json({data:await decideBusinessContract(actor,parts[1],businessDecisionSchema.parse(input),parts[2] as "approve"|"reject"|"cancel",needCommand(request))});
+    if(parts[0]==="business-contracts"&&parts.length===3&&parts[2]==="bill")return Response.json({data:await prepareBusinessBilling(actor,parts[1],businessBillingSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="business-bills"&&parts.length===3&&parts[2]==="corrections")return Response.json({data:await prepareBillingCorrection(actor,parts[1],billingCorrectionSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="billing-corrections"&&parts.length===3&&['post','reject'].includes(parts[2]))return Response.json({data:await decideBillingCorrection(actor,parts[1],billingCorrectionDecisionSchema.parse(input),parts[2] as 'post'|'reject',needCommand(request))});
+    if(parts[0]==="business-bills"&&parts.length===3&&parts[2]==="revisions")return Response.json({data:await prepareBusinessBillingRevision(actor,parts[1],billingRevisionSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="recognition-plans"&&parts.length===1)return Response.json({data:await prepareRecognitionRun(actor,recognitionRunSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="recognition-plans"&&parts.length===3&&["post","reject"].includes(parts[2]))return Response.json({data:await decideRecognitionRun(actor,parts[1],businessDecisionSchema.parse(input),parts[2] as "post"|"reject",needCommand(request))});
+    if(parts[0]==="recognition-plans"&&parts.length===3&&parts[2]==="reverse")return Response.json({data:await reverseRecognitionRun(actor,parts[1],recognitionReversalSchema.parse(input),needCommand(request))});
+    if(parts[0]==="company-tools"&&parts.length===1)return Response.json({data:await setFinanceCompanyTool(actor,financeToolSchema.parse(input),needCommand(request))});
+    if(parts[0]==="group-editions"&&parts.length===1)return Response.json({data:await prepareGroupReportEdition(actor,groupReportEditionSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="group-editions"&&parts.length===3&&["approve","reject"].includes(parts[2]))return Response.json({data:await decideGroupReportEdition(actor,parts[1],groupReportDecisionSchema.parse(input),parts[2] as "approve"|"reject",needCommand(request))});
+    if(parts[0]==="ownership-editions"&&parts.length===1)return Response.json({data:await prepareOwnershipEdition(actor,ownershipEditionSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="ownership-editions"&&parts.length===3&&["approve","reject"].includes(parts[2]))return Response.json({data:await decideOwnershipEdition(actor,parts[1],groupEvidenceDecisionSchema.parse(input),parts[2] as "approve"|"reject",needCommand(request))});
+    if(parts[0]==="acquisition-editions"&&parts.length===1)return Response.json({data:await prepareAcquisitionEdition(actor,acquisitionEditionSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="acquisition-editions"&&parts.length===3&&["approve","reject"].includes(parts[2]))return Response.json({data:await decideAcquisitionEdition(actor,parts[1],groupEvidenceDecisionSchema.parse(input),parts[2] as "approve"|"reject",needCommand(request))});
+    if(parts[0]==="intercompany-pairs"&&parts.length===1)return Response.json({data:await prepareIntercompanyPair(actor,intercompanyPairSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="intercompany-pairs"&&parts.length===3&&["confirm","reverse","reject"].includes(parts[2]))return Response.json({data:await decideIntercompanyPair(actor,parts[1],intercompanyPairDecisionSchema.parse(input),parts[2] as "confirm"|"reverse"|"reject",needCommand(request))});
+    if(parts[0]==="bank-csv-mappings"&&parts.length===1)return Response.json({data:await createBankCsvMapping(actor,bankCsvMappingSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="bank-csv-imports"&&parts.length===1)return Response.json({data:await importMappedBankCsv(actor,bankCsvImportSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="bank-match-groups"&&parts.length===1)return Response.json({data:await proposeBankMatchGroup(actor,bankMatchGroupSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="bank-match-groups"&&parts.length===3&&["confirm","reverse","reject"].includes(parts[2]))return Response.json({data:await decideBankMatchGroup(actor,parts[1],financeReviewSchema.parse(input),parts[2] as "confirm"|"reverse"|"reject",needCommand(request))});
+    if(parts[0]==="collection-cases"&&parts.length===1)return Response.json({data:await prepareCollectionCase(actor,collectionCaseSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="collection-cases"&&parts.length===3&&parts[2]==="revise")return Response.json({data:await reviseCollectionCase(actor,parts[1],reviseCollectionCaseSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="collection-cases"&&parts.length===3&&["approve","cancel","test-deliver"].includes(parts[2]))return Response.json({data:await decideCollectionCase(actor,parts[1],financeReviewSchema.parse(input),parts[2] as "approve"|"cancel"|"test-deliver",needCommand(request))});
+    if(parts[0]==="budget-revisions"&&parts.length===1)return Response.json({data:await prepareBudgetEdition(actor,budgetEditionSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="budget-revisions"&&parts.length===2&&parts[1]==="import")return Response.json({data:await importBudgetCsv(actor,z.object({chartId:z.string().min(1),name:z.string().min(1),year:z.number().int(),csv:z.string().max(5_000_000),parentId:z.string().optional(),expectedVersion:z.number().int().positive().optional()}).parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="forecasts"&&parts.length===1)return Response.json({data:await prepareForecastEdition(actor,forecastEditionSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="report-definitions"&&parts.length===1)return Response.json({data:await prepareFinancialReport(actor,financialReportSchema.parse(input),needCommand(request))},{status:201});
+    if(["budget-revisions","forecasts","report-definitions"].includes(parts[0])&&parts.length===3&&(parts[2]==="approve"||parts[2]==="reject"))return Response.json({data:await decideFinancePlan(actor,parts[1],financeReviewSchema.parse(input),parts[2],needCommand(request))});
+    if(parts[0]==="report-definitions"&&parts.length===3&&parts[2]==="snapshot")return Response.json({data:await snapshotFinancialReport(actor,parts[1],z.object({startDate:z.string().date(),endDate:z.string().date()}).parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="dimensions"&&parts.length===1)return Response.json({data:await createFinanceDimension(actor,dimensionSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="book-mappings"&&parts.length===1)return Response.json({data:await prepareBookRule(actor,bookRuleSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="book-mappings"&&parts.length===3&&(parts[2]==="approve"||parts[2]==="reject"))return Response.json({data:await decideBookRule(actor,parts[1],financeReviewSchema.parse(input),parts[2],needCommand(request))});
     if(parts[0]==="tax-identities"&&parts.length===1)return Response.json({data:await prepareTaxIdentity(actor,taxIdentitySchema.parse(input),needCommand(request))},{status:201});
     if(parts[0]==="tax-identities"&&parts.length===2)return Response.json({data:await prepareTaxIdentity(actor,taxIdentitySchema.parse(input),needCommand(request),parts[1])});
     if(parts[0]==="tax-identities"&&parts.length===3&&parts[2]==="decide")return Response.json({data:await decideTaxIdentity(actor,parts[1],taxIdentityDecisionSchema.parse(input),needCommand(request))});
@@ -274,6 +356,7 @@ export async function POST(request: Request, context: FinanceRouteContext) {
       if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid chart import.");
       return Response.json({ data: await importAccounts(actor, parsed.data.chartId, parsed.data.rows, needCommand(request)) }, { status: 201 });
     }
+    if(parts[0]==="setup"&&parts[1]==="starter"&&parts.length===2)return Response.json({data:await createFinanceStarter(actor,financeStarterSchema.parse(input),needCommand(request))},{status:201});
     if (parts[0] === "charts" && parts.length === 1) { const parsed = createChartSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid chart."); return Response.json({ data: await createChart(actor, parsed.data, needCommand(request)) }, { status: 201 }); }
     if (parts[0] === "charts" && parts[2] === "accounts" && parts[4] === "status" && parts.length === 5) { const parsed = changeAccountStatusSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid account status change."); return Response.json({ data: await changeAccountStatus(actor, parts[1], parts[3], parsed.data, needCommand(request)) }); }
     if (parts[0] === "charts" && parts[2] === "accounts" && parts.length === 3) { const parsed = createAccountSchema.safeParse({ ...(typeof input === "object" && input !== null ? input : {}), chartId: parts[1] }); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid account."); return Response.json({ data: await createAccount(actor, parsed.data, needCommand(request)) }, { status: 201 }); }
@@ -281,6 +364,7 @@ export async function POST(request: Request, context: FinanceRouteContext) {
     if (parts[0] === "journals" && parts.length === 1) { const parsed = createJournalSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid journal."); return Response.json({ data: await createJournal(actor, {...parsed.data,sourceType:"manual",sourceId:undefined,isOpening:false}, needCommand(request)) }, { status: 201 }); }
     if (parts[0] === "opening-balances" && parts[1] === "preview") { const parsed = openingTrialBalanceSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Opening trial balance is invalid."); return Response.json({ data: await previewOpeningTrialBalance(actor, parsed.data) }); }
     if (parts[0] === "opening-balances" && parts[1] === "import") { const parsed = openingTrialBalanceSchema.extend({previewToken:z.string().length(64)}).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Opening trial balance is invalid."); return Response.json({ data: await importOpeningTrialBalance(actor, parsed.data, needCommand(request)) }, { status: 201 }); }
+    if(parts[0]==="journals"&&parts.length===3&&parts[2]==="edit")return Response.json({data:await editManualDraft(actor,parts[1],manualDraftEditSchema.parse(input),needCommand(request))});
     if(parts[0]==="journals"&&parts.length===2&&parts[1]==="batch-post")return Response.json({data:await postJournalBatch(actor,journalBatchSchema.parse(input),needCommand(request))});
     if (parts[0] === "journals" && parts[2] === "post") { const parsed = z.object({ expectedVersion: z.number().int().positive() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "expectedVersion is required."); return Response.json({ data: await postJournal(actor, parts[1], needCommand(request), parsed.data) }); }
     if (parts[0] === "journals" && parts[2] === "reverse") { const parsed = z.object({ periodId: z.string(), entryDate: z.string().date(), memo: z.string().optional() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "A reversal period and date are required."); return Response.json({ data: await reverseJournal(actor, parts[1], needCommand(request), parsed.data) }, { status: 201 }); }

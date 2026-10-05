@@ -27,12 +27,15 @@ export function PeopleNavigation({
     | "payroll"
     | "settings"
     | "handbook"
-    | "learn";
+    | "learn"
+    | "evaluation";
+
   scopeKind: NavigationScopeKind;
   canPayroll?: boolean;
 }) {
   const ids: Record<typeof active, string> = {
     directory: "people-directory",
+    evaluation: "people-evaluation",
     roster: "people-directory",
     organization: "people-directory",
     payroll: "people-payroll",

@@ -1,3 +1,4 @@
+import { RecordScopeProvider } from "@/components/records/record-context";
 import { MainContent } from "@/components/ui/main";
 import { Button } from "@/components/ui/foundation";
 import { measureReadPhase } from "@/server/runtime/read-metrics";
@@ -57,8 +58,9 @@ async function DeferredWorkspaceMenu(
 export const dynamic = "force-dynamic";
 export default async function WorkplaceLayout({
   children,
+  record,
   params,
-}: LayoutProps<"/holdings/[holdingSlug]">) {
+}: LayoutProps<"/holdings/[holdingSlug]"> & { record?: React.ReactNode }) {
   const { holdingSlug } = await params;
   let context;
   try {
@@ -324,7 +326,7 @@ export default async function WorkplaceLayout({
                           : undefined
                       }
                     >
-                      {children}
+                      <RecordScopeProvider base={base}>{children}{record}</RecordScopeProvider>
                     </FeatureEnvironment>
                   </MainContent>
                 </div>

@@ -613,6 +613,7 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown,
   const p=base.extend({bankTransactionId:z.string(),bankVersion:z.number().int().positive(),reason:z.string().trim().min(3).max(1000)}).parse(input);
   const settlement=await one(db,"SELECT * FROM pos_settlements WHERE id=? AND company_id=? AND kind='payout' AND state='paid' FOR UPDATE",p.id,company);
   if(!settlement||settlement.bank_transaction_id)fail('POS_PAYOUT_MATCHED','Unreconciled payout not found');version(settlement,p);
+  if(await one(db,'SELECT claim.journal_line_id FROM finance_bank_match_targets claim JOIN finance_journal_lines line ON line.id=claim.journal_line_id WHERE line.journal_id=?',settlement.journal_id))fail('POS_CASH_JOURNAL_ALREADY_MATCHED','Reverse the confirmed Finance bank match before confirming this payout bank evidence');
   const bank=await one(db,'SELECT t.*,s.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=? FOR UPDATE OF t',p.bankTransactionId,company);
   if(!bank||bank.version!==p.bankVersion||!['unmatched','proposed'].includes(str(bank,'match_status'))||bank.currency!==settlement.currency||bank.amount_minor!==settlement.amount_minor)fail('POS_BANK_MISMATCH','Bank amount, currency, or status does not match the payout');
   const bankNet=await one(db,'SELECT COALESCE(SUM(debit_minor-credit_minor),0) net FROM finance_journal_lines WHERE journal_id=? AND account_id=?',settlement.journal_id,bank.bank_account);

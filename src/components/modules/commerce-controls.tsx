@@ -1,7 +1,11 @@
 "use client";
 import { InlineNotice } from "@/components/ui/foundation";
 
+import { useEmbeddedRecord } from "@/components/records/record-context";
+import { hubResultHref } from "@/lib/hub-result";
+import { recordTarget, recordDrawerHref } from "@/lib/record-drawer";
 import { Dialog, FormDrawer } from "@/components/ui/dialog";
+import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
 import { TimeText } from "@/components/time/time-preference-context";
@@ -30,10 +34,12 @@ type Options = {
 };
 function useCommand(base: string) {
   const router = useRouter();
+  const embedded = useEmbeddedRecord();
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const last = useRef<{ payload: string; key: string } | null>(null);
   async function send(path: string, input: unknown, target?: string) {
+    const form=document.activeElement?.closest('form')??null;
     const body = JSON.stringify(input);
     const fingerprint = path + body;
     if (last.current?.payload !== fingerprint)
@@ -55,9 +61,14 @@ function useCommand(base: string) {
       };
       if (!r.ok) throw new Error(v.error?.message ?? "Unable to save.");
       last.current = null;
-      router.push(
-        target ?? `${base}/commerce/orders/${v.data.salesId ?? v.data.orderId ?? v.data.id}`,
-      );
+      const destination = target ?? `${base}/commerce/orders/${v.data.salesId ?? v.data.orderId ?? v.data.id}`;
+      const record = recordTarget(destination, base);
+      const hubResult = hubResultHref(window.location.href, base, destination);
+      window.dispatchEvent(new Event("erpx:hub-saved"));
+      window.dispatchEvent(new CustomEvent("erpx:record-saved",{detail:{form}}));
+      if (hubResult) router.replace(hubResult, { scroll: false });
+      else if (embedded && record) router.replace(recordDrawerHref(window.location.href, record), { scroll: false });
+      else if (!embedded) router.push(destination);
       router.refresh();
       return true;
     } catch (e) {
@@ -76,15 +87,19 @@ export function OrderEditor({
   order,
   lines,
   sourceRequest,
+  initialPartyId,
+  initialOpen = false,
 }: {
   base: string;
   options: Options;
   kind: string;
+  initialPartyId?: string;
+  initialOpen?: boolean;
   order?: Row;
   lines?: Row[];
   sourceRequest?: { id: string; version: number; neededDate: string | null; note: string };
 }) {
-  const [open, setOpen] = useState(!order);
+  const [open, setOpen] = useState(!order || initialOpen);
   const { send, pending, error } = useCommand(base);
   const [items, setItems] = useState(
     (lines ?? []).map((l) => ({
@@ -94,7 +109,7 @@ export function OrderEditor({
       taxBps: Number(l.tax_bps),
     })),
   );
-  const [partyId, setPartyId] = useState(String(order?.party_id ?? "")),
+  const [partyId, setPartyId] = useState(String(order?.party_id ?? initialPartyId ?? "")),
     [priceListId, setPriceListId] = useState(String(order?.price_list_id ?? ""));
   const eligiblePriceLists = options.priceLists.filter(
     (list) => !list.customer_id || list.customer_id === partyId,
@@ -137,7 +152,7 @@ export function OrderEditor({
   };
   return (
     <Card as="section" appearance="standard" className="ui-panel">
-      <div className="ui-section-header">
+      {!initialOpen && <div className="ui-section-header">
         <h2>
           {order
             ? "Edit draft"
@@ -148,14 +163,14 @@ export function OrderEditor({
             {open ? "Close" : "Edit draft"}
           </Button>
         )}
-      </div>
+      </div>}
       {error && (
         <InlineNotice tone="danger" role="alert" className="error">
           {error}
         </InlineNotice>
       )}
       {open && (
-        <FormDrawer appearance="standard" inline={!order} open={open} onClose={() => setOpen(false)} title="Order details" dismissDisabled={pending}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<form
+        <FormDrawer appearance="standard" inline={!order || initialOpen} open={open} onClose={() => setOpen(false)} title="Order details" dismissDisabled={pending}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<form
           onSubmit={(e) => {
             e.preventDefault();
             const f = new FormData(e.currentTarget);
@@ -1307,9 +1322,11 @@ export function ReturnActions({
     );
   return null;
 }
-export function SettlementForm({ base, invoice }: { base: string; invoice: Row }) {
+export function SettlementForm({ base, invoice, periods, bankAccounts }: { base: string; invoice: Row; periods: Row[]; bankAccounts: Row[] }) {
   const { send, pending, error } = useCommand(base);
+  const [receiptOpen, setReceiptOpen] = useState(false);
   const [paymentSlip, setPaymentSlip] = useState<InvoiceSlipSelection | null>(null);
+  const paymentLabel = invoice.kind === "payable" ? "Record made payment" : "Record received payment";
   return (
     <Card as="section" appearance="standard" className="ui-panel">
       <h2>
@@ -1323,20 +1340,19 @@ export function SettlementForm({ base, invoice }: { base: string; invoice: Row }
         Record a payment already received or made. This records accounting evidence; it does not
         send money through a bank.
       </p>
-      {error && (
-        <InlineNotice tone="danger" role="alert" className="error">
-          {error}
-        </InlineNotice>
-      )}
+      <FormDisclosure appearance="standard" open={receiptOpen} onToggle={event=>setReceiptOpen(event.currentTarget.open)} drawerTitle={paymentLabel} error={error} dismissDisabled={pending}>
+      <summary>{paymentLabel}</summary>
       <form
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault();
           const f = new FormData(e.currentTarget);
-          void send(
+          const saved = await send(
             `invoices/${invoice.id}/settle`,
             {
               expectedVersion: invoice.version,
               date: f.get("date"),
+              periodId: f.get("periodId"),
+              bankAccountId: f.get("bankAccountId") || undefined,
               amount: f.get("amount"),
               reference: f.get("reference"),
               paymentSlipId: paymentSlip?.sourceId,
@@ -1344,9 +1360,22 @@ export function SettlementForm({ base, invoice }: { base: string; invoice: Row }
             },
             `${base}/finance/invoices/${invoice.id}`,
           );
+          if (saved) { setReceiptOpen(false); setPaymentSlip(null); }
         }}
       >
         <FormGrid as="div" className="ui-form-grid">
+          <Field appearance="standard">Accounting period
+            <Select appearance="standard" name="periodId" required defaultValue="">
+              <option value="">Choose open period</option>
+              {periods.filter(p=>p.state==="open").map(p=><option key={String(p.id)} value={String(p.id)}>{String(p.name)} · {String(p.start_date)}–{String(p.end_date)}</option>)}
+            </Select>
+          </Field>
+          {bankAccounts.length>0 && <Field appearance="standard">{invoice.kind === "payable" ? "Paid from bank account" : "Received into bank account"}
+            <Select appearance="standard" name="bankAccountId" required defaultValue={bankAccounts.length===1?String(bankAccounts[0].id):""}>
+              <option value="">Choose bank account</option>
+              {bankAccounts.map(a=><option key={String(a.id)} value={String(a.id)}>{String(a.code)} · {String(a.name)}</option>)}
+            </Select>
+          </Field>}
           <Field appearance="standard">
             Payment date
             <TextInput appearance="standard" name="date" type="date" required defaultValue={businessDate()} />
@@ -1384,6 +1413,7 @@ export function SettlementForm({ base, invoice }: { base: string; invoice: Row }
           </Button>
         </FormGrid>
       </form>
+      </FormDisclosure>
     </Card>
   );
 }
@@ -1404,9 +1434,10 @@ export function MasterEditor({
 }) {
   const { send, pending, error } = useCommand(base);
   const [open, setOpen] = useState(initialOpen);
+  const embedded = useEmbeddedRecord();
   return (
     <div>
-      <Button appearance="standard" type="submit" variant="secondary" onClick={() => setOpen(!open)}>
+      <Button hidden={embedded&&open} appearance="standard" type="button" variant="secondary" onClick={() => setOpen(!open)}>
         {open
           ? "Close"
           : row

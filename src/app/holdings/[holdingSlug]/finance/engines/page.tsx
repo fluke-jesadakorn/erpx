@@ -11,7 +11,8 @@ import { hasPermission } from "@/lib/permissions";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import { financeEngineWorkspace } from "@/server/finance-engines";
 import { accrualSchedulePage } from "@/server/finance-accruals";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
+import { financeCompanyTools } from "@/server/finance-company-tools";
 export const dynamic = "force-dynamic";
 export default async function EnginesPage({
   params,
@@ -20,9 +21,10 @@ export default async function EnginesPage({
 }) {
   const actor = await requireWorkContext((await params).holdingSlug),
     base = workspaceBase(publicScope(actor)),
-    [data, accruals] = await Promise.all([
+    [data, accruals, tools] = await Promise.all([
       financeEngineWorkspace(actor),
       accrualSchedulePage(actor),
+      financeCompanyTools(actor),
     ]);
   return (
     <FeaturePage className="ui-page-content" data-source="live">
@@ -33,6 +35,8 @@ export default async function EnginesPage({
         description="Calculate, review, and approve results using versioned source data and policies"
       >
         <Link href={`${base}/finance/assets`}>Fixed assets, monthly depreciation and disposal →</Link>
+        {tools.some(t=>t.tool==="instruments"&&t.enabled===1)&&<Link href={`${base}/finance/instruments`}>Leases, fixed-rate loans and actual bank repayments →</Link>}
+        {tools.some(t=>t.tool==="asset_policies"&&t.enabled===1)&&<Link href={`${base}/finance/asset-policies`}>Asset depreciation policies by book →</Link>}
         <details className={styles.disclosure}>
           <summary>Prepare a calculation</summary>
           <div>
@@ -83,8 +87,7 @@ export default async function EnginesPage({
                   {data.runs.map((run) => (
                     <tr key={String(run.id)}>
                       <td>
-                        {data.labels[String(run.kind) as keyof typeof data.labels] ??
-                          String(run.kind)}
+                        <Link href={`${base}/record-details/calculation_run/${encodeURIComponent(String(run.id))}`}>{data.labels[String(run.kind) as keyof typeof data.labels] ?? String(run.kind)}</Link>
                         <br />
                         <small className="muted">{String(run.source_hash).slice(0, 12)}</small>
                       </td>

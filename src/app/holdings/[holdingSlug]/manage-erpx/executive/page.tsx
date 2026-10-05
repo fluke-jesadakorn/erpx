@@ -1,3 +1,5 @@
+import {PlatformExecutiveSources} from "@/components/records/platform-executive-sources";
+import {CollectionRecordLink} from "@/components/records/record-collection";
 import { PageContent } from "@/components/ui/patterns";
 import { Table } from "@/components/ui/foundation";
 import { TimeText } from "@/components/time/time-preference-context";
@@ -22,6 +24,7 @@ export default async function PlatformExecutivePage() {
         description="Provisioning and service health from the control plane. Customer Holding records are not included."
       />
       <LiveBanner />
+      <PlatformExecutiveSources/>
       <WidgetGrid>
         {snapshot.metrics.map((metric) => (
           <FeatureWidget
@@ -47,7 +50,7 @@ export default async function PlatformExecutivePage() {
                   <tbody>
                     {metric.rows.map((row) => (
                       <tr key={`${row.label}:${row.value}`}>
-                        <td>{row.label}</td>
+                        <td><CollectionRecordLink kind="platform_executive_sources" id={row.label} args={{metric:metric.id,from:snapshot.filters.from,to:snapshot.filters.to}}>{row.label}</CollectionRecordLink></td>
                         <td>{row.value}</td>
                       </tr>
                     ))}

@@ -89,3 +89,15 @@ export async function postAccrualRun(actor:WorkContext,runId:string,input:z.infe
   write.prepare("INSERT INTO finance_accrual_schedule_events(id,schedule_id,run_id,company_id,action,actor_id,schedule_version,run_version,reason,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(`accrual-event-${key}`,row.schedule_id,runId,actor.companyId,"posted",actor.userId,Number(row.schedule_version)+1,version,input.reason,JSON.stringify({journalId:row.journal_id,periodStart:row.period_start,periodEnd:row.period_end,amountMinor:row.amount_minor}),now),
  ]);
 }
+
+/** Read by ID independently of the register's page limits. */
+export async function accrualRecordDetail(actor: WorkContext, kind: "schedule" | "run", id: string) {
+ actor = requirePermission(actor, "finance.read");
+ const { write } = await holdingResources(actor.holdingId);
+ const row = kind === "schedule"
+  ? await write.prepare("SELECT s.*,da.code debit_code,da.name debit_name,ca.code credit_code,ca.name credit_name FROM finance_accrual_schedules s JOIN finance_accounts da ON da.id=s.debit_account_id JOIN finance_accounts ca ON ca.id=s.credit_account_id WHERE s.id=? AND s.company_id=?").bind(id,actor.companyId).first()
+  : await write.prepare("SELECT r.*,s.description FROM finance_accrual_schedule_runs r JOIN finance_accrual_schedules s ON s.id=r.schedule_id WHERE r.id=? AND r.company_id=?").bind(id,actor.companyId).first();
+ if (!row) throw new ApiError(404,"ACCRUAL_NOT_FOUND","Accrual record not found.");
+ const data = await accrualSchedulePage(actor);
+ return { row, data: { ...data, schedules: kind === "schedule" ? [row] : [], runs: kind === "run" ? [row] : data.runs.filter(run => run.schedule_id === id) } };
+}

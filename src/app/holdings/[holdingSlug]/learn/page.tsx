@@ -14,7 +14,7 @@ import { publicScope,requireWorkContext } from "@/server/authorization";
 import { handbookList } from "@/server/handbook";
 import { holdingResources } from "@/server/runtime";
 import { ArrowUpRight,BookOpen,Sparkles } from "lucide-react";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import styles from "./learn.module.css";
 
 export default async function LearnPage({params,searchParams}:{params:Promise<{holdingSlug:string}>;searchParams:Promise<{q?:string;cursor?:string}>}) {

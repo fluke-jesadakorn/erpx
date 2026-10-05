@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { RecordCatalog } from "@/components/records/record-catalog";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { requireWorkContext, publicScope } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { pageError } from "@/server/page-error";
@@ -40,6 +41,6 @@ export default async function Page({
           </Link>
         ))}
       </Card>
-    </PageContent>
+    <RecordCatalog base={base} kind="learning_course" title="Courses" rows={data.courses} label="title"/></PageContent>
   );
 }

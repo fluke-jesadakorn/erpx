@@ -11,6 +11,8 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   experimental: {
     authInterrupts: true,
+    // Shared record readers add server entry points; reduce Webpack graph memory.
+    webpackMemoryOptimizations: true,
     // Proxy buffers bodies before owner routes. Preserve supported 10 MiB
     // files and executed-copy multipart metadata so owners enforce their limits.
     proxyClientMaxBodySize: 11 * 1024 * 1024,

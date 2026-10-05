@@ -1,4 +1,6 @@
 "use client";
+import {BillingCostEditor} from "@/components/records/billing-cost-editor";
+import { CollectionRecordLink, RecordCollectionDrawer, RecordFacts } from "@/components/records/record-collection";
 import { Card } from "@/components/ui/foundation";
 
 import { InlineNotice } from "@/components/ui/foundation";
@@ -23,7 +25,7 @@ import { APP_LOCALE, APP_TIMEZONE } from "@/lib/localization";
 import { workFetch } from "@/lib/work-fetch";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import styles from "./billing-console.module.css";
 import { TableFrame } from "@/components/ui/foundation";
 const date = (n: number | null) =>
@@ -109,7 +111,8 @@ export function BillingConsole({
     };
     void run();
     const timer = setInterval(run, 15000);
-    return () => {
+    return () =>
+ {
       active = false;
       clearInterval(timer);
     };
@@ -217,6 +220,7 @@ export function BillingConsole({
   const periodCosts = data?.costs.filter((c) => c.period_id === periodId) ?? [];
   return (
     <section className={styles.root} aria-label={platform ? "Customer billing" : "Holding billing"}>
+      <RecordCollectionDrawer<BillingView> kind="billing_cost" title="Recorded cost" endpoint={api} select={(snapshot,id)=>snapshot.costs.find(row=>row.id===id) as unknown as Record<string,unknown>??null} render={(record,snapshot)=><><RecordFacts record={record}/>{platform&&writable&&snapshot.periods.find(p=>p.id===record.period_id)?<BillingCostEditor cost={record as unknown as BillingCost} period={snapshot.periods.find(p=>p.id===record.period_id)!} busy={busy} reasonValid={reason.trim().length>=3} command={command}/>:null}{record.evidence_id&&platform?<a href={`/api/v1/platform/billing/evidence/${record.evidence_id}?holdingId=${encodeURIComponent(holding)}`}>Private evidence</a>:null}</>}/>
       <header className={styles.header}>
         <div>
           <h2>{platform ? "Customer billing" : "Usage & billing"}</h2>
@@ -635,7 +639,7 @@ export function BillingConsole({
                             {periodCosts.map((c) => (
                               <tr key={c.id}>
                                 <td>
-                                  {c.category}{" "}
+                                  <CollectionRecordLink kind="billing_cost" id={c.id}>{c.category}</CollectionRecordLink>{" "}
                                   {c.simulated && <span className={styles.tag}>Simulated</span>}
                                   <p>{c.note}</p>
                                   {platform && c.evidence_id && (

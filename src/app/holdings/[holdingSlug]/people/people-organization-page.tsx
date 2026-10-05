@@ -8,7 +8,7 @@ import { publicScope, type WorkContext } from "@/server/authorization";
 import { pageError } from "@/server/page-error";
 import { peopleWorkspaceData } from "@/server/people-workspace";
 import styles from "./people-organization-page.module.css";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 
 export async function PeopleOrganizationPage({ actor, search }: {
   actor: WorkContext;

@@ -14,7 +14,7 @@ import { publicScope,requireWorkContext } from "@/server/authorization";
 import { getPayment } from "@/server/finance";
 import { pageError } from "@/server/page-error";
 import { ArrowLeft,ArrowUpRight } from "lucide-react";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { Card } from "@/components/ui/foundation";
 
 export const dynamic = "force-dynamic";

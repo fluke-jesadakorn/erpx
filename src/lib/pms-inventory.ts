@@ -34,6 +34,7 @@ export function availability(
         r.id !== excludeBlock &&
         r.data.kind === "group" &&
         r.data.state === "active" &&
+        (!r.data.expiresAt || r.data.expiresAt > (s.asOf ?? Date.now())) &&
         r.data.typeId === typeId &&
         r.data.from <= date &&
         r.data.to > date &&

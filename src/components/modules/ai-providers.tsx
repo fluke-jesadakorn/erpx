@@ -4,7 +4,7 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
 import { workFetch } from "@/lib/work-fetch";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { AiConnectionForm } from "./ai-connection-form";
 import {
   Sparkles,

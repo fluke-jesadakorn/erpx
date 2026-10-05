@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import {FeaturePage} from "@/components/features/feature-page";
 import {HireHandoffConsole} from "@/components/modules/hire-handoff-console";
 import {workspaceBase} from "@/lib/workspace";

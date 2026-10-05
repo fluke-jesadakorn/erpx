@@ -22,6 +22,15 @@ export function productionPageCut(pathname:string,workspaceBase:string,search:Pi
   const segments=pathname.slice(workspaceBase.length+1).split('/').filter(Boolean);
   const [root,section]=segments;
   if(!root)return null;
+  if(['sales','customers'].includes(root)&&segments.length===1) {
+    const view=search.get('view');
+    const owners=root==='sales'
+      ? !view||view==='today'?['crm','sales']:['pipeline','reports'].includes(view)?['crm']:['sales']
+      : !view?['customer_360','crm','sales','support']:view==='support'?['support']:view==='contacts'?['crm']:view==='reviews'?['customer_authority']:['customer_360','crm','sales'];
+    const entries=owners.flatMap(owner=>catalogue.filter(entry=>entry.id===owner));
+    if(entries.some(entry=>!['Coming Soon','Prototype'].includes(entry.state)))return null;
+    return entries.find(entry=>['Coming Soon','Prototype'].includes(entry.state))??null;
+  }
   if(root==='finance'&&segments.length===2&&['engines','group'].includes(section??''))
     return {id:'advanced-finance',name:'Advanced Finance',state:'Coming Soon' as FeatureState};
   // The legacy Payroll entry redirects into its dedicated, read-safe workspace.

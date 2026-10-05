@@ -51,11 +51,11 @@ function useCommand(base: string) {
   }
   return { send, busy, error };
 }
-export function BenefitsConsole({
+export function BenefitsConsole({ recordOnly=false,
   base,
   data,
   detail,
-}: {
+}: { recordOnly?:boolean;
   base: string;
   data?: Awaited<ReturnType<typeof benefitsWorkspace>>;
   detail?: Awaited<ReturnType<typeof benefitDetail>>;
@@ -69,7 +69,7 @@ export function BenefitsConsole({
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
       {data?.canReview && (
         <>
-          <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Draft benefit plan</summary><FormLayout
+          {!recordOnly && <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Draft benefit plan</summary><FormLayout
             className="ui-panel ui-form-grid"
             onSubmit={(x) => {
               x.preventDefault();
@@ -122,8 +122,8 @@ export function BenefitsConsole({
             <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Draft plan
             </Button>
-          </FormLayout></FormDisclosure>
-          <FormLayout
+          </FormLayout></FormDisclosure>}
+          {!recordOnly && <FormLayout
             className="ui-panel ui-form-grid"
             onSubmit={(x) => {
               x.preventDefault();
@@ -153,7 +153,7 @@ export function BenefitsConsole({
             <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Draft window
             </Button>
-          </FormLayout>
+          </FormLayout>}
           {(
             [
               ...data.plans
@@ -191,7 +191,7 @@ export function BenefitsConsole({
         </>
       )}
       {data?.canWrite && (
-        <FormLayout
+        (!recordOnly && <FormLayout
           className="ui-panel ui-form-grid"
           onSubmit={(x) => {
             x.preventDefault();
@@ -217,7 +217,7 @@ export function BenefitsConsole({
           <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Submit dependent
           </Button>
-        </FormLayout>
+        </FormLayout>)
       )}
       {data?.plans
         .filter((plan) => ["draft", "published", "retired"].includes(String(plan.status)))
@@ -317,7 +317,7 @@ export function BenefitsConsole({
             </FormLayout>
           ))}
       {data?.canWrite && (
-        <FormLayout
+        (!recordOnly && <FormLayout
           className="ui-panel ui-form-grid"
           onSubmit={(x) => {
             x.preventDefault();
@@ -373,10 +373,10 @@ export function BenefitsConsole({
           <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Elect plan
           </Button>
-        </FormLayout>
+        </FormLayout>)
       )}
       {e && !["released", "cancelled"].includes(String(e.status)) && (
-        <FormLayout
+        (!recordOnly && <FormLayout
           className="ui-panel ui-form-grid"
           onSubmit={(x) => {
             x.preventDefault();
@@ -453,7 +453,7 @@ export function BenefitsConsole({
           <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Continue
           </Button>
-        </FormLayout>
+        </FormLayout>)
       )}
     </>
   );

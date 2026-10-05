@@ -1,4 +1,10 @@
 "use client";
+import {PmsOperationsCalendar} from "./operations-calendar";
+import {PmsRangeReports} from "./range-reports";
+import {recordCanonicalHref} from "@/lib/record-drawer";
+import { CollectionRecordLink } from "@/components/records/record-collection";
+import { PmsEntryDetail } from "@/components/records/pms-entry-detail";
+import { RecordSurface } from "@/components/records/record-surface";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import {SourceSupportChooser} from "@/components/modules/source-support-chooser";
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
@@ -39,7 +45,7 @@ import {
 } from "@/lib/pms-model";
 import { useCurrency, useMoneyFormatter } from "@/components/money/currency-provider";
 import { availability } from "@/lib/pms-inventory";
-import { dailyRoomReport, nightBlockers } from "@/lib/pms-read";
+import { nightBlockers } from "@/lib/pms-read";
 import { workFetch } from "@/lib/work-fetch";
 import { TimeText } from "@/components/time/time-preference-context";
 import type { PmsWorkspace } from "@/server/pms";
@@ -54,8 +60,13 @@ import {
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter,useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {PmsListPagination} from "./list-pagination";
+import {StaySummary} from "./stay-summary";
+import {StaffBookingChange} from "./staff-booking-change";
+import {BookingRefundRecovery} from "./booking-refund-recovery";
+import { BookingOnlineAccounts,BookingFeeAccounts } from "./booking-policy-settings";
 import dynamic from "next/dynamic";
 const BookingFlow = dynamic(() => import("./booking-flow").then((module) => module.BookingFlow));
 const BookingSettings = dynamic(() =>
@@ -109,6 +120,7 @@ type ActionAttachment = {
   title: string;
   description: string;
 };
+const pmsFileBase=(base:string)=>base.startsWith('/front/')?`${base.replace(/\/$/,'')}/pms`:base;
 const guestDocumentPurposes: readonly RecordDocumentPurpose[] = [
   {
     key: "identity_document",
@@ -175,7 +187,7 @@ function PmsRecordDocuments({
         <summary>{title}</summary>
         {open && (
           <RecordDocumentPanel
-            base={base}
+            base={pmsFileBase(base)}
             targetType={targetType}
             targetId={targetId}
             expectedTargetVersion={expectedTargetVersion}
@@ -361,15 +373,19 @@ function Form({
           </UiField>
         ))}
         {attachments.map((attachment) => (
-          <AttachmentPanel
+          <div
             key={`${attachment.purposeKey}:${attachment.targetId}`}
-            {...attachment}
-            componentKind="action"
-            componentRef={op}
-            fieldName="attachmentSetId"
-            bindMode="action"
-            visibility="Visible only to hotel staff authorized for this property and action."
-          />
+            className={styles.wide}
+          >
+            <AttachmentPanel
+              {...attachment}
+              componentKind="action"
+              componentRef={op}
+              fieldName="attachmentSetId"
+              bindMode="action"
+              visibility="Visible only to hotel staff authorized for this property and action."
+            />
+          </div>
         ))}
         {op === "reservation.create" && (
           <div className={styles.formFoot}>
@@ -572,11 +588,14 @@ function FrontPmsDaily({
   onRefresh: () => void;
   onPropertyChange: (value: string) => void;
 }) {
+  const listRouter=useRouter(),listParams=useSearchParams();
   const language = useFrontLanguage();
   const formatSelectedMoney = useMoneyFormatter();
   const money = (value: number) =>
     formatSelectedMoney(value, property?.config.currency ?? "THB", today, 2);
   const tr = (value: string) => frontText(value, language);
+  const [staySearch,setStaySearch]=useState("");
+  const [floor,setFloor]=useState(""),[assignee,setAssignee]=useState(""),[taskState,setTaskState]=useState("");
   const roomRows = rows("room");
   const taskRows = [...rows("task")].sort(
     (a, b) =>
@@ -584,14 +603,14 @@ function FrontPmsDaily({
       a.data.date.localeCompare(b.data.date) ||
       roomName(a.data.roomId).localeCompare(roomName(b.data.roomId), undefined, { numeric: true }),
   );
-  const visibleStays = stays.filter((row) =>
+  const visibleStays = stays.filter(row=>!snapshot?.listMeta||snapshot.listMeta.section!=="front-desk"||snapshot.listMeta.ids.includes(row.id)||row.id===selectedRecord).filter(row=>`${guestName(row.data.guestId)} ${rows("reservation").find(r=>r.id===row.data.reservationId)?.data.number??""}`.toLowerCase().includes(staySearch.toLowerCase())).filter((row) =>
     query === "arrivals"
       ? row.data.state === "reserved" && row.data.arrival === today
       : query === "departures"
         ? row.data.state === "in_house" && row.data.departure <= today
         : !query || row.data.state === query,
   );
-  const reservationRows = rows("reservation").filter((row) =>
+  const reservationRows = rows("reservation").filter(row=>!snapshot?.listMeta||snapshot.listMeta.ids.includes(row.id)||row.id===selectedRecord).filter((row) =>
     `${row.data.number} ${guestName(row.data.guestId)} ${row.data.externalRef} ${row.data.source}`
       .toLowerCase()
       .includes(query.toLowerCase()),
@@ -672,6 +691,7 @@ function FrontPmsDaily({
             </Select>
           </UiField>
         </div>
+        {snapshot?.listMeta&&<PmsListPagination key={JSON.stringify(snapshot.listMeta)} meta={snapshot.listMeta}/>}
         {error && (
           <div className={styles.error} role="alert">
             {error}
@@ -828,6 +848,7 @@ function FrontPmsDaily({
                 </Panel>
                 <Panel title="Today's work">
                   {stays
+                    .filter(r=>!snapshot?.listMeta||snapshot.listMeta.section!=="front-desk"||snapshot.listMeta.ids.includes(r.id)||r.id===selectedRecord)
                     .filter(
                       (row) =>
                         (row.data.arrival === today && row.data.state === "reserved") ||
@@ -886,7 +907,7 @@ function FrontPmsDaily({
                     onChange={(event) => setQuery(event.target.value)}
                   />
                   {reservationRows.map((row) => (
-                    <article
+                    <RecordSurface as="article" recordId={row.id}
                       className={styles.record}
                       key={row.id}
                       data-pms-record={row.id}
@@ -932,7 +953,7 @@ function FrontPmsDaily({
                         ))}
                       {row.data.state === "confirmed" && showReservationForms && (
                         <div className={styles.actions}>
-                          {form(
+                          {(!row.data.bookingPolicy) && form(
                             "Cancel reservation",
                             "reservation.cancel",
                             [field("reason", "Reason"), field("fee", "Fee", "money", 0)],
@@ -946,7 +967,7 @@ function FrontPmsDaily({
                           )}
                         </div>
                       )}
-                    </article>
+                    </RecordSurface>
                   ))}
                   {!reservationRows.length && <Empty>{tr("No reservations found")}</Empty>}
                 </Panel>
@@ -954,7 +975,7 @@ function FrontPmsDaily({
             )}
 
             {section === "front-desk" && (
-              <Panel title="Front desk">
+              <Panel title="Front desk"><UiField>Search guest or booking<TextInput type="search" value={staySearch} onChange={e=>setStaySearch(e.target.value)}/></UiField><PmsOperationsCalendar base={base} propertyId={propertyId!} today={today}/>
                 <div className={styles.filters}>
                   {["", "arrivals", "departures", "reserved", "in_house"].map((value) => (
                     <Button
@@ -963,14 +984,14 @@ function FrontPmsDaily({
                       key={value}
                       aria-pressed={query === value}
                       className={`button ${query === value ? "" : "secondary"}`}
-                      onClick={() => setQuery(value)}
+                      onClick={() => {if(snapshot?.listMeta){const params=new URLSearchParams(listParams);params.set("status",value);params.set("page","0");params.delete("queue");listRouter.push(`?${params}`);}else setQuery(value);}}
                     >
                       {tr(labelState[value] ?? "All")}
                     </Button>
                   ))}
                 </div>
                 {visibleStays.map((row) => (
-                  <article
+                  <RecordSurface as="article" recordId={row.id}
                     className={styles.record}
                     key={row.id}
                     data-pms-record={row.id}
@@ -984,6 +1005,7 @@ function FrontPmsDaily({
                       {roomName(row.data.roomId)} · {row.data.arrival} → {row.data.departure} ·{" "}
                       {row.data.adults} guests
                     </p>
+                    <StaySummary snapshot={snapshot!} stay={row} financial={can("pms.cashier")||can("pms.reports")} base={base} documents={data.documents}/>
                     {showCashierForms && row.data.folioId && (
                       <UiActionLink
                         variant="secondary"
@@ -1029,7 +1051,7 @@ function FrontPmsDaily({
                         {row.data.state === "reserved" ? (
                           <>
                             {form("Check in", "stay.check_in", [], { id: row.id })}
-                            {form(
+                            {(!row.data.bookingPolicy) && form(
                               "Cancel this stay",
                               "stay.cancel",
                               [field("reason", "Reason"), field("fee", "Fee", "money", 0)],
@@ -1073,7 +1095,8 @@ function FrontPmsDaily({
                           [select("folioId", "Destination folio", folios)],
                           { id: row.id },
                         )}
-                        {form(
+                        {row.data.state === "reserved" && row.data.bookingPolicy && can("pms.reservations") && <StaffBookingChange base={base} snapshot={snapshot!} stay={row} canOverride={can("pms.approve")} onSaved={onRefresh}/>}
+                        {(row.data.state === "in_house" || !row.data.bookingPolicy) && form(
                           "Change dates / extend stay",
                           "stay.change_dates",
                           [
@@ -1086,7 +1109,7 @@ function FrontPmsDaily({
                         )}
                       </>
                     )}
-                  </article>
+                  </RecordSurface>
                 ))}
                 {!visibleStays.length && (
                   <Empty>
@@ -1155,7 +1178,7 @@ function FrontPmsDaily({
 
             {section === "housekeeping" && (
               <>
-                <Panel title="Housekeeping tasks">
+                <Panel title="Housekeeping tasks"><div className={styles.filters}><UiField>Floor<Select value={floor} onChange={e=>setFloor(e.target.value)}><option value="">All floors</option>{[...new Set(roomRows.map(r=>r.data.floor))].filter(Boolean).map(f=><option key={f} value={f}>{f}</option>)}</Select></UiField><UiField>Assigned to<Select value={assignee} onChange={e=>setAssignee(e.target.value)}><option value="">All staff</option>{data.staff.map(st=><option key={st.id} value={st.id}>{st.name}</option>)}</Select></UiField><UiField>Status<Select value={taskState} onChange={e=>setTaskState(e.target.value)}><option value="">Active tasks</option>{["pending","working","clean","done"].map(v=><option key={v} value={v}>{v}</option>)}</Select></UiField></div>
                   {showHousekeepingForms && (
                     <details
                       className={styles.taskCreation}
@@ -1165,7 +1188,7 @@ function FrontPmsDaily({
                       {roomRows.map(
                         (row) =>
                           showHousekeepingForms && (
-                            <div key={row.id} data-pms-record={row.id} tabIndex={-1}>
+                            <RecordSurface recordId={row.id} key={row.id} data-pms-record={row.id} tabIndex={-1}>
                               {form(
                                 `${tr("Create housekeeping task")} · ${tr("Room")} ${row.data.number}`,
                                 "task.create",
@@ -1184,19 +1207,19 @@ function FrontPmsDaily({
                                 ],
                                 { roomId: row.id },
                               )}
-                            </div>
+                            </RecordSurface>
                           ),
                       )}
                     </details>
                   )}
-                  {taskRows
+                  {taskRows.filter(row=>(!floor||roomRows.find(r=>r.id===row.data.roomId)?.data.floor===floor)&&(!assignee||row.data.assigneeId===assignee)&&(!taskState||row.data.state===taskState))
                     .filter(
                       (row) =>
-                        row.id === selectedRecord ||
+                        row.id === selectedRecord || Boolean(taskState) ||
                         !["done", "superseded"].includes(row.data.state),
                     )
                     .map((row) => (
-                      <article
+                      <RecordSurface as="article" recordId={row.id}
                         className={styles.record}
                         key={row.id}
                         data-pms-record={row.id}
@@ -1285,7 +1308,7 @@ function FrontPmsDaily({
                           ) : (
                             form("Inspect task", "task.inspect", [], { id: row.id })
                           ))}
-                      </article>
+                      </RecordSurface>
                     ))}
                   {!taskRows.some((row) => !["done", "superseded"].includes(row.data.state)) && (
                     <Empty>{tr("No open room tasks")}</Empty>
@@ -1295,7 +1318,7 @@ function FrontPmsDaily({
                   {rows("block")
                     .filter((row) => row.data.kind === "maintenance" && row.data.state === "active")
                     .map((row) => (
-                      <div
+                      <RecordSurface recordId={row.id}
                         className={styles.record}
                         key={row.id}
                         data-pms-record={row.id}
@@ -1311,7 +1334,7 @@ function FrontPmsDaily({
                           form("Reopen room after inspection", "maintenance.close", [], {
                             id: row.id,
                           })}
-                      </div>
+                      </RecordSurface>
                     ))}
                 </Panel>
               </>
@@ -1383,7 +1406,7 @@ function FrontPmsDaily({
                                 <tr key={entry.id}>
                                   <td>{entry.data.date}</td>
                                   <td>
-                                    {entry.data.description}
+                                    <CollectionRecordLink kind="pms_entry" id={entry.id}>{entry.data.description}</CollectionRecordLink>
                                     <small className={styles.muted}>
                                       {entry.data.kind} · {entry.data.reference}
                                     </small>
@@ -1461,7 +1484,7 @@ function FrontPmsDaily({
                           item.folio_id === currentFolio.id && item.recorded_by === data.userId,
                       )
                       .map((item) => (
-                        <article
+                        <RecordSurface as="article" recordId={item.id}
                           className={styles.record}
                           key={item.id}
                           data-pms-record={item.id}
@@ -1486,12 +1509,12 @@ function FrontPmsDaily({
                               id: item.id,
                               expectedTransferVersion: Number(item.version),
                             })}
-                        </article>
+                        </RecordSurface>
                       ))}
                     {data.chargeCorrections
                       .filter((item) => item.folio_id === currentFolio.id)
                       .map((item) => (
-                        <article
+                        <RecordSurface as="article" recordId={item.id}
                           className={styles.record}
                           key={item.id}
                           data-pms-record={item.id}
@@ -1502,7 +1525,7 @@ function FrontPmsDaily({
                           </strong>
                           <p>{item.reason}</p>
                           {item.review_reason && <p>{item.review_reason}</p>}
-                        </article>
+                        </RecordSurface>
                       ))}
                     {data.documents
                       .filter((document) => document.folio_id === currentFolio.id)
@@ -1558,7 +1581,7 @@ function FrontPmsDaily({
                     {rows("refund")
                       .filter((row) => row.data.folioId === currentFolio.id)
                       .map((row) => (
-                        <article
+                        <RecordSurface as="article" recordId={row.id}
                           className={styles.record}
                           key={row.id}
                           data-pms-record={row.id}
@@ -1570,7 +1593,7 @@ function FrontPmsDaily({
                           <Badge>{labelState[row.data.state]}</Badge>
                           {row.data.state === "approved" &&
                             form("Pay refund", "refund.pay", payments, { id: row.id })}
-                        </article>
+                        </RecordSurface>
                       ))}
                     {currentFolio.data.state !== "closed" &&
                       form("Close folio", "folio.close", [], { id: currentFolio.id })}
@@ -1588,7 +1611,7 @@ function FrontPmsDaily({
                   field("opening", "Opening float", "money", 0),
                 ])}
                 {rows("shift").map((row) => (
-                  <article
+                  <RecordSurface as="article" recordId={row.id}
                     className={styles.record}
                     key={row.id}
                     data-pms-record={row.id}
@@ -1628,7 +1651,7 @@ function FrontPmsDaily({
                         )}
                       </>
                     )}
-                  </article>
+                  </RecordSurface>
                 ))}
                 {!rows("shift").length && <Empty>{tr("No cash shifts yet")}</Empty>}
               </Panel>
@@ -1672,7 +1695,7 @@ function FrontPmsDaily({
                   .slice()
                   .reverse()
                   .map((row) => (
-                    <article
+                    <RecordSurface as="article" recordId={row.id}
                       className={styles.record}
                       key={row.id}
                       data-pms-record={row.id}
@@ -1685,7 +1708,7 @@ function FrontPmsDaily({
                       <p>{tr(nightAuditMessage(row.data.message))}</p>
                       {row.data.state === "blocked" &&
                         form("Resolve and continue", "night.resume", [], { id: row.id })}
-                    </article>
+                    </RecordSurface>
                   ))}
               </Panel>
             )}
@@ -1725,10 +1748,10 @@ export function PmsWorkspaceView({
   const formatSelectedMoney = useMoneyFormatter();
   const { displayCurrency } = useCurrency();
   const tr = useCallback((value: string) => frontText(value, language), [language]);
-  const router = useRouter();
+  const router = useRouter(),recordSelection=useSearchParams();
   const [data, setData] = useState(initial),
     [error, setError] = useState(""),
-    [query, setQuery] = useState(initialQueue ?? ""),
+    [query, setQuery] = useState((['guests','reservations'].includes(section)?initial.snapshot?.listMeta?.q:initial.snapshot?.listMeta?.status)??initialQueue ?? ""),
     [folioId, setFolioId] = useState(
       () =>
         selectedFolio ??
@@ -1753,7 +1776,12 @@ export function PmsWorkspaceView({
   if (previousInitial !== initial) {
     setPreviousInitial(initial);
     setData(initial);
+    if(initial.snapshot?.listMeta)setQuery(['guests','reservations'].includes(section)?initial.snapshot.listMeta.q:initial.snapshot.listMeta.status);
   }
+  const listMeta=data.snapshot?.listMeta;
+  const selectedListId=selectedRecord??(section==='folios'?folioId:undefined)??listMeta?.selectedId;
+  const listReadParams=listMeta?{view:'list',section:listMeta.section,from:listMeta.from,to:listMeta.to,page:String(listMeta.page),q:listMeta.q,status:listMeta.status,...(selectedListId?{selectedId:selectedListId}:{})}:section==='settings'?{view:'setup'}:section==='reports'?{view:'report'}:{};
+  const listReadKey=JSON.stringify(listReadParams);
   useEffect(() => {
     let active = true,
       pending = false;
@@ -1763,7 +1791,7 @@ export function PmsWorkspaceView({
       pending = true;
       try {
         const r = await workFetch(
-          `/api/v1${base}/pms?${new URLSearchParams({ ...(propertyId ? { property: propertyId } : {}), ...(section === "night-audit" ? { dayControls: "1" } : {}), ...(section === "dashboard" ? { view: "dashboard" } : {}) })}`,
+          `/api/v1${base}/pms?${new URLSearchParams({ ...(propertyId ? { property: propertyId } : {}), ...(section === "night-audit" ? { dayControls: "1" } : {}), ...(section === "dashboard" ? { view: "dashboard" } : {}),...JSON.parse(listReadKey) })}`,
           { signal: controller.signal },
         );
         if (r.ok) {
@@ -1795,7 +1823,7 @@ export function PmsWorkspaceView({
       controller.abort();
       clearInterval(timer);
     };
-  }, [base, language, propertyId, section, tr]);
+  }, [base, language, propertyId, section, tr,listReadKey]);
   const send: Send = async (op, input, version, attachmentSetIds = []) => {
     if (op === "reservation.create")
       input = { ...(input as Record<string, unknown>), currency: displayCurrency };
@@ -1839,7 +1867,7 @@ export function PmsWorkspaceView({
       let refreshed = false;
       try {
         const fresh = await workFetch(
-          `/api/v1${base}/pms?${new URLSearchParams({ property: pid, ...(section === "dashboard" ? { view: "dashboard" } : {}) })}`,
+          `/api/v1${base}/pms?${new URLSearchParams({ property: pid, ...(section === "dashboard" ? { view: "dashboard" } : {}),...JSON.parse(listReadKey) })}`,
         );
         if (fresh.ok) {
           setData((await fresh.json()).data);
@@ -1888,8 +1916,8 @@ export function PmsWorkspaceView({
       permissions={permissions}
       version={version}
       transform={transform}
-      attachments={attachments}
-      open={!!selectedRecord && (hidden.id === selectedRecord || hidden.roomId === selectedRecord)}
+      attachments={attachments?.map(item=>({...item,base:pmsFileBase(item.base)}))}
+      open={recordSelection.get("detailKind")!=="pms_record" && !!selectedRecord && (hidden.id === selectedRecord || hidden.roomId === selectedRecord)}
     />
   );
   const rows = <K extends Kind>(kind: K): PmsRecord<K>[] => (s ? records(s, kind) : []);
@@ -1960,9 +1988,16 @@ export function PmsWorkspaceView({
       field("active", "Rate plan active", "checkbox", d?.active ?? true),
     ];
   }
+  const entryDrawer=<PmsEntryDetail base={base} propertyId={propertyId} renderAction={(id,snapshot)=>{
+    const entry=snapshot.snapshot?.records.find(row=>row.kind==='entry'&&row.id===id) as PmsRecord<'entry'>|undefined;
+    if(!entry)return null;
+    const pending=snapshot.chargeCorrections.some(row=>row.entry_id===id&&row.status==='pending');
+    const reversed=snapshot.snapshot?.records.some(row=>row.kind==='entry'&&(row as PmsRecord<'entry'>).data.originalId===id);
+    return pending?<p>Awaiting independent review</p>:entry.data.method!=='opening'&&['charge','transfer'].includes(entry.data.kind)&&entry.data.total>0&&!entry.data.sourceKey?.startsWith('pos')&&!reversed?form('Request reversal','charge.correction.request',[field('reason','Reason')],{id}):null;
+  }}/>;
   if (frontMode)
     return (
-      <FrontPmsDaily
+      <>{entryDrawer}<FrontPmsDaily
         data={data}
         base={base}
         erpBase={erpBase}
@@ -2003,10 +2038,10 @@ export function PmsWorkspaceView({
             `${frontHref ?? `${base}/pms/`}${section === "dashboard" ? "" : section}?property=${encodeURIComponent(next)}`,
           )
         }
-      />
+      /></>
     );
   return (
-    <FrontLocalizedTree>
+    <FrontLocalizedTree>{entryDrawer}
       <div className={styles.workspace} data-source="live">
         <header className={styles.header}>
           <div>
@@ -2055,6 +2090,7 @@ export function PmsWorkspaceView({
               href: `${base}/pms/${item.id}${propertyId ? `?property=${encodeURIComponent(propertyId)}` : ""}`,
             }))}
         />
+        {s?.listMeta&&<PmsListPagination key={JSON.stringify(s.listMeta)} meta={s.listMeta}/>}
         <SourceSupportChooser base={erpBase} selectedId={selectedRecord} records={(s?.records??[]).map(record=>({id:record.id,version:record.version,label:`${record.kind} · ${record.id}`}))}/>
         <WidgetGrid>
           {error && (
@@ -2344,7 +2380,7 @@ export function PmsWorkspaceView({
                           .includes(query.toLowerCase()),
                       )
                       .map((r) => (
-                        <article
+                        <RecordSurface as="article" recordId={r.id}
                           key={r.id}
                           className={styles.record}
                           data-pms-record={r.id}
@@ -2452,7 +2488,7 @@ export function PmsWorkspaceView({
                           </div>
                           {r.data.state === "confirmed" && (
                             <>
-                              {form(
+                              {(!r.data.bookingPolicy) && form(
                                 "Cancel reservation",
                                 "reservation.cancel",
                                 [field("reason", "Reason"), field("fee", "Fee", "money", 0)],
@@ -2466,13 +2502,13 @@ export function PmsWorkspaceView({
                               )}
                             </>
                           )}
-                        </article>
+                        </RecordSurface>
                       ))}
                   </Panel>
                 </>
               )}
               {section === "front-desk" && (
-                <Panel title="Front Office">
+                <Panel title="Front Office"><PmsOperationsCalendar base={base} propertyId={p.id} today={today}/>
                   <div className={styles.filters}>
                     {["", "arrivals", "departures", "reserved", "in_house", "checked_out"].map(
                       (st) => (
@@ -2481,7 +2517,7 @@ export function PmsWorkspaceView({
                           variant="plain"
                           key={st}
                           className={`button ${query === st ? "" : "secondary"}`}
-                          onClick={() => setQuery(st)}
+                          onClick={() => {if(s?.listMeta){const params=new URLSearchParams(recordSelection);params.set("status",st);params.set("page","0");params.delete("queue");router.push(`?${params}`);}else setQuery(st);}}
                         >
                           {labelState[st] ?? "All"}
                         </Button>
@@ -2489,6 +2525,7 @@ export function PmsWorkspaceView({
                     )}
                   </div>
                   {stays
+                    .filter(r=>!s?.listMeta||s.listMeta.section!=="front-desk"||s.listMeta.ids.includes(r.id)||r.id===selectedRecord)
                     .filter((r) =>
                       query === "arrivals"
                         ? r.data.state === "reserved" && r.data.arrival === today
@@ -2497,7 +2534,7 @@ export function PmsWorkspaceView({
                           : !query || r.data.state === query,
                     )
                     .map((r) => (
-                      <article
+                      <RecordSurface as="article" recordId={r.id}
                         key={r.id}
                         className={styles.record}
                         data-pms-record={r.id}
@@ -2511,6 +2548,7 @@ export function PmsWorkspaceView({
                           {roomName(r.data.roomId)} · {r.data.arrival} → {r.data.departure} ·{" "}
                           {r.data.adults} guests
                         </p>
+                        <StaySummary snapshot={s!} stay={r} financial={can("pms.cashier")||can("pms.reports")} base={base} documents={data.documents}/>
                         <PmsRecordDocuments
                           base={base}
                           targetType="pms_stay"
@@ -2555,7 +2593,7 @@ export function PmsWorkspaceView({
                                 {form("Check in", "stay.check_in", [], {
                                   id: r.id,
                                 })}
-                                {form(
+                                {(!r.data.bookingPolicy) && form(
                                   "Cancel this stay",
                                   "stay.cancel",
                                   [field("reason", "Reason"), field("fee", "Fee", "money", 0)],
@@ -2599,7 +2637,8 @@ export function PmsWorkspaceView({
                               [select("folioId", "Destination folio", folios)],
                               { id: r.id },
                             )}
-                            {form(
+                            {r.data.state === "reserved" && r.data.bookingPolicy && can("pms.reservations") && <StaffBookingChange base={base} snapshot={s!} stay={r} canOverride={can("pms.approve")} onSaved={()=>router.refresh()}/>}
+                            {(r.data.state === "in_house" || !r.data.bookingPolicy) && form(
                               "Change dates / extend stay",
                               "stay.change_dates",
                               [
@@ -2612,7 +2651,7 @@ export function PmsWorkspaceView({
                             )}
                           </>
                         )}
-                      </article>
+                      </RecordSurface>
                     ))}
                   {!stays.length && <Empty>No guests are currently in house.</Empty>}
                 </Panel>
@@ -2697,7 +2736,7 @@ export function PmsWorkspaceView({
                           Number(a.data.priority === "urgent"),
                       )
                       .map((r) => (
-                        <article
+                        <RecordSurface as="article" recordId={r.id}
                           key={r.id}
                           className={styles.record}
                           data-pms-record={r.id}
@@ -2774,7 +2813,7 @@ export function PmsWorkspaceView({
                             )}
                           {r.data.state === "clean" &&
                             form("Inspect task", "task.inspect", [], { id: r.id })}
-                        </article>
+                        </RecordSurface>
                       ))}
                     {!rows("task").some((t) => !["done", "superseded"].includes(t.data.state)) && (
                       <Empty>No open room tasks.</Empty>
@@ -2784,7 +2823,7 @@ export function PmsWorkspaceView({
                     {rows("block")
                       .filter((r) => r.data.kind === "maintenance" && r.data.state === "active")
                       .map((r) => (
-                        <div
+                        <RecordSurface recordId={r.id}
                           className={styles.record}
                           key={r.id}
                           data-pms-record={r.id}
@@ -2799,7 +2838,7 @@ export function PmsWorkspaceView({
                           {form("Reopen room after inspection", "maintenance.close", [], {
                             id: r.id,
                           })}
-                        </div>
+                        </RecordSurface>
                       ))}
                   </Panel>
                 </>
@@ -2859,7 +2898,7 @@ export function PmsWorkspaceView({
                                     <tr key={e.id}>
                                       <td>{e.data.date}</td>
                                       <td>
-                                        {e.data.description}
+                                        <CollectionRecordLink kind="pms_entry" id={e.id}>{e.data.description}</CollectionRecordLink>
                                         <small className={styles.muted}>
                                           {e.data.kind} · {e.data.reference}
                                         </small>
@@ -2992,7 +3031,7 @@ export function PmsWorkspaceView({
                                       bank.transaction_date === item.business_date,
                                   );
                                   return (
-                                    <article
+                                    <RecordSurface as="article" recordId={item.id}
                                       className={styles.record}
                                       key={item.id}
                                       data-pms-record={item.id}
@@ -3072,7 +3111,7 @@ export function PmsWorkspaceView({
                                             ))}
                                         </>
                                       )}
-                                    </article>
+                                    </RecordSurface>
                                   );
                                 })}
                               {form(
@@ -3198,7 +3237,7 @@ export function PmsWorkspaceView({
                       {rows("refund")
                         .filter((r) => r.data.state !== "paid" && r.data.state !== "rejected")
                         .map((r) => (
-                          <article
+                          <RecordSurface as="article" recordId={r.id}
                             className={styles.record}
                             key={r.id}
                             data-pms-record={r.id}
@@ -3222,7 +3261,7 @@ export function PmsWorkspaceView({
                                 id: r.id,
                               })
                             )}
-                          </article>
+                          </RecordSurface>
                         ))}
                       {form("Request company / agent credit", "credit.request", [
                         select("partyId", "Customer", data.parties),
@@ -3232,7 +3271,7 @@ export function PmsWorkspaceView({
                       {rows("credit")
                         .filter((r) => r.data.state === "requested")
                         .map((r) => (
-                          <div
+                          <RecordSurface recordId={r.id}
                             key={r.id}
                             className={styles.record}
                             data-pms-record={r.id}
@@ -3248,12 +3287,12 @@ export function PmsWorkspaceView({
                             {form("Reject credit", "credit.reject", [], {
                               id: r.id,
                             })}
-                          </div>
+                          </RecordSurface>
                         ))}
                     </Panel>
                     <Panel title="Folio charge corrections">
                       {data.chargeCorrections.map((item) => (
-                        <article
+                        <RecordSurface as="article" recordId={item.id}
                           className={styles.record}
                           key={item.id}
                           data-pms-record={item.id}
@@ -3280,7 +3319,7 @@ export function PmsWorkspaceView({
                               ],
                               { id: item.id, expectedVersion: Number(item.version) },
                             )}
-                        </article>
+                        </RecordSurface>
                       ))}
                       {!data.chargeCorrections.length && (
                         <Empty>No folio corrections are awaiting review.</Empty>
@@ -3289,7 +3328,7 @@ export function PmsWorkspaceView({
                     {data.bookingRefunds.length > 0 && (
                       <Panel title="Online booking refunds for Finance">
                         {data.bookingRefunds.map((item) => (
-                          <article
+                          <RecordSurface as="article" recordId={item.id}
                             className={styles.record}
                             key={item.id}
                             data-pms-record={item.id}
@@ -3300,7 +3339,8 @@ export function PmsWorkspaceView({
                             </strong>
                             <Badge>{item.refund_state}</Badge>
                             {item.last_error && <span>{item.last_error}</span>}
-                            {item.refund_state === "requested" && (
+                            {(item.refund_state === "failed" || item.needs_receipt_recovery) && <BookingRefundRecovery base={base} id={item.id} receipt={item.needs_receipt_recovery} onSaved={()=>router.refresh()}/> }
+                            {item.refund_state === "requested" && !item.needs_receipt_recovery && (
                               <Button
                                 type="submit"
                                 variant="primary"
@@ -3330,7 +3370,7 @@ export function PmsWorkspaceView({
                                 Approve Stripe refund
                               </Button>
                             )}
-                          </article>
+                          </RecordSurface>
                         ))}
                       </Panel>
                     )}
@@ -3372,7 +3412,7 @@ export function PmsWorkspaceView({
                     field("opening", "Opening float", "money", 0),
                   ])}
                   {rows("shift").map((r) => (
-                    <article
+                    <RecordSurface as="article" recordId={r.id}
                       className={styles.record}
                       key={r.id}
                       data-pms-record={r.id}
@@ -3418,7 +3458,7 @@ export function PmsWorkspaceView({
                       {r.data.state === "closed" &&
                         form("Review shift", "shift.review", [], { id: r.id })}
                       <p className={styles.muted}>{r.data.handover}</p>
-                    </article>
+                    </RecordSurface>
                   ))}
                 </Panel>
               )}
@@ -3449,11 +3489,11 @@ export function PmsWorkspaceView({
                       select("warehouseId", "Warehouse", data.warehouses),
                       field("price", "Sale price", "money", 0),
                     ])}
-                    {!rows("item").length && (
+                    {!rows("item").some(r=>!s?.listMeta||s.listMeta.ids.includes(r.id)||r.id===selectedRecord) && (
                       <p className={styles.empty}>{tr("No items available in this view.")}</p>
                     )}
-                    {rows("item").map((r) => (
-                      <article
+                    {rows("item").filter(r=>!s?.listMeta||s.listMeta.ids.includes(r.id)||r.id===selectedRecord).map((r) => (
+                      <RecordSurface as="article" recordId={r.id}
                         className={styles.record}
                         key={r.id}
                         data-pms-record={r.id}
@@ -3494,7 +3534,7 @@ export function PmsWorkspaceView({
                             )}
                           </div>
                         ))}
-                      </article>
+                      </RecordSurface>
                     ))}
                   </Panel>
                   <Panel title="Lost & found">
@@ -3512,7 +3552,7 @@ export function PmsWorkspaceView({
                       </p>
                     )}
                     {rows("lost").map((r) => (
-                      <div
+                      <RecordSurface recordId={r.id}
                         className={styles.record}
                         key={r.id}
                         data-pms-record={r.id}
@@ -3563,7 +3603,7 @@ export function PmsWorkspaceView({
                               },
                             ],
                           )}
-                      </div>
+                      </RecordSurface>
                     ))}
                   </Panel>
                   <Panel title="Movement history">
@@ -3613,7 +3653,7 @@ export function PmsWorkspaceView({
                   {rows("guest")
                     .filter((r) => `${r.data.name} ${r.data.phone}`.includes(query))
                     .map((r) => (
-                      <article
+                      <RecordSurface as="article" recordId={r.id}
                         className={styles.record}
                         key={r.id}
                         data-pms-record={r.id}
@@ -3629,7 +3669,7 @@ export function PmsWorkspaceView({
                         )}
                         {r.data.notes && <p>{r.data.notes}</p>}
                         <p className={styles.muted}>
-                          History {stays.filter((s) => s.data.guestId === r.id).length} stays
+                          Recent stays (up to 20): {stays.filter((s) => s.data.guestId === r.id).length}
                         </p>
                         {stays
                           .filter((st) => st.data.guestId === r.id)
@@ -3669,7 +3709,7 @@ export function PmsWorkspaceView({
                           ],
                           { id: r.id },
                         )}
-                      </article>
+                      </RecordSurface>
                     ))}
                 </Panel>
               )}
@@ -3713,7 +3753,7 @@ export function PmsWorkspaceView({
                       .slice()
                       .reverse()
                       .map((r) => (
-                        <article
+                        <RecordSurface as="article" recordId={r.id}
                           className={styles.record}
                           key={r.id}
                           data-pms-record={r.id}
@@ -3728,7 +3768,7 @@ export function PmsWorkspaceView({
                             form("Resolve and continue", "night.resume", [], {
                               id: r.id,
                             })}
-                        </article>
+                        </RecordSurface>
                       ))}
                   </Panel>
                 </>
@@ -3741,45 +3781,7 @@ export function PmsWorkspaceView({
                       <Link href={`${erpBase}/finance/accounting`}>Finance Accounting</Link>.
                     </p>
                   )}
-                  <Panel title="Daily performance">
-                    <UiField>
-                      Date{" "}
-                      <TextInput
-                        type="date"
-                        value={from}
-                        onChange={(e) => {
-                          if (e.target.value) setFrom(e.target.value);
-                        }}
-                      />
-                    </UiField>
-                    {(() => {
-                      const { sold, capacity, roomRevenue } = dailyRoomReport(s!, from);
-                      const entries = rows("entry").filter(
-                        (e) =>
-                          e.data.date === from && ["charge", "adjustment"].includes(e.data.kind),
-                      );
-                      const net = entries.reduce((n, e) => n + e.data.net + e.data.service, 0);
-                      return (
-                        <div className={styles.stats}>
-                          {[
-                            [
-                              "Occupancy",
-                              `${capacity ? ((sold / capacity) * 100).toFixed(1) : "0"}%`,
-                            ],
-                            ["ADR", money(sold ? Math.round(roomRevenue / sold) : 0)],
-                            ["RevPAR", money(capacity ? Math.round(roomRevenue / capacity) : 0)],
-                            ["Net room revenue", money(net)],
-                            ["Tax", money(entries.reduce((n, e) => n + e.data.tax, 0))],
-                          ].map(([label, value]) => (
-                            <div className={styles.stat} key={label}>
-                              <span>{label}</span>
-                              <strong>{value}</strong>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })()}
-                  </Panel>
+                  <PmsRangeReports base={base} propertyId={p.id} today={today}/>
                   <Panel title="PMS vs GL">
                     <TableFrame label="Records" className={styles.tableWrap}>
                       <Table>
@@ -3793,16 +3795,12 @@ export function PmsWorkspaceView({
                         </thead>
                         <tbody>
                           {(["due", "advance", "deposit"] as const).map((key) => {
-                            const n = rows("folio").reduce((n, f) => n + f.data[key], 0),
+                            const n = data.controlBalances?.[key] ?? rows("folio").reduce((n, f) => n + f.data[key], 0),
                               gl = data.ledger?.[key === "due" ? "receivable" : key] ?? 0;
                             return (
                               <tr key={key}>
                                 <th>
-                                  {key === "due"
-                                    ? "Receivable"
-                                    : key === "advance"
-                                      ? "Advance"
-                                      : "Deposit"}
+                                  <Link href={recordCanonicalHref(erpBase,{kind:'pms_control_sources',id:p.id,args:{control:key==='due'?'receivable':key}})}>{key === "due" ? "Receivable" : key === "advance" ? "Advance" : "Deposit"}</Link>
                                 </th>
                                 <td>{money(n)}</td>
                                 <td>{money(gl)}</td>
@@ -3819,26 +3817,7 @@ export function PmsWorkspaceView({
                     </p>
                   </Panel>
                   <Panel title="Receivables & balances">
-                    {rows("folio")
-                      .filter((r) => r.data.due || r.data.advance || r.data.deposit)
-                      .map((r) => (
-                        <Link
-                          className={styles.line}
-                          key={r.id}
-                          href={dailyPmsHref("folios", { property: p.id, folio: r.id })}
-                        >
-                          <strong>{r.data.name}</strong>
-                          <span>
-                            {r.data.partyId
-                              ? data.parties.find((p) => p.id === r.data.partyId)?.name
-                              : "Guest"}
-                          </span>
-                          <span>
-                            Due {money(r.data.due)} · Advance {money(r.data.advance)} · Deposit{" "}
-                            {money(r.data.deposit)}
-                          </span>
-                        </Link>
-                      ))}
+                    <Link href={dailyPmsHref("folios", { property:p.id })}>View folios and balances</Link>
                   </Panel>
                 </>
               )}
@@ -3851,12 +3830,16 @@ export function PmsWorkspaceView({
                       </Link>
                     </Panel>
                   )}
+                  {(can("pms.accounting.prepare")||can("pms.accounting.approve"))&&<BookingFeeAccounts snapshot={s!} save={send} canPrepare={can("pms.accounting.prepare")} canApprove={can("pms.accounting.approve")} accounts={data.accounts}/>}
+                  {(can("pms.accounting.prepare")||can("pms.accounting.approve"))&&<BookingOnlineAccounts snapshot={s!} save={send} canPrepare={can("pms.accounting.prepare")} canApprove={can("pms.accounting.approve")} accounts={data.accounts}/>}
                   {can("pms.configure") && (
                     <BookingSettings
                       key={p.id}
                       snapshot={s!}
                       save={send}
                       slug={base.split("/")[2]}
+                      canReview={data.canReviewBookingMedia}
+                      readiness={data.bookingReadiness}
                     />
                   )}
                   {can("pms.configure") && data.bookingDelivery.length > 0 && (
@@ -3931,7 +3914,7 @@ export function PmsWorkspaceView({
                         field("amenities", "Amenities", "textarea", "", false),
                       ])}
                       {rows("room_type").map((r) => (
-                        <div
+                        <RecordSurface recordId={r.id}
                           className={styles.record}
                           key={r.id}
                           data-pms-record={r.id}
@@ -3948,7 +3931,7 @@ export function PmsWorkspaceView({
                             ],
                             { id: r.id },
                           )}
-                        </div>
+                        </RecordSurface>
                       ))}
                     </Panel>
                     <Panel title="Rooms">
@@ -3960,7 +3943,7 @@ export function PmsWorkspaceView({
                         field("active", "Room active", "checkbox", true),
                       ])}
                       {rows("room").map((r) => (
-                        <div
+                        <RecordSurface recordId={r.id}
                           className={styles.record}
                           key={r.id}
                           data-pms-record={r.id}
@@ -3979,14 +3962,14 @@ export function PmsWorkspaceView({
                             ],
                             { id: r.id },
                           )}
-                        </div>
+                        </RecordSurface>
                       ))}
                     </Panel>
                   </>
                   <Panel title="Rate plans">
                     {form("Add rate plan", "rate.save", rateFields())}
                     {rows("rate").map((r) => (
-                      <div
+                      <RecordSurface recordId={r.id}
                         className={styles.record}
                         key={r.id}
                         data-pms-record={r.id}
@@ -4014,7 +3997,7 @@ export function PmsWorkspaceView({
                           ],
                           { id: r.id },
                         )}
-                      </div>
+                      </RecordSurface>
                     ))}
                   </Panel>
                   <Panel title="Accounting & tax">

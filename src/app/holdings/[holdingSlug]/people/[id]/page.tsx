@@ -29,7 +29,7 @@ import { holdingResources } from "@/server/runtime";
 import { companyAuthority } from "@/server/staff-policy";
 import { staffSettings } from "@/server/staff-settings";
 import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { forbidden, notFound } from "next/navigation";
 import { Card } from "@/components/ui/foundation";
 

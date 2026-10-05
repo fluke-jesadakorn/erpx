@@ -1,0 +1,178 @@
+{
+  "version": 1,
+  "scope": "finance-expansion-development-checkpoint",
+  "status": "in_progress",
+  "recordedAt": "2026-10-04T23:47:09.794541+00:00",
+  "source": {
+    "runtimeFingerprint": "be3efeac6423db62061e411a94b65468bcbab5e9a5c472b3b5725efb195e803e",
+    "verificationFingerprint": "0aa7a4677688553eb8e82901263ffd16f50fff06b8858c852ddbcbdc9db41223",
+    "before": "2026-10-04T23:27:10.381Z",
+    "after": "2026-10-04T23:45:15.190Z",
+    "stable": true
+  },
+  "release": {
+    "id": "2026-10-04T23-27-10-471Z",
+    "sourceFingerprint": "be3efeac6423db62061e411a94b65468bcbab5e9a5c472b3b5725efb195e803e",
+    "node": "24.20.0",
+    "postgres": "18.6",
+    "promoted": false
+  },
+  "checks": {
+    "integration": {
+      "result": "passed",
+      "log": ".scratch/dev/finance-expansion/final-candidate-integration.log",
+      "sha256": "0ac4e042a34c0c162c0b53312eb5bf9c5df1b99398d0c08c807189431342cc31",
+      "passedFiles": 302,
+      "skippedFiles": 2,
+      "passedCases": 2417,
+      "skippedCases": 3,
+      "failedCases": 0,
+      "durationSeconds": 1027.69,
+      "environment": "disposable PostgreSQL test databases",
+      "skippedSuites": [
+        "tests/directory-provider-live.test.ts",
+        "tests/billing-stripe-sandbox.test.ts"
+      ]
+    },
+    "typecheck": {
+      "result": "passed",
+      "log": ".scratch/dev/finance-expansion/final-candidate-typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "lint": {
+      "result": "passed",
+      "log": ".scratch/dev/finance-expansion/final-candidate-lint.log",
+      "sha256": "12b6f39c6ecc6d8d43cd3bc1760aff6180e2255a7fb8af357eb7bf68eca90d09",
+      "errors": 0,
+      "existingWarnings": 5
+    },
+    "isolatedBuild": {
+      "result": "passed",
+      "log": ".scratch/dev/finance-expansion/final-candidate-release.log",
+      "sha256": "f66e98ebe2ee10a3a6ccbe8b12e79d6116c836a6b182bb3279621857a3aea0c5"
+    },
+    "documentation": {
+      "result": "passed",
+      "log": ".scratch/dev/finance-expansion/final-candidate-docs-verified.log",
+      "sha256": "de0c32f9ad165d2a3f420312864f3b7275349bb0dfc8e5bbbb0da5a8d93d33a9"
+    }
+  },
+  "phaseEvidence": [
+    {
+      "phase": "FE-01",
+      "automatedExamples": "passed",
+      "sources": [
+        "tests/finance-books.test.ts",
+        "tests/finance-starter.test.ts",
+        "tests/finance-manual-drafts.test.ts"
+      ],
+      "browserAcceptance": "pending",
+      "phaseAccepted": false
+    },
+    {
+      "phase": "FE-02",
+      "automatedExamples": "passed",
+      "sources": [
+        "tests/finance-planning.test.ts"
+      ],
+      "browserAcceptance": "pending",
+      "phaseAccepted": false
+    },
+    {
+      "phase": "FE-03",
+      "automatedExamples": "passed",
+      "sources": [
+        "tests/finance-bank-automation.test.ts",
+        "tests/finance-withholding.test.ts",
+        "tests/payroll-core.test.ts",
+        "tests/pos.test.ts"
+      ],
+      "browserAcceptance": "pending",
+      "phaseAccepted": false
+    },
+    {
+      "phase": "FE-04",
+      "automatedExamples": "passed",
+      "sources": [
+        "tests/finance-business-contracts.test.ts",
+        "tests/finance-billing-corrections.test.ts"
+      ],
+      "browserAcceptance": "pending",
+      "phaseAccepted": false
+    },
+    {
+      "phase": "FE-05",
+      "automatedExamples": "passed",
+      "sources": [
+        "tests/finance-asset-policies.test.ts",
+        "tests/finance-instruments.test.ts"
+      ],
+      "browserAcceptance": "pending",
+      "phaseAccepted": false
+    },
+    {
+      "phase": "FE-06",
+      "automatedExamples": "passed",
+      "sources": [
+        "tests/finance-group-editions.test.ts"
+      ],
+      "browserAcceptance": "pending",
+      "phaseAccepted": false
+    },
+    {
+      "phase": "FE-07",
+      "automatedExamples": "passed",
+      "sources": [
+        "tests/finance-expansion-files.test.ts",
+        "tests/finance-expansion-rehearsal.test.ts",
+        "tests/finance-expansion-upgrade.test.ts",
+        "tests/backup-restore-operations.test.ts"
+      ],
+      "browserAcceptance": "pending",
+      "phaseAccepted": false
+    }
+  ],
+  "browser": {
+    "origin": "https://console-dev-erpx.jesadakorn.com/",
+    "status": "blocked",
+    "reason": "Mac locked; native automatic unlock failed and requires manual unlock",
+    "fictionalSetup": {
+      "enabledTools": 7,
+      "accounts": 25,
+      "profileStatus": "draft",
+      "profileVersion": 1
+    },
+    "completedOwnerAcceptance": false,
+    "screenshot": ".scratch/dev/finance-expansion/fictional-company-tools.png",
+    "tabRetainedForHandoff": true,
+    "viewportOverrideReset": true
+  },
+  "health": [
+    {
+      "environment": "local-development",
+      "url": "http://127.0.0.1:3100/api/health",
+      "status": 200,
+      "checkedAt": "2026-10-04T23:47:09.473131+00:00"
+    },
+    {
+      "environment": "public-development",
+      "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+      "status": 200,
+      "checkedAt": "2026-10-04T23:47:09.784938+00:00"
+    },
+    {
+      "environment": "private-production",
+      "url": "http://127.0.0.1:3101/api/health",
+      "status": 200,
+      "checkedAt": "2026-10-04T23:47:09.792707+00:00"
+    }
+  ],
+  "limitations": [
+    "Full authenticated desktop/mobile owner acceptance remains pending.",
+    "Secondary books share the primary functional currency.",
+    "Collection transmission uses only the test adapter.",
+    "Historical unsupported records require reviewed migration evidence; posted journals and issued exports remain retained."
+  ],
+  "plan": "docs/production-plan.md",
+  "evidence": "docs/testing/evidence/2026-10-05-finance-expansion.md"
+}

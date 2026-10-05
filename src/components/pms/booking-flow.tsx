@@ -11,11 +11,13 @@ import {
   TextInput,
 } from "@/components/ui/foundation";
 
+import { BookingGallery } from "./booking-gallery";
 import { useEffect, useRef, useState } from "react";
 import { money, plusDays, type Guest } from "@/lib/pms-model";
 import type { BookingQuote, RoomSelection } from "@/lib/pms-booking";
 import { workFetch } from "@/lib/work-fetch";
 import { FrontLocalizedTree } from "@/components/front/front-language";
+import {BookingPolicySummary} from "./booking-policy-summary";
 import styles from "./booking.module.css";
 export type HotelCard = {
   id: string;
@@ -28,7 +30,8 @@ export type HotelCard = {
   checkIn: string;
   checkOut: string;
   timezone: string;
-  roomContent: Array<{ typeId: string; description: string }>;
+  images?: import("@/lib/pms-model").BookingImage[];
+  roomContent: import("@/lib/pms-model").BookingSettings["roomContent"];
 };
 type Result = { hotel: HotelCard; offers: BookingQuote[] };
 type Staff = {
@@ -94,10 +97,8 @@ export function QuoteDetails({
           </Table>
         </TableFrame>
         <p className={styles.total}>Stay total {money(quote.total, quote.currency)}</p>
-        <p>
-          {quote.policy?.text ??
-            "Contact the hotel for cancellation terms. Payment is due at the hotel."}
-        </p>
+        <div className={styles.paymentSplit}><p>Pay now <strong>{money(quote.dueNow,quote.currency)}</strong></p><p>Pay at hotel <strong>{money(quote.dueAtHotel,quote.currency)}</strong></p></div>
+        {quote.lines.map((line,i)=><div key={i}><span>{line.roomName} · {line.rateName}</span><BookingPolicySummary policy={line.policy}/></div>)}
         {!confirmed && (
           <p className={styles.small}>
             Availability is checked again when you confirm. Searching does not hold a room.
@@ -144,6 +145,8 @@ export function BookingFlow({
       attemptToken?: string;
       expiresAt?: number;
       refundState?: string | null;
+      managementToken?: string;
+      paymentState?: string;
     } | null>(null);
   const attempt = useRef<{ body: string; key: string } | null>(null);
   const base = `/api/public/booking/${encodeURIComponent(slug)}`;
@@ -224,7 +227,7 @@ export function BookingFlow({
                   ? "Payment period expired"
                   : confirmation.state === "refund_review"
                     ? "Payment needs review"
-                    : "Booking confirmed"}
+                    : confirmation.state === "cancelled" ? "Booking cancelled" : confirmation.state === "confirmed" || staff ? "Booking confirmed" : "Checking booking status"}
               {confirmation.number ? ` · ${confirmation.number}` : ""}
             </h2>
             <p>
@@ -233,7 +236,7 @@ export function BookingFlow({
                 : confirmation.state === "payment_pending"
                   ? "Your room is held for 30 minutes. Complete payment in Stripe Checkout."
                   : confirmation.state === "confirmed"
-                    ? "Payment confirmed. A confirmation email and private management link are on the way."
+                    ? confirmation.paymentState === "received" ? "Payment confirmed. A confirmation email and private management link are on the way." : "Your room is reserved. Pay the balance at the hotel."
                     : confirmation.state === "refund_review"
                       ? "The hold expired before payment confirmation. Finance will review a refund."
                       : "The reservation is no longer held."}
@@ -247,6 +250,7 @@ export function BookingFlow({
                 Continue to secure payment
               </UiActionAnchor>
             )}
+            {confirmation.managementToken && <UiActionAnchor appearance="standard" variant="secondary" href={`/book/${slug}/manage#token=${encodeURIComponent(confirmation.managementToken)}`}>Manage booking</UiActionAnchor>}
             {confirmation.refundState && <p>Refund: {confirmation.refundState}</p>}
             {quote && <QuoteDetails quote={quote} confirmed />}
             <Button
@@ -436,7 +440,9 @@ export function BookingFlow({
                           return (
                             <div className={styles.offer} key={`${result.hotel.id}-${line.rateId}`}>
                               <div>
+                                <BookingGallery slug={slug} compact images={result.hotel.roomContent.find(c=>c.typeId===line.typeId)?.images}/>
                                 <h3>{line.roomName}</h3>
+                                <p className={styles.small}>{result.hotel.roomContent.find(c=>c.typeId===line.typeId)?.beds} · {result.hotel.roomContent.find(c=>c.typeId===line.typeId)?.sizeSqm ? `${result.hotel.roomContent.find(c=>c.typeId===line.typeId)?.sizeSqm} m²` : ""} · {result.hotel.roomContent.find(c=>c.typeId===line.typeId)?.amenities}</p>
                                 <p>
                                   {line.rateName} · {line.quantity} room(s) · {line.nights.length}{" "}
                                   night(s)
@@ -452,7 +458,7 @@ export function BookingFlow({
                               </div>
                               <div>
                                 <div className={styles.price}>{money(q.total, q.currency)}</div>
-                                <p className={styles.small}>Entire stay, including tax & service</p>
+                                <p className={styles.small}>Entire stay, including tax & service</p><p>Pay now {money(q.dueNow,q.currency)}</p><p>Pay at hotel {money(q.dueAtHotel,q.currency)}</p>
                                 <Button
                                   variant="secondary"
                                   type="button"
@@ -742,7 +748,7 @@ export function BookingFlow({
                     className={styles.primary}
                     disabled={busy}
                   >
-                    {busy ? "Preparing checkout…" : "Continue to secure payment"}
+                    {busy ? "Preparing booking…" : quote.dueNow && !staff ? "Continue to secure payment" : "Confirm reservation"}
                   </Button>
                 </div>
               </form>

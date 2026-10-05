@@ -1,6 +1,6 @@
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Button, Field, Select, Table, TableFrame, TextInput } from "@/components/ui/foundation";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { accessPage } from "@/server/page-error";
 import { ApiError } from "@/server/http";
 import { requireWorkContext, publicScope } from "@/server/authorization";

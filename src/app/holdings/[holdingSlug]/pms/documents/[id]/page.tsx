@@ -1,3 +1,4 @@
+import {recordCanonicalHref} from "@/lib/record-drawer";
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Table, TableFrame } from "@/components/ui/foundation";
 import {
@@ -13,7 +14,7 @@ import { resolveDocumentBrand } from "@/server/branding";
 import { requirePermission } from "@/server/iam-permissions";
 import { loadPms } from "@/server/pms";
 import { holdingResources } from "@/server/runtime";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { notFound } from "next/navigation";
 import styles from "@/components/pms/document.module.css";
 export const dynamic = "force-dynamic";
@@ -151,7 +152,7 @@ export default async function PmsDocument({
                   .map((e) => (
                     <tr key={e.id}>
                       <td data-label="Date">{e.data.date}</td>
-                      <td data-label="Description">{e.data.description}</td>
+                      <td data-label="Description"><Link href={recordCanonicalHref(workspaceBase(publicScope(actor)),{kind:"pms_snapshot_entry",id:e.id,args:{documentId:id}})}>{e.data.description}</Link></td>
                       <td data-label="Net">{money(e.data.net)}</td>
                       <td data-label="Service charge">{money(e.data.service)}</td>
                       <td data-label="Tax">{money(e.data.tax)}</td>

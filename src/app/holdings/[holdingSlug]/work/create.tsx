@@ -10,7 +10,7 @@ import { transferOptions } from "@/server/inventory-transfers";
 import { requestPageOptions } from "@/server/request-page";
 import { holdingResources } from "@/server/runtime";
 import { getWorkCapabilities } from "@/server/work-capabilities";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { notFound,redirect } from "next/navigation";
 
 import type { WorkContext } from "@/server/authorization";

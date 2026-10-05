@@ -6,7 +6,7 @@ import { ActionAnchor as UiActionAnchor } from "@/components/ui/foundation";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { FinanceLegacyHeading } from "@/components/finance/finance-record-workspace";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import styles from "./supplier-batch.module.css";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";

@@ -1,5 +1,5 @@
 import { TimeText } from "@/components/time/time-preference-context";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { notFound } from "next/navigation";
 import { QualityConsole } from "@/components/modules/quality-console";
 import { StatusBadge } from "@/components/ui/primitives";

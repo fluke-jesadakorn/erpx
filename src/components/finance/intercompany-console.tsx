@@ -1,4 +1,5 @@
 "use client";
+import { RecordLink } from "@/components/records/record-link";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, Table, TableFrame, TextInput } from "@/components/ui/foundation";
@@ -239,7 +240,7 @@ export function IntercompanyConsole({ base, data }: { base: string; data: Worksp
                 return (
                   <tr key={row.id}>
                     <td>
-                      {row.reference}
+                      <RecordLink href={`${base}/record-details/intercompany/${encodeURIComponent(row.id)}`}>{row.reference}</RecordLink>
                       <div className="muted">{row.id}</div>
                     </td>
                     <td>

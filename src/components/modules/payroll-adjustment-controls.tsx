@@ -2,7 +2,7 @@
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Dialog } from "@/components/ui/dialog";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import {useState} from "react";
 import {Button,Field,Select,TextArea,TextInput} from "@/components/ui/foundation";
 import {decimalToMinor,minorToDecimal} from "@/lib/finance-money";

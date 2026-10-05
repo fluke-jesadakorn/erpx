@@ -97,3 +97,11 @@ export async function platformExecutiveSnapshot(
   ];
   return { scope: "platform", referenceAt: referencedAt, filters, sourceRevision, metrics };
 }
+
+/** Group drill-down preserves the Executive redaction boundary: no Holding IDs or errors. */
+export async function platformExecutiveSources(actor:PlatformContext,control:SqlDatabase,controlRead:SqlDatabase,raw:unknown){
+ requirePlatformExecutive(actor);
+ const input=z.object({metric:z.enum(['failed-provisioning','abnormal-platform-services']),label:z.string().min(1).max(250),from:z.iso.date(),to:z.iso.date(),page:z.coerce.number().int().min(1).max(100000).default(1)}).strict().parse(raw),filters=dateFilters.parse({from:input.from,to:input.to});
+ const rows=input.metric==='failed-provisioning'?(await control.prepare(`SELECT created_at,action FROM platform_holding_provisioning_events WHERE action='failed' AND created_at>=? AND created_at<? AND to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM')=? ORDER BY created_at,id LIMIT 31 OFFSET ?`).bind(Date.parse(filters.from),Date.parse(filters.to)+86400000,input.label,(input.page-1)*30).all<{created_at:number;action:string}>()).results:(await controlRead.prepare(`SELECT component,status,checked_at FROM platform_health WHERE lower(status) NOT IN ('healthy','ready','ok') AND component||' · '||status=? ORDER BY component LIMIT 31 OFFSET ?`).bind(input.label,(input.page-1)*30).all<{component:string;status:string;checked_at:number}>()).results;
+ return {id:input.label,name:input.label,metric:input.metric,filters,rows:rows.slice(0,30),page:input.page,hasNext:rows.length>30};
+}

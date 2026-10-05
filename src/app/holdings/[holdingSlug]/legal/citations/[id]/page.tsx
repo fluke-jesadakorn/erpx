@@ -1,6 +1,6 @@
 
 import { PageContent } from "@/components/ui/patterns";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { requireWorkContext } from "@/server/authorization";
 import { holdingResources } from "@/server/runtime";
 import { legalCitation } from "@/server/legal/citations";

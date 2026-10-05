@@ -51,6 +51,8 @@
   width: 100%;
   min-width: 0;
   border: 0;
+  border-radius: 0;
+  padding: 0;
   background: transparent;
   color: var(--ui-ink-strong);
   outline: none;
@@ -128,12 +130,18 @@
   background: var(--ui-card-2);
 }
 .railTitle {
+  position: sticky;
+  top: -12px;
+  z-index: 3;
+  background: var(--ui-card-2);
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 8px;
   padding: 4px 12px 14px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--ui-line);
 }
 .railTitle strong {
   color: var(--ui-ink-strong);
@@ -147,10 +155,76 @@
   min-height: 36px;
 }
 .unitRow {
+  position: relative;
   display: flex;
   align-items: center;
   min-width: 0;
-  border-radius: 8px;
+  margin-bottom: 4px;
+  border: 1px solid var(--ui-line);
+  border-radius: 5px;
+  background: transparent;
+}
+.unitRow[data-unit-kind="company"] {
+  border-color: var(--ui-line-strong);
+  border-radius: 9px;
+  background: var(--ui-card);
+}
+.unitRow[data-unit-kind="branch"] {
+  margin-top: 10px;
+  border-inline-start: 3px solid var(--ui-line-strong);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--ui-card) 65%, var(--ui-card-2));
+}
+.unitRow[data-unit-kind="company"] .unitName {
+  font-weight: 700;
+  font-size: 14px !important;
+}
+.unitRow[data-unit-kind="branch"] .unitName {
+  font-weight: 600;
+}
+.unitGroup {
+  position: relative;
+}
+.unitGroup::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: calc(var(--unit-indent) - 8px);
+  border-left: 1px solid var(--ui-line-strong);
+  pointer-events: none;
+}
+.unitGroup > .unitRow::before {
+  content: "";
+  position: absolute;
+  width: 8px;
+  left: -9px;
+  top: 50%;
+  border-top: 1px solid var(--ui-line-strong);
+  pointer-events: none;
+}
+.unitRow[data-ancestor] {
+  border-inline-start-color: var(--ui-brand);
+  background: color-mix(in srgb, var(--ui-brand-soft) 35%, var(--ui-card));
+}
+.unitKind {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 3px;
+  color: var(--ui-muted);
+  font-size: 10px;
+  line-height: 1.4;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.unitRow[data-selected] .unitKind,
+.unitRow[data-detail-selected] .unitKind {
+  color: var(--ui-brand-strong);
+}
+.unitRow:hover,
+.unitRow:focus-within {
+  border-color: var(--ui-line-strong);
 }
 .unitRow button {
   border: 0;
@@ -164,6 +238,7 @@
   flex: 0 0 28px;
 }
 .unitName {
+  display: block;
   text-align: left;
   flex: 1;
   min-width: 0;
@@ -174,8 +249,16 @@
   font-size: 13px !important;
 }
 .unitRow[data-selected="true"] {
+  border-color: var(--ui-brand);
   background: var(--ui-brand-soft);
   box-shadow: inset 3px 0 var(--ui-brand);
+}
+.unitRow[data-detail-selected] {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand-soft);
+}
+.unitRow[data-detail-selected] .unitName {
+  color: var(--ui-brand-strong);
 }
 .unitName[aria-pressed="true"] {
   color: var(--ui-brand-strong);
@@ -185,16 +268,18 @@
   gap: 0;
 }
 .unassigned {
+  display: block;
   width: 100%;
-  border: 0;
+  border: 1px solid var(--ui-line);
   border-radius: 8px;
-  background: transparent;
+  background: var(--ui-card);
   color: var(--ui-muted);
   padding: 8px 8px 8px 38px;
   text-align: left;
   font-size: 12px !important;
 }
 .unassigned[aria-pressed="true"] {
+  border-color: var(--ui-brand);
   background: var(--ui-brand-soft);
   color: var(--ui-brand-strong);
   box-shadow: inset 3px 0 var(--ui-brand);
@@ -206,9 +291,73 @@
   padding-top: 12px;
 }
 .main {
+  --people-main-padding: 22px;
+  --people-sticky-top: 68px;
   min-width: 0;
   padding: 22px;
   container-type: inline-size;
+}
+.locationBar {
+  position: sticky;
+  top: var(--people-sticky-top);
+  z-index: 8;
+  margin: calc(-1 * var(--people-main-padding)) calc(-1 * var(--people-main-padding)) 20px;
+  padding: 10px var(--people-main-padding);
+  border-bottom: 1px solid var(--ui-line);
+  background: var(--ui-card);
+  border-radius: 0 12px 0 0;
+}
+.locationLabel {
+  display: block;
+  color: var(--ui-muted);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.locationPath ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.locationPath li {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  width: max-content;
+}
+.locationPath svg {
+  flex-shrink: 0;
+  color: var(--ui-muted);
+}
+.locationPath button {
+  display: block;
+  min-height: 30px;
+  padding: 3px 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--ui-muted);
+  font-size: 12px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.locationPath button:hover {
+  color: var(--ui-brand-strong);
+  text-decoration: underline;
+}
+.locationPath strong {
+  color: var(--ui-ink-strong);
+  font-size: 12px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
 }
 .mainHeading {
   display: flex;
@@ -276,16 +425,23 @@
   color: var(--ui-brand-strong);
 }
 .group {
-  border-top: 1px solid var(--ui-line);
-  padding: 12px 0 6px;
+  border: 1px solid var(--ui-line);
+  border-radius: 10px;
+  margin-bottom: 16px;
   min-width: 0;
 }
 .groupHeading {
+  position: sticky;
+  top: calc(var(--people-sticky-top) + var(--people-location-height, 64px));
+  z-index: 7;
   display: flex;
   flex-wrap: wrap;
   gap: 6px 12px;
   align-items: center;
-  margin-bottom: 6px;
+  padding: 10px 14px;
+  border-radius: 9px 9px 0 0;
+  border-bottom: 1px solid var(--ui-line);
+  background: var(--ui-card-2);
 }
 .groupTitle {
   flex: 1;
@@ -296,10 +452,11 @@
   font-weight: 650;
   overflow-wrap: break-word;
 }
-.groupName {
+.workspace .groupName {
   width: 100%;
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 8px;
   text-align: left;
   border: 0;
@@ -339,8 +496,8 @@
   align-items: center;
   gap: 16px;
   min-height: 80px;
-  padding: 10px 8px;
-  border-radius: 8px;
+  padding: 12px 14px;
+  border-radius: 0;
   min-width: 0;
 }
 .position + .position {
@@ -359,7 +516,8 @@
   flex-shrink: 0;
   color: var(--ui-muted);
 }
-.positionName {
+.workspace .positionName {
+  display: block;
   text-align: left;
   flex: 1;
   min-width: 0;
@@ -387,6 +545,8 @@
   flex-direction: column;
   gap: 6px;
   min-width: 0;
+  padding-left: 10px;
+  border-left: 1px solid var(--ui-line);
 }
 .person {
   display: flex;
@@ -404,7 +564,8 @@
 .person:focus-within {
   background: var(--ui-card-2);
 }
-.personName {
+.workspace .personName {
+  display: block;
   flex: 1;
   text-align: left;
   background: transparent;
@@ -539,11 +700,27 @@
   background: var(--ui-card);
 }
 .detailHeading {
+  position: sticky;
+  top: -20px;
+  z-index: 4;
+  padding: 14px 0;
+  background: var(--ui-card);
+  border-bottom: 1px solid var(--ui-line);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 18px;
+}
+.detailHeading > div {
+  min-width: 0;
+}
+.detailHeading .locationPath {
+  margin-top: 8px;
+}
+.detailHeading .locationPath button,
+.detailHeading .locationPath strong {
+  font-size: 11px;
 }
 .detailHeading h2 {
   font-size: 20px;
@@ -551,7 +728,7 @@
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
-.detailHeading button {
+.detailHeading > button {
   border: 0;
   background: transparent;
   display: grid;
@@ -565,6 +742,9 @@
   background: var(--ui-card);
   padding: 8px 12px;
   margin-bottom: 12px;
+}
+.detail > button + button {
+  margin-left: 8px;
 }
 .section {
   border-top: 1px solid var(--ui-line);
@@ -734,6 +914,7 @@
     box-shadow: -12px 0 40px #0002;
   }
   .main {
+    --people-main-padding: 20px;
     padding: 20px;
   }
 }
@@ -781,6 +962,7 @@
   .unitPicker {
     display: flex;
     align-items: center;
+    justify-content: flex-start;
     gap: 8px;
     border: 0;
     border-bottom: 1px solid var(--ui-line);
@@ -801,7 +983,13 @@
     display: block;
   }
   .main {
+    --people-main-padding: 10px;
+    --people-sticky-top: 92px;
     padding: 16px 10px;
+  }
+  .locationBar {
+    border-radius: 0;
+    margin-top: -16px;
   }
   .mainHeading {
     padding: 0 4px;

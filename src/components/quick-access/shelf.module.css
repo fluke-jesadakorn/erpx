@@ -16,7 +16,8 @@
 .sidebar .header {
   gap: 4px;
   flex-wrap: wrap;
-  margin: 0 8px 6px;
+  margin: 0 0 6px;
+  padding-left: 12px;
 }
 .sidebar .heading {
   font-size: 11px;
@@ -53,18 +54,23 @@
 .sidebar .tileLink {
   flex-direction: row;
   align-items: center;
-  gap: 9px;
+  gap: 11px;
   min-height: 44px;
-  padding: 6px 10px;
+  padding: 6px 12px;
 }
 .sidebar .tileTitle {
   font-size: 13px;
   font-weight: 500;
 }
 .sidebar .icon {
-  width: 24px;
-  height: 24px;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
   background: transparent;
+}
+.sidebar .icon > svg {
+  width: 18px;
+  height: 18px;
 }
 .sidebar .skeleton {
   min-height: 40px;

@@ -8,7 +8,7 @@ import {expenseDb as db,expenseFixture,key} from "./helpers/expense-fixture";
 import {createAccount,createJournal,createJournalSchema,createPeriod,createParty,createInvoice,invoiceSchema,partySchema,postInvoice,beginClose,calculateCloseReconciliations,closePeriod,postJournalBatch,reopenPeriod,statements,trialBalance} from "../src/server/finance";
 import {prepareAccountingProfile,decideAccountingProfile} from "../src/server/accounting-profiles";
 import {assignFlowPrimary,resolveFlow} from "../src/server/flow-routing";
-import {decideStatementPackage,decideYearClosing,prepareStatementPackage,prepareYearClosing,reportingWorkspace,statementPackageDetail,statementPackageExport} from "../src/server/finance-reporting";
+import {decideStatementPackage,decideYearClosing,prepareStatementPackage,prepareYearClosing,reportingWorkspace,statementPackageDetail,statementPackageExport,statementSourceAccounts} from "../src/server/finance-reporting";
 import {confirmManualRate} from "../src/server/company-money";
 
 vi.mock("../src/server/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
@@ -93,4 +93,15 @@ describe("NPAEs statement and fiscal closing lifecycle",()=>{
   const yearInput={chartId:f.chart,startDate:"2026-01-01",endDate:"2026-12-31",periodId:f.period,retainedEarningsAccountId:retained,reason:"Reviewed all actual income and expense sources before closing preparation."},closing=await prepareYearClosing(f.reviewer,yearInput,key());await post(f.period,"2026-06-01",f.accounts.cash,f.accounts.revenue,"1");await expect(decideYearClosing(f.manager,String(closing.id),"post",review,key())).rejects.toMatchObject({code:"REPORTING_SOURCE_CHANGED"});
   await decideYearClosing(f.reviewer,String(closing.id),"cancel",review,key());expect(await db.prepare("SELECT COUNT(*) n FROM finance_journals WHERE company_id=? AND source_type='fiscal_close'").bind(f.company).first("n")).toBe(0);
  });
+});
+
+it("drills retained statement lines into their exact current and comparative account sources and rejects changed evidence",async()=>{
+ const prepared=await prepareStatementPackage(f.reviewer,input(),key()),id=String(prepared.id);
+ const sources=await statementSourceAccounts(f.reviewer,id,{period:'current',line:'cash_equivalents'});
+ expect(sources.rows.every(row=>row.id===f.accounts.cash)).toBe(true);
+ const retained=await statementPackageDetail(f.reviewer,id);
+ expect(Number(sources.row.total_minor)).toBe(retained.snapshot.current.position.find(row=>row.code==='cash_equivalents')?.amountMinor);
+ await expect(statementSourceAccounts({...f.reviewer,companyId:key()},id,{period:'current'})).rejects.toMatchObject({status:404});
+ await post(f.period,'2026-05-02',f.accounts.expense,f.accounts.cash,'3');
+ await expect(statementSourceAccounts(f.reviewer,id,{period:'current',line:'cash_equivalents'})).rejects.toMatchObject({code:'STATEMENT_SOURCES_CHANGED'});
 });

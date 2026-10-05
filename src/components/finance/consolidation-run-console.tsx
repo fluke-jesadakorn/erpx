@@ -1,4 +1,6 @@
 "use client";
+import {recordCanonicalHref} from "@/lib/record-drawer";
+import { RecordLink } from "@/components/records/record-link";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import {
@@ -193,7 +195,7 @@ export function ConsolidationRunConsole({
                 return (
                   <tr key={run.id}>
                     <td>
-                      {run.as_of_date}
+                      <RecordLink href={`${base}/record-details/consolidation/${encodeURIComponent(run.id)}`}>{run.as_of_date}</RecordLink>
                       <div className="muted">{run.id}</div>
                     </td>
                     <td>{run.presentation_currency}</td>
@@ -372,7 +374,7 @@ export function ConsolidationRunConsole({
                     return (
                       <tr key={elimination.id}>
                         <td>
-                          {elimination.description}
+                          <RecordLink href={recordCanonicalHref(base,{kind:"consolidation_elimination",id:elimination.id})}>{elimination.description}</RecordLink>
                           <div className="muted">
                             {elimination.source_transaction_id ?? "Manual source"}
                           </div>

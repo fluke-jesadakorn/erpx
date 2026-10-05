@@ -70,7 +70,7 @@ describe("Side menu destination coverage", () => {
   });
 
   it("exposes missing pages by their feature names in the appropriate group", () => {
-    expect(owner.apps.find(app => app.id === "people")?.items.map(item => item.id)).toEqual(["people-directory", "people-roster", "people-payroll"]);
+    expect(owner.apps.find(app => app.id === "people")?.items.map(item => item.id)).toEqual(["people-directory", "people-evaluation", "people-roster", "people-payroll"]);
     expect(owner.apps.find(app => app.id === "sales")?.items.map(item => item.id)).toContain("operations-sales");
     expect(owner.apps.some(app => ["administration", "resources"].includes(app.id))).toBe(false);
     expect(owner.categories.find(category => category.id === "administration")?.apps.map(item => item.id)).toContain("administration-approvals");
@@ -436,7 +436,7 @@ describe("Services grouped by purpose", () => {
 
   it("keeps the exact group order, People contents, and a direct help link", () => {
     expect(owner.apps.map(app => app.label)).toEqual(["Executive", "People", "Sales", "Purchasing", "Inventory", "CRM", "Customer support", "Quality", "POS", "Hotel PMS", "Finance", "Projects & Routines", "Technology", "Knowledge", "Customer reviews", "Service desk"]);
-    expect(owner.apps.find(app => app.id === "people")!.items.map(item => item.label)).toEqual(["People", "Roster", "Payroll"]);
+    expect(owner.apps.find(app => app.id === "people")!.items.map(item => item.label)).toEqual(["People", "Skills & performance", "Roster", "Payroll"]);
     expect(owner.categories.find(category => category.id === "people-organization")?.apps.every(item => !item.submodules?.length)).toBe(true);
     expect(owner.search.some(item => item.href === `${base}/people/organization` || item.href === `${base}/people?status=archived`)).toBe(false);
     expect(navigationTrail(owner, base, `${base}/people/organization`).map(item => item.label)).toEqual(["People"]);
@@ -463,7 +463,7 @@ describe("Services grouped by purpose", () => {
 
   it("maps app-level navigation into presentation categories without changing breadcrumbs", () => {
     expect(owner.categories.map(category => category.id)).toEqual(["people-organization","customers-sales","purchasing","inventory-quality","projects-routines","services","finance","pos","pms","knowledge","insights","administration"]);
-    expect(owner.categories.find(category=>category.id==="customers-sales")?.apps.slice(0,3).map(item=>item.label)).toEqual(["Customers","Pipeline","Follow-ups"]);
+    expect(owner.categories.find(category=>category.id==="customers-sales")?.apps.slice(0,3).map(item=>item.label)).toEqual(["Sales","Customers"]);
     expect(owner.categories.flatMap(category=>category.apps).every(item=>!item.submodules?.length)).toBe(true);
     const bank = resolveNavigation(owner, base, `${base}/finance/bank`);
     expect(navigationCategory(owner, bank)?.id).toBe("finance");
@@ -484,14 +484,14 @@ describe("Services grouped by purpose", () => {
     expect(results.some(result => result.item.label === "Price lists")).toBe(false);
     expect(navigationLauncher(owner, "follow-ups").results.find(result => result.item.id === "customer-followups")).toMatchObject({ context: "Customers & sales" });
     expect(navigationSearch(owner, "Today").some(result => result.item.id === "home")).toBe(true);
-    expect(navigationSearch(owner, "Buy something").some(result => result.item.id === "start-buy")).toBe(true);
+    expect(navigationSearch(owner, "Purchase request").some(result => result.item.id === "start-buy")).toBe(true);
     expect(navigationSearch(owner, "Administration").some(result => result.item.id === "administration-approvals")).toBe(true);
   });
 
   it("keeps all CRM destinations active under their own section and breadcrumb", async () => {
     const { navigationLauncher } = await import("../src/lib/navigation-catalog");
     const crm = owner.categories.find(category=>category.id==="customers-sales")!;
-    expect(crm.apps.map(item=>item.id)).toEqual(expect.arrayContaining(["customer-timeline","crm-pipeline","customer-followups","operations-sales","support-cases"]));
+    expect(crm.apps.map(item=>item.id)).toEqual(["sales-hub", "customers-hub"]);
     expect(crm.apps.some(item=>item.id==="crm-customers")).toBe(false);
     for (const [path, activeId, label] of [
       ["crm", "crm-pipeline", "Pipeline"],
@@ -503,12 +503,12 @@ describe("Services grouped by purpose", () => {
       const resolved = resolveNavigation(owner, base, url.pathname, url.searchParams);
       expect(resolved).toMatchObject({ activeId, groupId: "crm" });
       expect(navigationCategory(owner, resolved)?.id).toBe("customers-sales");
-      expect(navigationTrail(owner, base, url.pathname, url.searchParams).map((item) => item.label)).toEqual(["CRM", label]);
-      expect(navigationLauncher(owner, label).results.some((result) => result.item.href === `${url.pathname}${url.search}` && result.categoryId === "customers-sales")).toBe(true);
+      expect(navigationTrail(owner, base, url.pathname, url.searchParams).map((item) => item.label)).toEqual(path === "crm" ? ["Sales", "Pipeline"] : path === "customer-followups" ? ["Sales", "Today"] : ["Customers"]);
+      expect(navigationLauncher(owner, label).results.some((result) => (result.item.id === activeId || activeId === "customer-timeline" && result.item.id === "customers-hub") && result.categoryId === "customers-sales")).toBe(true);
     }
-    expect(navigationTrail(owner, base, `${base}/customers/customer-1`).map((item) => item.label)).toEqual(["CRM", "Customers", "Customer timeline"]);
-    expect(navigationTrail(owner, base, `${base}/customer-followups/followup-1`).map((item) => item.label)).toEqual(["CRM", "Follow-ups", "Customer follow-up"]);
-    expect(navigationLauncher(owner, "").categories.find((category) => category.id === "customers-sales")?.apps[0].label).toBe("Customers");
+    expect(navigationTrail(owner, base, `${base}/customers/customer-1`).map((item) => item.label)).toEqual(["Customers", "Customer profile"]);
+    expect(navigationTrail(owner, base, `${base}/customer-followups/followup-1`).map((item) => item.label)).toEqual(["Sales", "Today", "Customer follow-up"]);
+    expect(navigationLauncher(owner, "").categories.find((category) => category.id === "customers-sales")?.apps[0].label).toBe("Sales");
   });
 
   it("groups support with CRM without granting CRM access", async () => {
@@ -516,10 +516,10 @@ describe("Services grouped by purpose", () => {
     const crmOnly = workplaceNavigation({ workspaceBase: base, permissions: ["commerce.read"], availableAppIds: ["crm"] });
     expect(crmOnly.categories.some((category) => category.id === "customers-sales")).toBe(true);
     expect(crmOnly.categories.some((category) => category.id === "projects-routines")).toBe(false);
-    expect(crmOnly.categories.find((category) => category.id === "customers-sales")?.apps.map((app) => app.id)).toEqual(["customer-timeline","crm-pipeline","customer-followups"]);
+    expect(crmOnly.categories.find((category) => category.id === "customers-sales")?.apps.map((app) => app.id)).toEqual(["sales-hub","customers-hub"]);
     const hidden = workplaceNavigation({ workspaceBase: base, permissions: ["commerce.read", "support.read"], availableAppIds: ["procurement", "support"] });
     expect(hidden.categories.find((category) => category.id === "purchasing")?.apps.map((app) => app.id)).toEqual(["operations-purchasing","procurement-rfqs","procurement-suppliers"]);
-    expect(hidden.categories.find((category) => category.id === "customers-sales")?.apps.map((app) => app.id)).toEqual(["support-cases"]);
+    expect(hidden.categories.find((category) => category.id === "customers-sales")?.apps.map((app) => app.id)).toEqual(["customers-hub"]);
     expect(navigationLauncher(hidden, "follow-ups").results.some((result) => result.categoryId === "customers-sales")).toBe(false);
     const denied = workplaceNavigation({ workspaceBase: base, permissions: [], availableAppIds: ["crm"] });
     expect(denied.apps.some((app) => app.id === "crm")).toBe(false);
@@ -610,7 +610,7 @@ describe("Services grouped by purpose", () => {
         expect(item.href.startsWith(`${workspaceBase}/`)).toBe(true);
         const url = new URL(item.href, "https://navigation.invalid");
         const parent=nav.primary.find(entry=>entry.submodules?.some(child=>child.id===item.id));
-        if(!item.id.startsWith("start-"))expect(resolveNavigation(nav, workspaceBase, url.pathname, url.searchParams).activeId).toBe(parent?.id??item.id);
+        if(!item.id.startsWith("start-"))expect([resolveNavigation(nav, workspaceBase, url.pathname, url.searchParams).activeId, resolveNavigation(nav, workspaceBase, url.pathname, url.searchParams).sidebarId]).toContain(parent?.id??item.id);
       }
     }
   });
@@ -680,12 +680,12 @@ describe("Services grouped by purpose", () => {
    expect(resolveNavigation(shared,base,`${base}/executive/reports/private-id`).groupId).toBe("executive");
  });
 
-it("exposes all My work destinations with the original Team and Routing visibility", () => {
+it("keeps the concise My work views, reports and Team visibility", () => {
   const context = { workspaceBase: "/holdings/acme", scopeKind: "holding" as const, role: "holding_owner" };
   const views = (team: boolean, routing: boolean) => workplaceNavigation({ ...context, workViewAvailability: { team, routing } }).primary.find(item => item.id === "work")!.submodules!;
-  expect(views(true, true).map(item => item.id)).toEqual(workViews.map(([id]) => `work-${id}`));
-  expect(views(false, false).map(item => item.id)).toEqual(workViews.filter(([id]) => id !== "team" && id !== "routing").map(([id]) => `work-${id}`));
+  expect(views(true, true).map(item => item.id)).toEqual([...workViews.filter(([id]) => ["actions", "approvals", "tracking", "team"].includes(id)).map(([id]) => `work-${id}`), "work-reports"]);
+  expect(views(false, false).map(item => item.id)).toEqual(["work-actions", "work-approvals", "work-tracking", "work-reports"]);
   expect(views(true, false).some(item => item.id === "work-team")).toBe(true);
-  expect(views(false, true).some(item => item.id === "work-routing")).toBe(true);
-  for (const item of views(true, true)) expect(item.href).toBe(`/holdings/acme/work?view=${item.id.slice(5)}`);
+  expect(views(false, true).some(item => item.id === "work-routing")).toBe(false);
+  for (const item of views(true, true)) expect(item.href).toBe(item.id === "work-reports" ? "/holdings/acme/work/reports" : `/holdings/acme/work?view=${item.id.slice(5)}`);
 });

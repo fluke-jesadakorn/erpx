@@ -4,7 +4,7 @@ import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 import { TimeText } from "@/components/time/time-preference-context";
 
 import { useRef, useState } from "react";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, BriefcaseBusiness, Search } from "lucide-react";
 import type { AccessPackageDefinition, PeopleLifecycleData } from "@/lib/people-lifecycle";

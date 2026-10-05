@@ -50,11 +50,11 @@ function useCommand(base: string) {
   }
   return { send, busy, error };
 }
-export function LearningConsole({
+export function LearningConsole({ recordOnly=false,
   base,
   data,
   detail,
-}: {
+}: { recordOnly?:boolean;
   base: string;
   data?: Awaited<ReturnType<typeof learningWorkspace>>;
   detail?: Awaited<ReturnType<typeof learningAssignmentDetail>>;
@@ -67,7 +67,7 @@ export function LearningConsole({
     <>
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
       {data?.canWrite && (
-        <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Draft course</summary><FormLayout
+        (!recordOnly && <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Draft course</summary><FormLayout
           className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -104,7 +104,7 @@ export function LearningConsole({
           <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Draft course
           </Button>
-        </FormLayout></FormDisclosure>
+        </FormLayout></FormDisclosure>)
       )}
       {data?.canReview &&
         data.courses
@@ -142,7 +142,7 @@ export function LearningConsole({
             </FormLayout>
           ))}
       {data?.canReview && (
-        <FormLayout
+        (!recordOnly && <FormLayout
           className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -185,10 +185,10 @@ export function LearningConsole({
           <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Assign course
           </Button>
-        </FormLayout>
+        </FormLayout>)
       )}
       {a && a.status === "assigned" && (
-        <FormLayout
+        (!recordOnly && <FormLayout
           className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -208,10 +208,10 @@ export function LearningConsole({
           <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Start
           </Button>
-        </FormLayout>
+        </FormLayout>)
       )}
       {a && a.status === "in_progress" && (
-        <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Record attendance and result</summary><FormLayout
+        (!recordOnly && <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Record attendance and result</summary><FormLayout
           className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -269,10 +269,10 @@ export function LearningConsole({
           <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Complete course
           </Button>
-        </FormLayout></FormDisclosure>
+        </FormLayout></FormDisclosure>)
       )}
       {a && ["assigned", "in_progress"].includes(String(a.status)) && source.canReview && (
-        <FormLayout
+        (!recordOnly && <FormLayout
           className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -295,7 +295,7 @@ export function LearningConsole({
           <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Record exception
           </Button>
-        </FormLayout>
+        </FormLayout>)
       )}
     </>
   );

@@ -1,10 +1,14 @@
+import type {SqlDatabase} from "../src/server/runtime/types";
+import type {WorkContext} from "../src/server/authorization";
+import type {MetricId,Filters,Breakdown,MetricData} from "../src/lib/executive/canvas";
+import type {MetricSourceGroup,MetricSourcePage} from "../src/server/executive/metric-sources";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "./runtime-env";
 import { expenseDb as db, expenseFixture, key } from "./helpers/expense-fixture";
 import { createReport, reportView, reportLibrary, reportData, saveReport, saveShare, revokeShare, saveSchema, recipientPreviewContexts, previewShare, ownershipCandidates, transferReportOwnership } from "../src/server/executive/reports";
 import { queueGeneration, drainExecutiveGeneration, generationHistory, cancelGeneration } from "../src/server/executive/generation";
 import { canAuthor, currentAuthority } from "../src/server/executive/access";
-import { metricCatalog, metricCatalogFor, queryMetric } from "../src/server/executive/metrics";
+import { metricCatalog, metricCatalogFor, queryMetric as ownerQueryMetric } from "../src/server/executive/metrics";
 import { defaultFilters, definitionSchema, emptyDefinition, filtersForMonth, generateSchema, metricIds, monthBounds, sharePreviewSchema, shareSchema, transferOwnershipSchema } from "../src/lib/executive/canvas";
 import { executiveCoverage } from "../src/lib/executive/coverage";
 import { readExecutiveEvidence, readFinanceEvidence, searchExecutiveEvidence, searchFinanceEvidence } from "../src/server/executive/evidence";
@@ -13,6 +17,19 @@ import { formatMetric } from "../src/lib/executive/numbers";
 import { dailyRoomReport } from "../src/lib/pms-read";
 import { listInventoryReorderPolicies, saveInventoryReorderPolicy, transitionInventoryReorderPolicy } from "../src/server/inventory-reorder-policies";
 vi.mock("../src/server/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+// Exercise every populated metric fixture through its source query as well as its aggregate.
+function queryMetric(db:SqlDatabase,actor:WorkContext,id:MetricId,filters:Filters,breakdown?:Breakdown):Promise<MetricData>;
+function queryMetric(db:SqlDatabase,actor:WorkContext,id:MetricId,filters:Filters,breakdown:Breakdown,source:MetricSourceGroup):Promise<MetricSourcePage>;
+async function queryMetric(db:SqlDatabase,actor:WorkContext,id:MetricId,filters:Filters,breakdown:Breakdown='default',source?:MetricSourceGroup):Promise<MetricData|MetricSourcePage>{
+ if(source)return ownerQueryMetric(db,actor,id,filters,breakdown,source);
+ const result=await ownerQueryMetric(db,actor,id,filters,breakdown),first=result.rows[0];
+ if(first){const sources=await ownerQueryMetric(db,actor,id,filters,breakdown,{label:first.label,unit:first.unit,page:1});
+  expect(sources.row.name).toBe(first.label);
+  expect(sources.rows.every(row=>typeof row.id==='string'&&typeof row.facts==='object')).toBe(true);
+  if(first.value!=='0')expect(sources.rows.length).toBeGreaterThan(0);
+ }
+ return result;
+}
 const aiEnv={AI_BASE_URL:"https://opencode.ai/zen/go/v1",AI_MODEL:"muse-spark-1.3-contributor",AI_API_KEY:"synthetic-key"};
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await Promise.all([applyMigrations(db,env.STAFF_TEST_MIGRATIONS),applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS)]);});
@@ -428,6 +445,9 @@ it("keeps available inventory exact by product unit and gates audited stock evid
   expect((await queryMetric(db,actor,"available-stock",{...filters,from:"2026-09-01",to:"2026-09-01"})).rows).toEqual(stock.rows);
   expect(formatMetric("7001",{unit:"quantity",currency:null,valueScale:3})).toBe("7.001");
   const byWarehouse=await queryMetric(db,actor,"available-stock",filters,"warehouse");
+  const kgSources=await queryMetric(db,actor,"available-stock",filters,"warehouse",{label:"Executive inventory test warehouse",unit:"kg",page:1});
+  expect(kgSources.rows).toHaveLength(1);expect(kgSources.rows[0].facts).toMatchObject({unit:'kg',available_milli:7001});
+  expect(kgSources.rows[0].owner_args).toMatchObject({warehouseId:warehouse});
   expect(byWarehouse.total).toBeNull();
   expect(byWarehouse.rows).toEqual([{label:"Executive inventory test warehouse",value:"2500",unit:"each"},{label:"Executive inventory test warehouse",value:"7001",unit:"kg"}]);
 
@@ -684,6 +704,16 @@ it("reconciles money by currency, period and posting state without list truncati
   const revenue=await queryMetric(db,f.owner,"invoiced-sales",{from:"2026-01-01",to:"2026-12-31",currency:"THB"});
   const ar=await queryMetric(db,f.owner,"receivables",{from:"2026-01-01",to:"2026-12-31",currency:"THB"});
   expect(revenue.total).toBe("300300");expect(ar.total).toBe("150300");expect(revenue.rows).toEqual([{label:"2026-03",value:"300300"}]);
+  const sourceFilters={from:"2026-01-01",to:"2026-12-31",currency:"THB"};
+  const sourceFirst=await queryMetric(db,f.owner,"invoiced-sales",sourceFilters,"default",{label:"2026-03",page:1});
+  const sourceLast=await queryMetric(db,f.owner,"invoiced-sales",sourceFilters,"default",{label:"2026-03",page:10});
+  expect(sourceFirst.rows).toHaveLength(31);expect(sourceFirst.hasNext).toBe(true);expect(sourceLast.rows).toHaveLength(30);expect(sourceLast.hasNext).toBe(false);
+  expect(sourceFirst.rows.every(row=>row.owner_kind==='invoice'&&row.facts.status==='posted'&&row.facts.currency==='THB')).toBe(true);
+  expect(sourceLast.rows.some(row=>sourceFirst.rows.slice(0,30).some(first=>first.id===row.id))).toBe(false);
+  const direct=await queryMetric(db,f.owner,"invoiced-sales",sourceFilters,"default",{label:"2026-03",page:1,recordId:sourceLast.rows[29].id});
+  expect(direct.rows[0].id).toBe(sourceLast.rows[29].id);
+  await expect(queryMetric(db,f.owner,"invoiced-sales",sourceFilters,"default",{label:"2026-04",page:1})).rejects.toMatchObject({code:'METRIC_GROUP_NOT_FOUND'});
+  await expect(queryMetric(db,f.claimant,"invoiced-sales",sourceFilters,"default",{label:"2026-03",page:1})).rejects.toMatchObject({code:'METRIC_FORBIDDEN'});
   expect((await queryMetric(db,f.owner,"invoiced-sales",{from:"2026-01-01",to:"2026-12-31",currency:"USD"})).total).toBe("1001");
   expect((await queryMetric(db,f.owner,"invoiced-sales",{from:"2026-04-01",to:"2026-04-30",currency:"THB"})).total).toBe("0");
 });

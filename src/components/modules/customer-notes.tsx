@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
 import type { CustomerNotesView } from "@/server/customer-notes";
 import { Card, FormGrid } from "@/components/ui/foundation";
-export function CustomerNotes({ base, data }: { base: string; data: CustomerNotesView }) {
+export function CustomerNotes({ base, data, mode = "all" }: { base: string; data: CustomerNotesView; mode?: "all" | "create" | "history" }) {
   const router = useRouter(),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -36,6 +36,8 @@ export function CustomerNotes({ base, data }: { base: string; data: CustomerNote
       }
       last.current = null;
       form.reset();
+      window.dispatchEvent(new Event("erpx:hub-saved"));
+      window.dispatchEvent(new Event("erpx:record-saved"));
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Retry this command.");
@@ -49,7 +51,7 @@ export function CustomerNotes({ base, data }: { base: string; data: CustomerNote
   return (
     <>
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
-      {data.canCreate && (
+      {mode !== "history" && data.canCreate && (
         <Card as="section" appearance="standard" className="ui-panel">
           <h2>Record contact</h2>
           <form
@@ -90,7 +92,7 @@ export function CustomerNotes({ base, data }: { base: string; data: CustomerNote
           </form>
         </Card>
       )}
-      {data.notes.map((n) => (
+      {mode !== "create" && data.notes.map((n) => (
         <Card as="section" appearance="standard" className="ui-panel" key={`${n.id}:${n.version}`}>
           <h2>
             {String(n.channel)} · <TimeText appearance="standard" value={Number(n.occurred_at)} /> · {String(n.status)}

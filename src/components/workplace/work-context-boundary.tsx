@@ -77,6 +77,13 @@ export function WorkContextBoundary({ appearance = "legacy",
     window.addEventListener("erpx:work-context-changed", check);
     void check();
     const node = root.current;
+    const editedForms = new Set<HTMLFormElement>();
+    let nonFormEdits = false;
+    function syncDirty() {
+      for (const form of editedForms) if (!node?.contains(form)) editedForms.delete(form);
+      if (nonFormEdits || editedForms.size) node?.setAttribute("data-work-dirty", "true");
+      else node?.removeAttribute("data-work-dirty");
+    }
     function dirty(event: Event) {
       const target = event.target as HTMLElement;
       if (
@@ -84,16 +91,33 @@ export function WorkContextBoundary({ appearance = "legacy",
         target.closest('[data-work-dirty="false"]')
       )
         return;
-      if (target.closest("form") || target.matches("textarea, [contenteditable=true]"))
-        node?.setAttribute("data-work-dirty", "true");
+      const form = target.closest("form");
+      if (form) {
+        form.setAttribute("data-erpx-edit-version", crypto.randomUUID());
+        editedForms.add(form);
+        syncDirty();
+      } else if (target.matches("textarea, [contenteditable=true]")) {
+        nonFormEdits = true;
+        syncDirty();
+      }
     }
+    function saved(event:Event) {
+      const detail=(event as CustomEvent<{form?:HTMLFormElement;formEditVersion?:string|null}>).detail;
+      if (detail?.form && detail.formEditVersion && detail.formEditVersion===detail.form.getAttribute("data-erpx-edit-version")) editedForms.delete(detail.form);
+      syncDirty();
+    }
+    const removedForms = new MutationObserver(syncDirty);
+    if(node)removedForms.observe(node,{childList:true,subtree:true});
     node?.addEventListener("input", dirty);
+    window.addEventListener("erpx:record-command-saved", saved);
     return () => {
       active = false;
       channel?.close();
       window.removeEventListener("focus", check);
       window.removeEventListener("erpx:work-context-changed", check);
       node?.removeEventListener("input", dirty);
+      removedForms.disconnect();
+      window.removeEventListener("erpx:record-command-saved", saved);
     };
   }, [base, userId, companyId, assignmentId, revision, frontRoleEndpoint, frontLocation]);
   return (

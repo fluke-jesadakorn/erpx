@@ -3,7 +3,7 @@ import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, TextInput } from "@/components/ui/foundation";
 
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { decimalToMinor, minorToDecimal } from "@/lib/finance-money";

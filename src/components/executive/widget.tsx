@@ -1,4 +1,8 @@
 "use client";
+import {useContext} from "react";
+import {RecordLink} from "@/components/records/record-link";
+import {RecordScope} from "@/components/records/record-context";
+import type {Filters} from "@/lib/executive/canvas";
 import { Button, Table, TableFrame } from "@/components/ui/foundation";
 
 import { Database, CircleAlert } from "lucide-react";
@@ -16,7 +20,9 @@ export function CanvasWidget({
   onEvidence,
   onFilterMonth,
   selectedMonth,
+  sourceFilters,
 }: {
+  sourceFilters?: Filters;
   widget: Widget;
   data?: MetricData;
   comparison?: MetricData;
@@ -26,6 +32,7 @@ export function CanvasWidget({
   onFilterMonth?: (month: string) => void;
   selectedMonth?: string | null;
 }) {
+  const base=useContext(RecordScope);
   return (
     <div className={styles.widgetContent}>
       <div className={styles.widgetHeading}>
@@ -152,7 +159,7 @@ export function CanvasWidget({
                     <tbody>
                       {data.rows.map((r, i) => (
                         <tr key={`${r.label}-${i}`}>
-                          <td>{r.label.replaceAll("_", " ")}</td>
+                          <td>{sourceFilters&&base&&!preview?<RecordLink href="#" record={{kind:'executive_sources',id:widget.metric,args:{...sourceFilters,breakdown:widget.breakdown??'default',label:r.label,...(r.unit?{unit:r.unit}:{})}}}>{r.label.replaceAll("_", " ")}</RecordLink>:r.label.replaceAll("_", " ")}</td>
                           <td>
                             {metricValue(r.value, data)}
                             {data.unit === "quantity" && r.unit ? ` ${r.unit}` : ""}

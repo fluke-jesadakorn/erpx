@@ -1,5 +1,5 @@
 import { InlineNotice } from "@/components/ui/foundation";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import type { WorkContext } from "@/server/authorization";
 import { runtimeEnv } from "@/server/runtime";
 import { StatusBadge } from "@/components/ui/primitives";

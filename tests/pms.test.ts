@@ -13,7 +13,7 @@ import {
   type Config,
 } from "../src/lib/pms";
 import { availability, dailyRoomReport } from "../src/lib/pms-engine";
-import { pmsHome,pmsTaskPage } from "../src/server/pms/home";
+import { pmsHome,pmsTaskPage,pmsHotelSources } from "../src/server/pms/home";
 import { pmsFinanceOverview } from "../src/server/pms/finance";
 import { readablePmsSource } from "../src/server/pms/source";
 import { previewPmsImport,approvePmsImport,applyPmsImport } from "../src/server/pms/import";
@@ -804,11 +804,18 @@ it("aggregates accessible hotels without choosing one and keeps guest amounts pr
   expect(home.hotels.map(hotel=>hotel.id)).toContain(propertyId);
   expect(home.tasks.items.some(item=>item.id===booking.stayId)).toBe(true);
   expect(home.hotels[0].receivable).toBe(10700);
+  const sources=await pmsHotelSources(owner,propertyId,'occupancy',home.hotels[0].businessDate);
+  expect(sources.rows.some(row=>row.id===roomId&&row.kind==='room')).toBe(true);
+  expect(JSON.stringify(sources.rows)).not.toContain('Private guest service');
+  await expect(pmsHotelSources({...owner,companyId:'foreign'},propertyId,'occupancy',home.hotels[0].businessDate)).rejects.toMatchObject({status:404});
+  await expect(pmsHotelSources(owner,propertyId,'occupancy','2020-01-01')).rejects.toMatchObject({code:'PMS_BUSINESS_DATE_CHANGED'});
+
   const housekeeper=await f.member("housekeeper","pms_housekeeping");
   housekeeper.branchId=f.branch;housekeeper.assignmentScope="branch";
   await db.prepare("UPDATE assignments SET scope_kind='branch',scope_node_id=? WHERE id=?").bind(f.branch,housekeeper.assignmentId).run();
   const privateHome=await pmsHome(housekeeper);
   expect(privateHome.hotels[0].receivable).toBeNull();
+  await expect(pmsHotelSources(housekeeper,propertyId,'room_revenue',home.hotels[0].businessDate)).rejects.toMatchObject({status:403});
   expect(privateHome.tasks.items.every(item=>!["arrivals","departures"].includes(item.label))).toBe(true);
   expect(JSON.stringify(privateHome)).not.toContain("Private guest service");
   await expect(readablePmsSource(db,housekeeper,booking.stayId)).rejects.toMatchObject({status:404});
@@ -1585,4 +1592,37 @@ it('filters setup details and resumes from owner records without admitting other
  expect(financeData.permissions.hotel).toBe(false);
  await db.prepare("UPDATE finance_charts SET base_currency='USD' WHERE id=?").bind(f.chart).run();
  expect((await hospitalitySetup(owner,f.branch,propertyId)).steps.find(r=>r.id==='finance')?.blockers).toContain('Finance must review a THB Commerce chart');
+});
+
+it('does not reuse an applied damage deposit as a later room-advance refund source',async()=>{
+ const b=await book(),shift=(await cmd('shift.open',{name:'Desk',opening:0})).id;
+ const deposit=(await cmd('payment.deposit',{folioId:b.folioId,amount:5000,method:'cash',shiftId:shift})).id;
+ await cmd('charge.add',{folioId:b.folioId,price:3000,description:'Damage charge'});
+ await cmd('payment.apply_deposit',{folioId:b.folioId,amount:3210,reason:'Apply damage deposit'});
+ const receipt=(await cmd('payment.receive',{folioId:b.folioId,amount:5000,method:'cash',shiftId:shift})).id;
+ const request=(await cmd('refund.request',{folioId:b.folioId,pocket:'advance',amount:5000,reason:'Return unused room advance'})).id;
+ await cmd('refund.approve',{id:request},reviewer);const paid=(await cmd('refund.pay',{id:request,method:'cash',shiftId:shift})).id;
+ expect(record(await snapshot(),'entry',paid).data.funding).toEqual([{entryId:receipt,amount:5000}]);
+ expect(record(await snapshot(),'entry',paid).data.funding?.some(p=>p.entryId===deposit)).toBe(false);
+});
+it('serializes a damage-deposit refund against applying the same deposit to a charge',async()=>{
+ const b=await book(),shift=(await cmd('shift.open',{name:'Desk',opening:0})).id;
+ await cmd('payment.deposit',{folioId:b.folioId,amount:5000,method:'cash',shiftId:shift});
+ await cmd('charge.add',{folioId:b.folioId,price:3000,description:'Damage charge'});
+ const result=await Promise.allSettled([cmd('refund.request',{folioId:b.folioId,pocket:'deposit',amount:4000,reason:'Return damage deposit'}),cmd('payment.apply_deposit',{folioId:b.folioId,amount:3210,reason:'Apply damage deposit'})]);
+ expect(result.filter(r=>r.status==='fulfilled')).toHaveLength(1);
+ const f=record(await snapshot(),'folio',b.folioId);expect(f.data.deposit).toBeGreaterThanOrEqual(0);expect(f.data.due).toBeGreaterThanOrEqual(0);
+});
+
+it('pages booking queries while retaining related records and honoring guest search and hotel scope',async()=>{
+ const {plusDays}=await import('../src/lib/pms-model');const ids:string[]=[];
+ for(let i=0;i<55;i++)ids.push((await cmd('reservation.create',{guestId,source:'direct',rooms:[{typeId,rateId,arrival:plusDays('2026-09-01',i),departure:plusDays('2026-09-02',i),adults:2,quantity:1}]})).id);
+ const first=await pmsWorkspace(owner,propertyId,false,false,{view:'list',section:'reservations',page:0,q:'',status:''});
+ expect(first.snapshot!.listMeta).toMatchObject({page:0,hasNext:true});expect(first.snapshot!.listMeta!.ids).toHaveLength(50);
+ const second=await pmsWorkspace(owner,propertyId,false,false,{view:'list',section:'reservations',page:1,q:'',status:''});expect(second.snapshot!.listMeta!.ids).toHaveLength(5);expect(second.snapshot!.listMeta!.hasNext).toBe(false);
+ expect(first.snapshot!.listMeta!.ids.some(id=>second.snapshot!.listMeta!.ids.includes(id))).toBe(false);
+ const number=record(await snapshot(),'reservation',ids[54]).data.number;
+ const found=await pmsWorkspace(owner,propertyId,false,false,{view:'list',section:'reservations',page:0,q:number,status:''});expect(found.snapshot!.listMeta!.ids).toEqual([ids[54]]);expect(records(found.snapshot!,'guest')).toHaveLength(1);expect(records(found.snapshot!,'stay')).toHaveLength(1);
+ const desk=await pmsWorkspace(owner,propertyId,false,true,{view:'list',section:'front-desk',page:0,q:'',status:'arrivals'});expect(desk.snapshot!.listMeta!.ids).toHaveLength(1);expect(records(desk.snapshot!,'stay')[0].data.arrival).toBe('2026-09-01');
+ await expect(pmsWorkspace(owner,propertyId,false,false,{view:'list',section:'reservations',page:0,q:'',status:'',from:'2026-01-01',to:'2026-12-31'})).rejects.toThrow();
 });

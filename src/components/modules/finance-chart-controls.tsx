@@ -1,4 +1,5 @@
 "use client";
+import { RecordLink } from "@/components/records/record-link";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { FormDisclosure } from "@/components/ui/form-disclosure";
@@ -216,7 +217,7 @@ export function FinanceChartControls({
             </p>
           </div>
         </div>
-        <FormDisclosure appearance="standard">
+        <FormDisclosure error={error} appearance="standard">
           <summary>Create a chart</summary>
           <FormLayout
             className="ui-form-grid"
@@ -289,7 +290,7 @@ export function FinanceChartControls({
                 </p>
               </div>
             </div>
-            <FormDisclosure appearance="standard">
+            <FormDisclosure error={error} appearance="standard">
               <summary>Add an account</summary>
               <FormLayout
                 className="ui-form-grid"
@@ -368,7 +369,7 @@ export function FinanceChartControls({
                     const nextStatus = status === "active" ? "inactive" : "active";
                     return (
                       <tr key={String(account.id)}>
-                        <td>{String(account.code)}</td>
+                        <td><RecordLink href={`${base}/record-details/finance_account/${encodeURIComponent(String(account.id))}`}>{String(account.code)}</RecordLink></td>
                         <td>{String(account.name)}</td>
                         <td>{String(account.category)}</td>
                         <td>{String(account.currency ?? chart.base_currency)}</td>
@@ -417,8 +418,15 @@ export function FinanceChartControls({
               </Table>
             </TableFrame>
           </Card>
-          <details className="ui-panel">
+          <FormDisclosure error={error} appearance="standard" className="ui-panel" drawerTitle="Import account list">
             <summary>Import account list</summary>
+            <FormLayout layout="stack" onSubmit={event => {
+              event.preventDefault();
+              void send("charts/import", {
+                chartId: String(chart.id),
+                rows: parsed.rows.map(row => ({...row, controlKind: row.controlKind || "none"})),
+              });
+            }}>
             <div className="ui-section-header">
               <div>
                 <p className="muted">
@@ -446,23 +454,16 @@ export function FinanceChartControls({
               <p className="muted">Preview: {parsed.rows.length} valid row(s) ready to import.</p>
             )}
             <Button appearance="standard"
+              clientManaged
               type="submit"
               variant="primary"
               disabled={pending || !parsed.rows.length || parsed.errors.length > 0}
-              onClick={() =>
-                void send("charts/import", {
-                  chartId: String(chart.id),
-                  rows: parsed.rows.map((row) => ({
-                    ...row,
-                    controlKind: row.controlKind || "none",
-                  })),
-                })
-              }
             >
               {pending ? "Importing…" : "Import validated accounts"}
             </Button>
-          </details>
-          <FormDisclosure appearance="standard" className="ui-panel">
+            </FormLayout>
+          </FormDisclosure>
+          <FormDisclosure error={error} appearance="standard" className="ui-panel">
             <summary>Add accounting period</summary>
             <FormLayout
               className="ui-form-grid"

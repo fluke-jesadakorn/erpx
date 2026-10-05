@@ -1,3 +1,4 @@
+import { recordCanonicalHref } from "@/lib/record-drawer";
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Table, TableFrame } from "@/components/ui/foundation";
 import { TimeText } from "@/components/time/time-preference-context";
@@ -25,7 +26,7 @@ import {
 import { getTransit, transitWorkItem } from "@/server/inventory-transit";
 import { TransitNextAction } from "@/components/workplace/transit-next-action";
 import { pageError } from "@/server/page-error";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Transfer({
@@ -133,17 +134,14 @@ export default async function Transfer({
                   {lines.map((l) => (
                     <tr key={String(l.id)}>
                       <td>
-                        {String(l.sku)} · {String(l.description)}
+                        <Link href={recordCanonicalHref(base,{kind:"product",id:String(l.product_id)})}>{String(l.sku)} · {String(l.description)}</Link>
                       </td>
                       <td>
                         {l.tracking_mode === "none"
                           ? "None"
                           : allocations
                               .filter((a) => a.transfer_line_id === l.id)
-                              .map((a) =>
-                                a.serial_number ? `Serial ${a.serial_number}` : `Lot ${a.lot_code}`,
-                              )
-                              .join(", ")}
+                              .map((a) => <span key={String(a.id)}><Link href={recordCanonicalHref(base,{kind:"inventory_lot",id:String(a.lot_id)})}>{a.serial_number ? `Serial ${a.serial_number}` : `Lot ${a.lot_code}`}</Link>{" "}</span>)}
                       </td>
                       <td>
                         {Number(l.quantity_milli) / 1000} {String(l.unit)}

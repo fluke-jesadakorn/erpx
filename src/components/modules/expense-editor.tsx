@@ -8,7 +8,7 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 import { RequestSteps, RoutePreview } from "@/components/workplace/request-experience";
 import type { RequestPreview } from "@/lib/request-preview";
 import { workFetch } from "@/lib/work-fetch";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { UploadCloud, Sparkles } from "lucide-react";
 import { createReceiptUploader, validateReceipt } from "@/lib/expense-upload";
 import { ExpenseAiPanel } from "./expense-ai-panel";

@@ -68,6 +68,7 @@ export async function scheduledWork(env: JobEnv) {
   for (const slot of await activeSlots(env)) if (!slot.beta) await drainPeopleLifecycle(registeredResources(env,slot.id).write as PostgresDatabase);
   for (const slot of await activeSlots(env)) {
     const { write,files } = registeredResources(env,slot.id);
+    await (await import("../finance-due-drafts")).drainFinanceDueDrafts(write,slot.id);
     if (!slot.beta) {
       const payroll = await import("../payroll-readiness");
       await payroll.drainPayrollSchedules(write);
@@ -92,6 +93,7 @@ export async function scheduledWork(env: JobEnv) {
       console.warn(JSON.stringify({event:"inbox_delivery_health",holdingId:slot.id,...inboxMetrics}));
     await generateOccurrences(write);
     await drainRequestAi(write,env);
+    if (!slot.beta) await (await import("../people-evaluation-ai")).drainEvaluationAi(write,env);
     if(!slot.beta) { const financeAi=await import("../finance-ai");await financeAi.scanFinanceAi(write,env);await financeAi.drainFinanceAi(write,env); }
     await (await import("../executive/generation")).drainExecutiveGeneration(write,env);
     await drainSocialAgent(write,env,undefined,undefined,files,slot.id);
@@ -169,7 +171,7 @@ export async function pmsWork(env: JobEnv) {
    await (await import("../pms")).drainPms(db);
    await (await import("../pms-booking")).drainBookingPayments(db,{secret:String(env.BETTER_AUTH_SECRET),origin:String(env.ERPX_PUBLIC_ORIGIN),apiKey:typeof env.RESEND_API_KEY==='string'?env.RESEND_API_KEY:undefined,from:typeof env.RESEND_FROM==='string'?env.RESEND_FROM:undefined});
    await (await import("../pms-stripe")).drainPmsStripePayments(db);
-   if(process.env.NODE_ENV!=='production') {
+   {
      const booking=await import("../pms-booking");
      await booking.deliverBookingEmails(db,{secret: String(env.BETTER_AUTH_SECRET),origin: String(env.ERPX_PUBLIC_ORIGIN),apiKey:typeof env.RESEND_API_KEY === "string" ? env.RESEND_API_KEY : undefined,from:typeof env.RESEND_FROM === "string" ? env.RESEND_FROM : undefined});
    }

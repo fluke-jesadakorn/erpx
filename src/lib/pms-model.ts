@@ -58,6 +58,16 @@ export const accountLabels: Record<AccountKey, string> = {
   commission: "Commissions & fees",
   cashDifference: "Cash variance",
 };
+export type BookingImage = { publicationId: string; alt: string };
+export type CollectionPolicy = {
+  method: "full" | "deposit" | "pay_at_hotel";
+  depositPercent: number;
+  changesAllowed: boolean;
+  cancellationsAllowed?: boolean;
+  cancellationDays?: number;
+  cancellationTime?: string;
+  cancellationFeePercent?: number;
+};
 export type BookingSettings = {
   published: boolean;
   description: string;
@@ -66,7 +76,8 @@ export type BookingSettings = {
   contactPhone: string;
   cancellationDays: number;
   cancellationTime: string;
-  roomContent: Array<{ typeId: string; description: string }>;
+  images?: BookingImage[];
+  roomContent: Array<{ typeId: string; description: string; images?: BookingImage[]; beds?: string; sizeSqm?: number; amenities?: string }>;
   rateIds: string[];
 };
 export type BookingPolicy = {
@@ -74,6 +85,8 @@ export type BookingPolicy = {
   timezone: string;
   text: string;
   payment: "pay_at_hotel" | "online";
+  collection?: CollectionPolicy;
+  feeTaxBps?: number;
 };
 export type Config = {
   booking?: BookingSettings;
@@ -93,6 +106,8 @@ export type Config = {
   preparedBy: string;
   approvedBy: string | null;
   revision: number;
+  bookingFees?: { account: string; preparedBy: string; approvedBy: string | null };
+  onlineAccounting?: { refundPayable: string; unallocated: string; preparedBy: string; approvedBy: string | null };
 };
 export type Property = {
   id: string;
@@ -159,6 +174,7 @@ export type Rate = {
     closedArrival: boolean;
     closedDeparture: boolean;
   }>;
+  collection?: CollectionPolicy;
 };
 export type Guest = {
   name: string;
@@ -204,6 +220,7 @@ export type Stay = {
   segments: Array<{ roomId: string; from: string; to: string }>;
   checkedInAt?: number;
   checkedOutAt?: number;
+  bookingPolicy?: BookingPolicy;
 };
 export type Folio = {
   name: string;
@@ -215,10 +232,14 @@ export type Folio = {
   advance: number;
   advanceTax: number;
   deposit: number;
+  refundReserved?: number;
+  depositRefundReserved?: number;
+  refundHolds?: Array<{entryId:string;amount:number;pocket:"advance"|"deposit"}>;
   invoiceId?: string;
   creditId?: string;
 };
 export type Entry = {
+  cancellationFee?: boolean;
   folioId: string;
   stayId: string;
   date: string;
@@ -263,6 +284,8 @@ export type Task = {
   roomCycle?: number;
 };
 export type Block = {
+  expiresAt?: number;
+  bookingChangeId?: string;
   name: string;
   typeId: string;
   roomId: string;
@@ -368,7 +391,7 @@ export type PmsRecord<K extends Kind = Kind> = {
   updatedAt: number;
   data: DataMap[K];
 };
-export type Snapshot = { property: Property; records: PmsRecord[] };
+export type Snapshot = { property: Property; records: PmsRecord[]; asOf?: number };
 export function records<K extends Kind>(s: Snapshot, kind: K): PmsRecord<K>[] {
   return s.records.filter((r) => r.kind === kind) as PmsRecord<K>[];
 }
@@ -440,6 +463,10 @@ export const defaultConfig: Config = {
   revision: 1,
 };
 export const operationPermission = (op: string) =>
+  op === "booking_fees.prepare" ? "pms.accounting.prepare" :
+  op === "booking_fees.approve" ? "pms.accounting.approve" :
+  op === "online_accounting.prepare" ? "pms.accounting.prepare" :
+  op === "online_accounting.approve" ? "pms.accounting.approve" :
   op === "payment.verify_transfer" ? "finance.approve" :
   op === "charge.correction.request" ? "pms.cashier" :
   op === "charge.correction.review" || op === "charge.reverse" ? "pms.approve" :

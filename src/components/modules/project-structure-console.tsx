@@ -1,6 +1,6 @@
 'use client';
 import {useState,type FormEvent} from 'react';
-import Link from 'next/link';
+import { RecordLink as Link } from "@/components/records/record-link";
 import {Button,Field,Select,TextArea} from '@/components/ui/foundation';
 import {TimeText} from '@/components/time/time-preference-context';
 import {minorToDecimal} from '@/lib/finance-money';

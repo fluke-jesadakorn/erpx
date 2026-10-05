@@ -15,7 +15,7 @@ import { MoneyAmount } from "@/components/money/currency-provider";
 import { workspaceBase } from "@/lib/workspace";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import { listExpenses } from "@/server/expenses";
-import Link from "next/link";
+import { RecordLink as Link } from "@/components/records/record-link";
 import { FilterBar } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Expenses({
