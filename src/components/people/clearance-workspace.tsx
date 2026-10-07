@@ -9,7 +9,7 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ClearanceKind } from "@/lib/retirement";
-import type { clearanceCase } from "@/server/retirement-clearance";
+import type { clearanceCase } from "@/server/modules/people_payroll/public/retirement-clearance";
 import { StatusBadge } from "@/components/ui/primitives";
 import { workFetch } from "@/lib/work-fetch";
 import {

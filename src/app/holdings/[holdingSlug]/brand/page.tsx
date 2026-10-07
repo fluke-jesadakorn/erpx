@@ -1,8 +1,8 @@
 import { RecordLink as Link } from "@/components/records/record-link";
-import {requireWorkContext,publicScope} from "@/server/authorization";
+import {requireWorkContext,publicScope} from "@/server/modules/identity_access/public/authorization";
 import {workspaceBase} from "@/lib/workspace";
-import {pageError} from "@/server/page-error";
-import {brandIdentityWorkspace} from "@/server/brand-identity";
+import {pageError} from "@/server/modules/work_projection/public/page-error";
+import {brandIdentityWorkspace} from "@/server/modules/brand/public/brand-identity";
 import {BrandIdentityConsole} from "@/components/modules/brand-identity-console";
 import { PageContent } from "@/components/ui/foundation";
 export const dynamic="force-dynamic";

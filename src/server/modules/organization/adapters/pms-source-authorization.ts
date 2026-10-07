@@ -1,0 +1,1 @@
+export function pmsSourceBranchActiveSql(source: string) { return `EXISTS(SELECT 1 FROM organization_nodes pn WHERE pn.id=${source}.branch_id AND pn.company_id=${source}.company_id AND pn.status='active')`; }

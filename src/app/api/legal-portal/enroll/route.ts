@@ -1,9 +1,10 @@
+import {appLegalEnrollmentAttempt} from "@/server/modules/legal/public/app-enrollment-attempt-effects";
 import { z } from "zod";
-import { boundedBody } from "@/server/legal/body";
-import { enrollmentAccess } from "@/server/legal/enrollment";
-import { createAuth } from "@/server/auth";
-import { requestPublicOrigin } from "@/server/public-origin";
-import { ApiError, errorResponse } from "@/server/http";
+import { boundedBody } from "@/server/modules/legal/public/legal/body";
+import { enrollmentAccess } from "@/server/modules/legal/public/legal/enrollment";
+import { createAuth } from "@/server/modules/identity_access/public/auth";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 export async function POST(request: Request) {
   try {
     const origin = requestPublicOrigin(request);
@@ -30,12 +31,7 @@ export async function POST(request: Request) {
         "EMAIL_NOT_CONFIGURED",
         "Invitation account verification is not configured.",
       );
-    const rate = await invite.write
-      .prepare(
-        "INSERT INTO legal_enrollment_attempts(share_id,window_start,attempts) VALUES(?,?,1) ON CONFLICT(share_id) DO UPDATE SET window_start=CASE WHEN legal_enrollment_attempts.window_start<? THEN excluded.window_start ELSE legal_enrollment_attempts.window_start END,attempts=CASE WHEN legal_enrollment_attempts.window_start<? THEN 1 ELSE legal_enrollment_attempts.attempts+1 END RETURNING attempts",
-      )
-      .bind(invite.id, Date.now(), Date.now() - 3600000, Date.now() - 3600000)
-      .first<{ attempts: number }>();
+    const rate = await appLegalEnrollmentAttempt(invite.write,invite.id,Date.now(),Date.now()-3600000,Date.now()-3600000);
     if (!rate || rate.attempts > 3)
       throw new ApiError(
         429,

@@ -1,0 +1,3 @@
+import type {SqlDatabase} from '../../runtime/public/runtime/types';
+import type {ProjectionSource} from '../../workflow/public/job-projector-contract';
+export function peopleProjectionSource(db:SqlDatabase,kind:'overtime'|'leave'|'payroll',id:string){return db.prepare(kind==='overtime'?'SELECT state,version,company_id,branch_id,department_id FROM overtime_requests WHERE id=?':kind==='leave'?'SELECT state,version,company_id,branch_id,department_id FROM leave_requests WHERE id=?':'SELECT status state,version,company_id,NULL branch_id,NULL department_id FROM hr_payroll_runs WHERE id=?').bind(id).first<ProjectionSource>();}

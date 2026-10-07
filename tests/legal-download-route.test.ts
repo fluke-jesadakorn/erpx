@@ -24,15 +24,15 @@ vi.mock("../src/server/runtime", async original => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));
-vi.mock("../src/server/legal/portal", async original => ({
-  ...await original<typeof import("../src/server/legal/portal")>(),
+vi.mock("../src/server/modules/legal/public/legal/portal", async original => ({
+  ...await original<typeof import("../src/server/modules/legal/public/legal/portal")>(),
   portalContext: async () => ({ write: env.H001_DB, files: env.H001_FILES, actor: session.portal! }),
 }));
-vi.mock("../src/server/attachments/scanner", () => ({
+vi.mock("../src/server/modules/files/public/attachments/scanner", () => ({
   attachmentScannerReadiness: async () => ({ enabled: true, ready: true, engine: "isolated scanner fixture", definitionUpdatedAt: Date.now(), error: null }),
   scanAttachmentBytes: async () => ({ clean: true, signature: null, engine: "isolated scanner fixture", definitionUpdatedAt: Date.now() }),
 }));
-vi.mock("../src/server/attachments/preview", () => ({
+vi.mock("../src/server/modules/files/public/attachments/preview", () => ({
   attachmentPreviewReadiness: async () => ({ ready: true, error: null }),
   detectedAttachmentMediaType: (bytes: Uint8Array, type: string) => type === "application/pdf" && Buffer.from(bytes.subarray(0, 5)).toString() === "%PDF-" ? type : null,
   sanitizedAttachmentPreview: async () => null,

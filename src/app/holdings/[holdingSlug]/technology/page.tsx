@@ -1,27 +1,24 @@
+import { iamPresentationQueries } from "@/server/modules/identity_access/public/presentation-context-queries";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { OrganizationAccessWorkspace } from "@/components/technology/organization-access-workspace";
-import { organizationAccessData } from "@/server/organization-access";
-import { gpoRulesOverview } from "@/server/gpo-rules";
+
+
 import { PageHeader } from "@/components/ui/primitives";
 import {
   AccessPackages,
   PreparationTasks,
 } from "@/components/people/lifecycle-workspace";
 import { UserManagement } from "@/components/people/user-management";
-import { requireWorkContext, publicScope } from "@/server/authorization";
-import { iamContext } from "@/server/iam-context";
-import { peopleLifecycleData } from "@/server/people-lifecycle";
-import { directoryAutomationData } from "@/server/directory-operations";
-import { technologyData } from "@/server/technology";
-import {
-  peopleAccessData,
-  accessMetadata,
-  accessEntries,
-} from "@/server/people-access";
-import { readManagement } from "@/server/user-management";
+import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
+
+
+
+
+import { accessMetadata, accessEntries } from "@/server/modules/people_payroll/public/people-access";
+
 import { workspaceBase, workspaceApiHref } from "@/lib/workspace";
 import { hasPermission } from "@/lib/permissions";
-import { pageError } from "@/server/page-error";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
 import styles from "@/components/technology/technology.module.css";
 const views = [
   ["organization", "Organization & Access"],
@@ -40,14 +37,14 @@ export default async function TechnologyPage({
   const localContext = await requireWorkContext(holdingSlug);
   if (query.view !== "resources" && query.view !== "attributes") {
     const resolved = await (async () => { try {
-      const { db, actor } = await iamContext(holdingSlug);
+      const { queries, actor } = await iamPresentationQueries(holdingSlug);
       const canReadDirectory = hasPermission(actor, "iam.read") && !localContext.branchId && !localContext.departmentId;
       const [organization, lifecycle, automation, technology, gpoRules] = await Promise.all([
-        organizationAccessData(db, localContext),
-        peopleLifecycleData(db, localContext),
-        canReadDirectory ? directoryAutomationData(db, actor) : Promise.resolve({ cases: [], connections: [], jobs: [], canApply: false, canManage: false, canReview: false }),
-        canReadDirectory ? technologyData(db, actor) : Promise.resolve({ applications: [], operations: [] }),
-        gpoRulesOverview(db, localContext),
+        queries.organizationAccessData(localContext),
+        queries.peopleLifecycleData(localContext),
+        canReadDirectory ? queries.directoryAutomationData(actor) : Promise.resolve({ cases: [], connections: [], jobs: [], canApply: false, canManage: false, canReview: false }),
+        canReadDirectory ? queries.technologyData(actor) : Promise.resolve({ applications: [], operations: [] }),
+        queries.gpoRulesOverview(localContext),
       ]);
       return { organization, lifecycle, automation, technology, gpoRules, actor, canReadDirectory };
     } catch (error) { return pageError(error, holdingSlug); } })();
@@ -69,10 +66,10 @@ export default async function TechnologyPage({
       </div>;
   }
   if (query.view === "attributes") {
-    const { db, actor } = await iamContext(holdingSlug);
+    const { queries, actor } = await iamPresentationQueries(holdingSlug);
     const [access, management] = await Promise.all([
-      peopleAccessData(db, actor),
-      readManagement(db, actor),
+      queries.peopleAccessData(actor),
+      queries.readManagement(actor),
     ]);
     const scope = publicScope(localContext),
       base = workspaceBase(scope),
@@ -85,13 +82,13 @@ export default async function TechnologyPage({
   }
   const resolved = await (async () => {
     try {
-      const { db, actor } = await iamContext(holdingSlug),
+      const { queries, actor } = await iamPresentationQueries(holdingSlug),
         context = await requireWorkContext(holdingSlug);
       const [lifecycle, access, management] =
         await Promise.all([
-          peopleLifecycleData(db, context),
-          peopleAccessData(db, actor),
-          readManagement(db, actor),
+          queries.peopleLifecycleData(context),
+          queries.peopleAccessData(actor),
+          queries.readManagement(actor),
         ]);
       return {
         actor,

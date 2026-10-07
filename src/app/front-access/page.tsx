@@ -1,15 +1,15 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { frontAppForHost, frontVisiblePath } from "@/lib/front-host";
-import { currentSession } from "@/server/authorization";
-import { frontCompanyApp } from "@/server/front-app";
-import { frontCompanyChoices, frontCompanyItems } from "@/server/front-quick-access";
-import { readQuickAccessPreferences } from "@/server/quick-access-preferences";
+import { currentSession } from "@/server/modules/identity_access/public/authorization";
+import { frontCompanyApp } from "@/server/modules/work_projection/public/front-app";
+import { frontCompanyChoices, frontCompanyItems } from "@/server/modules/work_projection/public/front-quick-access";
+import { readQuickAccessPreferences } from "@/server/modules/work_projection/public/quick-access-preferences";
 import { QuickAccessShelf } from "@/components/quick-access/shelf";
 import styles from "./front-access.module.css";
 import Link from "next/link";
 import { consoleOrigin } from "@/lib/erpx-hosts";
-import { workspaceChoices } from "@/server/workspace-choices";
+import { workspaceChoices } from "@/server/modules/organization/public/workspace-choices";
 
 export const dynamic = "force-dynamic";
 

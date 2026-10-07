@@ -1,10 +1,10 @@
+import { captureCaseScreenshot } from "../helpers/case-screenshot";
 import { expect, test } from "@playwright/test";
-import { mkdirSync } from "node:fs";
 
 test("canonical UI controls remain accessible across themes and widths", async ({ page, context, baseURL }) => {
   test.skip(!["localhost", "127.0.0.1", "console-dev-erpx.jesadakorn.com"].includes(new URL(baseURL!).hostname), "The component gallery is development-only.");
   test.setTimeout(120_000);
-  mkdirSync(".scratch/ui-foundation", { recursive: true });
+
   for (const theme of ["light", "dark"])
     for (const width of [390, 768, 1024, 1440]) {
       await context.addCookies([{ name: "erpx_appearance", value: theme, url: baseURL! }]);
@@ -24,7 +24,7 @@ test("canonical UI controls remain accessible across themes and widths", async (
         return rect.width > 0 && rect.height > 0 && rect.height < 35.5;
       }).map((node) => node.getAttribute("aria-label") || node.textContent || node.tagName));
       expect(undersized, `${width}px ${theme} controls`).toEqual([]);
-      await page.screenshot({ path: `.scratch/ui-foundation/gallery-${width}-${theme}.png`, fullPage: true });
+      await captureCaseScreenshot(page, `gallery-${width}-${theme}.png`, { fullPage: true });
     }
 });
 

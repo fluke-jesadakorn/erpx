@@ -1,11 +1,12 @@
 import { chromium, type Page } from "@playwright/test";
 import { mkdir, readFile, chmod } from "node:fs/promises";
 import { resolve } from "node:path";
+import { parseUatAuthProfiles, type UatProfileId } from "../testing/uat-auth";
 
 type User = { email: string; role: string; roles?: string[]; scope?: string; scopeNode?: string; scopeParentNode?: string };
 type Credentials = { password: string; users: User[] };
 type Profile = {
-  id: string;
+  id: UatProfileId;
   email: string;
   role: string;
   scope?: string;
@@ -25,7 +26,9 @@ const state = JSON.parse(await readFile(resolve(directory, "state.json"), "utf8"
 if (state.run !== run || (state.port ?? 3102) !== 3104 || state.origin !== base.origin)
   throw new Error("UAT_SIMULATION_STATE_MISMATCH");
 const credentials = JSON.parse(await readFile(resolve(directory, "credentials.json"), "utf8")) as Credentials;
-const authDirectory = resolve(root, ".scratch/uat", run);
+const authDirectory = resolve(process.env.ERPX_UAT_AUTH_DIR ?? resolve(root, ".scratch/uat", run));
+if (![resolve(root, ".scratch/uat", run), resolve(directory, "uat-auth")].includes(authDirectory))
+  throw new Error("UAT_AUTH_DIRECTORY_NOT_OWNED_BY_RUN");
 await mkdir(authDirectory, { recursive: true, mode: 0o700 });
 await chmod(authDirectory, 0o700);
 
@@ -47,7 +50,8 @@ const profiles: Profile[] = [
   { id: "pms", email: "frontdesk@riverside-lantern.example", role: "pms_frontdesk", app: "pms", holding: "riverside-lantern" },
   { id: "pos", email: "cashier@riverside-lantern.example", role: "pos_cashier", app: "pos", holding: "riverside-lantern" },
 ];
-const selectedProfileIds = process.env.ERPX_UAT_AUTH_PROFILES?.split(",").filter(Boolean);
+const selectedProfileIds = parseUatAuthProfiles(process.env.ERPX_UAT_AUTH_PROFILES);
+const selectedProfiles = profiles.filter(({ id }) => !selectedProfileIds || selectedProfileIds.includes(id));
 
 function normalizedRole(value: string) {
   return value.toLowerCase().replaceAll("_", " ");
@@ -121,7 +125,7 @@ const browser = await chromium.launch({
   args: ["--host-resolver-rules=MAP dev-pms.localhost 127.0.0.1,MAP dev-pos.localhost 127.0.0.1"],
 });
 try {
-  for (const profile of profiles.filter(({ id }) => !selectedProfileIds || selectedProfileIds.includes(id))) {
+  for (const profile of selectedProfiles) {
     const known = credentials.users.some((user) => user.email === profile.email && (user.role === profile.role || user.roles?.includes(profile.role)) && (!profile.scope || user.scope === profile.scope));
     if (!known) throw new Error(`UAT_PROFILE_MISSING:${profile.id}`);
     const profileBase = profile.app ? `http://dev-${profile.app}.localhost:3104` : base.origin;
@@ -199,4 +203,4 @@ try {
 } finally {
   await browser.close();
 }
-console.log(JSON.stringify({ authDirectory, profiles: profiles.map(({ id, role, scope, app }) => ({ id, role, scope, app })) }));
+console.log(JSON.stringify({ authDirectory, profiles: selectedProfiles.map(({ id, role, scope, app }) => ({ id, role, scope, app })) }));

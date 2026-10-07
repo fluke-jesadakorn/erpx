@@ -1,8 +1,8 @@
-import { requireWorkContext, publicScope } from "@/server/authorization";
-import { memberProfileView } from "@/server/member-profiles";
+import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
+import { memberProfileView } from "@/server/modules/organization/public/member-profiles";
 import { workspaceBase } from "@/lib/workspace";
 import { ProfilePage } from "@/components/profile/profile-page";
-import { pageError } from "@/server/page-error";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
 
 export const dynamic = "force-dynamic";
 

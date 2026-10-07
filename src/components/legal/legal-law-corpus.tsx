@@ -5,7 +5,7 @@ import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { useCallback, useEffect, useState } from "react";
-import type { LegalData, LegalDetail } from "@/lib/legal/model";
+import type { LegalData, LegalDetail } from "@/server/modules/legal/public/rules/model";
 import s from "./legal.module.css";
 
 type Row = {

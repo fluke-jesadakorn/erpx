@@ -1,13 +1,13 @@
 import { z } from 'zod';
-import { requireWorkContext } from '@/server/authorization';
-import { requestPublicOrigin } from '@/server/public-origin';
-import { ApiError, errorResponse } from '@/server/http';
-import { holdingResources } from '@/server/runtime';
-import { PostgresDatabase } from '@/server/runtime/postgres';
-import { posCommand } from '@/server/pos-core';
-import { finishPosOAuth, oauthUrl } from '@/server/pos-stripe';
-import { posCustomers,posDayReport } from '@/server/pos-daily';
-import { posProductImage,uploadPosProductImage } from '@/server/pos-images';
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
+import { posCommand } from "@/server/modules/pos/public/pos-core";
+import { finishPosOAuth, oauthUrl } from "@/server/modules/pos/public/pos-stripe";
+import { posCustomers,posDayReport } from "@/server/modules/pos/public/pos-daily";
+import { posProductImage,uploadPosProductImage } from "@/server/modules/pos/public/pos-images";
 type Context={params:Promise<{holdingSlug:string;path:string[]}>};
 export async function POST(request:Request,{params}:Context){
  try{

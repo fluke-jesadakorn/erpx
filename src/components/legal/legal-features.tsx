@@ -11,8 +11,8 @@ import {
   type FeatureKind,
   type FeatureRow,
   type FeatureSpec,
-} from "@/lib/legal/features";
-import type { LegalDetail } from "@/lib/legal/model";
+} from "@/server/modules/legal/public/rules/features";
+import type { LegalDetail } from "@/server/modules/legal/public/rules/model";
 import s from "./legal.module.css";
 export function LegalFeatures({
   detail,

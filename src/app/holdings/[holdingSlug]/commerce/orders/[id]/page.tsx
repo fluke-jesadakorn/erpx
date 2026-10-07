@@ -1,3 +1,6 @@
+import { commercePresentationQueries } from "@/server/modules/commerce/public/presentation-queries";
+
+
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Table, TableFrame } from "@/components/ui/foundation";
 import { TimeText } from "@/components/time/time-preference-context";
@@ -25,17 +28,17 @@ import { WorkReturn } from "@/components/workplace/work-return";
 import { minorToDecimal } from "@/lib/finance-money";
 import { hasPermission } from "@/lib/permissions";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { commerceOverview, commercePermissions, getOrder } from "@/server/commerce";
-import { getEmployeeRequest } from "@/server/employee-requests";
-import { holdingResources } from "@/server/runtime";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { commerceOverview, commercePermissions, getOrder } from "@/server/modules/commerce/public/commerce";
+
+
 import { RecordLink as Link } from "@/components/records/record-link";
-import { supplierPromiseDetail } from "@/server/supplier-promises";
+import { supplierPromiseDetail } from "@/server/modules/procurement/public/supplier-promises";
 import { SupplierBillCapture } from "@/components/modules/supplier-bill-console";
-import { supplierBillWorkspace, supplierInvoicePolicy } from "@/server/supplier-bill-matching";
+import { supplierBillWorkspace, supplierInvoicePolicy } from "@/server/modules/procurement/public/supplier-bill-matching";
 import { SupplierPromiseConsole } from "@/components/modules/supplier-promise-console";
-import { pageError } from "@/server/page-error";
-import { landedCostsForOrder, landedCostOptions } from "@/server/inventory-landed-costs";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+import { landedCostsForOrder, landedCostOptions } from "@/server/modules/inventory/public/inventory-landed-costs";
 import { LandedCostCreateForm } from "@/components/modules/landed-cost-controls";
 import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
 import { Card } from "@/components/ui/foundation";
@@ -57,20 +60,11 @@ export default async function OrderPage({
   const permissions = commercePermissions(actor);
   const canEdit = order.kind === "purchase" ? permissions.purchase : permissions.sales;
   const options = canEdit && order.state === "draft" ? await commerceOverview(actor) : null;
-  const linkedRequest = await (
-    await holdingResources(actor.holdingId)
-  ).write
-    .prepare("SELECT id,title FROM employee_requests WHERE company_id=? AND purchase_order_id=?")
-    .bind(actor.companyId, id)
-    .first<{ id: string; title: string }>();
+  const linkedRequest = await (await commercePresentationQueries(actor.holdingId)).commerceEntrypointRecordFacts().linkedRequest(actor.companyId,id);
   let requestLink: typeof linkedRequest = null;
   if (linkedRequest) {
     try {
-      await getEmployeeRequest(
-        (await holdingResources(actor.holdingId)).write,
-        actor,
-        linkedRequest.id,
-      );
+      await (await commercePresentationQueries(actor.holdingId)).getEmployeeRequest(actor, linkedRequest.id);
       requestLink = linkedRequest;
     } catch {}
   }
@@ -108,9 +102,7 @@ export default async function OrderPage({
       : [],
   );
   const fxAccounts=permissions.finance&&hasPermission(actor,"finance.read")&&hasPermission(actor,"finance.approve")
-    ?(await (await holdingResources(actor.holdingId)).write.prepare(`SELECT a.id,a.code,a.name,a.category FROM finance_accounts a
-      JOIN finance_charts c ON c.id=a.chart_id AND c.company_id=a.company_id JOIN commerce_settings s ON s.chart_id=c.id AND s.company_id=c.company_id
-      WHERE a.company_id=? AND a.currency=c.base_currency AND a.category IN ('other_income','other_expense') AND a.status='active' ORDER BY a.code`).bind(actor.companyId).all()).results as Array<Record<string,string|number|null>>:[];
+    ?(await (await commercePresentationQueries(actor.holdingId)).commerceEntrypointFinanceFacts().fxAccounts(actor.companyId)).results:[];
   const backLabel =
     order.kind === "purchase" ? "purchasing" : order.kind === "quote" ? "quotations" : "sales";
   return (

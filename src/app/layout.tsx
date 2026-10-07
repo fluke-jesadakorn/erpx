@@ -10,7 +10,7 @@ import { appearancePreference } from "@/lib/appearance-preference";
 import {
   attachmentsV2Enabled,
   attachmentsV2ReadOnly,
-} from "@/server/attachments/feature";
+} from "@/server/modules/files/public/attachments/feature";
 import { Geist } from "next/font/google";
 import "./globals.css";
 

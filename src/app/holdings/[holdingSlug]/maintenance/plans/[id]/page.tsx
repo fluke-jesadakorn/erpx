@@ -1,8 +1,8 @@
 import { RecordLink as Link } from "@/components/records/record-link";
-import {requireWorkContext,publicScope} from '@/server/authorization';
+import {requireWorkContext,publicScope} from "@/server/modules/identity_access/public/authorization";
 import {workspaceBase} from '@/lib/workspace';
-import {pageError} from '@/server/page-error';
-import {preventivePlanDetail} from '@/server/maintenance-preventive';
+import {pageError} from "@/server/modules/work_projection/public/page-error";
+import {preventivePlanDetail} from "@/server/modules/maintenance/public/maintenance-preventive";
 import {MaintenancePreventiveConsole} from '@/components/modules/maintenance-preventive-console';
 import {TimeText} from '@/components/time/time-preference-context';
 import { PageContent, Card } from "@/components/ui/foundation";

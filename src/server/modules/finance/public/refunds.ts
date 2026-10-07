@@ -1,0 +1,2 @@
+/** Compatibility entry; its legacy implementation is tracked in ownership.json. */
+export { refundApprovalSchema, refundInstructionSchema, refundExportSchema, refundConfirmationSchema, refundExceptionSchema, getRefund, listRefunds, refundWorkspace, approveRefund, prepareRefundInstruction, exportRefundInstructions, recordRefundException, confirmRefundInstruction, refundWork, recoverRefundExport } from "../../../refunds";

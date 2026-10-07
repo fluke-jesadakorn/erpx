@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { publicScope, requireWorkContext } from "@/server/authorization";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
 
 export default async function LegacyLedger({params,searchParams}:{params:Promise<{holdingSlug:string}>;searchParams:Promise<{chart?:string;status?:string;cursor?:string;new?:string}>}) {

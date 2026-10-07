@@ -19,7 +19,7 @@ vi.mock("../src/server/runtime", () => ({
   activeHoldingBindings: mocks.bindings,
   holdingResources: mocks.resources,
 }));
-vi.mock("../src/server/iam-store", () => ({ iamRoles: async (db:unknown, companyId:string, ids:string[]) => new Map(await Promise.all(ids.map(async id=>[id,await mocks.role(db,companyId,id)]))) }));
+vi.mock("../src/server/iam-store", () => ({ iamRoles: async (db:unknown, companyId:string, ids:string[]) => new Map(await Promise.all(ids.map(async id=>[id,await mocks.role(db,companyId,id)] as const))) }));
 
 import { workspaceChoices } from "../src/server/workspace-choices";
 import {

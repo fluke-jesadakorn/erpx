@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
-import { requireManageErpxContext } from "@/server/authorization";
-import { pageError } from "@/server/page-error";
+import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { PlatformRoleSwitcher } from "@/components/workplace/platform-role-switcher";
 import { PlatformContextBoundary } from "@/components/workplace/platform-context-boundary";
 

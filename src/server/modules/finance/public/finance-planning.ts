@@ -1,0 +1,2 @@
+/** Compatibility entry; its legacy implementation is tracked in ownership.json. */
+export { budgetEditionSchema, forecastEditionSchema, financialReportSchema, prepareBudgetEdition, importBudgetCsv, prepareForecastEdition, prepareFinancialReport, decideFinancePlan, financePlanningWorkspace, budgetActuals, snapshotFinancialReport, exportFinancialReport, financePlanRecord, budgetSourceRecords, financialReportSourceRecords } from "../../../finance-planning";

@@ -4,9 +4,9 @@ import { RecordLink as Link } from "@/components/records/record-link";
 import {Button,Field,Select,TextArea} from '@/components/ui/foundation';
 import {TimeText} from '@/components/time/time-preference-context';
 import {minorToDecimal} from '@/lib/finance-money';
-import type {ProjectGraph,projectHandoffs} from '@/server/project-structure';
-import type {ProjectCostAllocationRow,ProjectWorkLogRow} from '@/server/project-actuals';
-import type {StaffPerson} from '@/server/staff-policy';
+import type {ProjectGraph,projectHandoffs} from "@/server/modules/projects/public/project-structure";
+import type {ProjectCostAllocationRow,ProjectWorkLogRow} from "@/server/modules/projects/public/project-actuals";
+import type {StaffPerson} from "@/server/modules/operations/public/staff-policy";
 import {useStaffCommand} from './staff-work-controls';
 type Handoff=Awaited<ReturnType<typeof projectHandoffs>>[number];
 function costs(values:Record<string,string>){return Object.entries(values).map(([currency,minor])=>`${minorToDecimal(Number(minor))} ${currency}`).join(' · ')||'No approved costs';}

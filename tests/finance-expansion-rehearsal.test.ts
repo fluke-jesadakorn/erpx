@@ -63,7 +63,7 @@ it("reconciles a populated multi-Company, multi-book nine-group rehearsal throug
   const secondaryGroup = await prepareGroupReportEdition(r.f.owner,groupReportEditionSchema.parse({...groupDefinition,parentId:r.groupId,parentVersion:2,entities:groupDefinition.entities.map((entity:{chartId:string})=>({...entity,chartId:entity.chartId===r.f.chart?r.secondary:entity.chartId})),mappings:groupDefinition.mappings.map((mapping:{accountId:string})=>({...mapping,accountId:toSecondary.get(mapping.accountId)??mapping.accountId})),reason:'Review the secondary book after the retained fiscal transfer'}),key());
   await decideGroupReportEdition(r.approver,String(secondaryGroup.id),{expectedVersion:1,reason:'Independent secondary year profit and cumulative equity review'},'approve',key());
   expect((await groupReportEditionExport(r.f.owner,String(secondaryGroup.id))).content).toContain('-1123.00');
-  const groupSources = await groupEditionAccountSources(r.f.owner,String(secondaryGroup.id),'DEP');
+  const groupSources = await groupEditionAccountSources(r.f.owner,String(secondaryGroup.id),'DEP',1);
   expect(groupSources.rows.some(row=>row.journal_id===closingMirrors[0].id)).toBe(false);
   // Issued primary exports stay byte-for-byte identical after a book revision.
   expect((await exportFinancialReport(r.preparer,r.snapshotId)).content).toBe(r.reportExport.content);

@@ -10,11 +10,11 @@ import {customerPortalSharedFiles,customerPortalSharedPreview} from '../src/serv
 const session=vi.hoisted(()=>({actor:null as WorkContext|null}));
 vi.mock('../src/server/authorization',async original=>({...await original<typeof import('../src/server/authorization')>(),requireWorkContext:async()=>session.actor!}));
 vi.mock('../src/server/runtime',()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
-vi.mock('../src/server/attachments/scanner',()=>({
+vi.mock('../src/server/modules/files/public/attachments/scanner',()=>({
  attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:'ClamAV test',definitionUpdatedAt:Date.now(),error:null}),
  scanAttachmentBytes:async()=>({clean:true,signature:null,engine:'ClamAV test',definitionUpdatedAt:Date.now()}),
 }));
-vi.mock('../src/server/attachments/preview',()=>({
+vi.mock('../src/server/modules/files/public/attachments/preview',()=>({
  attachmentPreviewReadiness:async()=>({ready:true,heifConvert:'/test/heif-convert',pdftoppm:'/test/pdftoppm',error:null}),
  detectedAttachmentMediaType:(value:Uint8Array,declared:string)=>declared==='application/pdf'&&new TextDecoder().decode(value.slice(0,5))!=='%PDF-'?null:declared,
  sanitizedAttachmentPreview:async()=>null,

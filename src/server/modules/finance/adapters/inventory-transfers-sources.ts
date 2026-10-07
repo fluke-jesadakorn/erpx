@@ -1,0 +1,3 @@
+import type {SqlDatabase} from '../../runtime/public/runtime/types';import {assertion} from '../../workflow/public/commands';import type {TransferRow} from '../../inventory/public/transfer-contract';
+export function inventoryTransferSources(db:SqlDatabase){return {async postingPeriods(companyId:string,transfer_date:string | number | null,transfer_date2:string | number | null){return db.prepare("SELECT id FROM finance_periods WHERE company_id=? AND state='open' AND start_date<=? AND end_date>=?").bind(companyId,transfer_date,transfer_date2).all<TransferRow>();},
+guardOpenPeriod(key:string,value:"period",id:string | number | null){return assertion(db,key,value,"EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND state='open')",[id]);}};}

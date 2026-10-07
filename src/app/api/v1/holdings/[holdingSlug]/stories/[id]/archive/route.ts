@@ -1,6 +1,6 @@
-import { requireWorkContext } from "@/server/authorization";
-import { ApiError, errorResponse } from "@/server/http";
-import { archiveStory } from "@/server/social";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { archiveStory } from "@/server/modules/collaboration/public/social";
 import { z } from "zod";
 
 const schema = z.object({ expectedVersion: z.number().int().positive() });

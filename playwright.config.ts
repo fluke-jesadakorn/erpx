@@ -4,15 +4,20 @@ import { defineConfig, devices } from "@playwright/test";
 // workspace lifecycle, not Playwright (the public Tunnel also uses this server).
 const baseURL = process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3100";
 const uatRouteSweep = Boolean(process.env.ERPX_UAT_AUTH_DIR);
+const selectedFiles: string[] | undefined = process.env.ERPX_TEST_BROWSER_FILES
+  ? JSON.parse(process.env.ERPX_TEST_BROWSER_FILES)
+  : undefined;
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  ...(selectedFiles ? { testMatch: selectedFiles.map(file => `**/${file.replace(/^tests\/e2e\//, "")}`) }
+    : { testIgnore: ["**/uat-route-matrix.spec.ts", "**/legal-uat.spec.ts"] }),
   fullyParallel: uatRouteSweep,
   workers: uatRouteSweep ? 4 : 1,
   forbidOnly: !!process.env.CI,
   timeout: 60_000,
   expect: { timeout: 10_000 },
-  retries: process.env.CI ? 2 : 0,
+  retries: 0,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL,

@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { peopleContextHref, type PeopleRouteSearch } from "@/lib/people-route-context";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { loadPeopleMove, type PeopleMoveKind } from "@/server/people-move";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { loadPeopleMove, type PeopleMoveKind } from "@/server/modules/people_payroll/public/people-move";
 
 export const dynamic = "force-dynamic";
 

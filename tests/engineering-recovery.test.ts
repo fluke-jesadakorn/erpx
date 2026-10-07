@@ -20,8 +20,8 @@ import {groupReportEditionExport} from "../src/server/finance-group-editions";
 vi.mock("../src/server/runtime", () => ({runtimeEnv:async()=>env,holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES})}));
 // Immutable Legal recovery uses a declared scanner fixture. Compiled browser UAT
 // exercises the actual scanner/OCR binaries before production acceptance.
-vi.mock("../src/server/attachments/scanner",()=>({attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:"recovery scanner fixture",definitionUpdatedAt:Date.now(),error:null}),scanAttachmentBytes:async()=>({clean:true,signature:null,engine:"recovery scanner fixture",definitionUpdatedAt:Date.now()})}));
-vi.mock("../src/server/attachments/preview",()=>({attachmentPreviewReadiness:async()=>({ready:true,error:null}),detectedAttachmentMediaType:(_bytes:Uint8Array,type:string)=>type,sanitizedAttachmentPreview:async()=>null}));
+vi.mock("../src/server/modules/files/public/attachments/scanner",()=>({attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:"recovery scanner fixture",definitionUpdatedAt:Date.now(),error:null}),scanAttachmentBytes:async()=>({clean:true,signature:null,engine:"recovery scanner fixture",definitionUpdatedAt:Date.now()})}));
+vi.mock("../src/server/modules/files/public/attachments/preview",()=>({attachmentPreviewReadiness:async()=>({ready:true,error:null}),detectedAttachmentMediaType:(_bytes:Uint8Array,type:string)=>type,sanitizedAttachmentPreview:async()=>null}));
 
 const execute = promisify(execFile);
 const hash = (bytes:string|Buffer) => createHash("sha256").update(bytes).digest("hex");
@@ -130,8 +130,9 @@ it("encrypts a complete isolated snapshot, restores immutable money and files, a
     const args=[operator,"--home",home,"--offline-test"];
     const backup=await execute("python3",[...args,"backup"],{timeout:120_000}), snapshot=backup.stdout.trim().replace("Backup: ","");
     const identity=join(home,"age-identity.txt");
-    await execute("/opt/homebrew/bin/age-keygen",["-o",identity]);
-    const recipient=(await execute("/opt/homebrew/bin/age-keygen",["-y",identity])).stdout.trim();
+    const ageKeygen=process.env.ERPX_AGE_KEYGEN_BIN??"age-keygen";
+    await execute(ageKeygen,["-o",identity]);
+    const recipient=(await execute(ageKeygen,["-y",identity])).stdout.trim();
     await execute("python3",[...args,"--destination",join(home,"offsite"),"--recipient",recipient,"export",snapshot],{timeout:120_000});
     const snapshotId=snapshot.split("/").at(-1)!, archive=join(home,"offsite",`${snapshotId}.tar.age`), ciphertext=await readFile(archive);
     expect(ciphertext.subarray(0,22).toString()).toContain("age-encryption.org/v1");

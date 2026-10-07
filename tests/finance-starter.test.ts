@@ -229,3 +229,16 @@ it("checks current independent authority rather than counting role labels or a s
     .run();
   expect((await financeSetupAuthority(db, f.company)).independent).toBe(false);
 });
+it("rolls back the entire starter chart accounts period and imported dimensions after final outbox failure, then retries once",async()=>{
+ const f=await fresh(),command=key(),fault=`starter_fault_${crypto.randomUUID().replaceAll("-","")}`;
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'STARTER_LATE_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.event_type='finance.starter.create') EXECUTE FUNCTION ${fault}();`);
+ try{
+  await expect(createFinanceStarter(f.actor,request,command)).rejects.toThrow();
+  for(const table of ["finance_charts","finance_accounts","finance_periods","finance_dimension_definitions","finance_dimension_values"])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE company_id=?`).bind(f.company).first("n"))).toBe(0);
+  for(const table of ["command_receipts","audit_events","outbox_events"])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first("n"))).toBe(0);
+ }finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
+ const result=await createFinanceStarter(f.actor,request,command);expect(await createFinanceStarter(f.actor,request,command)).toEqual(result);
+ expect(result).toMatchObject({accountCount:23,policyReviewRequired:true});
+ for(const [table,count] of [["finance_charts",1],["finance_accounts",23],["finance_periods",1],["finance_dimension_definitions",1],["finance_dimension_values",1]] as const)expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE company_id=?`).bind(f.company).first("n"))).toBe(count);
+ for(const table of ["command_receipts","audit_events","outbox_events"])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first("n"))).toBe(1);
+});

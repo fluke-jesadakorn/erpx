@@ -1,0 +1,11 @@
+import 'server-only';
+/** Closed, named source clauses for the supplied notification statement snapshot.
+ * No table, SQL, predicate or alias is accepted from a caller. */
+export function collaborationNotificationSnapshotSources(){return {
+  "customer_authority_notifications_customer_access_bindings_b_from": "FROM (SELECT \"id\", \"company_id\", \"order_id\", \"customer_id\", \"email\", \"expires_at\", \"status\", \"reason\", \"created_by\", \"approved_by\", \"reviewed_at\", \"version\", \"created_at\", \"updated_at\" FROM customer_access_bindings) b",
+  "customer_authority_notifications_customer_access_bindings_from": "FROM (SELECT \"id\", \"company_id\", \"order_id\", \"customer_id\", \"email\", \"expires_at\", \"status\", \"reason\", \"created_by\", \"approved_by\", \"reviewed_at\", \"version\", \"created_at\", \"updated_at\" FROM customer_access_bindings) customer_access_bindings",
+  "customer_authority_notifications_customer_duplicate_reviews_from": "FROM (SELECT \"id\", \"company_id\", \"left_customer_id\", \"right_customer_id\", \"status\", \"canonical_customer_id\", \"evidence\", \"created_by\", \"reviewed_by\", \"version\", \"created_at\", \"updated_at\" FROM customer_duplicate_reviews) customer_duplicate_reviews",
+  "customer_authority_notifications_customer_identity_changes_c_from": "FROM (SELECT \"id\", \"company_id\", \"customer_id\", \"expected_customer_version\", \"previous_json\", \"proposed_json\", \"status\", \"evidence\", \"created_by\", \"reviewed_by\", \"version\", \"created_at\", \"updated_at\" FROM customer_identity_changes) c",
+  "customer_authority_notifications_customer_identity_changes_from": "FROM (SELECT \"id\", \"company_id\", \"customer_id\", \"expected_customer_version\", \"previous_json\", \"proposed_json\", \"status\", \"evidence\", \"created_by\", \"reviewed_by\", \"version\", \"created_at\", \"updated_at\" FROM customer_identity_changes) customer_identity_changes",
+  "customer_authority_notifications_customer_duplicate_reviews_r_from": "FROM (SELECT \"id\", \"company_id\", \"left_customer_id\", \"right_customer_id\", \"status\", \"canonical_customer_id\", \"evidence\", \"created_by\", \"reviewed_by\", \"version\", \"created_at\", \"updated_at\" FROM customer_duplicate_reviews) r"
+} as const;}

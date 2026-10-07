@@ -1,9 +1,9 @@
 import { RecordCatalog } from "@/components/records/record-catalog";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { requireWorkContext, publicScope } from "@/server/authorization";
+import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
-import { pageError } from "@/server/page-error";
-import { ecommerceWorkspace } from "@/server/ecommerce";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+import { ecommerceWorkspace } from "@/server/modules/ecommerce/public/ecommerce";
 import { EcommerceConsole } from "@/components/modules/ecommerce-console";
 import { RecordDocumentDrawer } from "@/components/attachments/record-document-drawer";
 import { MediaPublicationPanel } from "@/components/attachments/media-publication-panel";

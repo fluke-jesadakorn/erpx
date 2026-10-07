@@ -5,6 +5,7 @@ import { escalateRosterCoverage, rosterCommand, rosterData, rosterNotificationLi
 import { rosterMonday, addDays } from "../src/lib/people-roster";
 import { rosterPositionExitStatements } from "../src/server/roster-position-exit";
 import type { WorkContext } from "../src/server/authorization";
+import { prepareLocalBrowserRosterExample } from "../scripts/fixtures/local-browser-roster-directory";
 vi.mock("../src/server/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 const db = env.H001_DB, key = () => crypto.randomUUID();
 let f: Awaited<ReturnType<typeof seedExpenseCompany>>;
@@ -123,7 +124,7 @@ it("blocks self approval, unauthorized managers, cross-department and cross-comp
   await expect(command({ action: "request.create", kind: "extra", targetShiftId: s.c.id, reason: "Wrong department" }, outsider)).rejects.toMatchObject({ code: "ROSTER_STAFF" });
   const other = await seedExpenseCompany(db, env.H001_FILES);
   await expect(command({ action: "shift.cancel", id: s.a.id, expectedVersion: 1, reason: "Wrong tenant" }, other.owner)).rejects.toMatchObject({ code: "NOT_FOUND" });
-  const limited = { ...f.manager, departmentId: f.accountsDepartment, scope: { ...f.manager.scope, kind: "department" as const, departmentId: f.accountsDepartment, departmentSlug: "accounts", departmentName: "Accounts" } };
+  const limited = { ...f.manager, departmentId: f.accountsDepartment, scope: { holdingId:f.manager.holdingId,holdingSlug:f.manager.holdingSlug,holdingName:f.manager.holdingName,companyId:f.company,branchId:f.manager.branchId, kind: "department" as const, departmentId: f.accountsDepartment, departmentSlug: "accounts", departmentName: "Accounts" } };
   await expect(read(limited)).rejects.toMatchObject({ code: "ROSTER_SCOPE" });
 });
 it("invalidates requests after a source shift edit and requires a published-change reason", async () => {
@@ -220,6 +221,24 @@ it("includes a weekend-only engagement in its partial first week", async () => {
   const version=(await db.prepare("SELECT version FROM people_roster_weeks WHERE id=?").bind(w.id).first<{version:number}>())!.version;
   await expect(command({action:"week.publish",id:w.id,expectedVersion:version})).rejects.toMatchObject({code:"ROSTER_COVERAGE"});
 });
+it("prepares a visible current-week browser roster through the normal independent manager and retains it on repeat", async () => {
+  const prepared = await prepareLocalBrowserRosterExample(db, f.manager, f.claimant);
+  expect(prepared.weekStart).toBe(rosterMonday());
+  const worker = await rosterData(db, f.claimant, { department: f.department });
+  expect(worker.week).toMatchObject({ id: prepared.weekId, state: "published" });
+  expect(worker.selfRosterRequired).toBe(true);
+  expect(worker.shifts.find(shift => shift.id === prepared.shiftId)).toMatchObject({ name: "Morning", state: "active" });
+  expect(worker.assignments.filter(assignment => assignment.shift_id === prepared.shiftId && assignment.state === "assigned").map(assignment => assignment.person_id).sort()).toEqual([person(f.claimant), person(f.tie)].sort());
+  const before = await db.prepare("SELECT count(*)::int n FROM command_receipts WHERE command_id LIKE ?").bind(`browser-roster-${f.company}-%`).first<{ n: number }>();
+  expect(await prepareLocalBrowserRosterExample(db, f.manager, f.claimant)).toEqual(prepared);
+  expect(await db.prepare("SELECT count(*)::int n FROM command_receipts WHERE command_id LIKE ?").bind(`browser-roster-${f.company}-%`).first<{ n: number }>()).toEqual(before);
+});
+
+it("does not grant roster management to a browser fixture's ordinary worker", async () => {
+  await expect(prepareLocalBrowserRosterExample(db, f.claimant, f.tie)).rejects.toThrow("NORMAL_BROWSER_ROSTER_AUTHORITY_REQUIRED");
+  expect((await db.prepare("SELECT count(*)::int n FROM people_roster_weeks WHERE company_id=?").bind(f.company).first<{ n: number }>())?.n).toBe(0);
+});
+
 it("releases future assignments and closes pending requests with a Position exit", async () => {
   const s=await setup();
   const request=await swap(s);

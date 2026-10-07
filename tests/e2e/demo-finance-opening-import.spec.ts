@@ -44,21 +44,28 @@ test("isolated demo imports and independently posts opening balances", async ({ 
     const preparePage = await preparer.newPage();
     await signInAs(preparer, preparePage, credentials, "finance_preparer", `/holdings/simulation/finance/setup${query}`);
     await preparePage.getByRole("button", { name: "Import opening balances" }).click();
-    await preparePage.getByRole("combobox",{name:"Opening period",exact:true}).selectOption(fixture.periodId);
-    await preparePage.locator('#workspace-content').getByLabel("Opening balance date").fill("2026-09-01");
-    await preparePage.getByRole("combobox",{name:"Account 1",exact:true}).selectOption(fixture.browserOpeningCashId);
-    await preparePage.locator('#workspace-content').getByLabel("Debit 1").fill("100");
-    await preparePage.locator('#workspace-content').getByLabel("Credit 1").fill("0");
-    await preparePage.getByRole("combobox",{name:"Account 2",exact:true}).selectOption(fixture.browserOpeningEquityId);
-    await preparePage.locator('#workspace-content').getByLabel("Debit 2").fill("0");
-    await preparePage.locator('#workspace-content').getByLabel("Credit 2").fill("100");
-    await preparePage.getByRole("button", { name: "Preview reconciliation" }).click();
-    await expect(preparePage.getByRole("heading", { name: "Opening reconciliation" })).toBeVisible();
-    await expect(preparePage.locator('#workspace-content').getByText("THB 100.00", { exact: false }).first()).toBeVisible();
+    const importDialog = preparePage.getByRole("dialog", { name: "Import opening balances", exact: true });
+    await expect(importDialog).toBeVisible();
+    await importDialog.getByRole("button", { name: "Close dialog", exact: true }).click();
+    await expect(importDialog).toBeHidden();
+    await preparePage.getByRole("button", { name: "Import opening balances" }).click();
+    await expect(importDialog).toBeVisible();
+    await importDialog.getByRole("combobox",{name:"Opening period",exact:true}).selectOption(fixture.periodId);
+    await importDialog.getByLabel("Opening balance date").fill("2026-09-01");
+    await importDialog.getByRole("combobox",{name:"Account 1",exact:true}).selectOption(fixture.browserOpeningCashId);
+    await importDialog.getByLabel("Debit 1").fill("100");
+    await importDialog.getByLabel("Credit 1").fill("0");
+    await importDialog.getByRole("combobox",{name:"Account 2",exact:true}).selectOption(fixture.browserOpeningEquityId);
+    await importDialog.getByLabel("Debit 2").fill("0");
+    await importDialog.getByLabel("Credit 2").fill("100");
+    await importDialog.getByRole("button", { name: "Preview reconciliation" }).click();
+    await expect(importDialog.getByRole("heading", { name: "Opening reconciliation" })).toBeVisible();
+    await expect(importDialog.getByText("THB 100.00", { exact: false }).first()).toBeVisible();
     await Promise.all([
       preparePage.waitForURL(/\/finance\/journals\//),
-      preparePage.getByRole("button", { name: "Create reconciled opening journal" }).click(),
+      importDialog.getByRole("button", { name: "Create reconciled opening journal" }).click(),
     ]);
+    await expect(importDialog).toBeHidden();
     const journalPath = new URL(preparePage.url()).pathname;
     await expect(preparePage.locator('#workspace-content').getByText("draft", { exact: true }).first()).toBeVisible();
 

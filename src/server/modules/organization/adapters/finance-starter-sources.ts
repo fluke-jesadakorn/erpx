@@ -1,0 +1,3 @@
+import type {SqlDatabase} from '@/server/modules/runtime/public/runtime/types';
+export async function lockFinanceStarterCompany(db:SqlDatabase,companyId:string){return db.prepare("SELECT id FROM organization_nodes WHERE id=? AND kind='company' AND status='active' FOR UPDATE").bind(companyId).first();}
+export async function financeStarterOrganizationNodes(db:SqlDatabase,companyId:string){return (await db.prepare("SELECT id,kind,display_name FROM organization_nodes WHERE company_id=? AND kind IN ('branch','department') AND status='active' ORDER BY kind,id").bind(companyId).all<{id:string;kind:string;display_name:string}>()).results;}

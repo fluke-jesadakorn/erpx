@@ -8,12 +8,8 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
 import { ServiceSpareForm } from "./service-spare-form";
-import type {
-  assetDetail,
-  assetWorkspace,
-  maintenanceDetail,
-  maintenanceWorkspace,
-} from "@/server/asset-maintenance";
+import type {assetDetail,assetWorkspace} from "@/server/modules/assets/public/asset-maintenance";
+import type {maintenanceDetail,maintenanceWorkspace} from "@/server/modules/maintenance/public/asset-maintenance";
 import { FormLayout } from "@/components/ui/foundation";
 function useCommand(base: string, path: string) {
   const router = useRouter(),

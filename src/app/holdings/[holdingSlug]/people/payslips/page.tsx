@@ -4,9 +4,9 @@ import {FeaturePage} from "@/components/features/feature-page";
 import {PageHeader} from "@/components/ui/primitives";
 import {minorToDecimal} from "@/lib/finance-money";
 import {workspaceBase} from "@/lib/workspace";
-import {publicScope,requireWorkContext} from "@/server/authorization";
-import {pageError} from "@/server/page-error";
-import {listPayslips} from "@/server/payroll-payslips";
+import {publicScope,requireWorkContext} from "@/server/modules/identity_access/public/authorization";
+import {pageError} from "@/server/modules/work_projection/public/page-error";
+import {listPayslips} from "@/server/modules/people_payroll/public/payroll-payslips";
 import { Card } from "@/components/ui/foundation";
 export const dynamic="force-dynamic";
 export default async function Payslips({params}:{params:Promise<{holdingSlug:string}>}){

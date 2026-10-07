@@ -126,4 +126,24 @@ describe("generic controlled payments",()=>{
   expect(await db.prepare("SELECT status FROM finance_journals WHERE id=?").bind(result.fxJournalId).first("status")).toBe("reversed");
   expect(await db.prepare("SELECT fx_reversal_journal_id FROM finance_payment_reversals WHERE payment_id=?").bind(payment.id).first("fx_reversal_journal_id")).toBeTruthy();
  });
+ it("rolls back journal, allocations, bank match, receipt and audit when final confirmation outbox fails, then retries and replays once",async()=>{
+  const {supplier,invoice}=await payable("100"),payment=await createPayment(f.reviewer,{partyId:String(supplier.id),kind:"payment",paymentNumber:`ROLLBACK-${key()}`,paymentDate:"2026-09-12",currency:"THB",amount:"100",bankAccount:f.accounts.cash},key());
+  await approvePayment(f.manager,String(payment.id),{expectedVersion:1,proof:"Independent rollback fixture review"},key());await releasePayment(f.payer,String(payment.id),{expectedVersion:2,proof:"Independent rollback fixture release"},key());
+  const statement=await importBankStatement(f.reviewer,{bankAccount:f.accounts.cash,statementNumber:`ROLLBACK-BANK-${key()}`,statementDate:"2026-09-30",opening:"1000",closing:"900",sourceHash:key(),rows:[{externalId:`ROLLBACK-TX-${key()}`,transactionDate:"2026-09-12",amount:"-100",currency:"THB"}]},key()),bankId=String(await db.prepare("SELECT id FROM finance_bank_transactions WHERE statement_id=?").bind(statement.id).first("id")),command=key(),input={expectedVersion:3,periodId:f.period,bankTransactionId:bankId,bankVersion:1,bankReference:"ROLLBACK-CONFIRM",proof:"Treasury matched bank evidence before confirmation",allocations:[{invoiceId:String(invoice.id),amount:"100"}]},fault=`finance_confirmation_fault_${crypto.randomUUID().replaceAll("-","")}`;
+  await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'FINANCE_CONFIRM_LATE_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.event_type='finance.payment.confirm') EXECUTE FUNCTION ${fault}();`);
+  try {
+   await expect(confirmPayment(f.payer,String(payment.id),input,command)).rejects.toThrow();
+   expect(await db.prepare("SELECT status,version,outstanding_minor,journal_id FROM finance_payments WHERE id=?").bind(payment.id).first()).toMatchObject({status:"released",version:3,outstanding_minor:10000,journal_id:null});
+   expect(await db.prepare("SELECT status,outstanding_minor FROM finance_invoices WHERE id=?").bind(invoice.id).first()).toMatchObject({status:"posted",outstanding_minor:10000});
+   expect(await db.prepare("SELECT match_status,version,matched_id FROM finance_bank_transactions WHERE id=?").bind(bankId).first()).toEqual({match_status:"unmatched",version:1,matched_id:null});
+   expect(Number(await db.prepare("SELECT count(*) n FROM finance_allocations WHERE payment_id=?").bind(payment.id).first("n"))).toBe(0);
+   for(const table of ["command_receipts","audit_events","decision_evidence","outbox_events"])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first("n"))).toBe(0);
+   expect(Number(await db.prepare("SELECT count(*) n FROM finance_journals WHERE id=?").bind(`journal-${command}`).first("n"))).toBe(0);
+   expect(Number(await db.prepare("SELECT count(*) n FROM money_transaction_snapshots WHERE source_type='finance_payment' AND source_id=? AND amount_kind='settled'").bind(payment.id).first("n"))).toBe(0);
+  } finally {await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
+  const result=await confirmPayment(f.payer,String(payment.id),input,command);expect(result).toMatchObject({status:"settled",version:4});expect(await confirmPayment(f.payer,String(payment.id),input,command)).toEqual(result);
+  for(const table of ["command_receipts","audit_events","decision_evidence","outbox_events"])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first("n"))).toBe(1);
+  expect(Number(await db.prepare("SELECT count(*) n FROM finance_allocations WHERE payment_id=?").bind(payment.id).first("n"))).toBe(1);
+ });
+
 });

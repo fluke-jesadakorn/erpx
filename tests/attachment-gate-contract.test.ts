@@ -12,7 +12,7 @@ import {
 } from "../src/server/attachments/feature";
 
 function environment(values: Record<string, string | undefined> = {}): NodeJS.ProcessEnv {
-  return { ...values };
+  return { NODE_ENV: 'test', ...values };
 }
 
 describe("attachment global gate contract", () => {

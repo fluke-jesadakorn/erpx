@@ -139,6 +139,24 @@ async function fixture(now = Date.parse("2026-09-01T00:00:00+07:00")) {
     );
   return { id, stripe, owner, admin, command, get, drain, now };
 }
+it("rolls back the approved invoice, cost links, issue job, account version and audit after a final receipt fault, then retries and replays once", async () => {
+  const f = await fixture(); await f.command("enroll", { planId: "standard" });
+  const period = (await f.get()).periods[0];
+  await f.command("cost", { periodId: period.id, category: "hosting", amountSatang: 1000, serviceStart: period.start_at, serviceEnd: period.end_at, note: "Retained actual hosting source", simulated: true }, period.end_at + 1, f.admin);
+  await f.command("complete-costs", { periodId: period.id, complete: true }, period.end_at + 1, f.admin);
+  const snapshot = async () => Object.fromEntries(await Promise.all(["billing_accounts", "billing_enrollments", "billing_periods", "billing_costs", "billing_invoices", "billing_jobs", "billing_audit"].map(async table => [table, (await db.pool.query(`SELECT * FROM ${table} WHERE holding_id=$1 ORDER BY ${table === "billing_accounts" ? "holding_id" : "id"}`, [f.id])).rows])));
+  const before = await snapshot(), command = crypto.randomUUID(), input: BillingInput = { action: "approve", version: (await f.get()).account!.version, periodId: period.id, reason: "Independent reviewed actual cost approval" }, at = period.end_at + 2;
+  const approve = () => billingCommand(db, f.admin, f.id, input, command, f.stripe.request, "https://fixture.example/usage", at), fault = `billing_receipt_fault_${crypto.randomUUID().replaceAll("-", "")}`;
+  await db.pool.query(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'BILLING_FINAL_RECEIPT_FAULT' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON billing_receipts FOR EACH ROW WHEN (NEW.id='${command}') EXECUTE FUNCTION ${fault}();`);
+  try { await expect(approve()).rejects.toThrow(); expect(await snapshot()).toEqual(before); expect((await db.pool.query("SELECT id FROM billing_receipts WHERE id=$1", [command])).rows).toEqual([]); }
+  finally { await db.pool.query(`DROP TRIGGER ${fault} ON billing_receipts;DROP FUNCTION ${fault}();`); }
+  const approved = await approve(); expect(await approve()).toEqual(approved);
+  expect((await db.pool.query("SELECT id FROM billing_receipts WHERE id=$1", [command])).rowCount).toBe(1);
+  expect((await db.pool.query("SELECT id FROM billing_invoices WHERE holding_id=$1", [f.id])).rowCount).toBe(1);
+  expect((await db.pool.query("SELECT id FROM billing_jobs WHERE holding_id=$1 AND kind='issue'", [f.id])).rowCount).toBe(1);
+  expect((await db.pool.query("SELECT id FROM billing_audit WHERE holding_id=$1 AND action='approve'", [f.id])).rowCount).toBe(1);
+  expect((await db.pool.query("SELECT invoice_id FROM billing_costs WHERE holding_id=$1", [f.id])).rows[0].invoice_id).not.toBeNull();
+});
 it("uses Bangkok calendar days, including leap February and same-day starts", () => {
   expect(billingMonth(Date.parse("2026-08-31T17:00:00Z"))).toBe("2026-09");
   expect(

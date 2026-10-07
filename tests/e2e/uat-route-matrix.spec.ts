@@ -2,6 +2,8 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { appendFileSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
+import { uatAuthProfiles, type UatProfileId } from "../../scripts/testing/uat-auth";
+import { assertUatRouteSources } from "../../scripts/testing/uat-required-identities";
 
 type RouteEntry = {
   source: string;
@@ -187,7 +189,7 @@ function examplePath(route: RouteEntry): { path: string; kind: "guide" | "fixtur
   return { path, kind: route.detailRoute ? (backed ? "fixture" : "placeholder") : "fixture" };
 }
 
-function profileFor(route: RouteEntry): string {
+function profileFor(route: RouteEntry): UatProfileId {
   const path = route.template;
   if (path.startsWith("/platform/")) return "hotel-owner";
   if (path.startsWith("/front/")) return "pms";
@@ -285,8 +287,9 @@ function hrefForPublicEntry(route: RouteEntry, app: "pms" | "pos" = "pms") {
   return { baseURL: process.env.ERPX_E2E_BASE_URL ?? state.origin, path: sample.path };
 }
 
-test.describe("UAT source inventory", () => {
+test.describe("UAT source inventory", uatAuthProfiles(), () => {
   test("source fingerprint matches the full current route inventory", async () => {
+    assertUatRouteSources(inventory, sourcePageFiles.map(file => relative(root, file)));
     expect(inventory.pageRouteCount).toBe(sourcePageFiles.length);
     expect(inventory.pageRouteCount).toBe(inventory.entries.length);
     expect(inventory.pageRouteCount).toBeGreaterThan(0);
@@ -299,7 +302,7 @@ test.describe("UAT source inventory", () => {
 const frontAccessEntries = inventory.entries.filter((entry) => entry.template.startsWith("/front-access"));
 const regularEntries = inventory.entries.filter((entry) => !entry.template.startsWith("/front-access"));
 
-test.describe("signed-out route access", () => {
+test.describe("signed-out route access", uatAuthProfiles(), () => {
   test.use({ storageState: { cookies: [], origins: [] } });
   for (const route of regularEntries) {
     const apps = route.template.startsWith("/front/") ? (["pms", "pos"] as const) : (["pms"] as const);
@@ -328,14 +331,18 @@ test.describe("signed-out route access", () => {
   }
 });
 
-test.describe("asset register form layout", () => {
+test.describe("asset register form layout", uatAuthProfiles("owner"), () => {
   test.use({ storageState: resolve(authDirectory, "owner.json") });
   test("register title sits above the first field on desktop and mobile", async ({ page }, info) => {
     const route = inventory.entries.find((entry) => entry.template === "/holdings/[holdingSlug]/assets")!;
     await capture(page, info, route, "signed-in:owner:layout", buildPath(route), "layout-regression");
-    const heading = page.getByRole("heading", { name: "Register asset", exact: true });
-    const form = page.locator("form.business-form").filter({ has: heading }).first();
-    const firstLabel = form.locator("label").filter({ hasText: "Branch" }).first();
+    await page.locator("#workspace-content:visible").getByText("Register asset", { exact: true }).click();
+    const drawer = page.getByRole("dialog", { name: "Register asset", exact: true });
+    const form = drawer.locator("form.ui-form-grid");
+    const heading = form.getByRole("heading", { name: "Register asset", exact: true });
+    const firstLabel = form.locator("label").filter({ has: form.locator('select[name="branchId"]') });
+    await expect(form).toHaveCount(1);
+    await expect(firstLabel).toHaveCount(1);
     await expect(heading).toBeVisible();
     await expect(firstLabel).toBeVisible();
     const headingBox = await heading.boundingBox();
@@ -345,11 +352,14 @@ test.describe("asset register form layout", () => {
       "Register asset title must be above the Branch field").toBe(true);
     expect(headingBox && formBox && headingBox.x - formBox.x >= 16,
       "Register asset title must respect the card's horizontal inset").toBe(true);
+    await info.attach("register-asset-drawer-layout", { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+    await drawer.getByRole("button", { name: "Close dialog", exact: true }).click();
+    await expect(drawer).not.toBeVisible();
   });
 });
 
 for (const app of ["pms", "pos"] as const) {
-  test.describe(`signed-out Front ${app} access`, () => {
+  test.describe(`signed-out Front ${app} access`, uatAuthProfiles(), () => {
     test.use({ baseURL: app === "pms" ? pmsOrigin : posOrigin, storageState: { cookies: [], origins: [] } });
     for (const route of frontAccessEntries) {
       test(`${route.template} · anonymous · ${app}`, async ({ page }, info) => {
@@ -362,7 +372,7 @@ for (const app of ["pms", "pos"] as const) {
 }
 
 const privateEntries = inventory.entries.filter((entry) => entry.signedOut === "login-or-explicit-denial");
-const grouped = new Map<string, RouteEntry[]>();
+const grouped = new Map<UatProfileId, RouteEntry[]>();
 for (const route of privateEntries) {
   if (route.template.startsWith("/front/")) continue;
   const profile = profileFor(route);
@@ -371,7 +381,7 @@ for (const route of privateEntries) {
 
 const frontRouteEntries = privateEntries.filter((route) => route.template.startsWith("/front/"));
 for (const app of ["pms", "pos"] as const) {
-  test.describe(`signed-in Front ${app}`, () => {
+  test.describe(`signed-in Front ${app}`, uatAuthProfiles(app), () => {
     test.use({ storageState: resolve(authDirectory, `${app}.json`) });
     for (const route of frontRouteEntries) {
       test(`${route.template} · ${app} role`, async ({ page }, info) => {
@@ -382,7 +392,7 @@ for (const app of ["pms", "pos"] as const) {
 }
 
 for (const [profile, routes] of grouped) {
-  test.describe(`signed-in as ${profile}`, () => {
+  test.describe(`signed-in as ${profile}`, uatAuthProfiles(profile), () => {
     test.use({ storageState: resolve(authDirectory, `${profile}.json`) });
     for (const route of routes) {
       const cases = route.template.startsWith("/front/") ? (["pms", "pos"] as const) : ([undefined] as const);
@@ -422,7 +432,7 @@ for (const [profile, routes] of grouped) {
 
 const scopedRoutes = inventory.entries.filter((route) => route.workspaceScopes.includes("branch"));
 for (const scope of ["branch", "department", "branch-department"] as const) {
-  test.describe(`holding, branch, department, and combined scope routes · ${scope}`, () => {
+  test.describe(`holding, branch, department, and combined scope routes · ${scope}`, uatAuthProfiles(scope === "branch" ? "owner-branch" : "owner-department"), () => {
     test.use({ storageState: resolve(authDirectory, scope === "branch" ? "owner-branch.json" : "owner-department.json") });
     for (const route of scopedRoutes) {
       const path = buildPath(route, { scope });
@@ -443,7 +453,7 @@ const invalidEntries = inventory.entries.filter((route) => route.detailRoute);
 test.describe("dynamic record invalid-ID recovery", () => {
   for (const route of invalidEntries) {
     const profile = profileFor(route);
-    test.describe(`${route.template} · ${profile}`, () => {
+    test.describe(`${route.template} · ${profile}`, uatAuthProfiles(profile), () => {
       test.use({ storageState: resolve(authDirectory, `${profile}.json`) });
       test(`invalid id is handled explicitly on both viewports`, async ({ page }, info) => {
         const path = buildPath(route, { invalidId: true });
@@ -458,7 +468,7 @@ test.describe("dynamic record invalid-ID recovery", () => {
 });
 
 test.describe("scoped personas and permission denial", () => {
-  test.describe("branch employee", () => {
+  test.describe("branch employee", uatAuthProfiles("branch"), () => {
     test.use({ storageState: resolve(authDirectory, "branch.json") });
     for (const route of inventory.entries.filter((entry) => ["/holdings/[holdingSlug]/home", "/holdings/[holdingSlug]/work", "/holdings/[holdingSlug]/leave"].includes(entry.template))) {
       test(`${route.template} opens in assigned branch`, async ({ page }, info) => {
@@ -471,7 +481,7 @@ test.describe("scoped personas and permission denial", () => {
       expect(["scope", "no_access", "permission"].includes(metrics.accessReason ?? "") || page.url().includes("/work-role"), "branch-only role must not get a holding-wide session").toBe(true);
     });
   });
-  test.describe("department employee", () => {
+  test.describe("department employee", uatAuthProfiles("department"), () => {
     test.use({ storageState: resolve(authDirectory, "department.json") });
     for (const route of inventory.entries.filter((entry) => ["/holdings/[holdingSlug]/home", "/holdings/[holdingSlug]/work", "/holdings/[holdingSlug]/leave"].includes(entry.template))) {
       test(`${route.template} opens in assigned department`, async ({ page }, info) => {
@@ -479,7 +489,7 @@ test.describe("scoped personas and permission denial", () => {
       });
     }
   });
-  test.describe("employee denied from restricted modules", () => {
+  test.describe("employee denied from restricted modules", uatAuthProfiles("employee"), () => {
     test.use({ storageState: resolve(authDirectory, "employee.json") });
     for (const template of ["/holdings/[holdingSlug]/finance", "/holdings/[holdingSlug]/people/settings", "/holdings/[holdingSlug]/settings/stripe"]) {
       const route = inventory.entries.find((entry) => entry.template === template)!;

@@ -18,7 +18,7 @@ import { TextAlign } from "@tiptap/extension-text-align";
 import { TableKit } from "@tiptap/extension-table";
 import { betaFetch } from "@/lib/beta-client";
 import { plainRichContent, validateRichContent } from "@/lib/home-rich-content";
-import type { Mention, Suggestion } from "@/lib/social-text";
+import type { Mention, Suggestion } from "@/server/modules/collaboration/public/rules/social-text";
 import { SocialSuggestionMenu, type SuggestionAnchor } from "./social-suggestion-menu";
 import styles from "./social-text.module.css";
 import {

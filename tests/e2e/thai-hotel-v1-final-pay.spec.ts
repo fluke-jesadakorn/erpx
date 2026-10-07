@@ -138,7 +138,7 @@ test("H002 prepares and calculates person-scoped final-pay mock from retirement 
       { waitUntil: "domcontentloaded" },
     );
     const clearance = payrollPage
-      .locator("section.card")
+      .locator("section.ui-panel:visible")
       .filter({ has: payrollPage.getByRole("heading", { name: "Prepare final pay" }) });
     await expect(clearance).toBeVisible();
     await clearance.getByLabel("Period start", { exact: true }).fill("2026-09-01");
@@ -160,7 +160,9 @@ test("H002 prepares and calculates person-scoped final-pay mock from retirement 
       name: /payrun-final-/,
     });
     await expect(finalPayLink).toBeVisible();
-    const runId = new URL(await finalPayLink.getAttribute("href")!, origin)
+    const finalPayHref = await finalPayLink.getAttribute("href");
+    if (!finalPayHref) throw new Error("FINAL_PAY_RUN_LINK_REQUIRED");
+    const runId = new URL(finalPayHref, origin)
       .pathname.split("/")
       .at(-1)!;
     await finalPayLink.click();

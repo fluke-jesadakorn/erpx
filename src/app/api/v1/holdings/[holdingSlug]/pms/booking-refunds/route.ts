@@ -1,10 +1,10 @@
-import { requireWorkContext } from '@/server/authorization';
-import { approveBookingRefund } from '@/server/pms-booking';
-import { retryBookingRefund,recoverBookingReceipt } from '@/server/pms-booking-refunds';
-import { ApiError,errorResponse } from '@/server/http';
-import { requestPublicOrigin } from '@/server/public-origin';
-import { holdingResources } from '@/server/runtime';
-import { isTransactionalSqlDatabase } from '@/server/runtime/types';
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { approveBookingRefund } from "@/server/modules/pms/public/pms-booking";
+import { retryBookingRefund,recoverBookingReceipt } from "@/server/modules/pms/public/pms-booking-refunds";
+import { ApiError,errorResponse } from "@/server/modules/runtime/public/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { isTransactionalSqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 
 type Context={params:Promise<{holdingSlug:string}>};
 export async function POST(request:Request,{params}:Context){

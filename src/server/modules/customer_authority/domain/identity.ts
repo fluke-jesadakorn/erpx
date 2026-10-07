@@ -1,0 +1,8 @@
+import {z} from "zod";
+export type ChangeRow=Record<string,unknown>&{id:string;customer_id:string;customer_name:string;status:string;created_by:string;version:number;updated_at:number;canReview:boolean;canResubmit:boolean};
+const reason=z.string().trim().min(3).max(2000),version=z.number().int().positive(),address=z.object({line1:z.string().trim().min(1).max(200),line2:z.string().trim().max(200).nullable().default(null),city:z.string().trim().min(1).max(100),region:z.string().trim().max(100).nullable().default(null),postalCode:z.string().trim().min(1).max(30),countryCode:z.string().trim().length(2).toUpperCase()}).nullable().default(null),identity=z.object({name:z.string().trim().min(1).max(200),taxRegistration:z.string().trim().max(100).nullable(),phone:z.string().trim().max(50).nullable().default(null),address,notificationEmail:z.string().trim().max(320).refine(value=>!value||z.email().safeParse(value).success,'Use a valid customer notification email.').nullable().default(null),notificationConsent:z.enum(['unknown','granted','revoked']).default('unknown')});
+export const identityRequestSchema=z.object({customerId:z.string().min(1),expectedCustomerVersion:version,proposed:identity,evidence:reason});export const identityChangeSchema=z.discriminatedUnion('action',[z.object({action:z.literal('apply'),expectedVersion:version,reason}),z.object({action:z.literal('reject'),expectedVersion:version,reason}),z.object({action:z.literal('resubmit'),expectedVersion:version,expectedCustomerVersion:version,proposed:identity,reason})]);
+
+export type IdentityRequest = z.infer<typeof identityRequestSchema>;
+export type IdentityChange = z.infer<typeof identityChangeSchema>;
+export type CustomerIdentity = z.infer<typeof identity>;

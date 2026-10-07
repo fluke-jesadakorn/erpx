@@ -1,8 +1,8 @@
 import { PilotFeatureRollout } from '@/components/workplace/pilot-feature-rollout';
-import { requireWorkContext } from '@/server/authorization';
-import { companyFeatureCatalogue } from '@/server/hospitality-rollout';
-import { requirePermission } from '@/server/iam-permissions';
-import { publicScope } from '@/server/authorization';
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { companyFeatureCatalogue } from "@/server/modules/pms/public/hospitality-rollout";
+import { requirePermission } from "@/server/modules/identity_access/public/iam-permissions";
+import { publicScope } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from '@/lib/workspace';
 
 export const dynamic='force-dynamic';

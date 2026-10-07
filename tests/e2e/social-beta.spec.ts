@@ -3,8 +3,10 @@ import {
   expect,
   type BrowserContext,
   type Locator,
+  type Page,
 } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { selectFixtureAssignment } from "./helpers/select-fixture-assignment";
 test.use({ actionTimeout: 20000 });
 test.setTimeout(120000);
 const base = "/holdings/acme/branches/bangkok";
@@ -12,7 +14,7 @@ const tinyPng = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=",
   "base64",
 );
-async function login(context: BrowserContext, name: string) {
+async function login(context: BrowserContext, name: "mali" | "nisa" | "ava" | "noah") {
   const r = await context.request.post("/api/auth/sign-in/email", {
     data: {
       email: `${name}@erpx.dev`,
@@ -20,13 +22,16 @@ async function login(context: BrowserContext, name: string) {
     },
   });
   expect(r.status(), await r.text()).toBe(200);
+  const assignmentId = name === "nisa" ? "workflow_controller" : `seed_usr_${name}`;
+  const workspaceSuffix = name === "ava" ? "/branches/bangkok" : name === "noah" ? "/branches/new-york" : "";
+  await selectFixtureAssignment(context, "acme-co", assignmentId, "acme", workspaceSuffix);
 }
 async function pasteImages(editor: Locator, names: string[], caret: number) {
+  await editor.focus();
+  await editor.press("ControlOrMeta+Home");
+  for (let offset = 0; offset < caret; offset += 1) await editor.press("ArrowRight");
   await editor.evaluate(
     (element, input) => {
-      const textarea = element as HTMLTextAreaElement;
-      textarea.focus();
-      textarea.setSelectionRange(input.caret, input.caret);
       const bytes = Uint8Array.from(
         atob(
           "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=",
@@ -36,15 +41,22 @@ async function pasteImages(editor: Locator, names: string[], caret: number) {
       const clipboard = new DataTransfer();
       for (const name of input.names)
         clipboard.items.add(new File([bytes], name, { type: "image/png" }));
-      textarea.dispatchEvent(
+      element.dispatchEvent(
         new ClipboardEvent("paste", {
           bubbles: true,
           clipboardData: clipboard,
         }),
       );
     },
-    { names, caret },
+    { names },
   );
+}
+async function openComposer(page: Page) {
+  await page.locator("details.beta-composer > summary").click();
+  const composer = page.getByRole("dialog", { name: "Share an update", exact: true });
+  await expect(composer).toBeVisible();
+  await expect(composer.getByLabel("Post message", { exact: true })).toHaveAttribute("contenteditable", "true");
+  return composer;
 }
 
 test("pastes two images at the caret, restores their draft order, and publishes them", async ({
@@ -58,8 +70,7 @@ test("pastes two images at the caret, restores their draft order, and publishes 
     const firstName = `first-${marker.slice(-8)}.png`;
     const secondName = `second-${marker.slice(-8)}.png`;
     await page.goto(`${base}/home`);
-    const composer = page.locator("details.beta-composer");
-    await composer.getByText("Share an update", { exact: true }).click();
+    const composer = await openComposer(page);
     const editor = composer.getByLabel("Post message", { exact: true }).first();
     await expect(editor).toBeFocused();
     const before = `${marker} before`;
@@ -69,11 +80,11 @@ test("pastes two images at the caret, restores their draft order, and publishes 
     await expect(composer.getByRole("img", { name: firstName })).toBeVisible();
     await expect(composer.getByRole("img", { name: secondName })).toBeVisible();
     await expect(
-      composer.getByLabel("Post message", { exact: true }).first(),
-    ).toHaveValue(before);
+      editor.locator("p").first(),
+    ).toHaveText(before);
     await expect(
-      composer.locator('textarea[aria-label^="Post message"]').last(),
-    ).toHaveValue(after);
+      editor.locator("p").last(),
+    ).toHaveText(after);
     await composer
       .getByRole("button", { name: "Save draft", exact: true })
       .click();
@@ -82,8 +93,7 @@ test("pastes two images at the caret, restores their draft order, and publishes 
     });
 
     await page.reload();
-    const restored = page.locator("details.beta-composer");
-    await restored.getByText("Share an update", { exact: true }).click();
+    const restored = await openComposer(page);
     await restored
       .locator("details > summary")
       .filter({ hasText: "Your private drafts" })
@@ -92,11 +102,11 @@ test("pastes two images at the caret, restores their draft order, and publishes 
     await expect(restored.getByRole("img", { name: firstName })).toBeVisible();
     await expect(restored.getByRole("img", { name: secondName })).toBeVisible();
     await expect(
-      restored.getByLabel("Post message", { exact: true }).first(),
-    ).toHaveValue(before);
+      restored.getByLabel("Post message", { exact: true }).locator("p").first(),
+    ).toHaveText(before);
     await expect(
-      restored.locator('textarea[aria-label^="Post message"]').last(),
-    ).toHaveValue(after);
+      restored.getByLabel("Post message", { exact: true }).locator("p").last(),
+    ).toHaveText(after);
     await restored.getByLabel("Post audience").selectOption({ index: 1 });
     await restored
       .getByRole("button", { name: "Share update", exact: true })
@@ -113,8 +123,10 @@ test("pastes two images at the caret, restores their draft order, and publishes 
     );
     expect(response.status(), await response.text()).toBe(200);
     const post = (await response.json()).data;
-    expect(post.body).toBe(`${before}\n${after}`);
-    expect(post.content.map((block: { type: string }) => block.type)).toEqual([
+    const textBlocks = post.content.filter((block: { type: string }) => block.type === "text") as { text: string }[];
+    expect(textBlocks.map(block => block.text).filter(text => text.trim())).toEqual([before, after]);
+    expect(post.body).toBe(textBlocks.map(block => block.text).join("\n"));
+    expect(post.content.filter((block: { type: string; text?: string }) => block.type === "image" || block.text?.trim()).map((block: { type: string }) => block.type)).toEqual([
       "text",
       "image",
       "image",
@@ -138,9 +150,8 @@ test("publishes an image-only employee post", async ({ browser }, info) => {
     const page = await context.newPage();
     const name = `photo-only-${randomUUID().slice(0, 8)}.png`;
     await page.goto(`${employeeBase}/home`);
-    const composer = page.locator("details.beta-composer");
-    await composer.getByText("Share an update", { exact: true }).click();
-    await composer.getByLabel("Add photos", { exact: true }).setInputFiles({
+    const composer = await openComposer(page);
+    await composer.getByLabel("Add images to post", { exact: true }).setInputFiles({
       name,
       mimeType: "image/png",
       buffer: tinyPng,
@@ -186,10 +197,9 @@ test("lets an author delete a published post from the feed", async ({
     const marker = `Delete post ${randomUUID().slice(0, 8)}`;
     const imageName = `delete-${marker.slice(-8)}.png`;
     await page.goto(`${base}/home`);
-    const composer = page.locator("details.beta-composer");
-    await composer.getByText("Share an update", { exact: true }).click();
+    const composer = await openComposer(page);
     await composer.getByLabel("Post message", { exact: true }).fill(marker);
-    await composer.getByLabel("Add photos", { exact: true }).setInputFiles({
+    await composer.getByLabel("Add images to post", { exact: true }).setInputFiles({
       name: imageName,
       mimeType: "image/png",
       buffer: tinyPng,
@@ -291,8 +301,7 @@ test("keeps a failed image upload in the composer and retries it", async ({
     const marker = `Retry photo ${randomUUID().slice(0, 8)}`;
     const name = `retry-${marker.slice(-8)}.png`;
     await page.goto(`${base}/home`);
-    const composer = page.locator("details.beta-composer");
-    await composer.getByText("Share an update", { exact: true }).click();
+    const composer = await openComposer(page);
     await composer
       .getByLabel("Post message", { exact: true })
       .first()
@@ -375,48 +384,26 @@ test("composer removes the duplicate avatar and accepts pasted images", async ({
       },
     });
     expect(response.status(), await response.text()).toBe(200);
+    const signedIn = await response.json() as { user: { id: string } };
+    await selectFixtureAssignment(context, "acme-co", `dev_${signedIn.user.id}_acme-co_holding_owner`);
     const page = await context.newPage();
     await page.goto("/holdings/acme/home");
-    await expect(
-      page.getByRole("heading", { name: "Connect your staff profile" }),
-    ).toBeVisible();
-    await expect(
-      page.getByText("Connect a staff profile to show your personal schedule."),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
     await expect(page.getByText(/Some information is unavailable/)).toHaveCount(
       0,
     );
-    const composer = page.locator("details.beta-composer");
-    await composer.getByText("Share an update", { exact: true }).click();
-    await expect(composer).toHaveAttribute("open", "");
+    const composer = await openComposer(page);
     await expect(composer.locator(".beta-person")).toHaveCount(0);
     const editor = composer.getByLabel("Post message", { exact: true });
     await expect(editor).toBeVisible();
-    await editor.evaluate((element) => {
-      const bytes = Uint8Array.from(
-        atob(
-          "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=",
-        ),
-        (character) => character.charCodeAt(0),
-      );
-      const clipboard = new DataTransfer();
-      clipboard.items.add(
-        new File([bytes], "pasted.png", { type: "image/png" }),
-      );
-      element.dispatchEvent(
-        new ClipboardEvent("paste", {
-          bubbles: true,
-          clipboardData: clipboard,
-        }),
-      );
-    });
+    await pasteImages(editor, ["pasted.png"], 0);
     await expect(
       composer.getByRole("img", { name: "pasted.png" }),
     ).toBeVisible();
     await expect(
       composer.getByRole("button", { name: "Remove pasted.png" }),
     ).toBeVisible();
-    await expect(page.locator(".beta-status")).toContainText("Image attached.");
+    await expect(editor.locator(".beta-editor-image")).toHaveCount(1);
   } finally {
     await context.close();
   }
@@ -424,7 +411,7 @@ test("composer removes the duplicate avatar and accepts pasted images", async ({
 test("social post → manual task → evidence → independent acceptance, with AI fallback", async ({
   browser,
 }, info) => {
-  test.setTimeout(120000);
+  test.setTimeout(240000);
   const creator = await browser.newContext(info.project.use),
     assignee = await browser.newContext(info.project.use),
     reviewer = await browser.newContext(info.project.use),
@@ -439,11 +426,11 @@ test("social post → manual task → evidence → independent acceptance, with 
     const page = await creator.newPage(),
       title = `Social repair ${randomUUID().slice(0, 8)}`;
     await page.goto(`${base}/home`);
-    await page.getByText("Share an update", { exact: true }).click();
-    await page
+    const composer = await openComposer(page);
+    await composer
       .getByLabel("Post message", { exact: true })
       .fill(`${title} · เครื่องชงกาแฟเสีย ช่วยตรวจสอบด้วย`);
-    await page.getByLabel("Add photos", { exact: true }).setInputFiles({
+    await composer.getByLabel("Add images to post", { exact: true }).setInputFiles({
       name: "equipment.png",
       mimeType: "image/png",
       buffer: Buffer.from(
@@ -451,8 +438,8 @@ test("social post → manual task → evidence → independent acceptance, with 
         "base64",
       ),
     });
-    await page.getByLabel("Post audience").selectOption({ index: 1 });
-    await page
+    await composer.getByLabel("Post audience").selectOption({ index: 1 });
+    await composer
       .getByRole("button", { name: "Share update", exact: true })
       .click();
     const article = page.getByRole("article").filter({ hasText: title });
@@ -491,14 +478,14 @@ test("social post → manual task → evidence → independent acceptance, with 
         }),
       }),
     );
-    await dialog.getByLabel("Task title", { exact: true }).fill(title);
+    await dialog.getByLabel(/^Task title(?:\s*\*)?$/).fill(title);
     await dialog
       .getByRole("button", { name: "Let AI prepare this task", exact: true })
       .click();
     await expect(dialog.getByRole("status")).toContainText(
       "AI temporarily unavailable",
     );
-    await expect(dialog.getByLabel("Task title", { exact: true })).toHaveValue(
+    await expect(dialog.getByLabel(/^Task title(?:\s*\*)?$/)).toHaveValue(
       title,
     );
     await dialog
@@ -508,11 +495,11 @@ test("social post → manual task → evidence → independent acceptance, with 
       .getByLabel("Independent completion reviewer", { exact: true })
       .selectOption("usr_ava");
     await dialog
-      .getByLabel("Due date · your local time", { exact: true })
+      .getByLabel("Due date", { exact: true })
       .fill("2026-10-01T12:00");
     await dialog
       .getByRole("button", {
-        name: "Confirm and create draft task",
+        name: "Create draft task",
         exact: true,
       })
       .click();
@@ -539,27 +526,43 @@ test("social post → manual task → evidence → independent acceptance, with 
     await expect(
       work.getByRole("button", { name: "Submit completion", exact: true }),
     ).toBeVisible();
-    await work
-      .getByLabel("Attach supporting file", { exact: true })
+    const evidence = work.getByRole("heading", { name: "Task evidence", exact: true }).locator("xpath=ancestor::section[1]");
+    await evidence
+      .locator('input[type="file"]:not([capture])')
       .setInputFiles({
         name: "inspection.png",
         mimeType: "image/png",
         buffer: tinyPng,
       });
-    await expect(
-      work.getByRole("link", { name: /inspection.png/ }),
-    ).toBeVisible();
+    await expect(evidence.getByText("Ready to attach", { exact: true })).toBeVisible({ timeout: 120000 });
+    const download = evidence.getByRole("link", { name: "Download inspection.png", exact: true });
+    await expect(download).toBeVisible();
+    const evidenceUrl = await download.getAttribute("href");
+    expect(evidenceUrl).toBeTruthy();
+    const privateEvidence = await assignee.request.get(evidenceUrl!);
+    expect(privateEvidence.status()).toBe(200);
+    expect(privateEvidence.headers()["cache-control"]).toBe("private, no-store");
+    expect([403, 404]).toContain((await foreign.request.get(evidenceUrl!)).status());
     await work
       .getByLabel("Completion or decision note", { exact: true })
       .fill("Power switch replaced and tested.");
+    const beforeCompletion = await assignee.request.get(`/api/v1${base}/staff-tasks/${taskId}`);
+    expect(beforeCompletion.ok(), await beforeCompletion.text()).toBe(true);
+    const executingVersion = (await beforeCompletion.json()).data.task.version as number;
+    const completion = work.waitForResponse(response => new URL(response.url()).pathname === `/api/v1${base}/staff-tasks/${taskId}/transition` && response.request().method() === "POST");
     await work
       .getByRole("button", { name: "Submit completion", exact: true })
       .click();
+    const submittedCompletion = await completion;
+    expect(submittedCompletion.ok(), await submittedCompletion.text()).toBe(true);
+    expect(submittedCompletion.request().postDataJSON()).toMatchObject({ action: "complete", expectedVersion: executingVersion });
+    expect(submittedCompletion.request().postDataJSON().attachmentSetIds).toHaveLength(1);
     await expect(
       work.getByRole("button", { name: "Submit completion", exact: true }),
     ).toHaveCount(0);
     const review = await reviewer.newPage();
     await review.goto(taskUrl);
+    await expect(review.getByRole("link", { name: "Download inspection.png", exact: true })).toBeVisible();
     await review
       .getByLabel("Completion or decision note", { exact: true })
       .fill("Inspected on site. Accepted.");

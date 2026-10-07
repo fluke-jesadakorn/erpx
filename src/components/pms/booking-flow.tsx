@@ -13,8 +13,8 @@ import {
 
 import { BookingGallery } from "./booking-gallery";
 import { useEffect, useRef, useState } from "react";
-import { money, plusDays, type Guest } from "@/lib/pms-model";
-import type { BookingQuote, RoomSelection } from "@/lib/pms-booking";
+import { money, plusDays, type Guest } from "@/server/modules/pms/public/rules/pms-model";
+import type { BookingQuote, RoomSelection } from "@/server/modules/pms/public/rules/pms-booking";
 import { workFetch } from "@/lib/work-fetch";
 import { FrontLocalizedTree } from "@/components/front/front-language";
 import {BookingPolicySummary} from "./booking-policy-summary";
@@ -30,8 +30,8 @@ export type HotelCard = {
   checkIn: string;
   checkOut: string;
   timezone: string;
-  images?: import("@/lib/pms-model").BookingImage[];
-  roomContent: import("@/lib/pms-model").BookingSettings["roomContent"];
+  images?: import("@/server/modules/pms/public/rules/pms-model").BookingImage[];
+  roomContent: import("@/server/modules/pms/public/rules/pms-model").BookingSettings["roomContent"];
 };
 type Result = { hotel: HotelCard; offers: BookingQuote[] };
 type Staff = {

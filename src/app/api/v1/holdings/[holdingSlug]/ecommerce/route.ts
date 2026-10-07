@@ -1,6 +1,6 @@
-import { requireWorkContext } from "@/server/authorization";
-import { requestPublicOrigin } from "@/server/public-origin";
-import { ApiError, errorResponse } from "@/server/http";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import {
   addCartLine,
   changeEcommerce,
@@ -10,7 +10,7 @@ import {
   createListing,
   ecommerceDetail,
   ecommerceWorkspace,
-} from "@/server/ecommerce";
+} from "@/server/modules/ecommerce/public/ecommerce";
 
 type Context = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };

@@ -1,3 +1,4 @@
+import { fulfillmentSchema } from '../src/server/commerce';
 import {beforeAll,beforeEach,it,expect,vi} from 'vitest';
 import {applyMigrations,env} from './runtime-env';
 import {expenseDb as db,expenseFixture,key} from './helpers/expense-fixture';
@@ -37,11 +38,11 @@ it('reserves the last stock once under competing orders and preserves source sco
 });
 it('consumes only its source reservation with partial deliveries and leaves quantities and costs consistent',async()=>{
  const a=await order(),b=await order();await reserve(String(a.order.id),String(a.lines[0].id));
- await expect(fulfillOrder(f.owner,String(b.order.id),{expectedVersion:3,date:'2026-09-02',lines:[{lineId:String(b.lines[0].id),quantity:'1'}],...(await deliveryEvidence(db,f.owner,String(b.order.id)))},key())).rejects.toMatchObject({code:'INSUFFICIENT_STOCK'});
- await fulfillOrder(f.owner,String(a.order.id),{expectedVersion:4,date:'2026-09-02',lines:[{lineId:String(a.lines[0].id),quantity:'1'}],...(await deliveryEvidence(db,f.owner,String(a.order.id)))},key());
+ await expect(fulfillOrder(f.owner,String(b.order.id),fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-02',lines:[{lineId:String(b.lines[0].id),quantity:'1'}],...(await deliveryEvidence(db,f.owner,String(b.order.id)))}),key())).rejects.toMatchObject({code:'INSUFFICIENT_STOCK'});
+ await fulfillOrder(f.owner,String(a.order.id),fulfillmentSchema.parse({expectedVersion:4,date:'2026-09-02',lines:[{lineId:String(a.lines[0].id),quantity:'1'}],...(await deliveryEvidence(db,f.owner,String(a.order.id)))}),key());
  expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:1000,value_minor:600});
  expect(await db.prepare('SELECT quantity_milli,consumed_milli,released_milli FROM inventory_order_reservations WHERE order_line_id=?').bind(a.lines[0].id).first()).toEqual({quantity_milli:2000,consumed_milli:1000,released_milli:0});
- await fulfillOrder(f.owner,String(a.order.id),{expectedVersion:5,date:'2026-09-02',lines:[{lineId:String(a.lines[0].id),quantity:'1'}],...(await deliveryEvidence(db,f.owner,String(a.order.id)))},key());
+ await fulfillOrder(f.owner,String(a.order.id),fulfillmentSchema.parse({expectedVersion:5,date:'2026-09-02',lines:[{lineId:String(a.lines[0].id),quantity:'1'}],...(await deliveryEvidence(db,f.owner,String(a.order.id)))}),key());
  expect((await getOrder(f.owner,String(a.order.id))).order.state).toBe('fulfilled');
  expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:0,value_minor:0});
  expect(await db.prepare('SELECT COUNT(*) n FROM inventory_active_reservations WHERE warehouse_id=?').bind(warehouse).first('n')).toBe(0);

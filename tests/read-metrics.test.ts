@@ -67,7 +67,7 @@ describe('request read metrics at the PostgreSQL driver boundary', () => {
           stream.once('end', resolve);
           expect(client.query(stream)).toBe(stream);
         });
-        const callbackQuery = new Query('SELECT 5 value');
+        const callbackQuery = Object.assign(new Query('SELECT 5 value'), { callback: (_error: Error | null, _result: { rows: {value:number}[] }) => {void _error;void _result;} });
         await new Promise<void>((resolve, reject) => {
           callbackQuery.callback = (error, result) => {
             if (error) return reject(error);

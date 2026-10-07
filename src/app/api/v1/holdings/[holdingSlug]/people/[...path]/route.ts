@@ -1,35 +1,35 @@
-import { organizationDraftApi } from "@/server/organization-drafts";
-import { rehireInput, createRehireEngagement, peopleLifecycleData, previewPackage, savePackage, bindPositionPackage, previewLifecycle, saveLifecycle, cancelLifecycle, requestLifecycleAccess, lifecycleSettingsInput, saveLifecycleSettings, completePreparationTask } from "@/server/people-lifecycle";
+import { organizationDraftApi } from "@/server/modules/organization/public/organization-drafts";
+import { rehireInput, createRehireEngagement, peopleLifecycleData, previewPackage, savePackage, bindPositionPackage, previewLifecycle, saveLifecycle, cancelLifecycle, requestLifecycleAccess, lifecycleSettingsInput, saveLifecycleSettings, completePreparationTask } from "@/server/modules/people_payroll/public/people-lifecycle";
 import { packageInput, lifecycleInput } from "@/lib/people-lifecycle";
-import { placementBatchInput, previewPlacementBatch, submitPlacementBatch } from "@/server/people-placement-batch";
+import { placementBatchInput, previewPlacementBatch, submitPlacementBatch } from "@/server/modules/people_payroll/public/people-placement-batch";
 import { positionMoveInput, positionMoveSubmitInput } from "@/lib/position-moves";
-import { previewPositionMove, submitPositionMove, positionMoves, cancelPositionMove } from "@/server/position-moves";
-import type { PostgresDatabase } from "@/server/runtime/postgres";
-import { directoryOperationsApi } from "@/server/directory-operations-api";
-import { peopleTemplatesData,saveHoldingTemplate,adoptHoldingTemplate,adoptTemplateInput } from "@/server/people-templates";
-import { iamActorFromWork } from "@/server/iam-context";
-import { saveSpendingTemplate, spendingTemplateSchema } from "@/server/spending-templates";
-import { expenseRoute } from "@/server/expense-routing";
-import { requestPublicOrigin } from "@/server/public-origin";
-import { holdingResources } from "@/server/runtime";
-import { organizationOverview, positionSchema, savePosition, organizationTemplateSchema, saveOrganizationTemplate, applyOrganizationTemplateSchema, applyOrganizationTemplate, installStaffLevels, organizationNodeChangeSchema, organizationNodeDecisionSchema, previewOrganizationNodeChange, saveOrganizationNodeChange, decideOrganizationNodeChange, cancelOrganizationNodeChange } from "@/server/organization";
-import { companyBusinessAcceptance, companyAcceptanceSubmitSchema, companyAcceptanceDecisionSchema, companyAcceptanceRevokeSchema, submitCompanyBusinessAcceptance, decideCompanyBusinessAcceptance, revokeCompanyBusinessAcceptance } from "@/server/company-business-acceptance";
-import { grantSchema,grantPersonAccess,revokePersonAccess,invitePerson,retryInvitationDelivery,revokeInvitation } from "@/server/account-access";
-import { directorySchema, directoryUpdateSchema, directoryStatusSchema, saveDirectoryPerson, setDirectoryStatus } from "@/server/people-directory";
+import { previewPositionMove, submitPositionMove, positionMoves, cancelPositionMove } from "@/server/modules/organization/public/position-moves";
+import type { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
+import { directoryOperationsApi } from "@/server/modules/identity_access/public/directory-operations-api";
+import { peopleTemplatesData,saveHoldingTemplate,adoptHoldingTemplate,adoptTemplateInput } from "@/server/modules/people_payroll/public/people-templates";
+import { iamActorFromWork } from "@/server/modules/identity_access/public/iam-context";
+import { saveSpendingTemplate, spendingTemplateSchema } from "@/server/modules/people_payroll/public/spending-templates";
+import { expenseRoute } from "@/server/modules/people_payroll/public/expense-routing";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { organizationOverview, positionSchema, savePosition, organizationTemplateSchema, saveOrganizationTemplate, applyOrganizationTemplateSchema, applyOrganizationTemplate, installStaffLevels, organizationNodeChangeSchema, organizationNodeDecisionSchema, previewOrganizationNodeChange, saveOrganizationNodeChange, decideOrganizationNodeChange, cancelOrganizationNodeChange } from "@/server/modules/organization/public/organization";
+import { companyBusinessAcceptance, companyAcceptanceSubmitSchema, companyAcceptanceDecisionSchema, companyAcceptanceRevokeSchema, submitCompanyBusinessAcceptance, decideCompanyBusinessAcceptance, revokeCompanyBusinessAcceptance } from "@/server/modules/finance/public/company-business-acceptance";
+import { grantSchema,grantPersonAccess,revokePersonAccess,invitePerson,retryInvitationDelivery,revokeInvitation } from "@/server/modules/identity_access/public/account-access";
+import { directorySchema, directoryUpdateSchema, directoryStatusSchema, saveDirectoryPerson, setDirectoryStatus } from "@/server/modules/people_payroll/public/people-directory";
 import { z } from "zod";
-import {getPayslip,getPayslipExport,listPayslips,issuePostedPayslips,issuePayslipSchema} from "@/server/payroll-payslips";
-import { cancelPayrollRun, payrollCancelSchema } from "@/server/payroll-cancellation";
-import { createPayrollAdjustment, editPayrollAdjustment, payrollAdjustmentCreateSchema, payrollAdjustmentEditSchema } from "@/server/payroll-adjustments";
-import {requestPayrollRecovery,consentPayrollRecovery,reviewPayrollRecovery,recognizePayrollRecovery,payrollRecoveryPage,payrollRecoveryAgreement,payrollRecoveryRequestSchema,payrollRecoveryConsentSchema,payrollRecoveryReviewSchema,payrollRecoveryRecognizeSchema} from "@/server/payroll-recoveries";
-import { thaiPayrollConfiguration,createThaiPayrollProfile,decideThaiPayrollProfile,thaiPayrollProfileSchema,thaiPayrollProfileDecisionSchema } from "@/server/payroll-statutory";
-import { consumeHireHandoff,hireConsumptionSchema,hireHandoffQueue } from "@/server/people-handoffs";
+import {getPayslip,getPayslipExport,listPayslips,issuePostedPayslips,issuePayslipSchema} from "@/server/modules/people_payroll/public/payroll-payslips";
+import { cancelPayrollRun, payrollCancelSchema } from "@/server/modules/people_payroll/public/payroll-cancellation";
+import { createPayrollAdjustment, editPayrollAdjustment, payrollAdjustmentCreateSchema, payrollAdjustmentEditSchema } from "@/server/modules/people_payroll/public/payroll-adjustments";
+import {requestPayrollRecovery,consentPayrollRecovery,reviewPayrollRecovery,recognizePayrollRecovery,payrollRecoveryPage,payrollRecoveryAgreement,payrollRecoveryRequestSchema,payrollRecoveryConsentSchema,payrollRecoveryReviewSchema,payrollRecoveryRecognizeSchema} from "@/server/modules/people_payroll/public/payroll-recoveries";
+import { thaiPayrollConfiguration,createThaiPayrollProfile,decideThaiPayrollProfile,thaiPayrollProfileSchema,thaiPayrollProfileDecisionSchema } from "@/server/modules/people_payroll/public/payroll-statutory";
+import { consumeHireHandoff,hireConsumptionSchema,hireHandoffQueue } from "@/server/modules/people_payroll/public/people-handoffs";
 import { hasPermission } from "@/lib/permissions";
-import { getPayrollSchedule, savePayrollSchedule, payrollScheduleSchema, payrollReadiness, submitPayrollReview, payrollSubmitReviewSchema } from "@/server/payroll-readiness";
-import { getPayrollLiabilities, remitPayrollLiability, payrollRemittanceSchema } from "@/server/payroll-remittance";
-import { positionPayInput, levelLeaveInput, savePositionPayDefault, saveLevelLeaveDefault } from "@/server/staff-defaults";
-import { requireWorkContext } from "@/server/authorization";
-import { requirePermission } from "@/server/iam-permissions";
-import { ApiError, errorResponse } from "@/server/http";
+import { getPayrollSchedule, savePayrollSchedule, payrollScheduleSchema, payrollReadiness, submitPayrollReview, payrollSubmitReviewSchema } from "@/server/modules/people_payroll/public/payroll-readiness";
+import { getPayrollLiabilities, remitPayrollLiability, payrollRemittanceSchema } from "@/server/modules/people_payroll/public/payroll-remittance";
+import { positionPayInput, levelLeaveInput, savePositionPayDefault, saveLevelLeaveDefault } from "@/server/modules/organization/public/staff-defaults";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { requirePermission } from "@/server/modules/identity_access/public/iam-permissions";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import {
   payrollOptions,assignPayGroupSchema,assignPayGroup,
   payrollCostAssignments,payrollCostVerificationSchema,verifyPayrollCostAssignment,
@@ -93,7 +93,7 @@ import {
   payrollAdvanceRequestSchema,
   payrollAdvanceDecisionSchema,
   payrollAdvancePage,
-} from "@/server/people-payroll";
+} from "@/server/modules/people_payroll/public/people-payroll";
 
 type Context = { params: Promise<{ holdingSlug: string; path: string[] }> };
 function parts(path: string[]) { return path.filter(Boolean).map((part) => decodeURIComponent(part)); }

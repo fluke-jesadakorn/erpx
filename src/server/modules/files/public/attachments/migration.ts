@@ -1,0 +1,1 @@
+export {backfillSpecializedAttachments,backfillLegacyAttachments,reconcileAttachmentStorage} from '../../adapters/attachments/migration';export type {AttachmentUnavailableSource} from '../../domain/attachments/migration';

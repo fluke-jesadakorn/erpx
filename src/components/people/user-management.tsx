@@ -690,6 +690,31 @@ export function UserManagement({
                       </Button>
                     )}
                   </div>
+                  {compactConsole && canManageGroups && data.groups.some((g) => !g.archived && g.kind === "manual") && (
+                    <section aria-label="Group membership preparation">
+                      <h3>Prepare group membership</h3>
+                      <p>Select people and choose a group, or drag a person onto a group. Review the changes before confirming.</p>
+                      <div className={styles.bulk}>
+                        {data.groups.filter((g) => !g.archived && g.kind === "manual").map((g) => (
+                          <Button
+                            key={g.id}
+                            type="button"
+                            variant="plain"
+                            disabled={busy}
+                            onDragOver={(event) => event.preventDefault()}
+                            onDrop={(event) => drop(event, "group", g.id)}
+                            onClick={() => {
+                              if (selected.length) setEditor({ kind: "membership", groupId: g.id, personIds: selected });
+                              else setMessage("Select people first, or drag a person onto the group.");
+                            }}
+                          >
+                            <Users size={15} aria-hidden="true" />
+                            {g.name}
+                          </Button>
+                        ))}
+                      </div>
+                    </section>
+                  )}
                   {people.map((p) => (
                     <div className={styles.personRow} key={p.id}>
                       <TextInput

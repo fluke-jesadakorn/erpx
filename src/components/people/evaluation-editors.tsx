@@ -4,7 +4,7 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 import { FormDrawer } from "@/components/ui/dialog";
 import { defaultEvaluationPolicy, emptyAssessment, type AssessmentContent, type DefinitionKind, type EvaluationDefinition } from "@/lib/people-evaluation";
 import { parseEvaluationMarketCsv } from "@/lib/evaluation-market-import";
-import type { EvaluationRow, EvaluationWorkspace, evaluationDetail } from "@/server/people-evaluation";
+import type { EvaluationRow, EvaluationWorkspace, evaluationDetail } from "@/server/modules/people_payroll/public/people-evaluation";
 import styles from "./evaluation.module.css";
 
 type Detail = Awaited<ReturnType<typeof evaluationDetail>>;

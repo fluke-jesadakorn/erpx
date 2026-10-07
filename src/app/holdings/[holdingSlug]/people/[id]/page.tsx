@@ -1,3 +1,5 @@
+import { peoplePayrollPresentationQueries } from "@/server/modules/people_payroll/public/presentation-queries";
+
 import { TimeText } from "@/components/time/time-preference-context";
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { AccessEditor } from "@/components/modules/access-editor";
@@ -15,19 +17,19 @@ import { minorToDecimal } from "@/lib/finance-money";
 import { samePerson } from "@/lib/iam";
 import { hasPermission } from "@/lib/permissions";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope,requireWorkContext } from "@/server/authorization";
-import { organizationOverview } from "@/server/organization";
-import { accessPage,pageError } from "@/server/page-error";
+import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+
+import { accessPage,pageError } from "@/server/modules/work_projection/public/page-error";
 import {
 canManagePeople,
 directoryOptions,
 personAccess,
-} from "@/server/people-directory";
-import { peopleLifecycleData } from "@/server/people-lifecycle";
-import { getPerson,payrollOptions } from "@/server/people-payroll";
-import { holdingResources } from "@/server/runtime";
-import { companyAuthority } from "@/server/staff-policy";
-import { staffSettings } from "@/server/staff-settings";
+} from "@/server/modules/people_payroll/public/people-directory";
+
+import { getPerson,payrollOptions } from "@/server/modules/people_payroll/public/people-payroll";
+
+
+
 import { ArrowLeft } from "lucide-react";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { forbidden, notFound } from "next/navigation";
@@ -57,19 +59,14 @@ export default async function PersonDetail({
     canManagePeople(actor) ? directoryOptions(actor) : Promise.resolve([]),
     personAccess(actor, id),
   ]);
-  const { write } = await holdingResources(actor.holdingId),
-    staffOptions = await staffSettings(write, actor),
+  const presentation = await peoplePayrollPresentationQueries(actor.holdingId),
+    staffOptions = await presentation.staffSettings(actor),
     levelHistory = (
-      await write
-        .prepare(
-          "SELECT h.*,l.name level_name,old.name previous_level_name FROM staff_level_history h JOIN staff_levels l ON l.id=h.level_id LEFT JOIN staff_levels old ON old.id=h.previous_level_id WHERE h.engagement_id=? ORDER BY h.created_at DESC",
-        )
-        .bind(person.engagement_id ?? null)
-        .all()
+      await presentation.personLevelHistory(person.engagement_id ?? null)
     ).results;
   const groups = await payrollOptions(actor).catch(() => []);
   const query = await searchParams;
-  const lifecycleData = canManagePeople(actor) && !!person.engagement_id ? await peopleLifecycleData(write,actor) : null;
+  const lifecycleData = canManagePeople(actor) && !!person.engagement_id ? await presentation.peopleLifecycleData(actor) : null;
   const employeeSelf =
       samePerson(actor, person.user_id) || actor.iam?.personId === String(person.id),
     canReadEmployeeDocuments = hasPermission(actor, "people.documents.read"),
@@ -180,7 +177,7 @@ export default async function PersonDetail({
               nodes={nodes}
               levels={staffOptions.levels}
               people={staffOptions.people}
-              organization={await organizationOverview(write,actor)}
+              organization={await presentation.organizationOverview(actor)}
               gpoPositions={lifecycleData?.positions}
               levelManagedSeparately={staffOptions.canManage}
             />
@@ -214,7 +211,7 @@ export default async function PersonDetail({
           userId={person.user_id ? String(person.user_id) : undefined}
           canRevokeCompany={
             person.user_id !== actor.userId &&
-            (await companyAuthority(write, actor, ["holding_owner"]))
+            (await presentation.companyAuthority(actor, ["holding_owner"]))
           }
           assignments={access.assignments}
           canManage={

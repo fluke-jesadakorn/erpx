@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ActionLink, Button, Select, Table, TableFrame, TextInput } from "@/components/ui/foundation";
-import { hubHref, queryValue, type HubQuery } from "@/lib/sales-customers";
+import { hubHref, queryValue, type HubQuery } from "@/server/modules/sales/public/rules/navigation";
 import { HubForm } from "./hub-form";
 import styles from "./hub.module.css";
 

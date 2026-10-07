@@ -19,7 +19,7 @@ vi.mock('../src/server/runtime',()=>({holdingResources:async()=>({write:env.H001
 // Declared clean scanner fixture only. Bytes, signature detection, real preview
 // rendering, private storage and all owner authorization/binding are native.
 // The compiled release scanner is independently required by the release gate.
-vi.mock('../src/server/attachments/scanner',()=>({
+vi.mock('../src/server/modules/files/public/attachments/scanner',()=>({
  attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:'Declared engineering scanner fixture',definitionUpdatedAt:Date.now(),error:null}),
  scanAttachmentBytes:async()=>({clean:true,signature:null,engine:'Declared engineering scanner fixture',definitionUpdatedAt:Date.now()}),
 }));
@@ -45,7 +45,7 @@ async function storedEvidence(sourceId:string,actor:WorkContext,targetType:strin
 describe('Workplace and Platform File Sources owner intake',()=>{
  it.each(tuples.filter(row=>row.targetType!=='legal_item').map(row=>[row.id,row] as const))('proves authorized intake scan binding reload and revocation for %s',async(_id,tuple)=>{
   const owner=await workplaceAttachmentOwner(tuple),actor=owner.actor;if(actor.role!=='external_customer')actor.iam=await loadIamAuthority(db,actor.companyId,actor.userId,actor.role,actor.authority?.sessionId);
-  const input={targetType:tuple.targetType,targetId:owner.targetId,componentKind:tuple.componentKind,purposeKey:tuple.purposeKey,componentRef:owner.componentRef,expectedTargetVersion:owner.version},setKey=key(),fileInput={filename:'synthetic-reviewed-evidence.png',mediaType:'image/png',bytes:png.byteLength,caption:'Reviewed sanitized synthetic business artifact only.'};
+  const input={targetType:tuple.targetType,targetId:owner.targetId,componentKind:tuple.componentKind,purposeKey:tuple.purposeKey,componentRef:owner.componentRef??undefined,expectedTargetVersion:owner.version},setKey=key(),fileInput={filename:'synthetic-reviewed-evidence.png',mediaType:'image/png',bytes:png.byteLength,caption:'Reviewed sanitized synthetic business artifact only.'};
   await expect(createAttachmentSet(db,actor,{...input,expectedTargetVersion:owner.version+1},key())).rejects.toMatchObject({code:'ATTACHMENT_TARGET_CHANGED'});
   const set=await createAttachmentSet(db,actor,input,setKey);expect(await createAttachmentSet(db,actor,input,setKey)).toMatchObject({id:set.id,state:'draft'});
   const reservationKey=key(),reserved=await reserveAttachmentFile(db,actor,set.id,fileInput,reservationKey);expect(await reserveAttachmentFile(db,actor,set.id,fileInput,reservationKey)).toEqual(reserved);
@@ -64,6 +64,17 @@ describe('Workplace and Platform File Sources owner intake',()=>{
    await attestAttachmentSetSanitized(db,actor,set.id,attestation,attestationKey);await attestAttachmentSetSanitized(db,actor,set.id,attestation,attestationKey);expect(await db.prepare("SELECT count(*) n FROM attachment_events WHERE set_id=? AND action='sanitization.attested'").bind(set.id).first('n')).toBe(1);
   }
   const rowId=tuple.targetType==='holding_brand'?actor.companyId:owner.targetId,ownerBefore=(await db.prepare(`SELECT * FROM ${owner.table} WHERE ${owner.idColumn??'id'}=?`).bind(rowId).first())!;
+  if(owner.bindAction&&['iam_review','iam_migration','people_provision_operation','company_release_acceptance'].includes(tuple.targetType)){
+   const iam=tuple.targetType!=='company_release_acceptance',fault='platform_evidence_'+key().replace(/[^a-z0-9]/g,''),table=iam?'iam_audit':'outbox_events',column=iam?'target_id':'command_id';
+   await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'SYSTEM_EVIDENCE_LATE_COMMIT' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON ${table} FOR EACH ROW WHEN (NEW.${column}='${command}') EXECUTE FUNCTION ${fault}();`);
+   try{
+    await expect(bind()).rejects.toThrow('SYSTEM_EVIDENCE_LATE_COMMIT');
+    expect(await db.prepare(`SELECT * FROM ${owner.table} WHERE ${owner.idColumn??'id'}=?`).bind(rowId).first()).toEqual(ownerBefore);
+    expect(await attachmentBindingState(db,set.id)).toMatchObject({set_state:'draft',link_state:'draft',bound_command_id:null});
+    expect(await db.prepare(iam?'SELECT count(*) n FROM iam_receipts WHERE id=?':'SELECT count(*) n FROM command_receipts WHERE command_id=?').bind(command).first('n')).toBe(0);
+    expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE ${column}=?`).bind(command).first('n')).toBe(0);
+   }finally{await db.exec(`DROP TRIGGER ${fault} ON ${table};DROP FUNCTION ${fault}();`);}
+  }
   const result=await bind();expect(await bind()).toEqual(result);expect(await attachmentBindingState(db,set.id)).toMatchObject({set_state:'bound',link_state:'bound',binding_type:owner.bindingType,bound_command_id:command});
   const after=(await db.prepare(`SELECT * FROM ${owner.table} WHERE ${owner.idColumn??'id'}=?`).bind(rowId).first())!;expect(Number(after[owner.versionColumn])).toBe(owner.version+(owner.versionIncrement??1));
   if(['iam_review','iam_migration','people_provision_operation'].includes(tuple.targetType))expect(after.status).toBe(ownerBefore.status);
@@ -88,13 +99,26 @@ describe('Workplace and Platform File Sources owner intake',()=>{
   if(tuple.componentKind==='record'){
    await expect(uploadDocument(db,env.H001_FILES,actor,owner.id,2,'synthetic-original.pdf','application/pdf',bytes,key())).rejects.toMatchObject({code:'LEGAL_VERSION_CONFLICT'});
    const uploaded=await uploadDocument(db,env.H001_FILES,actor,owner.id,1,'synthetic-original.pdf','application/pdf',bytes,command);expect(await uploadDocument(db,env.H001_FILES,actor,owner.id,1,'synthetic-original.pdf','application/pdf',bytes,command)).toEqual(uploaded);
+   if(!uploaded.documentId)throw new Error("Canonical legal upload must return its document receipt");
    const document=(await legalDetail(db,actor,owner.id)).documents.find(row=>row.id===uploaded.documentId)!;sourceId=document.attachment_source_id!;linkId=document.attachment_link_id!;setId=String(await db.prepare('SELECT set_id FROM attachment_links WHERE id=?').bind(linkId).first('set_id'));version=2;
    const exported=await documentExport(db,env.H001_FILES,actor,document.id,null);expect(Buffer.from(await exported.arrayBuffer())).toEqual(Buffer.from(bytes));
   }else{
    await legalCommand(db,actor,{action:'document',id:owner.id,expectedVersion:1,name:'Terms shared with one counterparty',body:'Synthetic original terms; no personal data.'},key());const document=(await legalDetail(db,actor,owner.id)).documents[0],email=`counterparty-${key()}@example.test`;
    await legalCommand(db,actor,{action:'share',id:owner.id,expectedVersion:2,documentId:document.id,email,expiresAt:Date.now()+86400000},key());version=3;
    const shareId=String(await db.prepare('SELECT id FROM legal_shares WHERE item_id=? AND email=?').bind(owner.id,email).first('id')),portal={userId:key(),email,sessionId:key()};
-   await expect(portalUpload(db,env.H001_FILES,{...portal,email:'other-'+email},shareId,'synthetic-counterparty.pdf','application/pdf',bytes,key())).rejects.toMatchObject({status:404});const receipt=await portalUpload(env.H001_DB,env.H001_FILES,portal,shareId,'synthetic-counterparty.pdf','application/pdf',bytes,command);expect(await portalUpload(env.H001_DB,env.H001_FILES,portal,shareId,'synthetic-counterparty.pdf','application/pdf',bytes,command)).toEqual(receipt);
+   await expect(portalUpload(db,env.H001_FILES,{...portal,email:'other-'+email},shareId,'synthetic-counterparty.pdf','application/pdf',bytes,key())).rejects.toMatchObject({status:404});
+   const fault=`legal_portal_late_${key().replaceAll('-','')}`;
+   await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'LEGAL_PORTAL_LATE_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.event_type='legal.portal.upload') EXECUTE FUNCTION ${fault}();`);
+   try {
+    await expect(portalUpload(db,env.H001_FILES,portal,shareId,'synthetic-counterparty.pdf','application/pdf',bytes,command)).rejects.toMatchObject({code:'23514'});
+    expect(await db.prepare('SELECT id FROM legal_external_uploads WHERE id=?').bind(command).first()).toBeNull();
+    expect(await db.prepare('SELECT id FROM legal_portal_receipts WHERE id=?').bind(command).first()).toBeNull();
+    expect(await db.prepare('SELECT id FROM audit_events WHERE command_id=?').bind(command).first()).toBeNull();
+    expect(await db.prepare('SELECT id FROM outbox_events WHERE command_id=?').bind(command).first()).toBeNull();
+    expect(await db.prepare('SELECT version FROM legal_items WHERE id=?').bind(owner.id).first('version')).toBe(3);
+    expect(await attachmentBindingState(db,`attachment-set-legal-portal-${command}`)).toMatchObject({set_state:'draft',link_state:'draft',bound_command_id:null});
+   } finally {await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
+   const receipt=await portalUpload(env.H001_DB,env.H001_FILES,portal,shareId,'synthetic-counterparty.pdf','application/pdf',bytes,command);expect(await portalUpload(env.H001_DB,env.H001_FILES,portal,shareId,'synthetic-counterparty.pdf','application/pdf',bytes,command)).toEqual(receipt);
    const external=(await db.prepare('SELECT attachment_source_id,attachment_link_id,checksum FROM legal_external_uploads WHERE id=?').bind(command).first())!;sourceId=String(external.attachment_source_id);linkId=String(external.attachment_link_id);setId=String(await db.prepare('SELECT set_id FROM attachment_links WHERE id=?').bind(linkId).first('set_id'));expect(external.checksum).toBe(createHash('sha256').update(bytes).digest('hex'));expect((await portalDetail(db,portal,shareId)).doc).toMatchObject({id:document.id});
    version=(await legalDetail(db,actor,owner.id)).item.version;expect(version).toBe(4);await legalCommand(db,actor,{action:'share.revoke',id:owner.id,expectedVersion:version,shareId},key());version++;
    await expect(portalDetail(db,portal,shareId)).rejects.toMatchObject({status:404});await expect(portalUpload(env.H001_DB,env.H001_FILES,portal,shareId,'synthetic-counterparty.pdf','application/pdf',bytes,command)).rejects.toMatchObject({status:404});

@@ -4,11 +4,11 @@ import { FeaturePage } from "@/components/features/feature-page";
 import { FinanceWorkspace } from "@/components/finance/finance-workspace";
 import { hasPermission } from "@/lib/permissions";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { requireWorkContext, publicScope } from "@/server/authorization";
+import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
-import { listSupplierBatches, supplierBatchWorkspace } from "@/server/supplier-payments";
+import { listSupplierBatches, supplierBatchWorkspace } from "@/server/modules/procurement/public/supplier-payments";
 import { SupplierBatchConsole } from "@/components/modules/supplier-batch-console";
-import { pageError } from "@/server/page-error";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function SupplierBatchesPage({

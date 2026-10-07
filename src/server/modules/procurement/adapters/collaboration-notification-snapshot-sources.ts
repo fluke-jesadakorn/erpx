@@ -1,0 +1,9 @@
+import { platformOwnerProjectionSources as financePlatformSources } from "../../finance/public/platform-owner-projection-sources";
+import 'server-only';
+/** Closed, named source clauses for the supplied notification statement snapshot.
+ * No table, SQL, predicate or alias is accepted from a caller. */
+export function collaborationNotificationSnapshotSources(){return {
+  "rfq_notifications_procurement_rfqs_r_from": "FROM (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"warehouse_id\", \"currency\", \"title\", \"demand_evidence\", \"needed_date\", \"status\", \"selected_offer_id\", \"selection_reason\", \"submitted_by\", \"approved_by\", \"order_id\", \"created_by\", \"version\", \"created_at\", \"updated_at\", \"request_id\", \"request_version\", \"request_evidence_version\", \"request_items_json\" FROM procurement_rfqs) r",
+  "supplier_batch_notifications_finance_supplier_batches_b_from": `FROM (SELECT "id", "company_id", "currency", "bank_account_id", "planned_date", "status", "created_by", "approved_by", "approval_reason", "exported_by", "export_command_id", "export_hash", "version", "created_at", "updated_at" FROM (${financePlatformSources.finance_supplier_batches}) finance_supplier_batches) b`,
+  "supplier_bill_notifications_procurement_bill_matches_m_from": "FROM (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"order_id\", \"fulfillment_id\", \"supplier_id\", \"currency\", \"chart_id\", \"clearing_account_id\", \"payable_account_id\", \"tax_account_id\", \"reference\", \"invoice_date\", \"due_date\", \"evidence\", \"expected_subtotal_minor\", \"subtotal_minor\", \"tax_minor\", \"quantity_matches\", \"variance_account_id\", \"reviewed_by\", \"review_reason\", \"invoice_id\", \"status\", \"version\", \"created_by\", \"created_at\", \"updated_at\" FROM procurement_bill_matches) m"
+} as const;}

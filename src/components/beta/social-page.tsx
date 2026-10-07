@@ -1,15 +1,11 @@
 
 import { PageContent } from "@/components/ui/patterns";
-import { selfServiceSeed } from "@/server/self-service";
 import { SocialHome } from "./social-home";
-import { homePosts, postView, socialAudienceOptions } from "@/server/social-home";
-import { holdingResources } from "@/server/runtime";
-import { publicScope, type WorkContext } from "@/server/authorization";
+import { socialPageData } from "@/server/modules/collaboration/public/social-page";
+import { publicScope, type WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
-import { companyAuthority } from "@/server/staff-policy";
 import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
 import { hasPermission } from "@/lib/permissions";
-const initialFeedSize = 8;
 export async function SocialPage({
   actor,
   postId,
@@ -19,18 +15,8 @@ export async function SocialPage({
   postId?: string;
   tag?: string;
 }) {
-  const { write } = await holdingResources(actor.holdingId);
   const base = workspaceBase(publicScope(actor));
-  const initialDay = !postId && !actor.beta ? selfServiceSeed(actor).catch(() => null) : undefined;
-  const [posts, milestones, options, moderate] = await Promise.all([
-    postId
-      ? postView(write, actor, postId).then((p) => [p])
-      : homePosts(write, actor, { limit: initialFeedSize, stream: "conversations", tag }),
-    postId ? Promise.resolve([]) : homePosts(write, actor, { limit: initialFeedSize, stream: "milestones", tag }),
-    socialAudienceOptions(write, actor),
-    companyAuthority(write, actor, ["holding_owner"]),
-  ]);
-  const post=postId?posts[0]:null;
+  const { posts, milestones, options, moderate, initialDay, post } = await socialPageData(actor, { postId, tag });
   return (
     <>
     <SocialHome

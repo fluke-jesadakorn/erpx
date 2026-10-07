@@ -1,6 +1,6 @@
-import { requireWorkContext } from "@/server/authorization";
-import { errorResponse } from "@/server/http";
-import { listPeople } from "@/server/people-payroll";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { errorResponse } from "@/server/modules/runtime/public/http";
+import { listPeople } from "@/server/modules/people_payroll/public/people-payroll";
 
 export const dynamic = "force-dynamic";
 

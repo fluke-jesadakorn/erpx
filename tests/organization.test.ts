@@ -10,6 +10,7 @@ import { companyBusinessAcceptance, companyBusinessAcceptanceWork, submitCompany
 import { executeCommand } from "../src/server/commands";
 import type { WorkContext } from "../src/server/authorization";
 import { attachmentBindingState, enableAttachmentV2ForTest, seedAttachmentSet } from "./helpers/attachment-v2";
+import { localSeedLevels } from "../scripts/fixtures/local-seed-levels";
 vi.mock("../src/server/runtime",()=>({holdingResources:async()=>({write:db,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,ceo:string,staffPosition:string,hr:WorkContext;
 const level=(n:number)=>`org-level-${f.company}-${n}`;
@@ -20,6 +21,21 @@ beforeEach(async()=>{
   ceo=String((await savePosition(db,f.owner,null,positionSchema.parse({title:"CEO",branchId:null,departmentId:null,levelId:level(1),reportsToPositionId:null,isCeo:true,expectedVersion:0,reason:"Set up leadership"}),key())).id);
   staffPosition=String((await savePosition(db,hr,null,positionSchema.parse({title:"Operations staff",branchId:f.branch,departmentId:f.department,levelId:level(6),reportsToPositionId:ceo,expectedVersion:0,reason:"Set up staff position"}),key())).id);
   await db.prepare("UPDATE hr_engagements SET position_id=?,level_id=? WHERE person_id=?").bind(ceo,level(1),`person-${f.owner.userId}`).run();
+});
+it("prepares fresh local position levels while retaining a custom numbered level and repeated seed identity",async()=>{
+  const fresh=`local-fresh-${key()}`,freshPosition=`local-fresh-position-${key()}`,freshLevels=await localSeedLevels(db,fresh,3);
+  expect([...freshLevels.values()]).toEqual([1,2,3,4,5,6].map(number=>`org-level-${fresh}-${number}`));
+  await db.prepare("INSERT INTO organization_positions(id,company_id,title,level_id,created_by,created_at,updated_at) VALUES(?,?,'Freshly seeded staff',?,'fixture',3,3)").bind(freshPosition,fresh,freshLevels.get(6)!).run();
+  expect(await db.prepare("SELECT level_id FROM organization_positions WHERE id=?").bind(freshPosition).first()).toEqual({level_id:`org-level-${fresh}-6`});
+  const company=`local-seed-${key()}`,custom=`custom-staff-${key()}`,position=`local-position-${key()}`;
+  await db.prepare("INSERT INTO staff_levels(id,company_id,code,name,rank,level_number,active,version,created_at,updated_at) VALUES(?,?,'CUSTOM_STAFF','Reviewed custom staff',900,6,1,7,1,2)").bind(custom,company).run();
+  const levels=await localSeedLevels(db,company,3);
+  expect(levels.get(6)).toBe(custom);expect(levels.size).toBe(6);
+  await db.prepare("INSERT INTO organization_positions(id,company_id,title,level_id,created_by,created_at,updated_at) VALUES(?,?,'Seeded staff',?,'fixture',3,3)").bind(position,company,levels.get(6)!).run();
+  expect(await db.prepare("SELECT level_id FROM organization_positions WHERE id=?").bind(position).first()).toEqual({level_id:custom});
+  expect(await db.prepare("SELECT name,rank,version,updated_at FROM staff_levels WHERE id=?").bind(custom).first()).toEqual({name:'Reviewed custom staff',rank:900,version:7,updated_at:2});
+  expect([...await localSeedLevels(db,company,4)]).toEqual([...levels]);
+  expect(Number((await db.prepare("SELECT count(*) n FROM staff_levels WHERE company_id=?").bind(company).first<{n:number}>())?.n)).toBe(6);
 });
 function draft(extra:Record<string,unknown>={}) {return directoryUpdateSchema.parse({legalName:"New staff",email:`${key()}@example.test`,countryCode:"TH",branchId:f.branch,departmentId:f.department,jobTitle:"Operations staff",workerType:"employee",employmentType:"salaried",startDate:"2026-01-01",currency:"THB",expectedVersion:1,...extra});}
 it("keeps legacy ranks unmapped and installs one explicit six-level catalog",async()=>{
@@ -75,7 +91,7 @@ it("defaults new Positions to backoffice and preserves roster requirement on omi
   expect((await db.prepare("SELECT roster_required FROM organization_positions WHERE id=?").bind(staffPosition).first<{roster_required:number}>())?.roster_required).toBe(1);
 });
 it("reviews a reusable template, reuses the CEO, adds vacancies and never grants roles",async()=>{
-  const template=await saveOrganizationTemplate(db,hr,null,{name:"Small team",expectedVersion:0,positions:[{key:"ceo",title:"CEO",levelNumber:1,reportsToKey:null,isCeo:true},{key:"staff",title:"Team staff",levelNumber:6,reportsToKey:"ceo",isCeo:false}]},key());
+  const template=await saveOrganizationTemplate(db,hr,null,{name:"Small team",expectedVersion:0,positions:[{key:"ceo",title:"CEO",levelNumber:1,reportsToKey:null,isCeo:true,rosterRequired:false},{key:"staff",title:"Team staff",levelNumber:6,reportsToKey:"ceo",isCeo:false,rosterRequired:false}]},key());
   const before=await db.prepare("SELECT count(*) n FROM assignments WHERE company_id=?").bind(f.company).first();
   const input={expectedVersion:1,branchId:f.branch,departmentId:f.department,reason:"Reviewed branch expansion"};const command=key();
   await applyOrganizationTemplate(db,hr,String(template.id),input,command);await applyOrganizationTemplate(db,hr,String(template.id),input,command);
@@ -93,6 +109,11 @@ it("rejects a stale organization snapshot in the committing transaction",async()
   const command=key(),guard=await organizationGuard(db,f.company,command);
   await db.prepare("UPDATE hr_engagements SET manager_person_id=? WHERE person_id=?").bind(`person-${f.owner.userId}`,`person-${f.claimant.userId}`).run();
   await expect(executeCommand(db,hr,command,"organization.test",{},f.company,1,{id:f.company},[guard])).rejects.toMatchObject({status:409});
+  // The complete People row remains protected on current schemas too; the
+  // historical GPO fixture has no work-contact columns to project by name.
+  const contactCommand=key(),contactGuard=await organizationGuard(db,f.company,contactCommand);
+  await db.prepare("UPDATE hr_people SET work_email=? WHERE company_id=? AND user_id=?").bind(`${key()}@example.test`,f.company,f.claimant.userId).run();
+  await expect(executeCommand(db,hr,contactCommand,"organization.test",{},f.company,1,{id:f.company},[contactGuard])).rejects.toMatchObject({status:409});
 });
 it("applies independently reviewed branch and department changes with safe suspension and immutable history",async()=>{
   const reviewer=await f.member("organization-reviewer","hr_admin");
@@ -443,4 +464,34 @@ it("runs Company setup acceptance with readiness blockers, independent review, h
   const revoked=await revokeCompanyBusinessAcceptance(db,f.owner,{expectedVersion:4,reason:"Company structure changed; reopen setup review"},key());
   expect(revoked).toMatchObject({status:"revoked",version:5});
   expect((await db.prepare("SELECT action,version FROM company_business_acceptance_events WHERE company_id=? ORDER BY version").bind(f.company).all()).results).toEqual([{action:"submitted",version:1},{action:"rejected",version:2},{action:"submitted",version:3},{action:"accepted",version:4},{action:"revoked",version:5}]);
+});
+
+it("restores Company acceptance and notices on final review outbox failure, then permits lost-response replay with current authority",async()=>{
+ await db.prepare("UPDATE hr_engagements SET position_id=?,level_id=?,manager_person_id=? WHERE company_id=? AND person_id<>?").bind(staffPosition,level(6),`person-${f.owner.userId}`,f.company,`person-${f.owner.userId}`).run();
+ const submitKey=key(),submitInput={reason:"All Company structure and placement evidence reviewed"},submitted=await submitCompanyBusinessAcceptance(db,f.owner,submitInput,submitKey);expect(await submitCompanyBusinessAcceptance(db,f.owner,submitInput,submitKey)).toEqual(submitted);
+ const command=key(),input={expectedVersion:1,decision:"accept" as const,reason:"Independent Company readiness approval"},fault=`company_acceptance_outbox_fault_${crypto.randomUUID().replaceAll("-","")}`;
+ const state=async()=>Promise.all([
+  db.prepare("SELECT * FROM company_business_acceptance WHERE company_id=?").bind(f.company).first(),
+  db.prepare("SELECT * FROM company_business_acceptance_events WHERE company_id=? ORDER BY version,id").bind(f.company).all().then(rows=>rows.results),
+  db.prepare("SELECT * FROM staff_notifications WHERE company_id=? AND record_type='company_business_acceptance' ORDER BY id").bind(f.company).all().then(rows=>rows.results),
+ ]),before=await state();
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'COMPANY_ACCEPTANCE_FINAL_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${fault}();`);
+ try{
+  await expect(decideCompanyBusinessAcceptance(db,hr,input,command)).rejects.toThrow("COMPANY_ACCEPTANCE_FINAL_OUTBOX");expect(await state()).toEqual(before);
+  for(const table of ["command_receipts","audit_events","outbox_events","command_assertions"])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first("n")).toBe(0);
+ }finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
+ const accepted=await decideCompanyBusinessAcceptance(db,hr,input,command);expect(accepted).toMatchObject({status:"accepted",version:2});expect(await decideCompanyBusinessAcceptance(db,hr,input,command)).toEqual(accepted);
+ await expect(decideCompanyBusinessAcceptance(db,hr,{...input,reason:"A changed command cannot reuse its receipt"},command)).rejects.toMatchObject({code:"IDEMPOTENCY_CONFLICT"});
+ for(const table of ["command_receipts","audit_events","outbox_events"])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first("n")).toBe(1);
+ await db.prepare("UPDATE assignments SET revoked_at=? WHERE id=?").bind(Date.now(),hr.assignmentId).run();await expect(decideCompanyBusinessAcceptance(db,hr,input,command)).rejects.toMatchObject({code:"COMPANY_AUTHORITY_REQUIRED"});
+ const revokeKey=key(),revokeInput={expectedVersion:2,reason:"Company placement changed after retained review"},revoked=await revokeCompanyBusinessAcceptance(db,f.owner,revokeInput,revokeKey);expect(await revokeCompanyBusinessAcceptance(db,f.owner,revokeInput,revokeKey)).toEqual(revoked);expect(revoked).toMatchObject({status:"revoked",version:3});
+});
+
+it("commits only one concurrent independent Company acceptance review and rejects stale new commands",async()=>{
+ await db.prepare("UPDATE hr_engagements SET position_id=?,level_id=?,manager_person_id=? WHERE company_id=? AND person_id<>?").bind(staffPosition,level(6),`person-${f.owner.userId}`,f.company,`person-${f.owner.userId}`).run();await submitCompanyBusinessAcceptance(db,f.owner,{reason:"Current placement evidence for concurrent review"},key());
+ await expect(decideCompanyBusinessAcceptance(db,hr,{expectedVersion:2,decision:"accept",reason:"A stale version cannot be approved"},key())).rejects.toMatchObject({code:"STALE_VERSION"});
+ const keys=[key(),key()],input={expectedVersion:1,decision:"accept" as const,reason:"Independent current version approval"},results=await Promise.allSettled(keys.map(command=>decideCompanyBusinessAcceptance(db,hr,input,command)));
+ expect(results.filter(value=>value.status==="fulfilled")).toHaveLength(1);expect(results.filter(value=>value.status==="rejected")).toHaveLength(1);
+ expect(await db.prepare("SELECT status,version FROM company_business_acceptance WHERE company_id=?").bind(f.company).first()).toEqual({status:"accepted",version:2});expect((await db.prepare("SELECT action FROM company_business_acceptance_events WHERE company_id=? ORDER BY version").bind(f.company).all()).results).toEqual([{action:"submitted"},{action:"accepted"}]);
+ expect(await db.prepare("SELECT count(*) n FROM command_receipts WHERE command_id IN (?,?)").bind(...keys).first("n")).toBe(1);
 });

@@ -1,0 +1,7 @@
+import {agentFinanceMonthlyUsage} from '../../finance/public/agent-ai-usage-projection';
+import {agentSocialMonthlyCount} from '../../collaboration/public/agent-ai-usage-projection';
+import {agentExpenseMonthlyCount} from '../../people_payroll/public/agent-ai-usage-projection';
+import {agentRequestMonthlyUsage} from '../../records/public/agent-ai-usage-projection';
+import {agentExecutiveDatedCount} from '../../runtime/public/agent-ai-usage-projection';
+import {financeAiCompanyAllowanceSql} from '../../manage_erpx/public/finance-ai-quota-sources';
+import type {SqlDatabase} from '../../runtime/public/runtime/types';import {assertion} from '../../workflow/public/commands';export function executiveGenerationQuota(database:SqlDatabase){return {guard7(key:string,value:"executive-quota",companyId:string,start:number,companyId2:string,start2:number,companyId3:string,month:string,companyId4:string,month2:string,companyId5:string,month3:string,companyId6:string){return assertion(database,key,value,`(${agentExecutiveDatedCount()})+(SELECT count(*) FROM ai_workspace_turns WHERE company_id=? AND created_at>=?)+(${agentSocialMonthlyCount()})+(${agentExpenseMonthlyCount()})+(SELECT count(*) FROM (${agentRequestMonthlyUsage()} UNION ALL ${agentFinanceMonthlyUsage()}) calls WHERE company_id=? AND month=?)<${financeAiCompanyAllowanceSql}`,[companyId,start,companyId2,start2,companyId3,month,companyId4,month2,companyId5,month3,companyId6]);}};}

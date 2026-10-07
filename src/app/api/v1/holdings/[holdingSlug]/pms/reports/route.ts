@@ -1,7 +1,7 @@
-import {requireWorkContext} from '@/server/authorization';
-import {holdingResources} from '@/server/runtime';
-import {errorResponse} from '@/server/http';
-import {pmsRangeReport,pmsReportEntries} from '@/server/pms/reports';
+import {requireWorkContext} from "@/server/modules/identity_access/public/authorization";
+import {holdingResources} from "@/server/modules/runtime/public/runtime";
+import {errorResponse} from "@/server/modules/runtime/public/http";
+import {pmsRangeReport,pmsReportEntries} from "@/server/modules/pms/public/pms/reports";
 type Context={params:Promise<{holdingSlug:string}>};
 export async function GET(request:Request,{params}:Context){
  try{

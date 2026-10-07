@@ -7,7 +7,7 @@ import { RecordDocumentPanel } from '@/components/attachments/record-document-pa
 import { MediaPublicationPanel } from '@/components/attachments/media-publication-panel';
 import Image from 'next/image';
 import { listMediaPublications,publicMediaPublicationUrl,type MediaPublicationDto } from '@/lib/attachment-client';
-import type { Rate,Snapshot } from '@/lib/pms-model';
+import type { Rate,Snapshot } from "@/server/modules/pms/public/rules/pms-model";
 type Save=(operation:string,input:unknown,version?:number)=>Promise<boolean>;
 export function BookingRatePolicy({id,rate,version,save}:{id:string;rate:Rate;version:number;save:Save}){
  const [method,setMethod]=useState(rate.collection?.method??'pay_at_hotel'),[busy,setBusy]=useState(false);
@@ -45,7 +45,7 @@ export function BookingMediaSetup({base,targetType,targetId,version,canReview,ti
  </FormDisclosure></FrontLocalizedTree>;
 }
 
-export function BookingMediaPicker({base,targetType,targetId,name,selected=[]}:{base:string;targetType:string;targetId:string;name:string;selected?:import('@/lib/pms-model').BookingImage[]}){
+export function BookingMediaPicker({base,targetType,targetId,name,selected=[]}:{base:string;targetType:string;targetId:string;name:string;selected?:import('@/server/modules/pms/public/rules/pms-model').BookingImage[]}){
  const [media,setMedia]=useState<MediaPublicationDto[]>([]),[error,setError]=useState(''),[loaded,setLoaded]=useState(false);
  useEffect(()=>{let active=true;listMediaPublications(base,targetType,targetId).then(result=>{if(active){setMedia(result.items.filter(m=>m.state==='approved'));setLoaded(true);}}).catch(()=>{if(active)setError('Public images are unavailable. Refresh before saving.');});return()=>{active=false;};},[base,targetType,targetId]);
  return <FrontLocalizedTree><fieldset><legend>Guest gallery</legend>{(!loaded||error)&&selected.map(i=><span key={i.publicationId}><input type="hidden" name={name} value={i.publicationId}/><input type="hidden" name={`alt-${i.publicationId}`} value={i.alt}/></span>)}{error&&<p role="alert">{error}</p>}{!media.length&&!error&&<p>Add and approve images in Gallery below, then refresh to select them.</p>}{media.map(m=><Field key={m.id} appearance="standard" orientation="inline"><TextInput appearance="standard" name={name} type="checkbox" value={m.id} defaultChecked={selected.some(i=>i.publicationId===m.id)}/><Image unoptimized src={publicMediaPublicationUrl(base,m.id)} alt={m.alt_text} width={120} height={80}/>{m.alt_text}<input type="hidden" name={`alt-${m.id}`} value={m.alt_text}/></Field>)}</fieldset></FrontLocalizedTree>;

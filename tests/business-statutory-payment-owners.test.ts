@@ -11,7 +11,7 @@ import {loadIamAuthority} from '../src/server/iam-store';
 import {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,drainAttachmentScans,bindRecordAttachmentSet} from '../src/server/attachments/service';
 
 vi.mock('../src/server/runtime',()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
-vi.mock('../src/server/attachments/scanner',()=>({attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:'Declared clean scanner fixture',definitionUpdatedAt:Date.now(),error:null}),scanAttachmentBytes:async()=>({clean:true,signature:null,engine:'Declared clean scanner fixture',definitionUpdatedAt:Date.now()})}));
+vi.mock('../src/server/modules/files/public/attachments/scanner',()=>({attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:'Declared clean scanner fixture',definitionUpdatedAt:Date.now(),error:null}),scanAttachmentBytes:async()=>({clean:true,signature:null,engine:'Declared clean scanner fixture',definitionUpdatedAt:Date.now()})}));
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=','base64');
 const reason='Independent review of fictional Company statutory payer evidence and scanned signature.',oldGate=process.env.ERPX_ATTACHMENTS_V2;
 let f:Awaited<ReturnType<typeof expenseFixture>>;

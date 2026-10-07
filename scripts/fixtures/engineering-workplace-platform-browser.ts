@@ -106,7 +106,9 @@ export async function seedEngineeringWorkplacePlatformBrowser(input:Input){
  // regular authenticator enrollment/verification service, never fabricated
  // session or verified-MFA rows. Their private secret is retained for the
  // operator's normal browser verification after the compiled cohort starts.
- const origin='http://127.0.0.1:3104',auth=await createAuth(origin),login=await auth.api.signInEmail({body:{email:author.email,password},headers:new Headers({Origin:origin})});
+ const origin=process.env.ERPX_PUBLIC_ORIGIN??'http://127.0.0.1:3104';
+ if(!['http://127.0.0.1:3102','http://127.0.0.1:3104'].includes(origin))throw new Error('OWNED_BROWSER_ORIGIN_REQUIRED');
+ const auth=await createAuth(origin),login=await auth.api.signInEmail({body:{email:author.email,password},headers:new Headers({Origin:origin})});
  const nativeSession=await input.control.prepare('SELECT id,"expiresAt" FROM session WHERE token=? AND "userId"=?').bind(login.token,author.userId).first<{id:string;expiresAt:string}>();
  if(!nativeSession)throw new Error('NORMAL_IAM_SEED_SESSION_REQUIRED');
  const nativeGrant=await input.h001.prepare('SELECT version FROM assignments WHERE id=? AND user_id=? AND company_id=?').bind(author.assignmentId,author.userId,workplace.company).first<{version:number}>();

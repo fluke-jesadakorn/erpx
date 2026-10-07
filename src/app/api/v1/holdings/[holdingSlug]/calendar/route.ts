@@ -1,9 +1,9 @@
-import { requireWorkContext } from "@/server/authorization";
-import { holdingResources } from "@/server/runtime";
-import type { PostgresDatabase } from "@/server/runtime/postgres";
-import { calendarData, calendarCommand } from "@/server/calendar";
-import { ApiError, errorResponse } from "@/server/http";
-import { requestPublicOrigin } from "@/server/public-origin";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import type { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
+import { calendarData, calendarCommand } from "@/server/modules/work_projection/public/calendar/index";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
 export async function GET(request: Request, context: Context) {

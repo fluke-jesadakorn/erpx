@@ -1,0 +1,1 @@
+export {organizationAuthorityActorPerson,organizationAuthorityAppointee,organizationAuthoritySelectorPerson,stageOrganizationSelfCeo} from '../adapters/organization-authority-people';

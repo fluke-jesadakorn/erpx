@@ -24,7 +24,7 @@ describe("general company working demo", () => {
       actors: {
         employee: actor("employee"), manager: actor("people_manager"), hrApprover: actor("hr_admin"),
         payrollPreparer: actor("payroll_preparer"), buyer: actor("purchasing_operator"),
-        purchasingManager: actor("purchasing_manager"), salesOperator: actor("sales_operator"), salesManager: actor("sales_manager"), warehouse: actor("warehouse_manager"),
+        purchasingManager: actor("purchasing_manager"), salesOperator: actor("sales_operator"), salesManager: actor("sales_manager"), warehouse: actor("warehouse_manager"),sourceWarehouse:actor("warehouse_manager"),
         financePreparer: actor("finance_preparer"), financeApprover: actor("finance_approver"),
         treasury: actor("treasury"), administrator: actor("holding_owner"),
       },

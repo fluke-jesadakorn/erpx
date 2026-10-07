@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { betaFetch } from "@/lib/beta-client";
-import type { PmsImportReport } from "@/lib/pms-import";
+import type { PmsImportReport } from "@/server/modules/pms/public/rules/pms-import";
 
 type ImportBatch = {
   id: string;

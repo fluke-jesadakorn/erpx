@@ -2,9 +2,9 @@ import { PayrollAdvanceConsole } from "@/components/modules/payroll-controls";
 import { PayrollPageIntro } from "@/components/modules/payroll-workspace";
 import { hasPermission } from "@/lib/permissions";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { pageError } from "@/server/page-error";
-import { payrollAdvancePage } from "@/server/people-payroll";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+import { payrollAdvancePage } from "@/server/modules/people_payroll/public/people-payroll";
 import { PageContent } from "@/components/ui/foundation";
 
 export const dynamic = "force-dynamic";

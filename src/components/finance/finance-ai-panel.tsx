@@ -17,7 +17,7 @@ import {
   type FinanceAiKind,
   type FinanceAiResult,
 } from "@/lib/finance-ai";
-import type { financeAiWorkspace } from "@/server/finance-ai";
+import type { financeAiWorkspace } from "@/server/modules/finance/public/finance-ai";
 import styles from "./finance-workspace.module.css";
 
 type Workspace = Awaited<ReturnType<typeof financeAiWorkspace>>;

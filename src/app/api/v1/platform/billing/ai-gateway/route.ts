@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { readAiGatewayPolicy, setAiPlatformKeyEnabled } from "@/server/ai-gateway";
-import { requireManageErpxContext } from "@/server/authorization";
-import { ApiError, errorResponse } from "@/server/http";
-import { activeHoldingBindings, holdingResources } from "@/server/runtime";
+import { readAiGatewayPolicy, setAiPlatformKeyEnabled } from "@/server/modules/agent/public/ai-gateway";
+import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { activeHoldingBindings, holdingResources } from "@/server/modules/runtime/public/runtime";
 
 const changeSchema = z.object({
   holdingId: z.string().min(3).max(24),

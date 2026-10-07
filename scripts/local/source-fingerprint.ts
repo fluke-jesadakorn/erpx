@@ -33,6 +33,7 @@ export async function runtimeSourceFingerprint(root: string, environment: NodeJS
 /** A runtime match alone cannot attest to different assertions or a changed coverage register. */
 export async function verificationSourceFingerprint(root: string, runtimeFingerprint: string) {
   const hash = createHash("sha256").update(runtimeFingerprint);
+  // Includes suite-manifest.json and the standalone provider-rehearsals.json register.
   for (const directory of ["tests"]) {
     const entries = await readdir(join(root, directory), { recursive: true, withFileTypes: true });
     for (const file of entries.filter(entry => entry.isFile()).map(entry => join(entry.parentPath, entry.name))
@@ -40,7 +41,13 @@ export async function verificationSourceFingerprint(root: string, runtimeFingerp
       hash.update(relative(root, file)).update("\0").update(await readFile(file)).update("\0");
   }
   for (const name of ["docs/testing/engineering-scenarios.json", "docs/testing/legal-uat-engineering-cases.json",
-    "docs/testing/engineering-gate-scenarios.json", "docs/testing/engineering-attachment-owner-cases.json", "vitest.config.mts", "playwright.config.ts"])
+    "docs/testing/engineering-gate-scenarios.json", "docs/testing/engineering-attachment-owner-cases.json", "docs/testing/uat-route-inventory.json", "vitest.config.mts", "vitest.unit.config.mts", "vitest.integration.config.mts", "playwright.config.ts", "eslint.config.mjs"])
     hash.update(name).update("\0").update(await readFile(join(root, name))).update("\0");
+  for (const directory of [".github/workflows", ".github/actions"]) {
+    const entries = await readdir(join(root, directory), { recursive: true, withFileTypes: true });
+    for (const file of entries.filter(entry => entry.isFile()).map(entry => join(entry.parentPath, entry.name))
+      .filter(file => !generatedSourceEntry(relative(root, file))).sort())
+      hash.update(relative(root, file)).update("\0").update(await readFile(file)).update("\0");
+  }
   return hash.digest("hex");
 }

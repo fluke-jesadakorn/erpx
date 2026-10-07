@@ -1,3 +1,4 @@
+import { captureCaseScreenshot } from "../helpers/case-screenshot";
 import {
   test,
   expect as baseExpect,
@@ -6,9 +7,10 @@ import {
 } from "@playwright/test";
 import { readFileSync, existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { selectFixtureAssignment } from "./helpers/select-fixture-assignment";
 
 // A dedicated local company, created by scripts/seed-expense-e2e.ts.
-const fixturePath = ".scratch/expense-v2/fixture.json";
+const fixturePath = process.env.ERPX_E2E_FIXTURE ?? ".scratch/expense-v2/fixture.json";
 type Fixture = {
   company: string;
   accounts: { expense: string };
@@ -33,26 +35,7 @@ async function login(context: BrowserContext, who: string) {
     data: { email: fixture.actors[who].email, password: fixture.password },
   });
   expect(response.ok(), await response.text()).toBeTruthy();
-  await context.addCookies([
-    {
-      name: "erpx_company_h001",
-      value: fixture.company,
-      url: process.env.ERPX_E2E_BASE_URL ?? "http://localhost:8787",
-    },
-    {
-      name: "erpx_assignment_h001",
-      value: fixture.actors[who].assignmentId,
-      url: process.env.ERPX_E2E_BASE_URL ?? "http://localhost:8787",
-    },
-  ]);
-  const activeResponse = await context.request.get(`/api/v1/holdings/acme/assignments/active`);
-  expect(activeResponse.ok(), await activeResponse.text()).toBeTruthy();
-  const active = (await activeResponse.json()).data as { revision: number };
-  const selectedResponse = await context.request.post(`/api/v1/holdings/acme/assignments/active`, {
-    headers: { "x-erpx-context-company": fixture.company },
-    data: { assignmentId: fixture.actors[who].assignmentId, revision: Number(active.revision ?? 0) },
-  });
-  expect(selectedResponse.ok(), await selectedResponse.text()).toBeTruthy();
+  await selectFixtureAssignment(context, fixture.company, fixture.actors[who].assignmentId);
 }
 async function contextHeaders(context: BrowserContext, who: string) {
   const activeResponse = await context.request.get(
@@ -165,10 +148,7 @@ async function snapshots(page: Page, name: string) {
           );
         expect(small).toEqual([]);
       }
-      await page.screenshot({
-        path: `.scratch/expense-v2/${name}-${width}-${theme}.png`,
-        fullPage: true,
-      });
+      await captureCaseScreenshot(page, `${name}-${width}-${theme}.png`, { fullPage: true });
     }
 }
 test("every member can preserve an incomplete claim and reach People setup", async ({

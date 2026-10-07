@@ -1,8 +1,8 @@
 import { UsageConsole } from "@/components/usage/usage-console";
 import { workspaceBase } from "@/lib/workspace";
-import { administrationAccess } from "@/server/administration";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { accessPage } from "@/server/page-error";
+import { administrationAccess } from "@/server/modules/runtime/public/administration";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { accessPage } from "@/server/modules/work_projection/public/page-error";
 
 export const dynamic = "force-dynamic";
 

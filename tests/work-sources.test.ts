@@ -1,14 +1,9 @@
-vi.mock("../src/server/overtime", () => ({ overtimeWork: async()=>[] }));
-vi.mock("../src/server/department-decisions", () => ({ departmentOverrideWork: async()=>[] }));
-vi.mock("../src/server/retirement-clearance", () => ({retirementWork:async()=>[]}));
-vi.mock("../src/server/support", () => ({supportWork:async()=>[]}));
-vi.mock("../src/server/flow-work", () => ({enrichFlowWork:async (_actor:unknown,items:WorkItem[])=>items,otherFlowWork:async()=>[]}));
+import {createWorkSnapshot} from "../src/server/modules/work_projection/application/work-items";
 import { expect, it, vi } from "vitest";
 import {
   mergeWorkItems,
   nextWorkSteps,
-  workSnapshot,
-} from "../src/server/work-items";
+} from "../src/server/modules/work_projection/domain/work-items";
 import type { WorkContext } from "../src/server/authorization";
 import type { WorkItem } from "../src/lib/work-item";
 import { filterWork } from "../src/lib/work-item";
@@ -24,21 +19,6 @@ const item = (id: string, extra: Partial<WorkItem> = {}): WorkItem => ({
   queue: "todo",
   ...extra,
 });
-vi.mock("../src/server/runtime", () => ({
-  holdingResources: async () => ({ write: {} }),
-}));
-vi.mock("../src/server/domain-work", () => ({
-  getDomainWork: async (_actor: unknown, source: string) => {
-    if (source === "expense") throw Error("Storage temporarily unavailable");
-    return source === "staff_task" ? [item("task")] : [];
-  },
-}));
-vi.mock("../src/server/work", () => ({ getWork: async () => ({ rows: [] }) }));
-vi.mock("../src/server/employee-requests", () => ({
-  employeeRequestWork: async () => [
-    item("request", { type: "service_request", relationships: ["requested"] }),
-  ],
-}));
 it("deduplicates a record found through several responsibilities and keeps all viewer relationships", () => {
   const rows = mergeWorkItems([
     item("same", { queue: "waiting", relationships: ["requested"] }),
@@ -89,17 +69,29 @@ it("groups active quality follow-ups with their source hold and retains notifica
   expect(mergeWorkItems([item("hold",{type:"quality_hold",queue:"completed"}),item("alert",{type:"quality_alert",source})])).toHaveLength(2);
 });
 it("retains the workspace when one source fails and reports only that source", async () => {
-  const actor = {
+  const actor: WorkContext = {
+    userId: "user",
+    name: "Employee",
+    email: "employee@example.test",
+    assignmentId: "assignment",
     companyId: "company",
     holdingId: "h001",
+    holdingSlug: "acme",
+    holdingName: "Acme",
+    branchId: null,
+    departmentId: null,
     role: "employee",
     modules: [],
     assignments: [],
-    scope: { kind: "holding", companyId: "company" },
-  } as WorkContext;
+    workspaces: [],
+    assignmentScope: "holding",
+    inherited: false,
+    scope: { kind: "holding", holdingId: "h001", holdingSlug: "acme", holdingName: "Acme", companyId: "company" },
+  };
   const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
   try {
-    const snapshot = await workSnapshot(actor);
+    const app=createWorkSnapshot({source:async name=>name==="employeeRequestWork"?[item("request",{type:"service_request",relationships:["requested"]})]:[],domain:async(_actor,source)=>{if(source==="expense")throw Error("Storage temporarily unavailable");return source==="staff_task"?[item("task")]:[];},leave:async()=>({rows:[],counts:{todo:0,waiting:0,completed:0,all:0}}),enrich:async(_actor,items)=>items,enabledModules:async()=>new Set(),production:()=>false,monotonic:()=>0,performanceLog:()=>false,errorStatus:()=>undefined,info:()=>{},warn:(...values)=>console.warn(...values),cached:(_actor,load)=>load()});
+    const snapshot = await app.readWorkSnapshot(actor);
     expect(snapshot.items.map((i) => i.id).sort()).toEqual(["request", "task"]);
     expect(snapshot.unavailableSources).toEqual(["Expense claims"]);
   } finally {

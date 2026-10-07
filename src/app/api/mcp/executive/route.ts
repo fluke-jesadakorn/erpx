@@ -1,4 +1,4 @@
-import { handleExecutiveMcp } from "@/server/executive/mcp";
+import { handleExecutiveMcp } from "@/server/modules/runtime/public/executive/mcp";
 
 export const runtime = "nodejs";
 export const POST = handleExecutiveMcp;

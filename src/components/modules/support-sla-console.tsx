@@ -7,7 +7,7 @@ import { TimeText } from "@/components/time/time-preference-context";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
-import type { supportSlaWorkspace } from "@/server/support-sla";
+import type { supportSlaWorkspace } from "@/server/modules/support/public/support-sla";
 import { Card, FormLayout } from "@/components/ui/foundation";
 type Policy = { id: string; name: string; version: number };
 export function SupportSlaConsole({

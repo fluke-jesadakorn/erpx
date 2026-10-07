@@ -108,6 +108,39 @@ async function journal(
     key(),
   );
 }
+it('rolls back the reviewed secondary opening and rule approval after final outbox failure, then retries and replays once',async()=>{
+ const original=await journal('2026-09-02');await postJournal(f.manager,String(original.id),key(),{expectedVersion:1});
+ const s=await setup(),id=String(s.rule.id),command=key(),input={expectedVersion:1,reason:'Reviewed exact retained opening independently'},fault=`book_opening_fault_${crypto.randomUUID().replaceAll('-','')}`,before=await db.prepare('SELECT * FROM finance_book_rules WHERE id=?').bind(id).first();
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'BOOK_OPENING_LATE_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.event_type='finance.book.approve') EXECUTE FUNCTION ${fault}();`);
+ try{
+  await expect(decideBookRule(f.manager,id,input,'approve',command)).rejects.toThrow();
+  expect(await db.prepare('SELECT * FROM finance_book_rules WHERE id=?').bind(id).first()).toEqual(before);
+  expect(await db.prepare('SELECT id FROM finance_journals WHERE id=?').bind(`book-opening-${id}`).first()).toBeNull();
+  expect(Number(await db.prepare('SELECT count(*) n FROM finance_journal_lines WHERE journal_id=?').bind(`book-opening-${id}`).first('n'))).toBe(0);
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n'))).toBe(0);
+ }finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
+ const approved=await decideBookRule(f.manager,id,input,'approve',command);expect(await decideBookRule(f.manager,id,input,'approve',command)).toEqual(approved);
+ expect(Number(await db.prepare('SELECT count(*) n FROM finance_journals WHERE id=?').bind(`book-opening-${id}`).first('n'))).toBe(1);
+ expect(Number(await db.prepare('SELECT count(*) n FROM finance_journal_lines WHERE journal_id=?').bind(`book-opening-${id}`).first('n'))).toBe(2);
+ for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n'))).toBe(1);
+});
+it('rolls back secondary adjustment journal and Workflow decision proof after final outbox failure, then retries and replays once',async()=>{
+ const s=await setup();await decideBookRule(f.manager,String(s.rule.id),{expectedVersion:1,reason:'Opening and mapping reviewed'},'approve',key());
+ const source=await journal();await postJournal(f.manager,String(source.id),key(),{expectedVersion:1});
+ const expense=s.mappings.find(m=>m.primaryAccountId===f.accounts.expense)!.secondaryAccountId,noncontrol=s.mappings.find(m=>m.primaryAccountId===f.accounts.tax)!.secondaryAccountId,adjustment=await prepareBookAdjustment(f.owner,{chartId:s.chart,primaryJournalId:String(source.id),periodId:f.period,entryDate:'2026-09-04',reason:'Reviewed secondary policy difference',lines:[{accountId:expense,debit:'10.01',credit:'0'},{accountId:noncontrol,debit:'0',credit:'10.01'}]},key()),id=String(adjustment.id),command=key(),input={expectedVersion:1,reason:'Independent secondary correction approval'},fault=`book_adjustment_fault_${crypto.randomUUID().replaceAll('-','')}`,before=await db.prepare('SELECT * FROM finance_book_adjustments WHERE id=?').bind(id).first(),originalSource=await db.prepare('SELECT * FROM finance_journals WHERE id=?').bind(source.id).first();
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'BOOK_ADJUSTMENT_LATE_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.event_type='finance.book-adjustment.post') EXECUTE FUNCTION ${fault}();`);
+ try{
+  await expect(decideBookAdjustment(f.manager,id,input,'post',command)).rejects.toThrow();
+  expect(await db.prepare('SELECT * FROM finance_book_adjustments WHERE id=?').bind(id).first()).toEqual(before);
+  expect(await db.prepare('SELECT * FROM finance_journals WHERE id=?').bind(source.id).first()).toEqual(originalSource);
+  expect(Number(await db.prepare("SELECT count(*) n FROM finance_journals WHERE source_type='book_adjustment' AND source_id=?").bind(id).first('n'))).toBe(0);
+  for(const table of ['command_receipts','audit_events','outbox_events','decision_evidence'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n'))).toBe(0);
+ }finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
+ const posted=await decideBookAdjustment(f.manager,id,input,'post',command);expect(await decideBookAdjustment(f.manager,id,input,'post',command)).toEqual(posted);
+ expect(Number(await db.prepare("SELECT count(*) n FROM finance_journals WHERE source_type='book_adjustment' AND source_id=?").bind(id).first('n'))).toBe(1);
+ expect(await db.prepare('SELECT * FROM finance_journals WHERE id=?').bind(source.id).first()).toEqual(originalSource);
+ for(const table of ['command_receipts','audit_events','outbox_events','decision_evidence'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n'))).toBe(1);
+});
 it("retains independent secondary-only adjustments and their reversals without changing the business source",async()=>{
  const s=await setup();await decideBookRule(f.manager,String(s.rule.id),{expectedVersion:1,reason:"Opening and mapping reviewed"},"approve",key());
  const source=await journal();await postJournal(f.manager,String(source.id),key(),{expectedVersion:1});

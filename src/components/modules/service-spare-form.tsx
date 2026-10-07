@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 import { quantityMilli } from "@/lib/commerce-math";
 import { minorToDecimal } from "@/lib/finance-money";
-import type { availableServiceSpares } from "@/server/inventory-consumption";
+import type { availableServiceSpares } from "@/server/modules/inventory/public/inventory-consumption";
 import { FormLayout } from "@/components/ui/foundation";
 
 type Spares = Awaited<ReturnType<typeof availableServiceSpares>>;

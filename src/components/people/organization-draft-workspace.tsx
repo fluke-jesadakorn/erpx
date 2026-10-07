@@ -21,7 +21,7 @@ import {
   type DraftRequest,
 } from "@/lib/organization-draft";
 import type { OrganizationAccessData } from "@/lib/organization-access";
-import type { OrganizationDraftPreview } from "@/server/organization-drafts";
+import type { OrganizationDraftPreview } from "@/server/modules/organization/public/organization-drafts";
 import { PeopleStructureWorkspace } from "./people-structure-workspace";
 import { mergeLegacyMoveTray } from "@/lib/people-draft-import";
 import {

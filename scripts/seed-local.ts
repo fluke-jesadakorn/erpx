@@ -8,6 +8,9 @@ import { moduleRegistry } from "../src/data/module-registry";
 import { project, type EventMessage, type JobEnv } from "../src/workers/jobs";
 import { calculatePayrollAmounts } from "../src/lib/payroll-math";
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { localSeedLevels } from "./fixtures/local-seed-levels";
+import { seedLocalFinanceJournals } from "./fixtures/local-seed-journals";
 
 /**
  * Reconcile a useful, deterministic local dataset without deleting developer data.
@@ -177,7 +180,7 @@ function employeeStatements(db: Db, holding: string) {
   return statements;
 }
 
-function peoplePayrollStatements(db: Db, holding: string) {
+function peoplePayrollStatements(db: Db, holding: string, levels: ReadonlyMap<string, ReadonlyMap<number, string>>) {
   const statements: SqlStatement[] = [];
   const heldCompanies = companies.filter((company) => company.holding === holding);
   const actor = holdingActor(holding);
@@ -201,7 +204,7 @@ function peoplePayrollStatements(db: Db, holding: string) {
       const name=worker.name;
       const position=`seed-position-${company.id}-${String(index+1).padStart(3,"0")}`;
       statements.push(db.prepare("INSERT INTO organization_positions(id,company_id,branch_id,department_id,title,level_id,roster_required,created_by,created_at,updated_at) VALUES(?,?,?,?,?, ?,0,'local-demo-seed',?,?) ON CONFLICT DO NOTHING")
-        .bind(position,company.id,branch,`dept:${branch}:operations`,worker.jobTitle,`org-level-${company.id}-6`,now,now));
+        .bind(position,company.id,branch,`dept:${branch}:operations`,worker.jobTitle,levels.get(company.id)!.get(6)!,now,now));
       statements.push(db.prepare("INSERT INTO hr_people(id,user_id,company_id,legal_name,preferred_name,email,phone,country_code,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?, 'active',?,?,?) ON CONFLICT DO NOTHING")
         .bind(person, null, company.id, name, null, worker.email, null, country, actor, now - index * 86_400_000, now));
       statements.push(db.prepare("INSERT INTO hr_engagements(id,person_id,company_id,branch_id,department_id,worker_type,employment_type,status,start_date,manager_person_id,job_title,currency,created_by,created_at,updated_at,pay_group_id) VALUES(?,?,?,?,?,?,?,'active',?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING")
@@ -298,26 +301,11 @@ function financeStatements(db: Db, holding: string) {
     statements.push(db.prepare("INSERT INTO finance_charts(id,company_id,name,base_currency,accounting_basis,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING").bind(chart, company.id, `${company.name} IFRS`, "USD", "IFRS", actor, now, now));
     statements.push(db.prepare("INSERT INTO finance_periods(id,company_id,name,start_date,end_date,state,created_at) VALUES(?,?,?,?,?,'open',?) ON CONFLICT DO NOTHING").bind(period, company.id, "September 2026", "2026-09-01", "2026-09-30", now));
     for (const [code, name, category, control, controlKind] of accounts) statements.push(db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,is_control,control_kind,currency,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET is_control=excluded.is_control,control_kind=excluded.control_kind,updated_at=excluded.updated_at").bind(`acct-${company.id}-${code}`, chart, company.id, code, name, category, control, controlKind, currency, now, now));
-    const cash = `acct-${company.id}-1100`, revenue = `acct-${company.id}-4000`, expense = `acct-${company.id}-5100`, ar = `acct-${company.id}-1200`, ap = `acct-${company.id}-2100`;
+    const revenue = `acct-${company.id}-4000`, expense = `acct-${company.id}-5100`, ar = `acct-${company.id}-1200`, ap = `acct-${company.id}-2100`;
     const partyCustomer = company.id === "acme-co" ? "party_customer_demo" : `party-${company.id}-customer`;
     const partySupplier = company.id === "acme-co" ? "party_supplier_demo" : `party-${company.id}-supplier`;
     statements.push(db.prepare("INSERT INTO finance_parties(id,company_id,kind,code,name,currency,payment_terms_days,credit_limit_minor,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING").bind(partyCustomer, company.id, "customer", company.id === "acme-co" ? "CUS-001" : `CUS-${company.id.toUpperCase()}`, `${company.name} Retail Customer`, currency, 30, 25000000, now, now));
     statements.push(db.prepare("INSERT INTO finance_parties(id,company_id,kind,code,name,currency,payment_terms_days,credit_limit_minor,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING").bind(partySupplier, company.id, "supplier", company.id === "acme-co" ? "SUP-001" : `SUP-${company.id.toUpperCase()}`, `${company.name} Strategic Supplier`, currency, 45, 0, now, now));
-    for (let index = 0; index < 50; index += 1) {
-      const journal = `journal-${company.id}-${String(index + 1).padStart(3, "0")}`;
-      const amount = (index + 1) * 12500;
-      const debit = index % 2 === 0 ? expense : ar;
-      const credit = index % 2 === 0 ? cash : revenue;
-      const status = index % 17 === 0 ? "reversed" : index % 11 === 0 ? "in_review" : "posted";
-      statements.push(db.prepare("INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,source_id,memo,status,is_opening,version,created_by,posted_by,posted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,0,1,?,?,?,?,?) ON CONFLICT DO NOTHING")
-        .bind(journal, company.id, chart, period, `JE-${company.id.toUpperCase()}-${String(index + 1).padStart(4, "0")}`, `2026-${String(7 + (index % 3)).padStart(2, "0")}-${String(1 + (index % 27)).padStart(2, "0")}`, index % 10 === 0 ? "EUR" : currency, index % 10 === 0 ? 1_080_000 : 1_000_000, "seed", journal, `Seed operating entry ${index + 1}`, status, actor, status === "posted" || status === "reversed" ? reviewer : null, status === "posted" || status === "reversed" ? now : null, now, now));
-      statements.push(db.prepare("INSERT INTO audit_events(id,command_id,actor_id,assignment_id,action,record_type,record_id,record_version,purpose,created_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING")
-        .bind(`audit-${journal}-create`, `seed-command-${journal}`, actor, `seed_${actor}`, "finance.journal.create", "finance_journal", journal, 1, "seed balanced journal", now));
-      if (status === "posted" || status === "reversed") statements.push(db.prepare("INSERT INTO audit_events(id,command_id,actor_id,assignment_id,action,record_type,record_id,record_version,purpose,created_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING")
-        .bind(`audit-${journal}-post`, `seed-command-${journal}-post`, reviewer, `seed_${reviewer}`, `finance.journal.${status}`, "finance_journal", journal, 1, "independent seed journal review", now));
-      statements.push(db.prepare("INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING").bind(`${journal}-dr`, journal, debit, "Operating transaction", amount, 0, amount, 0, JSON.stringify({ branch: company.branches[index % company.branches.length][0] }), 0));
-      statements.push(db.prepare("INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING").bind(`${journal}-cr`, journal, credit, "Operating transaction", 0, amount, 0, amount, JSON.stringify({ branch: company.branches[index % company.branches.length][0] }), 1));
-    }
     for (let index = 0; index < 30; index += 1) {
       const kind = index % 2 === 0 ? "receivable" : "payable";
       const party = kind === "receivable" ? partyCustomer : partySupplier;
@@ -427,7 +415,7 @@ async function seedHomeImagePost(env: SeedEnv, holding: "h001" | "h002", db: Db)
   if (holding !== "h001") return;
   if (env.ERPX_ENVIRONMENT !== "local") throw new Error("DEMO_IMAGE_SEED_LOCAL_ONLY");
 
-  const bytes = await readFile(new URL("./fixtures/assets/team-planning-demo.webp", import.meta.url));
+  const bytes = await readFile(join(import.meta.dir, "fixtures/assets/team-planning-demo.webp"));
   const checksum = await digest(bytes);
   const draftId = "seed-h001-home-image-draft";
   const postId = "seed-h001-home-image-post";
@@ -502,14 +490,17 @@ async function seedHolding(env: SeedEnv, holding: "h001" | "h002") {
   const db = holding === "h001" ? env.H001_DB : env.H002_DB;
   console.log(`[seed:${holding}] organization and access`);
   await batch(db, orgStatements(db, holding));
+  const levels = new Map<string, Map<number, string>>();
+  for (const company of companies.filter(company => company.holding === holding)) levels.set(company.id, await localSeedLevels(db, company.id, now));
   await batch(db, assignmentStatements(db, holding));
   console.log(`[seed:${holding}] directory and payroll`);
   await batch(db, employeeStatements(db, holding));
   console.log(`[seed:${holding}] payroll rows prepared`);
-  await batch(db, peoplePayrollStatements(db, holding));
+  await batch(db, peoplePayrollStatements(db, holding, levels));
   console.log(`[seed:${holding}] leave and finance`);
   await batch(db, leaveStatements(db, holding));
   await batch(db, financeStatements(db, holding));
+  await seedLocalFinanceJournals(db, companies.filter(company => company.holding === holding), holdingActor(holding), holdingReviewer(holding), now);
   console.log(`[seed:${holding}] social and workflows`);
   await batch(db, socialStatements(db, holding));
   console.log(`[seed:${holding}] private files`);

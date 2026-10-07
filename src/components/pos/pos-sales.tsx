@@ -3,10 +3,10 @@ import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import type { PosWorkspace } from "@/server/pos";
-import type { PosRow } from "@/server/pos-core";
-import type { PosReceiptSnapshot } from "@/server/pos-daily";
-import { formatPosMoney } from "@/lib/pos";
+import type { PosWorkspace } from "@/server/modules/pos/public/pos";
+import type { PosRow } from "@/server/modules/pos/public/pos-core";
+import type { PosReceiptSnapshot } from "@/server/modules/pos/public/pos-daily";
+import { formatPosMoney } from "@/server/modules/pos/public/rules/pos";
 import { workFetch } from "@/lib/work-fetch";
 import { useFrontLanguage } from "@/components/front/front-language";
 import QRCode from "qrcode";

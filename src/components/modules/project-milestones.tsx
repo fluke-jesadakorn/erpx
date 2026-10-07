@@ -4,8 +4,8 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { useState, type FormEvent } from "react";
-import type { ProjectMilestoneRow } from "@/server/project-milestones";
-import type { StaffPerson } from "@/server/staff-policy";
+import type { ProjectMilestoneRow } from "@/server/modules/projects/public/project-milestones";
+import type { StaffPerson } from "@/server/modules/operations/public/staff-policy";
 import { useStaffCommand } from "./staff-work-controls";
 import { localDateTimeCandidates, localMinuteAt } from "@/lib/calendar-timeline";
 import { TimeText, useDisplayTimeZone } from "@/components/time/time-preference-context";

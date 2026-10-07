@@ -1,0 +1,50 @@
+import type {SqlStatement} from '../../runtime/public/runtime/types';
+import { SelfServicePeoplePayrollOwnedFacts } from '../../people_payroll/public/records-self-service-owned-facts';
+import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
+import "server-only";
+import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
+import { activeStaff } from "@/server/modules/operations/public/staff-policy";
+import { leaveSummary } from "@/server/modules/people_payroll/public/leave-self-service";
+import { overtimeSetup } from "@/server/modules/people_payroll/public/overtime";
+import { workSnapshot } from "@/server/modules/work_projection/public/work-items";
+import { holdingResources as nativeHoldingResources } from '../../runtime/public/runtime';
+import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '../../identity_access/public/iam-read-snapshot';
+import { replayCommand as nativeReplayCommand, executeCommand as nativeExecuteCommand } from '../../workflow/public/commands';
+import { ApiError as NativeApiError } from '../../runtime/public/http';
+import { createSelfServiceApplication, type SelfServiceRepository } from '../application/self-service';
+import { BusinessRuleError } from '../../shared';
+function application(provided?: SqlDatabase) {
+    let database = provided!;
+    const repository: SelfServiceRepository = { readSelfServiceSummarySources(...args) { return SelfServicePeoplePayrollOwnedFacts(database).readSelfServiceSummarySources(...args); } };
+    return createSelfServiceApplication<SqlStatement>({ repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, commands: { replay: (...args) => nativeReplayCommand(database, ...args), commit: (...args) => nativeExecuteCommand(database, ...args) }, prepare: async (holding) => {
+            if (!provided)
+                database = (await nativeHoldingResources(holding)).write;
+        }, production: process.env.NODE_ENV === 'production', batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, activeStaff: (...args) => fromNative(() => activeStaff(database, ...args)), leaveSummary: (...args) => fromNative(() => leaveSummary(...args)), overtimeSetup: (...args) => fromNative(() => overtimeSetup(database, ...args)), workSnapshot: (...args) => fromNative(() => workSnapshot(...args)) });
+}
+async function fromNative<Result>(run: () => Promise<Result> | Result): Promise<Result> {
+    try {
+        return await run();
+    }
+    catch (error) {
+        if (error instanceof NativeApiError)
+            throw new BusinessRuleError(error.status, error.code, error.message);
+        throw error;
+    }
+}
+async function invoke<Result>(run: () => Promise<Result>) {
+    try {
+        return await run();
+    }
+    catch (error) {
+        if (error instanceof BusinessRuleError)
+            throw new NativeApiError(error.status, error.code, error.message);
+        throw error;
+    }
+}
+export async function selfServiceSummary(actor: WorkContext, onWorkCount?: (count: number | null) => void) { return invoke(() => application().selfServiceSummary(actor, onWorkCount)); }
+export async function selfServiceSeed(actor: WorkContext): Promise<{
+    data: SelfServiceSummary;
+    workCount: number | null;
+}> { return invoke(() => application().selfServiceSeed(actor)); }
+export type SelfServiceSummary = Awaited<ReturnType<typeof selfServiceSummary>>;
+export type SelfServiceSeed = Awaited<ReturnType<typeof selfServiceSeed>>;

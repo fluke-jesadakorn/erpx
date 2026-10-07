@@ -1,0 +1,3 @@
+import "server-only";
+/** Trusted native fragment for the revision observer on its supplied transaction. */
+export const workCachePeoplePayrollDeadlines=()=>`SELECT effective_at FROM people_access_cutoffs WHERE cancelled_at IS NULL UNION ALL SELECT restored_at FROM people_access_cutoffs WHERE cancelled_at IS NULL UNION ALL SELECT effective_at FROM people_lifecycle_cases WHERE status IN ('scheduled','completed') UNION ALL SELECT valid_from FROM people_applied_packages WHERE ended_at IS NULL UNION ALL SELECT valid_until FROM people_applied_packages WHERE ended_at IS NULL UNION ALL SELECT starts_at FROM overtime_requests UNION ALL SELECT ends_at FROM overtime_requests`;

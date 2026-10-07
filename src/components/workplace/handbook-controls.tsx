@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { useRecoverableDraft } from "@/components/ui/use-recoverable-draft";
 import { useStaffCommand } from "@/components/modules/staff-work-controls";
-import type { HandbookRevision, handbookEditorOptions } from "@/server/handbook";
+import type { HandbookRevision, handbookEditorOptions } from "@/server/modules/runtime/public/handbook";
 import styles from "./services.module.css";
 import { Card } from "@/components/ui/foundation";
 export function HandbookEditor({

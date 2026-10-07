@@ -1,9 +1,9 @@
-import { requestedHoldingScope, requireWorkContext } from "@/server/authorization";
-import { readSeatForecastBaseline } from "@/server/billing-forecast";
-import { ApiError, errorResponse } from "@/server/http";
-import { holdingResources, runtimeEnv } from "@/server/runtime";
-import type { PostgresDatabase } from "@/server/runtime/postgres";
-import { requireCompanyAuthority } from "@/server/staff-policy";
+import { requestedHoldingScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { readSeatForecastBaseline } from "@/server/modules/billing/public/billing-forecast";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { holdingResources, runtimeEnv } from "@/server/modules/runtime/public/runtime";
+import type { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
+import { requireCompanyAuthority } from "@/server/modules/operations/public/staff-policy";
 
 export async function GET(_request: Request, context: { params: Promise<{ holdingSlug: string }> }) {
   try {

@@ -8,7 +8,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
 import { marketingAssetDraft, marketingAssetEditorSchema } from "@/lib/marketing-editor";
-import type { marketingDetail, marketingWorkspace } from "@/server/marketing";
+import type { marketingDetail, marketingWorkspace } from "@/server/modules/marketing/public/marketing";
 import { FormLayout, Card } from "@/components/ui/foundation";
 function displayMinor(minor: string, currency: string) {
   const amount = BigInt(minor),

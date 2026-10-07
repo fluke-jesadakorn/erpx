@@ -1,10 +1,11 @@
-import { requireWorkContext } from "@/server/authorization";
-import { holdingResources } from "@/server/runtime";
-import { errorResponse, ApiError } from "@/server/http";
-import { requestPublicOrigin } from "@/server/public-origin";
-import { isTransactionalSqlDatabase } from "@/server/runtime/types";
-import { inboxPage, inboxSummary, sendNotice, changeInboxState } from "@/server/inbox";
-import { messagingPeople } from "@/server/messaging";
+import {sentNoticeRows,sentNoticeRow,sentNoticeDeliveryCount} from '@/server/modules/collaboration/public/people-app-entrypoint-facts';
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { errorResponse, ApiError } from "@/server/modules/runtime/public/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { isTransactionalSqlDatabase } from "@/server/modules/runtime/public/runtime/types";
+import { inboxPage, inboxSummary, sendNotice, changeInboxState } from "@/server/modules/collaboration/public/inbox";
+import { messagingPeople } from "@/server/modules/collaboration/public/messaging";
 
 export const dynamic = "force-dynamic";
 type Context={params:Promise<{holdingSlug:string;path?:string[]}>};
@@ -23,19 +24,13 @@ export async function GET(request:Request,context:Context){
     if(path.length===1&&path[0]==="summary")return response(await inboxSummary(write,actor));
     if(path.length===1&&path[0]==="people")return response(await messagingPeople(write,actor,q.get("q")??""));
     if(path.length===1&&path[0]==="notices"){
-      const notices=(await write.prepare(`SELECT n.id,n.title,n.recipient_count accepted_count,n.created_at,
-        (SELECT count(*)::int FROM inbox_deliveries d JOIN inbox_events e ON e.id=d.event_id
-         WHERE e.company_id=n.company_id AND e.event_key='notice:'||n.id) delivered_count
-        FROM inbox_notices n WHERE n.company_id=? AND n.sender_user_id=? ORDER BY n.created_at DESC,n.id DESC LIMIT 50`)
-        .bind(actor.companyId,actor.userId).all()).results;
+      const notices=(await sentNoticeRows(write,actor.companyId,actor.userId)).results;
       return response(notices);
     }
     if(path.length===2&&path[0]==="notices"){
-      const notice=await write.prepare("SELECT id,title,body,recipient_count,created_at FROM inbox_notices WHERE id=? AND company_id=? AND sender_user_id=?")
-        .bind(path[1],actor.companyId,actor.userId).first<Record<string,unknown>>();
+      const notice=await sentNoticeRow(write,path[1],actor.companyId,actor.userId);
       if(!notice)throw new ApiError(404,"NOTICE_NOT_FOUND","Notice unavailable.");
-      const delivery=await write.prepare(`SELECT count(*)::int n FROM inbox_deliveries d JOIN inbox_events e ON e.id=d.event_id
-        WHERE e.company_id=? AND e.event_key=?`).bind(actor.companyId,`notice:${path[1]}`).first<{n:number}>();
+      const delivery=await sentNoticeDeliveryCount(write,actor.companyId,`notice:${path[1]}`);
       return response({...notice,acceptedCount:notice.recipient_count,completedCount:delivery?.n??0});
     }
     throw new ApiError(404,"INBOX_RESOURCE_NOT_FOUND","Inbox resource not found.");

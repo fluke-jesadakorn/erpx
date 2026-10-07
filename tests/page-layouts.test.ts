@@ -33,7 +33,7 @@ vi.mock("../src/server/authorization", () => ({
   publicScope: (work: WorkContext) => work.scope,
 
 }));
-vi.mock("../src/server/navigation-context", () => ({ navigationContext: async () => ({
+vi.mock("../src/server/modules/work_projection/public/navigation-context", () => ({ navigationContext: async () => ({
   workspaceBase: "/holdings/test", scopeKind: "holding", role: actor.role,
   adminSections: ["people", "organization"], executiveVisible: true,
 }) }));
@@ -383,4 +383,18 @@ it("persists Executive layout geometry and visibility", async () => {
   const saved = await request({ action: "save", expectedVersion: 0, layout: value }, undefined, "executive");
   expect(saved.status).toBe(200);
   expect((await request(undefined, undefined, "executive")).data.personal).toEqual(value);
+});
+
+it("rolls back layout and IAM assertion changes when final receipt storage fails, then retries and replays once",async()=>{
+ const command=crypto.randomUUID(),body={action:"save",expectedVersion:0,layout:layout(true)},fault=`work_layout_receipt_fault_${crypto.randomUUID().replaceAll("-","")}`;
+ const rows=async()=>Promise.all([
+  env.H001_DB.prepare("SELECT * FROM page_layouts WHERE company_id=? AND owner_id=? ORDER BY workspace_base,page_key").bind(actor.companyId,user).all().then(value=>value.results),
+  env.H001_DB.prepare("SELECT * FROM page_layout_receipts WHERE actor_id=? ORDER BY id").bind(user).all().then(value=>value.results),
+  env.H001_DB.prepare("SELECT * FROM command_assertions WHERE command_id=? ORDER BY step").bind(command).all().then(value=>value.results),
+ ]),before=await rows();
+ await env.H001_DB.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'WORK_LAYOUT_FINAL_RECEIPT' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON page_layout_receipts FOR EACH ROW WHEN(NEW.id='${command}') EXECUTE FUNCTION ${fault}();`);
+ try{expect((await request(body,command)).status).toBe(500);expect(await rows()).toEqual(before);}finally{await env.H001_DB.exec(`DROP TRIGGER ${fault} ON page_layout_receipts;DROP FUNCTION ${fault}();`);}
+ const first=await request(body,command);expect(first.status).toBe(200);expect(first.data).toMatchObject({version:1,personal:layout(true)});expect(await request(body,command)).toEqual(first);
+ expect(await env.H001_DB.prepare("SELECT count(*) n FROM page_layout_receipts WHERE id=?").bind(command).first("n")).toBe(1);
+ expect(await env.H001_DB.prepare("SELECT count(*) n FROM command_assertions WHERE command_id=?").bind(command).first("n")).toBe(0);
 });

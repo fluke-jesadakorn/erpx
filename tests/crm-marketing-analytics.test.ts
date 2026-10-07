@@ -75,7 +75,7 @@ it('reports first and last touch separately and leaves ROI empty without linked 
  const form=await createMarketingAsset(creator,{kind:'form',name:'Hotel inquiry form',configuration:{consentRequired:true},preview:{headline:'Contact us'}},key());
  await changeMarketing(reviewer,'asset',form.id,{action:'activate',expectedVersion:1,reason:'Reviewed consent requirements'},key());
  const candidate=await createMarketingCandidate(creator,{formId:form.id,formVersion:2,branchId:f.branch,contactName:'Guest inquiry',contactDetail:'A recorded phone contact',consentEvidence:'Consent recorded on the form',attribution:{campaignId:first.id,campaign:'First touch',source:'web'},brief:'Guest is considering a room.'},key());
- const handoff=await changeMarketing(reviewer,'candidate',candidate.id,{action:'handoff',expectedVersion:1,reason:'Reviewed consent and source',dueDate:date},key());
+ const handoff=await changeMarketing(reviewer,'candidate',candidate.id,{action:'handoff',expectedVersion:1,reason:'Reviewed consent and source',dueDate:date},key());if(typeof handoff.crmLeadId!=='string')throw new Error('CRM handoff did not create a lead');
  await db.prepare('INSERT INTO marketing_touches(id,company_id,lead_id,campaign_id,source,evidence,source_kind,source_id,occurred_at,created_by) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(key(),f.company,handoff.crmLeadId,last.id,'hotel','Staff recorded later campaign code','pms',key(),Date.now()+1000,reviewer.userId).run();
  const before=await marketingAnalytics(creator,range);
  expect(before.firstTouch.find(x=>x.campaignId===first.id)).toMatchObject({leads:1,costMinor:null,roi:null});

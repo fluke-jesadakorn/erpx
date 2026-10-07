@@ -1,6 +1,6 @@
-import { requireWorkContext } from "@/server/authorization";
-import { ApiError, errorResponse } from "@/server/http";
-import { leaveCalendarMonth } from "@/server/leave-self-service";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { leaveCalendarMonth } from "@/server/modules/people_payroll/public/leave-self-service";
 
 export const dynamic = "force-dynamic";
 

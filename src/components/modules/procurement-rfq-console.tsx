@@ -20,7 +20,7 @@ import {
   AttachmentPanel,
   type AttachmentPanelChange,
 } from "@/components/attachments/attachment-panel";
-import type { rfqDetail, rfqWorkspace } from "@/server/procurement-rfqs";
+import type { rfqDetail, rfqWorkspace } from "@/server/modules/procurement/public/procurement-rfqs";
 import { Card, FormGrid, FormLayout } from "@/components/ui/foundation";
 type Workspace = Awaited<ReturnType<typeof rfqWorkspace>>;
 type RequestSource = {

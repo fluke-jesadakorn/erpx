@@ -8,7 +8,7 @@ import {useRouter} from "next/navigation";
 import {Button,Field,Select,TextArea,TextInput} from "@/components/ui/foundation";
 import {TimeText} from "@/components/time/time-preference-context";
 import {workFetch} from "@/lib/work-fetch";
-import type {BrandIdentity,brandIdentityWorkspace} from "@/server/brand-identity";
+import type {BrandIdentity,brandIdentityWorkspace} from "@/server/modules/brand/public/brand-identity";
 import { FormLayout, Card } from "@/components/ui/foundation";
 type Data=Awaited<ReturnType<typeof brandIdentityWorkspace>>;
 export function BrandIdentityConsole({base,data,recordOnly=false}:{base:string;data:Data;recordOnly?:boolean}){

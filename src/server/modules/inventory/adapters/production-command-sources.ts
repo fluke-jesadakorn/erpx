@@ -1,0 +1,9 @@
+import {inventoryQualityHoldReadSource} from '../../quality/public/inventory-hold-read-source';
+import {productionReadProjection as productionmanufacturingProjection} from '../../manufacturing/public/production-read-projections';
+import type {SqlDatabase} from '../../runtime/public/runtime/types';import type {Row} from '../../commerce/public/commerce';import {assertion} from '../../workflow/public/commands';export function productionCommandSources(db:SqlDatabase){return {
+guardIssueDate(key:string,value:string,warehouse_id:string | number | null,product_id:string | number | null,entryDate:string){return assertion(db, key, value, "NOT EXISTS(SELECT 1 FROM inventory_ledger WHERE warehouse_id=? AND product_id=? AND movement_date>?)", [warehouse_id, product_id, entryDate]);},
+guardOutputDate(key:string,value:"output-movement-date",warehouse_id:string | number | null,output_product_id:string | number | null,entryDate:string){return assertion(db, key, value, "NOT EXISTS(SELECT 1 FROM inventory_ledger WHERE warehouse_id=? AND product_id=? AND movement_date>?)", [warehouse_id, output_product_id, entryDate]);},
+async availableMaterialLots(specification_id:string | number | null,companyId:string,warehouse_id:string | number | null){return db.prepare(`SELECT l.*,b.quantity_milli,b.version balance_version FROM inventory_lots l JOIN inventory_lot_balances b ON b.lot_id=l.id
+      ${productionmanufacturingProjection.materialSpecification} WHERE ml.specification_id=? AND l.company_id=? AND b.warehouse_id=? AND b.quantity_milli>0
+      AND NOT EXISTS(SELECT 1 ${inventoryQualityHoldReadSource()} WHERE h.warehouse_id=b.warehouse_id AND (h.lot_id=l.id OR (h.lot_id IS NULL AND h.product_id=l.product_id)) AND h.status NOT IN ('released','cancelled','disposed')) ORDER BY l.expiry_date NULLS LAST,l.id`)
+      .bind(specification_id, companyId, warehouse_id).all<Row>();}};}

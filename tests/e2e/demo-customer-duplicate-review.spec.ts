@@ -61,35 +61,47 @@ test("isolated demo independently reviews and merges duplicate customers", async
   let reviewId = "";
   try {
     await signInRole(requesterContext, requesterPage, credentials, "holding_owner", listPath);
-    await expect(requesterPage.getByRole("heading", { name: "Customer duplicate reviews", exact: true })).toBeVisible();
-    await requesterPage.locator('#workspace-content').getByLabel("First customer").selectOption(duplicateIds![0]);
-    await requesterPage.locator('#workspace-content').getByLabel("Second customer").selectOption(duplicateIds![1]);
-    await requesterPage.locator('#workspace-content').getByLabel("Evidence and reason").fill(
+    const reviewWorkspace = requesterPage.locator("#workspace-content:visible");
+    await expect(reviewWorkspace).toHaveCount(1);
+    await expect(reviewWorkspace.getByRole("heading", { name: "Customers", exact: true, level: 1 })).toBeVisible();
+    await expect(reviewWorkspace.getByRole("navigation", { name: "Customer review type", exact: true }).getByRole("link", { name: "Duplicates", exact: true })).toHaveAttribute("aria-current", "page");
+    await reviewWorkspace.getByRole("link", { name: "New review request", exact: true }).click();
+    const reviewDrawer = requesterPage.getByRole("dialog", { name: "New review request", exact: true });
+    await expect(reviewDrawer).toBeVisible();
+    await reviewDrawer.getByLabel("First customer").selectOption(duplicateIds![0]);
+    await reviewDrawer.getByLabel("Second customer").selectOption(duplicateIds![1]);
+    await reviewDrawer.getByLabel("Evidence and reason").fill(
       "Matching simulated tax registration and near-matching legal names require independent identity review.",
     );
     const requestResponsePromise = requesterPage.waitForResponse(
       (response) => response.url().includes("/api/v1/holdings/simulation/customer-duplicates") && response.request().method() === "POST",
     );
-    await requesterPage.getByRole("button", { name: "Send for independent review", exact: true }).click();
+    await reviewDrawer.getByRole("button", { name: "Send for independent review", exact: true }).click();
     const requestResponse = await requestResponsePromise;
     expect(requestResponse.ok(), await requestResponse.text()).toBe(true);
     const requestResult = (await requestResponse.json()).data;
     reviewId = String(requestResult.id);
     expect(requestResult).toMatchObject({ version: 1, status: "pending" });
+    await expect(reviewDrawer).not.toBeVisible();
+    const requestedReview = requesterPage.getByTestId("record-detail-drawer").filter({ visible: true });
+    await expect(requestedReview).toHaveCount(1);
+    const fullReview = requestedReview.getByRole("link", { name: "Open full page ↗", exact: true });
+    await expect(fullReview).toHaveAttribute("href", `${listPath}/${reviewId}`);
+    await fullReview.click();
     await expect(requesterPage).toHaveURL(new RegExp(`${listPath}/${reviewId}$`));
     await expect(requesterPage.getByRole("table", { name: "Customer identity comparison" })).toContainText("SIM-DUP-A");
     await expect(requesterPage.getByRole("table", { name: "Customer identity comparison" })).toContainText("SIM-DUP-B");
     await expect(requesterPage.getByRole("table", { name: "Customer identity comparison" })).toContainText("SIM-TAX-204812340001");
-    const comparison = requesterPage.locator("#workspace-content section.card").filter({ has: requesterPage.getByRole("heading", { name: "Compare customer records" }) });
+    const comparison = requesterPage.locator("#workspace-content:visible section.ui-panel:visible").filter({ has: requesterPage.getByRole("heading", { name: "Compare customer records" }) });
     await expect(comparison.getByText(/Matching simulated tax registration/)).toBeVisible();
     await expect(requesterPage.getByRole("button", { name: "Record independent decision", exact: true })).toHaveCount(0);
     await expect(requesterPage.getByRole("heading", { name: "Identity decision", exact: true })).toHaveCount(0);
 
     await signInRole(reviewerContext, reviewerPage, credentials, "sales_manager", `${base}/customer-duplicates/${reviewId}`);
     await expect(reviewerPage.getByRole("table", { name: "Customer identity comparison" })).toContainText("SIM-TAX-204812340001");
-    await reviewerPage.locator('#workspace-content').getByLabel("Decision").selectOption("duplicate");
-    await reviewerPage.locator('#workspace-content').getByLabel("Canonical record").selectOption(duplicateIds![0]);
-    await reviewerPage.locator('#workspace-content').getByLabel("Evidence and reason").fill(
+    await reviewerPage.locator('#workspace-content:visible').getByLabel("Decision").selectOption("duplicate");
+    await reviewerPage.locator('#workspace-content:visible').getByLabel("Canonical record").selectOption(duplicateIds![0]);
+    await reviewerPage.locator('#workspace-content:visible').getByLabel("Evidence and reason").fill(
       "Compared both company records and retained the first customer master as canonical.",
     );
     const decisionResponsePromise = reviewerPage.waitForResponse(
@@ -102,14 +114,14 @@ test("isolated demo independently reviews and merges duplicate customers", async
       version: 2,
       status: "duplicate",
     });
-    await expect(reviewerPage.locator("#workspace-content").getByText(new RegExp(`duplicate · canonical ${duplicateIds![0]}`))).toBeVisible();
-    await expect(reviewerPage.locator("#workspace-content").getByText(/Version 2 · duplicate · Compared both company records/)).toBeVisible();
+    await expect(reviewerPage.locator("#workspace-content:visible").getByText(new RegExp(`duplicate · canonical ${duplicateIds![0]}`))).toBeVisible();
+    await expect(reviewerPage.locator("#workspace-content:visible").getByText(/Version 2 · duplicate · Compared both company records/)).toBeVisible();
 
     reviewerPage.once("dialog", async (dialog) => {
       expect(dialog.message()).toContain("Merge safe source records");
       await dialog.accept();
     });
-    const mergeForm = reviewerPage.locator("#workspace-content form").filter({ has: reviewerPage.getByRole("button", { name: "Merge into canonical customer", exact: true }) });
+    const mergeForm = reviewerPage.locator("#workspace-content:visible form").filter({ has: reviewerPage.getByRole("button", { name: "Merge into canonical customer", exact: true }) });
     await mergeForm.getByLabel("Evidence and reason").fill(
       "Merged the eligible quotation into the selected canonical customer after reviewing source ownership.",
     );
@@ -125,8 +137,8 @@ test("isolated demo independently reviews and merges duplicate customers", async
       canonicalCustomerId: duplicateIds![0],
       mergedCustomerId: duplicateIds![1],
     });
-    await expect(reviewerPage.locator("#workspace-content").getByText(/merged · canonical/)).toBeVisible();
-    await expect(reviewerPage.locator("#workspace-content").getByText(/Version 3 · merge · Merged the eligible quotation/)).toBeVisible();
+    await expect(reviewerPage.locator("#workspace-content:visible").getByText(/merged · canonical/)).toBeVisible();
+    await expect(reviewerPage.locator("#workspace-content:visible").getByText(/Version 3 · merge · Merged the eligible quotation/)).toBeVisible();
     await expect(reviewerPage.getByRole("heading", { name: "Identity decision", exact: true })).toHaveCount(0);
 
     const detailResponse = await reviewerContext.request.get(`${base.replace("/holdings/", "/api/v1/holdings/")}/customer-duplicates?id=${encodeURIComponent(reviewId)}`);
@@ -141,12 +153,26 @@ test("isolated demo independently reviews and merges duplicate customers", async
 
     await reviewerPage.goto(`${base}/customers/${duplicateIds![0]}`, { waitUntil: "commit" });
     await expect(reviewerPage.getByRole("heading", { name: "Demo Harbor Logistics", exact: true })).toBeVisible();
-    const sourceActivity = reviewerPage.locator("#workspace-content section.card").filter({ hasText: "Visible source activity" });
-    await expect(sourceActivity.getByRole("link").filter({ hasText: /quote ·/i })).toHaveAttribute(
+    const sourceActivity = reviewerPage.locator("#workspace-content:visible section").filter({ has: reviewerPage.getByRole("heading", { name: "Pending work", exact: true }) });
+    await expect(sourceActivity).toHaveCount(1);
+    await expect(sourceActivity.getByRole("link").filter({ hasText: /Quotation ·/ })).toHaveAttribute(
       "href",
-      new RegExp(`/commerce/orders/${quotationId}$`),
+      new RegExp(`/commerce/orders/${quotationId}\\?view=quote$`),
     );
-    await expect(reviewerPage.locator("#workspace-content").getByText("SIM-DUP-A · Internal service timeline", { exact: true })).toBeVisible();
+    const customerHeader = reviewerPage.locator("#workspace-content:visible header").filter({ has: reviewerPage.getByRole("heading", { name: "Demo Harbor Logistics", exact: true }) });
+    await expect(customerHeader).toHaveCount(1);
+    await expect(customerHeader).toContainText("SIM-DUP-A");
+    const historyHref = `${base}/customers/${duplicateIds![0]}?section=history`;
+    const historyLink = reviewerPage.locator("#workspace-content:visible").getByRole("navigation", { name: "Customer profile views", exact: true }).getByRole("link", { name: "History", exact: true });
+    await expect(historyLink).toHaveAttribute("href", historyHref);
+    await historyLink.click();
+    const historyDrawer = reviewerPage.getByTestId("record-detail-drawer").filter({ visible: true });
+    await expect(historyDrawer).toHaveCount(1);
+    const fullHistory = historyDrawer.getByRole("link", { name: "Open full page ↗", exact: true });
+    await expect(fullHistory).toHaveAttribute("href", historyHref);
+    await fullHistory.click();
+    await expect(reviewerPage).toHaveURL(new URL(historyHref, reviewerPage.url()).href);
+    await expect(reviewerPage.locator("#workspace-content:visible").getByRole("heading", { name: "Customer history", exact: true })).toBeVisible();
     await reviewerPage.evaluate(() => window.scrollTo(0, 0));
 
     await testInfo.attach("customer-duplicate-review-result", {

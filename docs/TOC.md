@@ -6,6 +6,7 @@ Reviewed 2026-10-03. This is the single entry point. [Production plan](productio
 
 - [Start and verify](../README.md), [developer instructions](../AGENTS.md), [local development seed](local-seed.md)
 - [Current owner contracts](contracts/next/README.md), [33-module catalogue workflows](contracts/next/catalogue.md), [route reference](contracts/next/route-table.md)
+- [Service boundaries and isolated verification](contracts/next/service-boundaries.md)
 - [Executive remote MCP and agent connection guide](contracts/next/executive-mcp.md)
 - [Record detail drawers](contracts/next/record-drawers.md), [record/table coverage](contracts/next/record-drawer-inventory.json)
 - [Business glossary](../CONTEXT.md), [architecture decisions](adr/README.md), [contract compatibility policy](../CONTRACT_POLICY.md)

@@ -4,6 +4,9 @@ import { readFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { resolve } from 'node:path';
+import {pinnedBunBinary} from '../../scripts/testing/runtime-tooling';
+import {browserChildEnvironment} from '../../scripts/testing/runner-environment';
+import {browserPrerequisites} from '../../scripts/testing/browser-prerequisites';
 import { createHash } from 'node:crypto';
 import { Document, Packer, Paragraph } from 'docx';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
@@ -60,7 +63,7 @@ async function submitUi(page:Page,name:string){
   await page.getByRole('button',{name,exact:true}).click();await checked(await result);
 }
 
-test('UAT-02/03/09/23: request from Today restores a Thai draft, routes to Legal and uses current scope',async({browser},testInfo)=>{
+test('UAT-02/03/09/23: request from Today restores a Thai draft, routes to Legal and uses current scope',browserPrerequisites(),async({browser},testInfo)=>{
   test.setTimeout(180_000);const {credentials,guide}=await fixture();
   const requester=credentials.users.find(user=>user.key==='A:requester')!,manager=credentials.users.find(user=>user.key==='A:manager')!;
   const context=await createEngineeringBrowserContext(browser,testInfo),team=await createEngineeringBrowserContext(browser,testInfo);
@@ -117,7 +120,7 @@ test('UAT-02/03/09/23: request from Today restores a Thai draft, routes to Legal
   }finally{await context.close();await team.close();}
 });
 
-test('UAT-04/05/06/07: ordered independent approval and signed-copy review preserve distinct originals',async({browser},testInfo)=>{
+test('UAT-04/05/06/07: ordered independent approval and signed-copy review preserve distinct originals',browserPrerequisites(),async({browser},testInfo)=>{
   test.setTimeout(240_000);const {credentials,guide}=await fixture();
   const manager=credentials.users.find(user=>user.key==='A:manager')!,first=credentials.users.find(user=>user.key==='A:reviewer-1')!,second=credentials.users.find(user=>user.key==='A:reviewer-2')!;
   const contexts=await Promise.all([manager,first,second].map(()=>createEngineeringBrowserContext(browser,testInfo)));
@@ -191,7 +194,7 @@ test('UAT-04/05/06/07: ordered independent approval and signed-copy review prese
   }finally{await Promise.all(contexts.map(context=>context.close()));}
 });
 
-test('UAT-08/09/20/21/25: Companies and Holdings stay scoped, pending law stays out of search and readiness stays pending',async({browser},testInfo)=>{
+test('UAT-08/09/20/21/25: Companies and Holdings stay scoped, pending law stays out of search and readiness stays pending',browserPrerequisites(),async({browser},testInfo)=>{
   test.setTimeout(180_000);const {credentials,guide}=await fixture();
   const manager=credentials.users.find(user=>user.key==='A:manager')!,other=credentials.users.find(user=>user.key==='C:manager')!,owner=credentials.users.find(user=>user.key==='A:owner')!;
   const contexts=await Promise.all([manager,other,owner].map(()=>createEngineeringBrowserContext(browser,testInfo)));
@@ -237,7 +240,7 @@ test('UAT-08/09/20/21/25: Companies and Holdings stay scoped, pending law stays 
   }finally{await Promise.all(contexts.map(context=>context.close()));}
 });
 
-test('UAT-03/09: current Company, department, reviewer role and revoked assignment determine eligible recipients',async({browser},testInfo)=>{
+test('UAT-03/09: current Company, department, reviewer role and revoked assignment determine eligible recipients',browserPrerequisites(),async({browser},testInfo)=>{
  test.setTimeout(180_000);const {credentials,guide}=await fixture(),requester=credentials.users.find(user=>user.key==='A:department-requester')!,manager=credentials.users.find(user=>user.key==='A:manager')!,reviewer=credentials.users.find(user=>user.key==='A:reviewer-1')!;
  const contexts=await Promise.all([requester,manager,reviewer].map(()=>createEngineeringBrowserContext(browser,testInfo)));
  try{
@@ -257,7 +260,7 @@ test('UAT-03/09: current Company, department, reviewer role and revoked assignme
  }finally{await Promise.all(contexts.map(context=>context.close()));}
 });
 
-test('UAT-01: Company forms and templates require independent review before they can affect an operational draft',async({browser},testInfo)=>{
+test('UAT-01: Company forms and templates require independent review before they can affect an operational draft',browserPrerequisites(),async({browser},testInfo)=>{
  test.setTimeout(180_000);const {credentials}=await fixture(),manager=credentials.users.find(user=>user.key==='A:manager')!,reviewer=credentials.users.find(user=>user.key==='A:policy-reviewer')!,foreign=credentials.users.find(user=>user.key==='C:manager')!;
  const contexts=await Promise.all([manager,reviewer,foreign].map(()=>createEngineeringBrowserContext(browser,testInfo)));
  try{
@@ -283,7 +286,7 @@ test('UAT-01: Company forms and templates require independent review before they
  }finally{await Promise.all(contexts.map(context=>context.close()));}
 });
 
-test('UAT-10/21: scanned Thai DOCX retains its original checksum and enters retrieval only after independent text review',async({browser},testInfo)=>{
+test('UAT-10/21: scanned Thai DOCX retains its original checksum and enters retrieval only after independent text review',browserPrerequisites(),async({browser},testInfo)=>{
  test.setTimeout(240_000);const {credentials}=await fixture(),manager=credentials.users.find(user=>user.key==='A:manager')!,reviewer=credentials.users.find(user=>user.key==='A:reviewer-1')!;
  const contexts=await Promise.all([manager,reviewer].map(()=>createEngineeringBrowserContext(browser,testInfo)));
  try{
@@ -311,7 +314,7 @@ test('UAT-10/21: scanned Thai DOCX retains its original checksum and enters retr
  }finally{await Promise.all(contexts.map(context=>context.close()));}
 });
 
-test('UAT-12/13/16: reviewed dates and typed case, corporate and IP actions retain scoped evidence and filing corrections',async({browser},testInfo)=>{
+test('UAT-12/13/16: reviewed dates and typed case, corporate and IP actions retain scoped evidence and filing corrections',browserPrerequisites(),async({browser},testInfo)=>{
  test.setTimeout(240_000);const {credentials}=await fixture(),manager=credentials.users.find(user=>user.key==='A:manager')!,reviewer=credentials.users.find(user=>user.key==='A:reviewer-1')!;
  const contexts=await Promise.all([manager,reviewer].map(()=>createEngineeringBrowserContext(browser,testInfo)));
  try{
@@ -342,7 +345,7 @@ test('UAT-12/13/16: reviewed dates and typed case, corporate and IP actions reta
  }finally{await Promise.all(contexts.map(context=>context.close()));}
 });
 
-test('UAT-14/15: DSAR clarification and breach known-event time require typed independent response review',async({browser},testInfo)=>{
+test('UAT-14/15: DSAR clarification and breach known-event time require typed independent response review',browserPrerequisites(),async({browser},testInfo)=>{
  test.setTimeout(240_000);const {credentials}=await fixture(),manager=credentials.users.find(user=>user.key==='A:manager')!,reviewer=credentials.users.find(user=>user.key==='A:reviewer-1')!;
  const contexts=await Promise.all([manager,reviewer].map(()=>createEngineeringBrowserContext(browser,testInfo)));
  try{
@@ -360,7 +363,7 @@ test('UAT-14/15: DSAR clarification and breach known-event time require typed in
  }finally{await Promise.all(contexts.map(context=>context.close()));}
 });
 
-test('UAT-17: external counsel sees only the shared revision and sends one reviewed spending request to Finance',async({browser},testInfo)=>{
+test('UAT-17: external counsel sees only the shared revision and sends one reviewed spending request to Finance',browserPrerequisites(),async({browser},testInfo)=>{
  test.setTimeout(180_000);const {credentials}=await fixture(),manager=credentials.users.find(user=>user.key==='A:manager')!,reviewer=credentials.users.find(user=>user.key==='A:policy-reviewer')!,outside=credentials.users.find(user=>user.key==='A:outsider')!,other=credentials.users.find(user=>user.key==='B:outsider')!,finance=credentials.users.find(user=>user.key==='A:finance')!;
  const people=[manager,reviewer,outside,other,finance],contexts=await Promise.all(people.map(()=>createEngineeringBrowserContext(browser,testInfo)));
  try{
@@ -391,7 +394,7 @@ test('UAT-17: external counsel sees only the shared revision and sends one revie
  }finally{await Promise.all(contexts.map(context=>context.close()));}
 });
 
-test('UAT-18: cyclic evidence links retain both holds and releasing one preserves the other original',async({browser},testInfo)=>{
+test('UAT-18: cyclic evidence links retain both holds and releasing one preserves the other original',browserPrerequisites(),async({browser},testInfo)=>{
  test.setTimeout(180_000);const {credentials,guide}=await fixture(),manager=credentials.users.find(user=>user.key==='A:manager')!,reviewer=credentials.users.find(user=>user.key==='A:reviewer-1')!;
  const contexts=await Promise.all([manager,reviewer].map(()=>createEngineeringBrowserContext(browser,testInfo)));
  try{
@@ -404,14 +407,14 @@ test('UAT-18: cyclic evidence links retain both holds and releasing one preserve
   expect((await record(owner,manager,first.id)).holds).toHaveLength(2);expect((await record(owner,manager,second.id)).holds).toHaveLength(2);
   const release=(await record(owner,manager,second.id)).holds.find((hold:{direct:boolean})=>hold.direct);await currentCommand(owner,manager,second.id,'hold.request-release',{holdId:release.id,reason:'Only the second fictional dispute has ended'});await refusedCommand(owner,manager,second.id,'hold.release',{holdId:release.id,reason:'Author cannot release their own hold'},403);await currentCommand(independent,reviewer,second.id,'hold.release',{holdId:release.id,reason:'Independent release of the second dispute only'});
   for(const item of [first,second]){const retained=await record(owner,manager,item.id);expect(retained.holds).toHaveLength(1);expect(retained.holds[0].reason).toBe('Synthetic first dispute preservation');}
-  const directory=resolve('.runtime/browser',run!);await promisify(execFile)(resolve('.runtime/bun-1.2.17/bun-darwin-aarch64/bun'),['scripts/local/run-server-script.ts','scripts/fixtures/legal-isolated-destruction-uat.ts',run!,'hold',second.id],{cwd:resolve('.'),timeout:90_000,env:{...process.env,NODE_ENV:'development',ERPX_ENVIRONMENT:'local',ERPX_DATA_DIR:directory,ERPX_DATABASE_MANIFEST:resolve(directory,'databases.json')}});
+  const directory=resolve('.runtime/browser',run!);await promisify(execFile)(pinnedBunBinary(resolve('.')),['--env-file=/dev/null','scripts/local/run-server-script.ts','scripts/fixtures/legal-isolated-destruction-uat.ts',run!,'hold',second.id],{cwd:resolve('.'),timeout:90_000,env:browserChildEnvironment(process.env,{NODE_ENV:'development',ERPX_ENVIRONMENT:'local',ERPX_DATA_DIR:directory,ERPX_DATABASE_MANIFEST:resolve(directory,'databases.json')})});
   const preservation=JSON.parse(await readFile(resolve(directory,`legal-preservation-${second.id}-hold.json`),'utf8'));expect(preservation).toMatchObject({scope:'isolated-engineering',run,itemId:second.id,remainingHolds:1,originalSha256:originalHash,deleteRefused:true,replacementRefused:true});expect(preservation.codes).toEqual(['LEGAL_HOLD_BLOCKS_FILE_MUTATION','LEGAL_HOLD_BLOCKS_FILE_MUTATION']);
   const download=await owner.request.get(`/api/v1${base(manager)}/legal/documents/${document.id}`);expect(download.status()).toBe(200);expect(createHash('sha256').update(await download.body()).digest('hex')).toBe(originalHash);
   const page=await independent.newPage();await open(page,reviewer,second.id);await page.getByRole('button',{name:'Holds',exact:true}).click();await expect(page.locator('#workspace-content').getByText('Synthetic first dispute preservation',{exact:true})).toBeVisible();await page.reload();expect((await record(independent,reviewer,second.id)).holds).toHaveLength(1);await page.screenshot({path:testInfo.outputPath('remaining-overlapping-hold.png'),fullPage:true});
  }finally{await Promise.all(contexts.map(context=>context.close()));}
 });
 
-test('UAT-23/24: repeated and concurrent imports preserve one atomic register with scoped exports and reload',async({browser},testInfo)=>{
+test('UAT-23/24: repeated and concurrent imports preserve one atomic register with scoped exports and reload',browserPrerequisites(),async({browser},testInfo)=>{
  test.setTimeout(180_000);const {credentials}=await fixture(),manager=credentials.users.find(user=>user.key==='A:manager')!,foreign=credentials.users.find(user=>user.key==='C:manager')!;
  const contexts=await Promise.all([manager,foreign].map(()=>createEngineeringBrowserContext(browser,testInfo)));
  try{
@@ -433,7 +436,7 @@ test('UAT-23/24: repeated and concurrent imports preserve one atomic register wi
 });
 
 
-test('UAT-19: independently approved canonical destruction resumes the same immutable manifest after an isolated interruption',async({browser},testInfo)=>{
+test('UAT-19: independently approved canonical destruction resumes the same immutable manifest after an isolated interruption',browserPrerequisites(),async({browser},testInfo)=>{
  test.setTimeout(240_000);const {credentials,guide}=await fixture(),manager=credentials.users.find(user=>user.key==='A:manager')!,reviewer=credentials.users.find(user=>user.key==='A:policy-reviewer')!,id=guide.records.A.retention;
  const contexts=await Promise.all([manager,reviewer].map(()=>createEngineeringBrowserContext(browser,testInfo)));
  try{
@@ -446,7 +449,7 @@ test('UAT-19: independently approved canonical destruction resumes the same immu
   await refusedCommand(owner,manager,id,'retention.approve',{requestId:request.id,confirmation:request.id,reason:'Self disposal approval forbidden'},403);
   await refusedCommand(independent,reviewer,id,'retention.approve',{requestId:request.id,confirmation:'wrong-manifest',reason:'Confirm only the reviewed request identity'},422);
   await currentCommand(independent,reviewer,id,'retention.approve',{requestId:request.id,confirmation:request.id,reason:'Independently authorize this exact synthetic manifest'});
-  const execute=promisify(execFile),directory=resolve('.runtime/browser',run!),drain=async(phase:string)=>execute(resolve('.runtime/bun-1.2.17/bun-darwin-aarch64/bun'),['scripts/local/run-server-script.ts','scripts/fixtures/legal-isolated-destruction-uat.ts',run!,phase,request.id],{cwd:resolve('.'),timeout:90_000,env:{...process.env,NODE_ENV:'development',ERPX_ENVIRONMENT:'local',ERPX_DATA_DIR:directory,ERPX_DATABASE_MANIFEST:resolve(directory,'databases.json')}});
+  const execute=promisify(execFile),directory=resolve('.runtime/browser',run!),drain=async(phase:string)=>execute(pinnedBunBinary(resolve('.')),['--env-file=/dev/null','scripts/local/run-server-script.ts','scripts/fixtures/legal-isolated-destruction-uat.ts',run!,phase,request.id],{cwd:resolve('.'),timeout:90_000,env:browserChildEnvironment(process.env,{NODE_ENV:'development',ERPX_ENVIRONMENT:'local',ERPX_DATA_DIR:directory,ERPX_DATABASE_MANIFEST:resolve(directory,'databases.json')})});
   await drain('fault');const interrupted=await checked(await owner.request.get(`${endpoint}/retention/${id}`));expect(interrupted.requests[0]).toMatchObject({id:request.id,state:'executing',error:'DESTRUCTION_REQUIRES_REVIEW',manifest:request.manifest});expect((await owner.request.get(`${endpoint}/documents/${original.id}`)).status()).toBe(409);
   await currentCommand(owner,manager,id,'retention.retry',{requestId:request.id,reason:'Resume the retained execution journal; do not replace the reviewed manifest'});await drain('resume');const completed=await checked(await owner.request.get(`${endpoint}/retention/${id}`));expect(completed.requests[0]).toMatchObject({id:request.id,state:'completed',error:null,manifest:request.manifest});expect((await owner.request.get(`${endpoint}/documents/${original.id}`)).status()).toBe(410);
   const fault=JSON.parse(await readFile(resolve(directory,`legal-destruction-${request.id}-fault.json`),'utf8')),recovery=JSON.parse(await readFile(resolve(directory,`legal-destruction-${request.id}-resume.json`),'utf8'));expect(recovery).toMatchObject({scope:'isolated-engineering',run,requestId:request.id,state:'completed',manifestSha256:fault.manifestSha256,sourceState:'destroyed',ledgerStored:0,certificateCount:1,remaining:0});expect(recovery.originalChecksums).toContain(original.checksum);
@@ -455,7 +458,7 @@ test('UAT-19: independently approved canonical destruction resumes the same immu
  }finally{await Promise.all(contexts.map(context=>context.close()));}
 });
 
-test('UAT-11/25: compiled workers notify the eligible owner and escalation reviewer once and recover without changing certification',async({browser},testInfo)=>{
+test('UAT-11/25: compiled workers notify the eligible owner and escalation reviewer once and recover without changing certification',browserPrerequisites('legal-worker'),async({browser},testInfo)=>{
  test.setTimeout(180_000);const {credentials,guide}=await fixture(),manager=credentials.users.find(user=>user.key==='A:manager')!,reviewer=credentials.users.find(user=>user.key==='A:reviewer-1')!,paused=credentials.users.find(user=>user.key==='B:manager')!;
  const contexts=await Promise.all([manager,reviewer,paused].map(()=>createEngineeringBrowserContext(browser,testInfo)));
  try{
@@ -471,7 +474,7 @@ test('UAT-11/25: compiled workers notify the eligible owner and escalation revie
  }finally{await Promise.all(contexts.map(context=>context.close()));}
 });
 
-test('UAT-26: encrypted restore and compatible rollback retain Legal originals, histories, ACLs, holds and queued job state',async({browser},testInfo)=>{
+test('UAT-26: encrypted restore and compatible rollback retain Legal originals, histories, ACLs, holds and queued job state',browserPrerequisites('encrypted-recovery'),async({browser},testInfo)=>{
  test.setTimeout(180_000);const {credentials,guide}=await fixture(),manager=credentials.users.find(user=>user.key==='A:manager')!,outside=credentials.users.find(user=>user.key==='A:outsider')!;
  const contexts=await Promise.all([manager,outside].map(()=>createEngineeringBrowserContext(browser,testInfo)));
  try{
@@ -482,7 +485,7 @@ test('UAT-26: encrypted restore and compatible rollback retain Legal originals, 
  }finally{await Promise.all(contexts.map(context=>context.close()));}
 });
 
-test('UAT-20/21: independently reviewed fixture revisions respect dates and conflicts and open exact authorized citations',async({browser},testInfo)=>{
+test('UAT-20/21: independently reviewed fixture revisions respect dates and conflicts and open exact authorized citations',browserPrerequisites(),async({browser},testInfo)=>{
  test.setTimeout(240_000);const {credentials,guide}=await fixture(),manager=credentials.users.find(user=>user.key==='A:manager')!,reviewer=credentials.users.find(user=>user.key==='A:policy-reviewer')!,outside=credentials.users.find(user=>user.key==='A:outsider')!;
  const contexts=await Promise.all([manager,reviewer,outside].map(()=>createEngineeringBrowserContext(browser,testInfo)));
  try{
@@ -503,7 +506,7 @@ test('UAT-20/21: independently reviewed fixture revisions respect dates and conf
  }finally{await Promise.all(contexts.map(context=>context.close()));}
 });
 
-test('UAT-22: unavailable Legal AI leaves untrusted evidence inert and a persisted manual document workflow available',async({browser},testInfo)=>{
+test('UAT-22: unavailable Legal AI leaves untrusted evidence inert and a persisted manual document workflow available',browserPrerequisites('legal-ai'),async({browser},testInfo)=>{
  test.setTimeout(180_000);const {credentials}=await fixture(),manager=credentials.users.find(user=>user.key==='A:manager')!;const context=await createEngineeringBrowserContext(browser,testInfo);
  try{
   await signIn(context,manager,credentials.password);

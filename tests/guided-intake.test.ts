@@ -4,7 +4,7 @@ import { expenseDb as db, expenseFixture, key } from "./helpers/expense-fixture"
 import { guidedIntakeHandoffKey, guidedIntakeInputSchema, saveGuidedIntakeHandoff } from "../src/lib/ai/guided-intake";
 import { guidedIntakeOptions, prepareGuidedIntake } from "../src/server/guided-intake";
 import {createAgent,createAgentVersion,createAgentAssignment,changeAgentRecord,changePrivateSession} from "../src/server/agent-governance";
-import type { AiEndpoint } from "../src/server/ai-transport";
+import type { AiEndpoint, AiMessage } from "../src/server/ai-transport";
 
 vi.mock("../src/server/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 const aiEnv = {AI_BASE_URL:"https://opencode.ai/zen/go/v1",AI_MODEL:"muse-spark-1.3-contributor",AI_API_KEY:"synthetic-key"};
@@ -87,8 +87,8 @@ async function assignedProposalAgent(){
   return {reviewer,version,assignment};
 }
 it("enforces the independently approved Agent prompt and source policy for reviewed field proposals",async()=>{
-  const {version}=await assignedProposalAgent(),generate=vi.fn(async(_endpoint:AiEndpoint,messages:{role:string;content:string}[])=>{
-    expect(messages.find(message=>message.content.includes(`Approved agent version ${version.id}`))?.content).toContain("Never submit a business command.");
+  const {version}=await assignedProposalAgent(),generate=vi.fn(async(_endpoint:AiEndpoint,messages:AiMessage[])=>{
+    expect(messages.find(message=>typeof message.content==='string'&&message.content.includes(`Approved agent version ${version.id}`))?.content).toContain("Never submit a business command.");
     return {result:{intent:"task",summary:"Review the proposed task",draft:{title:"Fictional task only"},sourceIds:[]},inputTokens:8,outputTokens:4};
   });
   const input=guidedIntakeInputSchema.parse({message:"Create a Fictional task only",contextPath:"/home"}),id=key();

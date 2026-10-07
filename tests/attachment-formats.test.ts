@@ -14,10 +14,10 @@ import { validMessagingSignature } from "../src/server/messaging-files";
 
 const execute=promisify(execFile);
 const repository=process.cwd();
-const scannerSocket=join(repository,".scratch/dev/clamav/clamd.sock");
-const scannerDatabase=join(repository,".scratch/dev/clamav/db");
-const heifEncoder="/opt/homebrew/opt/libheif/bin/heif-enc";
-const heifConverter="/opt/homebrew/opt/libheif/bin/heif-convert";
+const scannerSocket=process.env.ERPX_CLAMD_SOCKET??join(repository,".scratch/dev/clamav/clamd.sock");
+const scannerDatabase=process.env.ERPX_CLAMAV_DATABASE_DIR??join(repository,".scratch/dev/clamav/db");
+const heifEncoder=process.env.ERPX_HEIF_ENC??"/opt/homebrew/opt/libheif/bin/heif-enc";
+const heifConverter=process.env.ERPX_HEIF_CONVERT??"/opt/homebrew/opt/libheif/bin/heif-convert";
 
 (existsSync(scannerSocket)&&["daily.cvd","daily.cld"].some(name=>existsSync(join(scannerDatabase,name)))?describe:describe.skip)("real attachment scanner",()=>{
   const environment={...process.env,ERPX_ATTACHMENTS_V2:"true",ERPX_CLAMD_SOCKET:scannerSocket,ERPX_CLAMAV_DATABASE_DIR:scannerDatabase};

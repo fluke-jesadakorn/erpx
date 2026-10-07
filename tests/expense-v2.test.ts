@@ -391,6 +391,7 @@ it("denies alternate posting, settlement, other company access and ineligible re
       f.owner,
       String(current.invoice_id),
       {
+        attachmentSetIds: [],
         expectedVersion: 1,
         date: "2026-09-03",
         amount: "107",
@@ -483,4 +484,43 @@ it("keeps appointment authority when a separate work assignment changes scope", 
   expect(
     (await expenseRoute(db, f.company, f.claimant.userId)).blockedReason,
   ).toContain("branch");
+});
+
+it("rolls back the provided Finance reversal and Expense command on a final outbox fault, then retries and replays the same key", async () => {
+  const id = await f.claim();
+  await f.throughAccounts(id);
+  await f.action(f.manager, id, "approve");
+  const approved = await getExpense(f.manager, id);
+  await postExpense(f.manager, id, { expectedVersion: Number(approved.version), periodId: f.period, entryDate: "2026-09-02" }, key());
+  const posted = await getExpense(f.manager, id);
+  const command = key(), suffix = key().replaceAll("-", ""), failure = `expense_owner_outbox_${suffix}`;
+  const snapshot = async () => (await db.prepare(`SELECT jsonb_build_object(
+    'expense',to_jsonb(x),'invoice',to_jsonb(i),'journal',to_jsonb(j),
+    'originalLines',(SELECT jsonb_agg(to_jsonb(l) ORDER BY l.ordinal) FROM finance_journal_lines l WHERE l.journal_id=j.id),
+    'reversals',(SELECT count(*) FROM finance_journals r WHERE r.company_id=x.company_id AND r.source_type='expense_reversal' AND r.source_id=x.id),
+    'receipts',(SELECT count(*) FROM command_receipts WHERE command_id=?),
+    'audits',(SELECT count(*) FROM audit_events WHERE command_id=?),
+    'outbox',(SELECT count(*) FROM outbox_events WHERE command_id=?))::text snapshot
+    FROM finance_expenses x JOIN finance_invoices i ON i.id=x.invoice_id JOIN finance_journals j ON j.id=x.journal_id WHERE x.id=?`)
+    .bind(command, command, command, id).first<{ snapshot: string }>())!.snapshot;
+  const input = { expectedVersion: Number(posted.version), periodId: f.period, entryDate: "2026-09-03", reason: "Independent correction of the original unclaimed expense" };
+  const before = await snapshot();
+  await db.prepare(`CREATE FUNCTION ${failure}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'EXPENSE_FINANCE_FINAL_OUTBOX'; END $$`).run();
+  await db.prepare(`CREATE TRIGGER ${failure} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.command_id='${command}') EXECUTE FUNCTION ${failure}()`).run();
+  const { reverseExpense } = await import("../src/server/expenses");
+  try {
+    await expect(reverseExpense(f.manager, id, input, command)).rejects.toThrow("EXPENSE_FINANCE_FINAL_OUTBOX");
+    expect(await snapshot()).toBe(before);
+  } finally {
+    await db.prepare(`DROP TRIGGER ${failure} ON outbox_events`).run();
+    await db.prepare(`DROP FUNCTION ${failure}()`).run();
+  }
+  const reversed = await reverseExpense(f.manager, id, input, command);
+  expect(reversed).toMatchObject({ id, status: "cancelled", version: Number(posted.version) + 1 });
+  const after = await snapshot();
+  expect(await reverseExpense(f.manager, id, input, command)).toEqual(reversed);
+  expect(await snapshot()).toBe(after);
+  expect(await db.prepare("SELECT status,outstanding_minor FROM finance_invoices WHERE id=?").bind(posted.invoice_id).first()).toMatchObject({ status: "voided", outstanding_minor: 0 });
+  expect(await db.prepare("SELECT status FROM finance_journals WHERE id=?").bind(posted.journal_id).first()).toMatchObject({ status: "reversed" });
+  expect(await db.prepare("SELECT count(*) n FROM command_receipts WHERE command_id=?").bind(command).first<number>("n")).toBe(1);
 });

@@ -1,14 +1,16 @@
-import { changeOrderReservation } from "@/server/commerce";
-import { assertProductionModuleEnabled } from '@/server/hospitality-rollout';
-import { holdingResources } from '@/server/runtime';
-import { requestPublicOrigin } from "@/server/public-origin";
+import {commerceEntrypointFacts} from "@/server/modules/commerce/public/entrypoint-facts";
+import {commerceEntrypointFinanceFacts} from "@/server/modules/finance/public/commerce-entrypoint-facts";
+import { changeOrderReservation } from "@/server/modules/commerce/public/commerce";
+import { assertProductionModuleEnabled } from "@/server/modules/pms/public/hospitality-rollout";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import { z } from "zod";
-import { requireWorkContext } from "@/server/authorization";
-import { ApiError,errorResponse } from "@/server/http";
-import { commerceOverview,getOrder,saveOrder,transitionOrder,fulfillOrder,invoiceFulfillment,settleInvoice,saveMaster,requestCommerceReturn,decideCommerceReturn,completeCommerceReturn,orderSchema,transitionSchema,fulfillmentSchema,invoiceFromDeliverySchema,settlementSchema,returnRequestSchema,returnDecisionSchema,returnCompleteSchema } from "@/server/commerce";
-import {decidePriceList,priceListDecisionSchema,priceListSchema,priceListUpdateSchema,pricingWorkspace,savePriceList,updatePriceList} from '@/server/sales-pricing';
-import {customerNotificationRetrySchema,customerNotificationSchema,customerNotificationSettingsSchema,queueDeliveryNotification,retryCustomerNotification,updateCustomerNotificationSettings} from '@/server/sales-customer-notifications';
-import { inventoryReorderPolicyActionSchema, inventoryReorderPolicySchema, listInventoryReorderPolicies, saveInventoryReorderPolicy, transitionInventoryReorderPolicy } from "@/server/inventory-reorder-policies";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { ApiError,errorResponse } from "@/server/modules/runtime/public/http";
+import { commerceOverview,getOrder,saveOrder,transitionOrder,fulfillOrder,invoiceFulfillment,settleInvoice,saveMaster,requestCommerceReturn,decideCommerceReturn,completeCommerceReturn,orderSchema,transitionSchema,fulfillmentSchema,invoiceFromDeliverySchema,settlementSchema,returnRequestSchema,returnDecisionSchema,returnCompleteSchema } from "@/server/modules/commerce/public/commerce";
+import {decidePriceList,priceListDecisionSchema,priceListSchema,priceListUpdateSchema,pricingWorkspace,savePriceList,updatePriceList} from "@/server/modules/sales/public/sales-pricing";
+import {customerNotificationRetrySchema,customerNotificationSchema,customerNotificationSettingsSchema,queueDeliveryNotification,retryCustomerNotification,updateCustomerNotificationSettings} from "@/server/modules/sales/public/sales-customer-notifications";
+import { inventoryReorderPolicyActionSchema, inventoryReorderPolicySchema, listInventoryReorderPolicies, saveInventoryReorderPolicy, transitionInventoryReorderPolicy } from "@/server/modules/inventory/public/inventory-reorder-policies";
 type Context={params:Promise<{holdingSlug:string;path:string[]}>};
 async function assertPilotCommercePath(actor:Awaited<ReturnType<typeof requireWorkContext>>,path:string[],input:unknown){
   if(process.env.NODE_ENV!=='production')return;
@@ -18,19 +20,19 @@ async function assertPilotCommercePath(actor:Awaited<ReturnType<typeof requireWo
   if(root==='products'||root==='warehouses')return assertProductionModuleEnabled(db,actor.companyId,'inventory');
   if(root==='pricing'||root==='customer-notifications')return assertProductionModuleEnabled(db,actor.companyId,'sales');
   if(root==='parties'){
-    const existing=path[1]?await db.prepare('SELECT kind FROM finance_parties WHERE id=? AND company_id=?').bind(path[1],actor.companyId).first<{kind:string}>():null;
+    const existing=path[1]?await commerceEntrypointFinanceFacts(db).partyKind(path[1],actor.companyId):null;
     const kind=existing?.kind??(input as {kind?:string})?.kind;
     return assertProductionModuleEnabled(db,actor.companyId,kind==='supplier'?'procurement':'sales');
   }
   let kind:string|undefined;
   if(root==='orders'){
-    kind=path[1]&&path.length>2?(await db.prepare('SELECT kind FROM commerce_orders WHERE id=? AND company_id=?').bind(path[1],actor.companyId).first<{kind:string}>())?.kind:(input as {kind?:string})?.kind;
+    kind=path[1]&&path.length>2?(await commerceEntrypointFacts(db).orderKind(path[1],actor.companyId))?.kind:(input as {kind?:string})?.kind;
   }else if(root==='fulfillments'){
-    kind=(await db.prepare('SELECT o.kind FROM commerce_fulfillments f JOIN commerce_orders o ON o.id=f.order_id WHERE f.id=? AND o.company_id=?').bind(path[1],actor.companyId).first<{kind:string}>())?.kind;
+    kind=(await commerceEntrypointFacts(db).fulfillmentKind(path[1],actor.companyId))?.kind;
   }else if(root==='invoices'){
-    kind=(await db.prepare('SELECT o.kind FROM commerce_fulfillments f JOIN commerce_orders o ON o.id=f.order_id WHERE f.invoice_id=? AND o.company_id=?').bind(path[1],actor.companyId).first<{kind:string}>())?.kind;
+    kind=(await commerceEntrypointFacts(db).invoiceKind(path[1],actor.companyId))?.kind;
   }else if(root==='returns'){
-    kind=(await db.prepare('SELECT o.kind FROM commerce_returns r JOIN commerce_orders o ON o.id=r.order_id WHERE r.id=? AND o.company_id=?').bind(path[1],actor.companyId).first<{kind:string}>())?.kind;
+    kind=(await commerceEntrypointFacts(db).returnKind(path[1],actor.companyId))?.kind;
   }
   return assertProductionModuleEnabled(db,actor.companyId,kind==='purchase'?'procurement':'sales');
 }

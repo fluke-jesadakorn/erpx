@@ -1,0 +1,2 @@
+import type { PoolClient } from 'pg';
+export function lifecycleOutboxEffects(client: PoolClient) { return { applyEffect23(value: string, value2: string, id: string, value3: number, value4: string, now: number) { return client.query<Record<string, unknown>>("INSERT INTO outbox_events(id,command_id,event_type,aggregate_type,aggregate_id,aggregate_version,payload_json,created_at) VALUES($1,$2,'people.lifecycle.applied','people_lifecycle',$3,$4,$5,$6)", [value, value2, id, value3, value4, now]); } }; }

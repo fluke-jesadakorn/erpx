@@ -1,0 +1,9 @@
+import 'server-only';
+/** Fixed explicit-column owning projections; retains the consumer's supplied statement snapshot. */
+export function workflowFinalOwnerProjections(){return {
+  "approvals_hr_people_p_join": "JOIN (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) p",
+  "approvals_hr_people_from": "FROM (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) hr_people",
+  "calendar_index_facts_hr_people_p_join": "JOIN (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) p",
+  "flow_routing_hr_payment_batches_from": "FROM (SELECT \"id\",\"company_id\",\"source_type\",\"source_id\",\"currency\",\"status\",\"format_code\",\"file_key\",\"file_checksum\",\"total_minor\",\"version\",\"created_by\",\"approved_by\",\"exported_at\",\"created_at\",\"updated_at\",\"bank_account_id\",\"retry_requested_by\" FROM hr_payment_batches) hr_payment_batches",
+  "payroll_owner_facts_hr_payroll_runs_from": "FROM (SELECT \"id\",\"company_id\",\"pay_group_id\",\"country_pack_id\",\"period_start\",\"period_end\",\"pay_date\",\"currency\",\"mode\",\"status\",\"revision\",\"totals_json\",\"input_digest\",\"error_message\",\"version\",\"created_by\",\"approved_by\",\"posted_by\",\"created_at\",\"updated_at\",\"scope_engagement_id\",\"submitted_by\",\"submitted_digest\",\"submitted_at\",\"adjustment_of_run_id\" FROM hr_payroll_runs) hr_payroll_runs"
+} as const;}

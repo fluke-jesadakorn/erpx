@@ -13,7 +13,7 @@ vi.mock("../src/server/runtime", async () => {
   return { runtimeEnv: async () => env, holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }) };
 });
 
-vi.mock("../src/server/attachments/scanner", () => ({
+vi.mock("../src/server/modules/files/public/attachments/scanner", () => ({
   attachmentScannerReadiness: async () => ({ enabled: true, ready: true, engine: "ClamAV POS-source fixture", definitionUpdatedAt: Date.now(), error: null }),
   scanAttachmentBytes: async () => ({ clean: scan.clean, signature: scan.clean ? null : "POS source infected fixture", engine: "ClamAV POS-source fixture", definitionUpdatedAt: Date.now() }),
 }));
@@ -49,6 +49,18 @@ describe("POS product images share canonical File Sources", () => {
     const preview = await backfillSpecializedAttachments(db, { files });
     expect(preview).toMatchObject({ ready: 1, backfilled: 0, unknown: [] });
     expect(await db.prepare("SELECT attachment_source_id FROM pos_product_images WHERE id=?").bind(source.id).first()).toEqual({ attachment_source_id: null });
+    const suffix=crypto.randomUUID().replaceAll("-",""),trigger="migration_late_"+suffix,fn=trigger+"_failure";
+    await db.prepare(`CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'late source binding failure' USING ERRCODE='23514'; END $$`).run();
+    await db.prepare(`CREATE TRIGGER ${trigger} BEFORE UPDATE ON attachment_sets FOR EACH ROW WHEN (NEW.target_id='${source.product}' AND NEW.state='bound') EXECUTE FUNCTION ${fn}()`).run();
+    try {
+      await expect(backfillSpecializedAttachments(db,{files,apply:true})).rejects.toThrow("late source binding failure");
+      expect(await db.prepare("SELECT attachment_source_id,attachment_set_id,attachment_link_id,thumbnail_checksum_sha256 FROM pos_product_images WHERE id=?").bind(source.id).first()).toEqual({attachment_source_id:null,attachment_set_id:null,attachment_link_id:null,thumbnail_checksum_sha256:null});
+      expect(await db.prepare("SELECT COUNT(*)::int n FROM attachments WHERE owner_id=?").bind(source.product).first("n")).toBe(0);
+      expect(await db.prepare("SELECT COUNT(*)::int n FROM attachment_sets WHERE target_id=?").bind(source.product).first("n")).toBe(0);
+      expect(await db.prepare("SELECT COUNT(*)::int n FROM attachment_storage_ledger WHERE object_key IN (?,?)").bind(source.objectKey,source.thumbnailKey).first("n")).toBe(0);
+      expect((await files.head(source.objectKey))?.etag).toBe(source.checksum);
+      expect((await files.head(source.thumbnailKey))?.etag).toBe(source.thumbnailChecksum);
+    } finally {await db.prepare(`DROP TRIGGER ${trigger} ON attachment_sets`).run();await db.prepare(`DROP FUNCTION ${fn}()`).run();}
     expect(await backfillSpecializedAttachments(db, { files, apply: true })).toMatchObject({ ready: 1, backfilled: 1, unknown: [] });
     const row = await db.prepare("SELECT attachment_source_id,attachment_set_id,thumbnail_checksum_sha256 FROM pos_product_images WHERE id=?").bind(source.id).first<{ attachment_source_id: string; attachment_set_id: string; thumbnail_checksum_sha256: string }>();
     expect(row!.thumbnail_checksum_sha256).toBe(source.thumbnailChecksum);

@@ -11,7 +11,7 @@ import { financeCsvRows } from "@/lib/finance-csv";
 import type {
   BusinessContractInput,
   RecognitionItem,
-} from "@/lib/finance-contract-policy";
+} from "@/server/modules/finance/public/rules/finance-contract-policy";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import {
   Button,

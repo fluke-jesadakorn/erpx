@@ -1,4 +1,6 @@
+import { procurementPresentationQueries } from "@/server/modules/procurement/public/presentation-queries";
 import { Table as StandardTable, TableFrame } from "@/components/ui/foundation";
+
 import { FinanceRecordWorkspace, FinanceLegacyHeading } from "@/components/finance/finance-record-workspace";
 import { TimeText } from "@/components/time/time-preference-context";
 import { BusinessDocumentBranding } from "@/components/brand/business-document";
@@ -8,7 +10,7 @@ import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/
 import { SettlementForm } from "@/components/modules/commerce-controls";
 import { PrepareControlledPayment } from "@/components/modules/payment-lifecycle";
 import {ThaiVatInvoiceIssue} from "@/components/finance/finance-thai-tax-console";
-import {taxIdentityWorkspace} from "@/server/finance-tax-identities";
+import {taxIdentityWorkspace} from "@/server/modules/finance/public/finance-tax-identities";
 import { DocumentPostingPreview } from "@/components/modules/document-posting-preview";
 import { MoneyAmount } from "@/components/money/currency-provider";
 import { InvoiceActions,InvoiceEditor } from "@/components/modules/invoice-controls";
@@ -19,12 +21,12 @@ import { WorkReturn } from "@/components/workplace/work-return";
 import { minorToDecimal } from "@/lib/finance-money";
 import { hasPermission } from "@/lib/permissions";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope,requireWorkContext } from "@/server/authorization";
-import { commercePermissions } from "@/server/commerce";
-import { getExpense } from "@/server/expenses";
-import { getInvoice,invoiceWorkspace } from "@/server/finance";
-import {holdingResources} from "@/server/runtime";
-import { pageError } from "@/server/page-error";
+import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { commercePermissions } from "@/server/modules/commerce/public/commerce";
+import { getExpense } from "@/server/modules/people_payroll/public/expenses";
+import { getInvoice,invoiceWorkspace } from "@/server/modules/finance/public/finance";
+
+import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { ArrowLeft,ArrowUpRight } from "lucide-react";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { Card } from "@/components/ui/foundation";
@@ -39,7 +41,7 @@ export default async function InvoiceDetail({ params, searchParams }: { params: 
   try { data = await getInvoice(actor, id); } catch (error) { return pageError(error, actor.holdingSlug); }
   const base = workspaceBase(publicScope(actor));
   const invoice = data.invoice;
-  const matched=await (await holdingResources(actor.holdingId)).write.prepare("SELECT id,reference FROM procurement_bill_matches WHERE invoice_id=? AND company_id=?").bind(id,actor.companyId).first<{id:string;reference:string}>();
+  const matched=await (await procurementPresentationQueries(actor.holdingId)).procurementInvoiceMatchForFinance(id, actor.companyId);
   const options=await invoiceWorkspace(actor);
   const owningAccount=options.accounts.find(account=>account.id===invoice.debit_account_id),owningChart=options.charts.find(chart=>chart.id===owningAccount?.chart_id);
   const expense=invoice.source_type==="expense_claim"?await getExpense(actor,String(invoice.source_id)):null;

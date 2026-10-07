@@ -1,8 +1,8 @@
-import { requireWorkContext } from '@/server/authorization';
-import { holdingResources } from '@/server/runtime';
-import { ApiError, errorResponse } from '@/server/http';
-import { requestPublicOrigin } from '@/server/public-origin';
-import { releaseAcceptance, submitReleaseAcceptance, reviewReleaseAcceptance, revokeReleaseAcceptance,bindReleaseEvidence } from '@/server/release-acceptance';
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { releaseAcceptance, submitReleaseAcceptance, reviewReleaseAcceptance, revokeReleaseAcceptance,bindReleaseEvidence } from "@/server/modules/platform_administration/public/release-acceptance";
 
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
 const headers = { 'Cache-Control': 'private, no-store' };

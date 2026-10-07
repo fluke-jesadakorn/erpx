@@ -68,10 +68,10 @@ test("isolated organization setup supports reviewed correction, safe suspension 
   const [ownerContext,reviewerContext,staffContext]=contexts;
   const path="/holdings/simulation/people/organization";
   const unitsPath=`${path}?view=legacy`;
-  const main=(page:Page)=>page.locator("#workspace-content");
+  const main=(page:Page)=>page.locator("#workspace-content:visible");
   const queue=(page:Page)=>main(page).getByRole("region",{name:"Organization change requests",exact:true});
   const card=(page:Page,label:string)=>queue(page).getByRole("article",{name:label,exact:true});
-  const unit=(page:Page,name:string)=>main(page).locator("section.card").filter({has:page.getByRole("heading",{name,exact:true})});
+  const unit=(page:Page,name:string)=>main(page).locator("section.ui-panel:visible").filter({has:page.getByRole("heading",{name,exact:true})});
   const recordIds:string[]=[];
   async function openUnitSettings(page:Page){
     const summary=main(page).locator("summary").filter({hasText:/^Branches, departments, and official documents$/});

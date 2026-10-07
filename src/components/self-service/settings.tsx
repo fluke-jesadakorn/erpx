@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/dialog";
 import { workFetch } from "@/lib/work-fetch";
-import type { leaveAdministration } from "@/server/leave-self-service";
+import type { leaveAdministration } from "@/server/modules/people_payroll/public/leave-self-service";
 import styles from "./self-service.module.css";
 
 type Data = Awaited<ReturnType<typeof leaveAdministration>>;

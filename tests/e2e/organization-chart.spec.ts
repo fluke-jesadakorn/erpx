@@ -1,3 +1,5 @@
+import { captureCaseScreenshot } from "../helpers/case-screenshot";
+import { browserProjects } from "../../scripts/testing/browser-results";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import type { HoldingPeopleDirectory } from "../../src/server/holding-people-directory";
 import { organizationSession, readOrganization } from "../helpers/organization-access-browser";
@@ -200,8 +202,8 @@ test("mocked draft moves update occupancy, group counts and Undo immediately", a
   expect(drafts.writes.some(write => write.action === "submit")).toBe(false);
 });
 
-test("compact rows and details fit light and dark layouts from 320px to a large desktop", async ({ page, context }, info) => {
-  test.setTimeout(180_000); test.skip(info.project.name !== "desktop");
+test("compact rows and details fit light and dark layouts from 320px to a large desktop", browserProjects(["desktop"], "This case explicitly sweeps eight widths from 320px to 2560px in both themes once; mobile occupancy and detail cases remain required."), async ({ page, context }) => {
+  test.setTimeout(180_000);
   const base = await organizationSession(context, "hr_admin"), organization = await readOrganization(context, base);
   const drafts = await mockPeopleDraft(page, organization);
   const position = organization.positions.find(position => position.active && organization.people.filter(person => person.status === "active" && person.position_id === position.id).length > 1)!;
@@ -217,14 +219,14 @@ test("compact rows and details fit light and dark layouts from 320px to a large 
       await expect(page.getByRole("button", { name: /Account menu for/ })).toBeEnabled();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
       await expect(page.getByTestId(`people-person-${person.engagement_id}`)).toBeVisible();
-      await page.screenshot({ path: `.scratch/dev/people-compact-${theme.toLowerCase()}-${width}.png`, animations: "disabled" });
+      await captureCaseScreenshot(page, `people-compact-${theme.toLowerCase()}-${width}.png`, { animations: "disabled" });
       await page.getByTestId(`people-person-${person.engagement_id}`).getByRole("button").first().click();
       const detail = page.getByTestId("people-detail");
       await expect(detail.getByRole("heading", { name: person.legal_name, exact: true })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
       if (width === 320) {
         expect((await detail.boundingBox())!.width).toBe(320);
-        await page.screenshot({ path: `.scratch/dev/people-compact-detail-${theme.toLowerCase()}-320.png`, animations: "disabled" });
+        await captureCaseScreenshot(page, `people-compact-detail-${theme.toLowerCase()}-320.png`, { animations: "disabled" });
       }
       await page.keyboard.press("Escape");
       await expect(detail).toHaveCount(0);
@@ -237,21 +239,32 @@ test("compact rows and details fit light and dark layouts from 320px to a large 
 // organization-draft-panels. Retain the legacy route and department authority
 // checks here without editing a user's private draft.
 test("legacy organization selection survives refresh and browser Back in the single structure", async ({ page, context }, info) => {
-  test.setTimeout(120_000); test.skip(info.project.name !== "desktop");
+  test.setTimeout(120_000);
   const base = await organizationSession(context, "hr_admin"), organization = await readOrganization(context, base);
   const drafts = await mockPeopleDraft(page, organization);
   const person = organization.people.find(person => person.status === "active" && person.position_id)!;
   const position = organization.positions.find(position => position.id === person.position_id)!;
-  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.setViewportSize({ width: info.project.name === "desktop" ? 1440 : 390, height: 1000 });
   await page.goto(`${base}/people/organization?view=positions&position=${encodeURIComponent(position.id)}`);
   await expect.poll(() => new URL(page.url()).pathname).toBe(`${base}/people`);
   await expect.poll(() => new URL(page.url()).searchParams.get("position")).toBe(position.id);
   const detail = page.getByTestId("people-detail");
   await expect(detail.getByRole("heading", { name: position.title, exact: true })).toBeVisible();
+  if (info.project.name === "mobile") {
+    await detail.getByRole("button", { name: "Close details", exact: true }).click();
+    await expect(detail).toHaveCount(0);
+    await expect.poll(() => new URL(page.url()).searchParams.get("position")).toBeNull();
+  }
   await page.getByRole("searchbox", { name: "Search people, positions, and units" }).fill(person.legal_name);
   await page.getByTestId(`people-person-${person.engagement_id}`).getByRole("button").first().click();
   await expect(detail.getByRole("heading", { name: person.legal_name, exact: true })).toBeVisible();
   await page.goBack();
+  if (info.project.name === "mobile") {
+    await expect(detail).toHaveCount(0);
+    await expect.poll(() => new URL(page.url()).searchParams.get("person")).toBeNull();
+    await expect(page.getByRole("searchbox", { name: "Search people, positions, and units" })).toHaveValue(person.legal_name);
+    await page.goBack();
+  }
   await expect(detail.getByRole("heading", { name: position.title, exact: true })).toBeVisible();
   await page.reload();
   await expect(detail.getByRole("heading", { name: position.title, exact: true })).toBeVisible();
@@ -268,12 +281,12 @@ test("legacy organization selection survives refresh and browser Back in the sin
   const bounds = (await heading.boundingBox())!;
   expect(bounds.y).toBeGreaterThanOrEqual(0);
   expect(bounds.y + bounds.height).toBeLessThanOrEqual(1000);
-  await page.screenshot({ path: ".scratch/dev/people-deep-position-detail-final.png" });
+  await captureCaseScreenshot(page, "people-deep-position-detail-final.png");
   expect(drafts.writes).toEqual([]);
 });
 
-test("department approvals remain available and the structure uses a large desktop's width", async ({ page, context }, info) => {
-  test.setTimeout(120_000); test.skip(info.project.name !== "desktop");
+test("department approvals remain available and the structure uses a large desktop's width", browserProjects(["desktop"], "The case asserts a 2560px desktop structure width; department approval behavior is covered in both projects by organization-access."), async ({ page, context }) => {
+  test.setTimeout(120_000);
   const base = await organizationSession(context, "hr_admin"), organization = await readOrganization(context, base);
   const drafts = await mockPeopleDraft(page, organization);
   const department = organization.nodes.find(node => node.kind === "department" && node.status === "active")!;
@@ -290,8 +303,8 @@ test("department approvals remain available and the structure uses a large deskt
   expect(drafts.writes).toEqual([]);
 });
 
-test("the keyboard destination chooser excludes positions in other companies", async ({ page, context }, info) => {
-  test.setTimeout(120_000); test.skip(info.project.name !== "desktop");
+test("the keyboard destination chooser excludes positions in other companies", async ({ page, context }) => {
+  test.setTimeout(120_000);
   const base = await organizationSession(context, "hr_admin"), organization = await readOrganization(context, base);
   const drafts = await mockPeopleDraft(page, organization);
   const response = await context.request.get(`/api/v1${base}/people-public-directory`);
@@ -300,7 +313,7 @@ test("the keyboard destination chooser excludes positions in other companies", a
   const person = organization.people.find(person => person.status === "active" && person.position_id)!;
   const target = organization.positions.find(position => position.active && !position.is_ceo && position.id !== person.position_id)!;
   const foreign = directory.positions.filter(position => position.companyId !== target.company_id);
-  test.skip(!foreign.length, "The current seeded directory must expose another company's positions for this check.");
+  expect(foreign.length, "The isolated directory must include another Company's positions for this boundary check.").toBeGreaterThan(0);
   await page.goto(`${base}/people?person=${encodeURIComponent(person.engagement_id)}`);
   await page.getByTestId("people-detail").getByRole("button", { name: "Move…", exact: true }).focus();
   await page.keyboard.press("Enter");

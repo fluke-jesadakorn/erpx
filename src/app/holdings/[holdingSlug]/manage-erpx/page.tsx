@@ -1,3 +1,4 @@
+import { platformOperationsForPresentation } from "@/server/modules/platform_administration/public/presentation-queries";
 import {PlatformOperationDetail,CollectionRecordLink} from "@/components/records/platform-operation-detail";
 
 import { PageContent } from "@/components/ui/patterns";
@@ -11,18 +12,18 @@ import {
   StatusBadge,
   Metric,
 } from "@/components/ui/primitives";
-import { workspaceChoices } from "@/server/workspace-choices";
+import { workspaceChoices } from "@/server/modules/organization/public/workspace-choices";
 import type { WorkspaceHoldingChoice } from "@/lib/workspace-choice";
 import { notFound } from "next/navigation";
-import { holdingResources, runtimeEnv } from "@/server/runtime";
-import { activeHoldingBindings } from "@/server/runtime";
-import { requireManageErpxContext } from "@/server/authorization";
-import { summarizePlatformOperations } from "@/server/platform-operations";
+
+
+import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
+
 import { PlatformJobRecovery } from "@/components/platform/platform-job-recovery";
 import { PlatformMigrationRun } from "@/components/platform/platform-migration-run";
 import { PlatformHoldingProvisioning } from "@/components/platform/platform-holding-provisioning";
-import { platformProvisioningSnapshot } from "@/server/platform-operations";
-import { resourceSlots } from "@/lib/holding-registry";
+
+
 import { TableFrame, Card } from "@/components/ui/foundation";
 
 const destinations: Record<string, [string, string]> = {
@@ -51,21 +52,7 @@ export default async function ManageErpxPage({
   if (!content) notFound();
   if (destination === "home") {
     const { platform: actor } = await requireManageErpxContext();
-    const env = await runtimeEnv();
-    const provisioning = await platformProvisioningSnapshot(env.CONTROL_DB, resourceSlots(env));
-    const bindings = (await activeHoldingBindings()).filter((binding) => binding.id !== "h003");
-    const operations = await summarizePlatformOperations(
-      actor,
-      env.CONTROL_DB,
-      await Promise.all(
-        bindings.map(async (binding) => ({
-          id: binding.id,
-          slug: binding.slug,
-          displayName: binding.displayName,
-          db: (await holdingResources(binding.id)).write,
-        })),
-      ),
-    );
+    const { provisioning, operations } = await platformOperationsForPresentation(actor);
     const choices = (await workspaceChoices()).filter(
       (choice): choice is WorkspaceHoldingChoice =>
         choice.kind === "holding" && choice.holdingSlug !== "erpx",

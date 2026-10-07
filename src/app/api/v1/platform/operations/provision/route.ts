@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { requireManageErpxContext } from "@/server/authorization";
-import { errorResponse, ApiError } from "@/server/http";
+import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
+import { errorResponse, ApiError } from "@/server/modules/runtime/public/http";
 import { resourceSlots } from "@/lib/holding-registry";
-import { holdingResources, runtimeEnv } from "@/server/runtime";
-import { provisionHolding, platformProvisioningSnapshot } from "@/server/platform-operations";
+import { holdingResources, runtimeEnv } from "@/server/modules/runtime/public/runtime";
+import { provisionHolding, platformProvisioningSnapshot } from "@/server/modules/platform_administration/public/platform-operations";
 
 const schema = z.object({
   holdingId: z.string().regex(/^[a-z0-9]{3,24}$/),
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     }
     const result = await provisionHolding(
       actor,
-      env.CONTROL_DB as import("@/server/runtime/postgres").PostgresDatabase,
+      env.CONTROL_DB as import("@/server/modules/runtime/public/runtime/postgres").PostgresDatabase,
       slot,
       { ...parsed.data, writeBinding: slot.write, readBinding: slot.read, filesBinding: slot.files },
       key,

@@ -7,10 +7,28 @@ import { approvalView } from "../src/server/approvals";
 import { saveSpendingTemplate } from "../src/server/spending-templates";
 import { saveEmployeeRequest,employeeRequestSchema,actOnEmployeeRequest,requestActionSchema,getEmployeeRequest } from "../src/server/employee-requests";
 import { resolveFlow } from "../src/server/flow-routing";
+import { approvalAdministrationData } from "../src/server/modules/workflow/public/approval-administration";
 vi.mock("../src/server/runtime",()=>({holdingResources:async()=>({write:db,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();});
+it("keeps approval administration subject to Company authority and original record access",async()=>{
+ const id=await f.claim(f.owner),privateId=await f.claim();
+ const visible=await approvalAdministrationData(f.owner,'expense',id,db);
+ expect(visible?.options.canManage).toBe(true);
+ expect(visible?.rows).toMatchObject([{record_type:'expense',record_id:id,version:1,destination:`expenses/${id}`}]);
+ expect(await approvalAdministrationData(f.claimant,'expense',id,db)).toBeNull();
+ expect((await approvalAdministrationData(f.owner,'expense',privateId,db))?.rows).toEqual([]);
+ const foreign=await expenseFixture();
+ expect((await approvalAdministrationData(foreign.owner,'expense',id,db))?.rows).toEqual([]);
+ expect(await db.prepare('SELECT company_id,version FROM finance_expenses WHERE id=?').bind(id).first()).toMatchObject({company_id:f.company,version:1});
+});
+it("filters beta approval administration before exposing non-expense business records",async()=>{
+ const id=await f.claim(f.owner);
+ expect(await approvalAdministrationData({...f.owner,beta:true},'leave',id,db)).toBeNull();
+ expect(await approvalAdministrationData(f.owner,'legal',id,db)).toBeNull();
+ expect((await approvalAdministrationData({...f.owner,beta:true},'expense',id,db))?.rows.map(row=>row.record_id)).toEqual([id]);
+});
 it("resolves exactly the nearest higher reporting supervisor, never a same-level peer",async()=>{
   const route=await expenseRoute(db,f.company,f.claimant.userId);
   expect(route.blockedReason).toBeNull();expect(route.steps.map(s=>s.stage)).toEqual(["department_approval","accounts_review","accounts_approval"]);

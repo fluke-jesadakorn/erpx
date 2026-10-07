@@ -1,11 +1,11 @@
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Button, Field, Select, Table, TableFrame, TextInput } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { accessPage } from "@/server/page-error";
-import { ApiError } from "@/server/http";
-import { requireWorkContext, publicScope } from "@/server/authorization";
+import { accessPage } from "@/server/modules/work_projection/public/page-error";
+import { ApiError } from "@/server/modules/runtime/public/http";
+import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
-import { businessReadiness } from "@/server/business-readiness";
+import { businessReadiness } from "@/server/modules/runtime/public/business-readiness";
 import { CompanyBusinessAcceptance } from "@/components/settings/company-business-acceptance";
 import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
 import { hasPermission } from "@/lib/permissions";

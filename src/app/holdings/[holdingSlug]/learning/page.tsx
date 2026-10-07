@@ -1,9 +1,9 @@
 import { RecordCatalog } from "@/components/records/record-catalog";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { requireWorkContext, publicScope } from "@/server/authorization";
+import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
-import { pageError } from "@/server/page-error";
-import { learningWorkspace } from "@/server/learning";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+import { learningWorkspace } from "@/server/modules/learning/public/learning";
 import { LearningConsole } from "@/components/modules/learning-console";
 import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";

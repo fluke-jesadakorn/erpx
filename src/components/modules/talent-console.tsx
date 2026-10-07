@@ -7,7 +7,7 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
-import type { talentDetail, talentWorkspace } from "@/server/talent";
+import type { talentDetail, talentWorkspace } from "@/server/modules/talent/public/talent";
 import { FormLayout } from "@/components/ui/foundation";
 function useCommand(base: string) {
   const router = useRouter(),

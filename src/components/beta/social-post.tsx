@@ -34,7 +34,7 @@ import {
   Trash2,
   ArrowUpRight,
 } from "lucide-react";
-import type { HomePost } from "@/server/social-home";
+import type { HomePost } from "@/server/modules/collaboration/public/social-home";
 import { TimeText } from "@/components/time/time-preference-context";
 import { useSocialCommand } from "./social-command";
 import { SocialComments } from "./social-comments";

@@ -8,7 +8,7 @@ import {useRouter} from "next/navigation";
 import {Button,Field,Select,TextArea,TextInput} from "@/components/ui/foundation";
 import {minorToDecimal} from "@/lib/finance-money";
 import {workFetch} from "@/lib/work-fetch";
-import type {assetDetail} from "@/server/finance-assets";
+import type {assetDetail} from "@/server/modules/finance/public/finance-assets";
 import { Stack, Card, FormLayout } from "@/components/ui/foundation";
 type Row=Record<string,unknown>;
 export function FinanceAssetConsole({base,assets,detail,accounts,periods,dimensions=[],dimensionValues=[],userId,canWrite,canApprove}:{base:string;assets:Row[];detail?:Awaited<ReturnType<typeof assetDetail>>;accounts:Row[];periods:Row[];dimensions?:Row[];dimensionValues?:Row[];userId:string;canWrite:boolean;canApprove:boolean}){

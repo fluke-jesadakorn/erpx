@@ -1,7 +1,7 @@
-import { requireWorkContext } from "@/server/authorization";
-import { errorResponse } from "@/server/http";
-import { holdingPeopleDirectory } from "@/server/holding-people-directory";
-import { measureReadRequest } from "@/server/runtime/read-request";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { errorResponse } from "@/server/modules/runtime/public/http";
+import { holdingPeopleDirectory } from "@/server/modules/organization/public/holding-people-directory";
+import { measureReadRequest } from "@/server/modules/runtime/public/runtime/read-request";
 
 export async function GET(
   _request: Request,

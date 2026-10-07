@@ -2,11 +2,11 @@ import { FeaturePage } from "@/components/features/feature-page";
 import { FinanceWorkspace } from "@/components/finance/finance-workspace";
 import { Table } from "@/components/ui/foundation";
 import { RecordLink } from "@/components/records/record-link";
-import { publicScope, requireWorkContext } from "@/server/authorization";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { unitsToDecimal } from "@/lib/finance-money";
-import { groupEditionSourceJournal } from "@/server/finance-group-editions";
-import { pageError } from "@/server/page-error";
+import { groupEditionSourceJournal } from "@/server/modules/finance/public/finance-group-editions";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
 export const dynamic = "force-dynamic";
 export default async function GroupSourceJournalPage({
   params,

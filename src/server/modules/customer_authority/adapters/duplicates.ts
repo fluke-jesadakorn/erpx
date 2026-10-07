@@ -1,0 +1,66 @@
+import { finalRootOwnerProjectionSources as field_serviceProjectionSources } from "../../field_service/public/final-root-owner-projection-sources";
+import { finalRootOwnerProjectionSources as commerceProjectionSources } from "../../commerce/public/final-root-owner-projection-sources";
+import { finalRootOwnerProjectionSources as crmProjectionSources } from "../../crm/public/final-root-owner-projection-sources";
+import { finalRootOwnerProjectionSources as financeProjectionSources } from "../../finance/public/final-root-owner-projection-sources";
+import { finalRootOwnerProjectionSources as identity_accessProjectionSources } from "../../identity_access/public/final-root-owner-projection-sources";
+import { finalRootOwnerProjectionSources as people_payrollProjectionSources } from "../../people_payroll/public/final-root-owner-projection-sources";
+import { finalRootOwnerProjectionSources as salesProjectionSources } from "../../sales/public/final-root-owner-projection-sources";
+import { finalRootOwnerProjectionSources as supportProjectionSources } from "../../support/public/final-root-owner-projection-sources";
+import "server-only";
+import type {WorkContext} from "../../identity_access/public/authorization";
+import type {SqlDatabase} from "../../runtime/public/runtime/types";
+import type {Row} from "../../commerce/public/commerce";
+import {holdingResources} from "../../runtime/public/runtime";
+import {requirePermission} from "../../identity_access/public/iam-permissions";
+import {hasPermission} from "@/lib/permissions";
+import {assertion,executeCommand,replayCommand} from "../../workflow/public/commands";
+import {ApiError} from "../../runtime/public/http";
+import {prepareCustomerDuplicateNotice1,prepareCustomerDuplicateNotice2} from "../../collaboration/public/customer-authority-notifications";
+import {prepareCustomerAuthorityFinanceReferences,prepareCustomerAuthorityMergedParty,customerAuthorityMergeParties,customerAuthorityPartyCurrency,customerAuthorityCandidates} from "../../finance/public/customer-authority-changes";
+import {prepareCustomerAuthorityCommerceMerge} from "../../commerce/public/customer-authority-merge";
+import {prepareCustomerAuthorityEcommerceMerge} from "../../ecommerce/public/customer-authority-merge";
+import {prepareCustomerAuthorityCrmMerge} from "../../crm/public/customer-authority-merge";
+import {prepareCustomerAuthorityPeoplePayrollMerge} from "../../people_payroll/public/customer-authority-merge";
+import {prepareCustomerAuthorityPosMerge} from "../../pos/public/customer-authority-merge";
+import {createCustomerDuplicateApplication,type DuplicateRepository} from "../application/duplicates";
+const managerEligible=`EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments}) a JOIN (${people_payrollProjectionSources.hr_people}) p ON p.user_id=a.user_id AND p.company_id=a.company_id JOIN (${people_payrollProjectionSources.hr_engagements}) e ON e.person_id=p.id AND e.company_id=p.company_id WHERE a.company_id=r.company_id AND a.user_id=? AND a.scope_kind='holding' AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(a.role,a.company_id,'commerce.approve') AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active' AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')))`;
+function ports(a:WorkContext) { return {actorId:a.userId,companyScope:!a.branchId&&!a.departmentId,require:(permission:"commerce.read"|"commerce.sales"|"commerce.approve")=>requirePermission(a,permission),canApprove:()=>hasPermission(a,'commerce.approve'),canSales:()=>hasPermission(a,'commerce.sales'),canRead:()=>hasPermission(a,'commerce.read'),clock:{now:()=>Date.now()},error:(status:number,code:string,message:string)=>new ApiError(status,code,message)}; }
+function repository(a:WorkContext,write:SqlDatabase):DuplicateRepository{return {
+ rows:async()=>(await write.prepare(`SELECT r.*,l.name left_name,l.code left_code,l.tax_registration left_tax,l.status left_status,l.merged_into_id left_merged_into_id,q.name right_name,q.code right_code,q.tax_registration right_tax,q.status right_status,q.merged_into_id right_merged_into_id,CASE WHEN ${managerEligible} THEN 1 ELSE 0 END actor_eligible FROM customer_duplicate_reviews r JOIN (${financeProjectionSources.finance_parties}) l ON l.id=r.left_customer_id JOIN (${financeProjectionSources.finance_parties}) q ON q.id=r.right_customer_id WHERE r.company_id=? ORDER BY r.updated_at DESC,r.id`).bind(a.userId,a.companyId).all<Row>()).results,
+ customers:()=>customerAuthorityCandidates(write,a.companyId,'duplicates'),history:async id=>(await write.prepare('SELECT * FROM customer_duplicate_events WHERE review_id=? ORDER BY version').bind(id).all<Row>()).results,
+ replay:({key,operation,id,input})=>replayCommand(write,a,key,operation,id,input),
+ blockers:async loser=>{const facts=await write.prepare(`SELECT EXISTS(SELECT 1 FROM (${salesProjectionSources.commerce_customer_notifications}) commerce_customer_notifications WHERE party_id=? OR party_id=?) notifications,
+ EXISTS(SELECT 1 FROM customer_access_bindings WHERE customer_id=? OR customer_id=?) grants,
+ EXISTS(SELECT 1 FROM (${field_serviceProjectionSources.field_service_agreements}) field_service_agreements WHERE customer_id=? OR customer_id=?) agreements,
+ EXISTS(SELECT 1 FROM (${field_serviceProjectionSources.field_service_billing_releases}) field_service_billing_releases WHERE customer_id=? OR customer_id=?) billing,
+ EXISTS(SELECT 1 FROM (${commerceProjectionSources.commerce_orders}) o WHERE o.party_id=? AND (EXISTS(SELECT 1 FROM (${crmProjectionSources.crm_opportunities}) v WHERE v.quote_id=o.id OR v.sales_id=o.id) OR EXISTS(SELECT 1 FROM customer_access_bindings b WHERE b.order_id=o.id) OR EXISTS(SELECT 1 FROM (${salesProjectionSources.customer_contact_notes}) n WHERE n.order_id=o.id) OR EXISTS(SELECT 1 FROM (${supportProjectionSources.support_tickets}) t WHERE t.order_id=o.id))) "orderEvidence"`).bind(loser,loser,loser,loser,loser,loser,loser,loser,loser).first<{notifications:boolean;grants:boolean;agreements:boolean;billing:boolean;orderEvidence:boolean}>();if(!facts)throw new Error('CUSTOMER_MERGE_FACTS_REQUIRED');return facts;},
+ parties:(canonical,loser)=>customerAuthorityMergeParties(write,a.companyId,canonical,loser),currency:id=>customerAuthorityPartyCurrency(write,id),
+ merge:async(command,facts)=>{const {key,operation:op,id,input}=command,{canonical,loser,now}=facts;return executeCommand(write,a,key,op,input,id,input.expectedVersion+1,{id,version:input.expectedVersion+1,status:'merged',canonicalCustomerId:canonical,mergedCustomerId:loser},[
+   assertion(write,key,'review',`EXISTS(SELECT 1 FROM customer_duplicate_reviews r WHERE r.id=? AND r.company_id=? AND r.version=? AND r.status='duplicate' AND r.canonical_customer_id=? AND ${managerEligible})`,[id,a.companyId,input.expectedVersion,canonical,a.userId]),
+   assertion(write,key,'merge-sources',`EXISTS(SELECT 1 FROM (${financeProjectionSources.finance_parties}) l JOIN (${financeProjectionSources.finance_parties}) c ON c.id=? WHERE l.id=? AND l.company_id=? AND l.kind='customer' AND c.company_id=l.company_id AND c.kind='customer' AND l.status='active' AND c.status='active' AND l.merged_into_id IS NULL AND c.merged_into_id IS NULL AND l.currency=c.currency)`,[canonical,loser,a.companyId]),
+   assertion(write,key,'merge-blockers',`NOT EXISTS(SELECT 1 FROM (${salesProjectionSources.commerce_customer_notifications}) commerce_customer_notifications WHERE party_id IN (?,?)) AND NOT EXISTS(SELECT 1 FROM customer_access_bindings WHERE customer_id IN (?,?)) AND NOT EXISTS(SELECT 1 FROM (${field_serviceProjectionSources.field_service_agreements}) field_service_agreements WHERE customer_id IN (?,?)) AND NOT EXISTS(SELECT 1 FROM (${field_serviceProjectionSources.field_service_billing_releases}) field_service_billing_releases WHERE customer_id IN (?,?)) AND NOT EXISTS(SELECT 1 FROM (${commerceProjectionSources.commerce_orders}) o WHERE o.party_id=? AND (EXISTS(SELECT 1 FROM (${crmProjectionSources.crm_opportunities}) v WHERE v.quote_id=o.id OR v.sales_id=o.id) OR EXISTS(SELECT 1 FROM customer_access_bindings b WHERE b.order_id=o.id) OR EXISTS(SELECT 1 FROM (${salesProjectionSources.customer_contact_notes}) n WHERE n.order_id=o.id) OR EXISTS(SELECT 1 FROM (${supportProjectionSources.support_tickets}) t WHERE t.order_id=o.id)))`,[loser,loser,loser,loser,loser,loser,loser,loser,loser]),
+   write.prepare(`INSERT INTO customer_duplicate_merge_reconciliations(review_id,company_id,canonical_customer_id,merged_customer_id,currency,invoice_count,invoice_total_minor,invoice_outstanding_minor,payment_count,payment_total_minor,payment_outstanding_minor,refund_count,refund_total_minor,refund_outstanding_minor,created_by,created_at) SELECT ?,?, ?,?,p.currency,(SELECT COUNT(*) FROM (${financeProjectionSources.finance_invoices}) finance_invoices WHERE party_id IN (?,?)),(SELECT COALESCE(SUM(total_minor),0) FROM (${financeProjectionSources.finance_invoices}) finance_invoices WHERE party_id IN (?,?)),(SELECT COALESCE(SUM(outstanding_minor),0) FROM (${financeProjectionSources.finance_invoices}) finance_invoices WHERE party_id IN (?,?)),(SELECT COUNT(*) FROM (${financeProjectionSources.finance_payments}) finance_payments WHERE party_id IN (?,?)),(SELECT COALESCE(SUM(amount_minor),0) FROM (${financeProjectionSources.finance_payments}) finance_payments WHERE party_id IN (?,?)),(SELECT COALESCE(SUM(outstanding_minor),0) FROM (${financeProjectionSources.finance_payments}) finance_payments WHERE party_id IN (?,?)),(SELECT COUNT(*) FROM (${financeProjectionSources.finance_refund_obligations}) finance_refund_obligations WHERE party_id IN (?,?)),(SELECT COALESCE(SUM(amount_minor),0) FROM (${financeProjectionSources.finance_refund_obligations}) finance_refund_obligations WHERE party_id IN (?,?)),(SELECT COALESCE(SUM(outstanding_minor),0) FROM (${financeProjectionSources.finance_refund_obligations}) finance_refund_obligations WHERE party_id IN (?,?)),?,? FROM (${financeProjectionSources.finance_parties}) p WHERE p.id=?`).bind(id,a.companyId,canonical,loser,canonical,loser,canonical,loser,canonical,loser,canonical,loser,canonical,loser,canonical,loser,canonical,loser,canonical,loser,canonical,loser,a.userId,now,canonical),
+   prepareCustomerAuthorityCommerceMerge(write,canonical,loser,now),
+   ...prepareCustomerAuthorityFinanceReferences(write,canonical,loser),
+   prepareCustomerAuthorityEcommerceMerge(write,canonical,loser),
+   prepareCustomerAuthorityCrmMerge(write,canonical,loser),
+   prepareCustomerAuthorityPeoplePayrollMerge(write,canonical,loser),
+   prepareCustomerAuthorityPosMerge(write,canonical,loser),
+   prepareCustomerAuthorityMergedParty(write,canonical,loser,a.userId,now),
+   write.prepare("UPDATE customer_duplicate_reviews SET status='merged',reviewed_by=?,version=version+1,updated_at=? WHERE id=?").bind(a.userId,now,id),
+   write.prepare('INSERT INTO customer_duplicate_events VALUES(?,?,?,?,?,?,?,?)').bind(`customer-duplicate-event-${key}`,id,input.expectedVersion+1,'merge',a.userId,input.reason,canonical,now),
+   prepareCustomerDuplicateNotice1(write,key,id)
+  ]);},
+ change:async(command,facts)=>{const {key,operation:op,id,input}=command,{status,canonical,from,now}=facts;return executeCommand(write,a,key,op,input,id,input.expectedVersion+1,{id,version:input.expectedVersion+1,status},[
+ assertion(write,key,'review',`EXISTS(SELECT 1 FROM customer_duplicate_reviews r WHERE r.id=? AND r.company_id=? AND r.version=? AND r.status=? AND ${managerEligible})`,[id,a.companyId,input.expectedVersion,from,a.userId]),
+ ...(canonical?[assertion(write,key,'canonical',`EXISTS(SELECT 1 FROM customer_duplicate_reviews r JOIN (${financeProjectionSources.finance_parties}) p ON p.id=? AND p.company_id=r.company_id AND p.kind='customer' AND p.status='active' WHERE r.id=? AND p.id IN(r.left_customer_id,r.right_customer_id))`,[canonical,id])]:[]),
+ write.prepare('UPDATE customer_duplicate_reviews SET status=?,canonical_customer_id=?,reviewed_by=?,version=version+1,updated_at=? WHERE id=?').bind(status,canonical,input.action==='reopen'?null:a.userId,now,id),
+ write.prepare('INSERT INTO customer_duplicate_events VALUES(?,?,?,?,?,?,?,?)').bind(`customer-duplicate-event-${key}`,id,input.expectedVersion+1,input.action,a.userId,input.reason,canonical,now),
+ prepareCustomerDuplicateNotice2(write,key,id)
+ ]);},
+};}
+function application(a:WorkContext){return createCustomerDuplicateApplication({...ports(a),repository:async()=>repository(a,(await holdingResources(a.holdingId)).write)});}
+export function customerDuplicateWorkspace(a:WorkContext){return application(a).customerDuplicateWorkspace();}
+export function customerDuplicateDetail(a:WorkContext,id:string){return application(a).customerDuplicateDetail(id);}
+export function changeCustomerDuplicate(a:WorkContext,id:string,raw:unknown,key:string){return application(a).changeCustomerDuplicate(id,raw,key);}
+export function customerDuplicateWork(a:WorkContext){return application(a).customerDuplicateWork();}

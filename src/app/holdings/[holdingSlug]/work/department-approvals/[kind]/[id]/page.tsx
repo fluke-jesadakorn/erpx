@@ -2,12 +2,12 @@ import { TimeText } from "@/components/time/time-preference-context";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { z } from "zod";
 import { notFound } from "next/navigation";
-import { requireWorkContext, publicScope } from "@/server/authorization";
+import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
-import { departmentOverrideDetail } from "@/server/department-decisions";
+import { departmentOverrideDetail } from "@/server/modules/organization/public/department-decisions";
 import { DepartmentOverrideDecision } from "@/components/modules/department-override-decision";
 import { OperationSummary } from "@/components/workplace/operation-summary";
-import { pageError } from "@/server/page-error";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { PageContent, Card } from "@/components/ui/foundation";
 
 export const dynamic = "force-dynamic";

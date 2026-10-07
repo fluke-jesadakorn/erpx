@@ -215,7 +215,7 @@ export function MessagingInbox({
   }
   return (
     <>
-      <FeatureTabBar appearance="standard" aria-label="Inbox sections">
+      <FeatureTabBar appearance="standard" aria-label="Inbox sections" data-inbox-sections>
         {(["chats", "teams", "updates"] as const).map((value) => (
           <Button appearance="standard"
             type="submit"

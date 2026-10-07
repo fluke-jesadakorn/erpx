@@ -35,7 +35,7 @@ it("accepts real PNG/WebP signatures and rejects a MIME mismatch", async () => {
 
 it("re-encodes transparent logos as metadata-free WebP", async () => {
   const source = await sharp({ create: { width: 96, height: 48, channels: 4, background: { r: 47, g: 105, b: 245, alpha: 0.4 } } })
-    .withMetadata({ comment: "must not survive" })
+    .withExif({ IFD0: { ImageDescription: "must not survive" } }).withMetadata()
     .png()
     .toBuffer();
   const output = await normalizeBrandImage(source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength) as ArrayBuffer);
@@ -155,4 +155,31 @@ it("blocks legacy brand file writes only during explicit attachment rollback", a
     if (previousReadOnly === undefined) delete process.env.ERPX_ATTACHMENTS_READ_ONLY;
     else process.env.ERPX_ATTACHMENTS_READ_ONLY = previousReadOnly;
   }
+});
+import type { SqlDatabase } from "../src/server/runtime/types";
+
+async function brandUploadFixture() {
+  const token=crypto.randomUUID(),id=`brand-upload-${token}`,now=Date.now();
+  const source=await sharp({create:{width:64,height:64,channels:4,background:"transparent"}}).png().toBuffer();
+  await db.prepare("INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,staging_key,status,created_by,expires_at,created_at,updated_at) VALUES(?,'branch_brand',?,'primary','logo.png','image/png',?,?,'pending',?,?,?,?)").bind(id,fixture.branch,source.byteLength,`stage/${id}`,fixture.owner.userId,now+60_000,now,now).run();
+  return {intent:{id,owner_type:"branch_brand" as const,owner_id:fixture.branch,purpose:"primary" as const,revision:1,original_name:"logo.png"},buffer:source.buffer.slice(source.byteOffset,source.byteOffset+source.byteLength) as ArrayBuffer,key:`${fixture.owner.holdingId}/branding/branch/${fixture.branch}/primary-${id}.webp`};
+}
+it("commits Brand profile, File metadata, receipt, audit and outbox as one replacement",async()=>{
+  const upload=await brandUploadFixture();
+  const result=await completeBrandUpload({db,files:env.H001_FILES,actor:fixture.owner,intent:upload.intent,buffer:upload.buffer});
+  expect(await db.prepare("SELECT status FROM upload_intents WHERE id=?").bind(upload.intent.id).first("status")).toBe("ready");
+  expect(await db.prepare("SELECT primary_attachment_id FROM organization_brand_profiles WHERE scope_kind='branch' AND scope_id=?").bind(fixture.branch).first("primary_attachment_id")).toBe(result.id);
+  expect(await db.prepare("SELECT id FROM attachments WHERE upload_id=?").bind(upload.intent.id).first("id")).toBe(result.id);
+  for(const table of ["command_receipts","audit_events","outbox_events"])expect(await db.prepare(`SELECT count(*) count FROM ${table} WHERE command_id=?`).bind(`upload-${upload.intent.id}`).first("count")).toBe(1);
+  expect(await env.H001_FILES.head(upload.key)).not.toBeNull();
+});
+it("rolls back every owner write and compensates the stored object after a late PostgreSQL failure",async()=>{
+  const upload=await brandUploadFixture();
+  const failAfterWrites:SqlDatabase={prepare:sql=>db.prepare(sql),exec:sql=>db.exec(sql),batch:statements=>db.batch([...statements,db.prepare("SELECT 1/0")])};
+  await expect(completeBrandUpload({db:failAfterWrites,files:env.H001_FILES,actor:fixture.owner,intent:upload.intent,buffer:upload.buffer})).rejects.toThrow();
+  expect(await db.prepare("SELECT status FROM upload_intents WHERE id=?").bind(upload.intent.id).first("status")).toBe("pending");
+  expect(await db.prepare("SELECT count(*) count FROM attachments WHERE upload_id=?").bind(upload.intent.id).first("count")).toBe(0);
+  expect(await db.prepare("SELECT count(*) count FROM organization_brand_profiles WHERE scope_kind='branch' AND scope_id=?").bind(fixture.branch).first("count")).toBe(0);
+  for(const table of ["command_receipts","audit_events","outbox_events"])expect(await db.prepare(`SELECT count(*) count FROM ${table} WHERE command_id=?`).bind(`upload-${upload.intent.id}`).first("count")).toBe(0);
+  expect(await env.H001_FILES.head(upload.key)).toBeNull();
 });

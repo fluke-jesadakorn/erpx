@@ -1,4 +1,4 @@
-import { boundedBody } from "@/server/legal/body";
+import { boundedBody } from "@/server/modules/legal/public/legal/body";
 import {
   portalContext,
   portalUpload,
@@ -6,10 +6,10 @@ import {
   portalDetail,
   portalDownload,
   portalCommand,
-} from "@/server/legal/portal";
-import type { PostgresDatabase } from "@/server/runtime/postgres";
-import { ApiError, errorResponse } from "@/server/http";
-import { requestPublicOrigin } from "@/server/public-origin";
+} from "@/server/modules/legal/public/legal/portal";
+import type { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
 export async function GET(req: Request, ctx: Context) {

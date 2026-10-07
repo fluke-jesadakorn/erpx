@@ -1,15 +1,16 @@
-import { requestPublicOrigin } from "@/server/public-origin";
-import { requireWorkContext } from "@/server/authorization";
-import { holdingResources } from "@/server/runtime";
-import { ApiError, errorResponse } from "@/server/http";
+import {appAttachmentSources} from "@/server/modules/files/public/app-attachment-sources";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import {
   bindCompatibilityAttachmentSet,
   completeAttachmentUpload,
   scanAttachmentNow,
-} from "@/server/attachments/service";
-import { attachmentsV2ReadOnly } from "@/server/attachments/feature";
-import { readBoundedUploadBody } from "@/server/attachments/upload";
-import { legacyAttachmentPolicy } from "@/server/attachments/legacy-policy";
+} from "@/server/modules/files/public/attachments/service";
+import { attachmentsV2ReadOnly } from "@/server/modules/files/public/attachments/feature";
+import { readBoundedUploadBody } from "@/server/modules/files/public/attachments/upload";
+import { legacyAttachmentPolicy } from "@/server/modules/files/public/attachments/legacy-policy";
 
 export async function PUT(
   request: Request,
@@ -32,29 +33,7 @@ export async function PUT(
     operation = "open_resources";
     const { write, files } = await holdingResources(actor.holdingId);
     operation = "load_reservation";
-    const universal = await write
-      .prepare(
-        `SELECT u.declared_bytes,u.media_type,u.attachment_set_id,u.owner_type,u.purpose,
-           s.component_kind,s.component_ref,s.purpose_key,s.expected_target_version,
-           EXISTS(SELECT 1 FROM attachment_events event WHERE event.set_id=s.id AND event.company_id=s.company_id
-             AND event.action='set.created' AND COALESCE((event.details_json::jsonb->>'compatibilityAdapter')::boolean,false)=true) compatibility_adapter
-         FROM upload_intents u
-         JOIN attachment_sets s ON s.id=u.attachment_set_id
-         WHERE u.id=? AND u.created_by=? AND u.company_id=?`,
-      )
-      .bind(id, actor.userId, actor.companyId)
-      .first<{
-        declared_bytes: number;
-        media_type: string;
-        attachment_set_id: string;
-        owner_type: string;
-        purpose: string;
-        component_kind: "record" | "action" | "line" | "event" | "message" | "publication";
-        component_ref: string | null;
-        purpose_key: string;
-        expected_target_version: number;
-        compatibility_adapter: boolean;
-      }>();
+    const universal = await appAttachmentSources(write).universalReservation(id,actor.userId,actor.companyId);
     if (!universal)
       throw new ApiError(
         404,

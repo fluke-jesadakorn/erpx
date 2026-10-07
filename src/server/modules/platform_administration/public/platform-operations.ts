@@ -1,0 +1,3 @@
+/** Platform operations public API; summary policy is injected through application ports. */
+export { summarizePlatformOperations, recoverDeadLetterJob, runHoldingMigrations, platformProvisioningSnapshot, provisionHolding } from "../adapters/operations";
+export type { PlatformHoldingOperation, PlatformDeadLetter, PlatformOperationsSummary, PlatformHoldingOperationInput, RecoverDeadLetterInput, RecoverDeadLetterResult, RunHoldingMigrationInput, RunHoldingMigrationResult, PlatformProvisioningRow, PlatformProvisioningSnapshot, ProvisionHoldingInput, ProvisionHoldingResult } from "../adapters/operations";

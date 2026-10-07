@@ -1,0 +1,2 @@
+// Kept in the caller's scoped SELECT so reviewer labels use the same snapshot.
+export const financeReviewerNamesSql="COALESCE((SELECT p.legal_name FROM hr_people p WHERE p.user_id=r.prepared_by AND p.company_id=r.company_id AND p.merged_into_id IS NULL LIMIT 1),'Unlinked Finance account') prepared_by_name,COALESCE((SELECT p.legal_name FROM hr_people p WHERE p.user_id=r.reviewed_by AND p.company_id=r.company_id AND p.merged_into_id IS NULL LIMIT 1),'Unlinked Finance account') reviewed_by_name";

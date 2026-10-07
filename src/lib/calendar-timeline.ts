@@ -1,5 +1,5 @@
 import type { CalendarItem } from "./calendar";
-import { addDays } from "./people-roster";
+import { addDays } from "@/server/modules/people_payroll/public/rules/people-roster-domain";
 
 export const TIMELINE_STEP_MS = 15 * 60_000;
 

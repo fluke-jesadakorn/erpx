@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { requireWorkContext } from "@/server/authorization";
-import { holdingResources } from "@/server/runtime";
-import { ApiError, errorResponse } from "@/server/http";
-import { requestPublicOrigin } from "@/server/public-origin";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import {
   channelSchema,
   createMessagingChannel,
@@ -20,9 +20,9 @@ import {
   roomSchema,
   sendMessagingMessage,
   teamSchema,
-} from "@/server/messaging";
-import { uploadMessagingFile } from "@/server/messaging-files";
-import { attachmentContent } from "@/server/attachments/service";
+} from "@/server/modules/collaboration/public/messaging";
+import { uploadMessagingFile } from "@/server/modules/collaboration/public/messaging-files";
+import { attachmentContent } from "@/server/modules/files/public/attachments/service";
 
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };

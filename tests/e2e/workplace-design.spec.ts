@@ -1,6 +1,8 @@
-import { expect, test } from "@playwright/test";
-import { mkdirSync } from "node:fs";
-import type { WorkSummary } from "../../src/server/work-summary";
+import { captureCaseScreenshot } from "../helpers/case-screenshot";
+import { expect, test, type Page } from "@playwright/test";
+import type { WorkSummary } from "../../src/server/modules/work_projection/public/work-summary";
+import { projectWorkPage } from "../../src/lib/work-page";
+import { selectFixtureAssignment } from "./helpers/select-fixture-assignment";
 import type { WorkItem } from "../../src/lib/work-item";
 
 const base = "/holdings/acme";
@@ -22,7 +24,22 @@ test.beforeEach(async ({ context, baseURL }) => {
     data: { email: "mali@erpx.dev", password: "Mali-ERPX-2026!" },
   });
   expect(response.status()).toBe(200);
+  await selectFixtureAssignment(context, "acme-co", "seed_usr_mali");
 });
+
+async function refreshAfterTabReturn(page: Page) {
+  const response = page.waitForResponse(r => new URL(r.url()).pathname === api && r.request().method() === "GET");
+  const other = await page.context().newPage();
+  try { await other.goto("about:blank"); await page.bringToFront(); return await response; }
+  finally { await other.close(); }
+}
+async function openTodayTools(page: Page) {
+  const toggle = page.locator("#today-tools-toggle");
+  const compact = await toggle.evaluate(el => getComputedStyle(el.parentElement!).display !== "none");
+  if (compact) { await expect(toggle).toBeVisible(); await toggle.click(); }
+  else await expect(toggle).toBeHidden();
+  await expect(page.getByRole("complementary", { name: "Today tools", exact: true })).toBeVisible();
+}
 
 for (const size of [{ width: 1440, height: 900 }, { width: 1024, height: 768 }, { width: 390, height: 844 }]) {
   for (const theme of ["light", "dark"]) {
@@ -30,30 +47,34 @@ for (const size of [{ width: 1440, height: 900 }, { width: 1024, height: 768 }, 
       test.setTimeout(180_000);
       await context.addCookies([{ name: "erpx_appearance", value: theme, url: baseURL! }]);
       await page.setViewportSize(size);
-      mkdirSync(".scratch/workplace-design", { recursive: true });
+
       for (const route of ["home", "work", "inbox"]) {
         await page.goto(`${base}/${route}`);
         await expect(page.getByRole("button", { name: "Search workspace", exact: true })).toBeEnabled({ timeout: 40_000 });
         await expect(page.locator("#workspace-content")).toBeVisible();
-        const sharedShelf = page.getByRole("region", { name: "Your shortcuts", exact: true });
-        await expect(sharedShelf).toBeVisible();
-        expect(await sharedShelf.evaluate((node) => node.compareDocumentPosition(document.querySelector("#workspace-content")) & Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy();
-        const shelfBox = await sharedShelf.boundingBox();
-        const contentBox = await page.locator("#workspace-content").boundingBox();
-        if (size.width >= 1200) expect(shelfBox!.x).toBeGreaterThanOrEqual(contentBox!.x + contentBox!.width - 1);
-        else expect(shelfBox!.y).toBeLessThan(contentBox!.y);
+        const sharedShelf = page.getByRole("region", { name: "My shortcuts", exact: true });
+        if (size.width > 650) {
+          await expect(sharedShelf).toBeVisible();
+          const shelfBox = await sharedShelf.boundingBox();
+          const contentBox = await page.locator("#workspace-content").boundingBox();
+          expect(shelfBox!.x + shelfBox!.width).toBeLessThanOrEqual(contentBox!.x + 1);
+        } else {
+          await expect(sharedShelf).toBeHidden();
+          await expect(page.getByRole("navigation", { name: "Mobile navigation", exact: true }).getByRole("button", { name: "Start work", exact: true })).toBeVisible();
+        }
         await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-        expect(await page.locator("body").evaluate(el => getComputedStyle(el).backgroundColor)).toBe(theme === "light" ? "rgb(245, 244, 240)" : "rgb(25, 27, 31)");
+        expect(await page.locator("body").evaluate(el => getComputedStyle(el).backgroundColor)).toBe(theme === "light" ? "rgb(242, 245, 248)" : "rgb(21, 26, 33)");
         const tokens = await page.locator("html").evaluate(el => Object.fromEntries(
-          ["ink", "ink-strong", "muted", "card", "paper", "brand", "on-brand", "amber", "amber-soft", "red", "red-soft", "green", "green-soft"].map(name => [name, getComputedStyle(el).getPropertyValue(`--${name}`).trim()]),
+          ["ink", "ink-strong", "muted", "card", "paper", "brand", "on-brand", "amber", "amber-soft", "red", "red-soft", "green", "green-soft"].map(name => [name, getComputedStyle(el).getPropertyValue(`--ui-${name}`).trim()]),
         ));
         for (const [foreground, background] of [["ink", "card"], ["ink-strong", "paper"], ["muted", "card"], ["muted", "paper"], ["brand", "card"], ["on-brand", "brand"], ["amber", "amber-soft"], ["red", "red-soft"], ["green", "green-soft"]]) {
           expect(contrast(tokens[foreground], tokens[background]), `${foreground} on ${background}`).toBeGreaterThanOrEqual(4.5);
         }
         if (route === "home") {
           await expect(page.getByRole("navigation", { name: "Staff self-service" })).toHaveCount(0);
-          await expect(page.locator("#home-attention").getByRole("heading", { name: "Needs your attention" })).toBeVisible();
+          await openTodayTools(page);
+          await expect(page.getByRole("region", { name: "Needs you", exact: true }).getByRole("heading")).toBeVisible();
           await expect(page.getByText("Share an update", { exact: true })).toBeVisible();
           if (size.width === 1440) {
             const feed = await page.getByRole("region", { name: "Team updates", exact: true }).boundingBox();
@@ -61,15 +82,22 @@ for (const size of [{ width: 1440, height: 900 }, { width: 1024, height: 768 }, 
           }
         }
         if (route === "work") {
-          const shortcuts = page.getByRole("region", { name: "Your shortcuts", exact: true });
-          if (size.width < 1200) await shortcuts.getByRole("button", { name: "Show shortcuts" }).click();
-          await expect(shortcuts.getByRole("button", { name: "Customize", exact: true })).toBeEnabled();
-          expect(await shortcuts.locator("a:visible,button:visible").evaluateAll(nodes => nodes.filter(n => n.getBoundingClientRect().height < 43.5).map(n => n.textContent))).toEqual([]);
-          const customize = shortcuts.getByRole("button", { name: "Customize", exact: true });
-          await customize.click();
-          await expect(page.getByRole("dialog", { name: "Customize shortcuts", exact: true })).toBeVisible();
-          await page.keyboard.press("Escape");
-          await expect(customize).toBeFocused();
+          if (size.width > 650) {
+            const shortcuts = page.getByRole("region", { name: "My shortcuts", exact: true });
+            await expect(shortcuts.getByRole("button", { name: "Customize", exact: true })).toBeEnabled();
+            expect(await shortcuts.locator("a:visible,button:visible").evaluateAll(nodes => nodes.filter(n => n.getBoundingClientRect().height < 43.5).map(n => n.textContent))).toEqual([]);
+            const customize = shortcuts.getByRole("button", { name: "Customize", exact: true });
+            await customize.click();
+            await expect(page.getByRole("dialog", { name: "Customize shortcuts", exact: true })).toBeVisible();
+            await page.keyboard.press("Escape"); await expect(customize).toBeFocused();
+          } else {
+            const start = page.getByRole("navigation", { name: "Mobile navigation", exact: true }).getByRole("button", { name: "Start work", exact: true });
+            await start.click();
+            const dialog = page.getByRole("dialog", { name: "Start work", exact: true });
+            await expect(dialog).toBeVisible();
+            expect(await dialog.getByRole("link").evaluateAll(nodes => nodes.filter(n => n.getBoundingClientRect().height < 43.5).map(n => n.textContent))).toEqual([]);
+            await page.keyboard.press("Escape"); await expect(start).toBeFocused();
+          }
         }
         if (route === "inbox") {
           await expect(page.getByRole("button", { name: "New chat", exact: true })).toBeEnabled();
@@ -77,7 +105,7 @@ for (const size of [{ width: 1440, height: 900 }, { width: 1024, height: 768 }, 
           await expect(page.getByRole("heading", { name: "Chats", exact: true })).toBeVisible();
         }
         await page.evaluate(() => window.scrollTo(0, 0));
-        await page.screenshot({ path: `.scratch/workplace-design/${route}-${size.width}-${theme}.png` });
+        await captureCaseScreenshot(page, `${route}-${size.width}-${theme}.png`);
       }
     });
   }
@@ -91,35 +119,58 @@ test("shared attention shows full totals, survives filters, recovers from failur
   const rows: WorkItem[] = Array.from({ length: 5 }, (_, index) => ({
     id: `design-${index}`, type: "expense", title: `Design verification ${index} · งานที่ต้องดำเนินการ`, detail: "Review the details", nextAction: "Review the details", href: `/expenses/design-${index}`, status: "pending", queue: index === 0 ? "waiting" : "todo", blocker: index === 0 ? "Assign a responsible teammate" : null, updatedAt: 100 - index,
   }));
+  // All five rows are actionable; a blocker remains an action rather than
+  // being misclassified as work waiting on somebody else.
+  rows[0].queue = "todo";
   let mode: "ok" | "failure" | "revoked" = "ok";
-  await page.route(`**${api}`, route => route.fulfill({
-    status: mode === "ok" ? 200 : mode === "failure" ? 503 : 403,
-    json: mode === "ok" ? { data: { ...summary, items: rows, unavailableSources: [], capabilities: { ...summary.capabilities, unavailable: [] } } } : { error: { message: "Design verification unavailable" } },
-  }));
-  for (const route of ["work", "home"]) {
-    mode = "ok";
-    await page.goto(`${base}/${route}${route === "work" ? "?queue=completed&q=unmatched" : ""}`);
-    await expect(page.getByRole("button", { name: "Search workspace", exact: true })).toBeEnabled();
-    const attention = page.getByRole("region", { name: "Needs attention", exact: true });
-    // The shell can hydrate before the streamed Home client installs its listener.
-    await expect.poll(async () => {
-      await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-      return attention.getByRole("heading").textContent();
-    }).toBe("Needs attention 5");
-    await expect(attention.locator("li")).toHaveCount(3);
-    await expect(attention.locator("li").first()).toContainText("Assign a responsible teammate");
-    mode = "failure";
-    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await expect(attention.getByRole("status")).toBeVisible();
-    await expect(attention.locator("li")).toHaveCount(3);
-    mode = "ok";
-    await attention.getByRole("button", { name: "Retry work", exact: true }).click();
-    await expect(attention.getByRole("status")).toHaveCount(0);
-    mode = "revoked";
-    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await expect(attention.locator("li")).toHaveCount(0);
-    await expect(attention).not.toContainText("You’re all caught up");
-  }
+  await page.route(`**${api}**`, route => {
+    const snapshot: WorkSummary = { ...summary, items: rows, unavailableSources: [], capabilities: { ...summary.capabilities, unavailable: [] } };
+    const query = new URL(route.request().url()).searchParams;
+    return route.fulfill({
+      status: mode === "ok" ? 200 : mode === "failure" ? 503 : 403,
+      json: mode === "ok" ? { data: query.get("paged") === "1" ? projectWorkPage(snapshot, { view: query.get("view") ?? "all", queue: query.get("queue") ?? "all", type: query.get("type") ?? "all", q: query.get("q") ?? "", responsibility: query.get("responsibility") ?? "all" }) : snapshot } : { error: { message: "Design verification unavailable" } },
+    });
+  });
+  await page.goto(`${base}/home`); await openTodayTools(page);
+  const attention = page.getByRole("region", { name: "Needs you", exact: true });
+  await expect(attention.getByRole("heading")).toHaveText("Needs you 5");
+  await expect(attention.locator("li")).toHaveCount(2);
+  await expect(attention.locator("li").first()).toContainText("Assign a responsible teammate");
+  mode = "failure"; expect((await refreshAfterTabReturn(page)).status()).toBe(503);
+  await expect(attention.getByRole("status")).toBeVisible(); await expect(attention.locator("li")).toHaveCount(2);
+  mode = "ok";
+  const recovered = page.waitForResponse(r => new URL(r.url()).pathname === api && r.status() === 200);
+  await attention.getByRole("button", { name: "Retry work", exact: true }).click(); await recovered;
+  await expect(attention.getByRole("status")).toHaveCount(0);
+  mode = "revoked"; expect((await refreshAfterTabReturn(page)).status()).toBe(403);
+  await expect(attention.locator("li")).toHaveCount(0); await expect(attention).not.toContainText("You’re all caught up");
+
+  mode = "ok"; await page.goto(`${base}/work?view=all`);
+  await expect(page.getByRole("heading", { name: "My work", exact: true })).toBeVisible();
+  expect((await refreshAfterTabReturn(page)).ok()).toBe(true);
+  const results = page.getByRole("region", { name: "Work results", exact: true });
+  const total = page.locator('nav[aria-label="Primary"]:visible,nav[aria-label="Mobile navigation"]:visible').getByRole("link", { name: /^My work/ }).locator('[title="My actions; – means incomplete"]');
+  await expect(total).toHaveText("5");
+  await expect(results.getByRole("article")).toHaveCount(5);
+  await expect(results.getByRole("article").first()).toContainText("Assign a responsible teammate");
+  mode = "failure"; expect((await refreshAfterTabReturn(page)).status()).toBe(503);
+  await expect(page.getByRole("status").filter({ hasText: "Design verification unavailable" })).toBeVisible();
+  await expect(results.getByRole("article")).toHaveCount(5);
+  mode = "ok"; expect((await refreshAfterTabReturn(page)).ok()).toBe(true);
+  await expect(page.getByRole("status").filter({ hasText: "Design verification unavailable" })).toHaveCount(0);
+  // Filtering the list does not change the complete action count in navigation.
+  await page.getByLabel("Search work", { exact: true }).fill("unmatched");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(results).toContainText("No matching work");
+  await expect(page.getByLabel("Search work", { exact: true })).toHaveValue("unmatched");
+  expect((await refreshAfterTabReturn(page)).ok()).toBe(true);
+  await expect(results).toContainText("No matching work");
+  await expect(total).toHaveText("5");
+  mode = "revoked"; expect((await refreshAfterTabReturn(page)).status()).toBe(403);
+  await expect(results.getByRole("article")).toHaveCount(0);
+  await expect(total).toHaveText("–");
+  await expect(results).not.toContainText("You’re all caught up");
+  await expect(page.getByRole("status").filter({ hasText: "Design verification unavailable" })).toBeVisible();
 });
 
 test("work rows show a real current owner and next handoff, and preserve the return filters", async ({ page, context }) => {
@@ -133,8 +184,11 @@ test("work rows show a real current owner and next handoff, and preserve the ret
     id: "design-flow", type: "expense", title: "Travel expenses · ตรวจเอกสารค่าใช้จ่าย", detail: "Review claim", href: "/expenses/design-flow", status: "pending", queue: "todo", updatedAt: 100,
     flow: { kind: "expense", recordId: "design-flow", recordVersion: 1, version: 1, defaultsRevision: 1, state: "pending", current, next, steps: [current, next], canAct: true, canManage: false, blocker: null, history: [] },
   };
-  await page.route(`**${api}`, route => route.fulfill({ json: { data: { ...summary, items: [row], unavailableSources: [] } } }));
+  const snapshot: WorkSummary = { ...summary, items: [row], unavailableSources: [], capabilities: { ...summary.capabilities, unavailable: [] } };
+  await page.route(`**${api}**`, route => route.fulfill({ json: { data: projectWorkPage(snapshot, { view: "legacy", queue: "todo", type: "expense", q: "Travel", responsibility: "all" }) } }));
   await page.goto(`${base}/work?queue=todo&type=expense&q=Travel`);
+  await expect(page.getByRole("heading", { name: "My work", exact: true })).toBeVisible();
+  expect((await refreshAfterTabReturn(page)).ok()).toBe(true);
   const results = page.getByRole("region", { name: "Work results", exact: true });
   await expect(results.getByText(person.name, { exact: true })).toBeVisible();
   await expect(results.locator('[aria-current="step"]')).toHaveText("Review claim");
@@ -152,8 +206,8 @@ test("System follows both color schemes and respects reduced motion", async ({ p
   await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
   await page.goto(`${base}/inbox`);
   await expect(page.locator("html")).toHaveAttribute("data-theme", "system");
-  expect(await page.locator("body").evaluate(el => getComputedStyle(el).backgroundColor)).toBe("rgb(25, 27, 31)");
-  expect(await page.getByRole("button", { name: "Chats", exact: true }).evaluate(el => getComputedStyle(el).transitionDuration)).toBe("1e-05s");
+  expect(await page.locator("body").evaluate(el => getComputedStyle(el).backgroundColor)).toBe("rgb(21, 26, 33)");
+  expect(await page.getByRole("button", { name: /^Messages/ }).evaluate(el => getComputedStyle(el).transitionDuration)).toBe("1e-05s");
   await page.emulateMedia({ colorScheme: "light" });
-  expect(await page.locator("body").evaluate(el => getComputedStyle(el).backgroundColor)).toBe("rgb(245, 244, 240)");
+  expect(await page.locator("body").evaluate(el => getComputedStyle(el).backgroundColor)).toBe("rgb(242, 245, 248)");
 });

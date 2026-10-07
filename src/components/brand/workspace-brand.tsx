@@ -1,5 +1,5 @@
 /* eslint-disable @next/next/no-img-element -- Private workspace logos are served through authenticated attachment routes. */
-import type { WorkspaceBrand } from "@/server/branding";
+import type { WorkspaceBrand } from "@/server/modules/brand/public/branding";
 import styles from "./workspace-brand.module.css";
 import { type UiAppearance } from "@/components/ui/foundation";
 

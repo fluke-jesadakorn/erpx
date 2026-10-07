@@ -5,9 +5,9 @@
  * ERPX_BROWSER_SIMULATION_PORT=3104 ERPX_BROWSER_SIMULATION_RELEASE_DIR=<release> bun run demo:start <run-id>
  * ERPX_BROWSER_SIMULATION_PORT=3104 bun run demo:destroy <run-id>
  */
-import {mkdir,readFile,writeFile,cp,chmod,open,rm,realpath} from 'node:fs/promises';
+import {mkdir,readFile,writeFile,cp,chmod,open,rm,realpath,readdir,symlink} from 'node:fs/promises';
 import {existsSync,constants} from 'node:fs';
-import {resolve,join} from 'node:path';
+import {resolve,join,dirname} from 'node:path';
 import {createHash,randomBytes} from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {createServer} from 'node:net';
@@ -17,27 +17,31 @@ import {migrateDatabase} from '../../src/server/runtime/migrations';
 import {generalCompanyDemoGuide} from '../fixtures/general-company-demo';
 import {placeScopedBrowserEmployee} from '../fixtures/scoped-browser-staff';
 import {runtimeSourceFingerprint} from './source-fingerprint';
+import {clonedFixtureMetadata,isolatedAiCredentialEnvironment,isClonedFixtureDocument,isCaseExecutionEvidence} from '../testing/browser-fixture-metadata';
+import {browserChildEnvironment} from '../testing/runner-environment';
 const root=resolve(import.meta.dir,'../..'),parent=join(root,'.runtime/browser'),port=Number(process.env.ERPX_BROWSER_SIMULATION_PORT??'3102');
 if(![3102,3104].includes(port))throw new Error('UNSUPPORTED_BROWSER_SIMULATION_PORT');
 const useWebpack=process.env.ERPX_BROWSER_SIMULATION_WEBPACK==='1';
 if(useWebpack&&port!==3104)throw new Error('WEBPACK_IS_FOR_UAT_SIMULATION_ONLY');
 const origin=`http://127.0.0.1:${port}`;
-const node=join(root,'.runtime/node/node-v24.20.0-darwin-arm64/bin/node');
+const node=resolve(process.env.ERPX_NODE_BIN??join(root,'.runtime/node/node-v24.20.0-darwin-arm64/bin/node'));
+const profile=process.env.ERPX_BROWSER_SIMULATION_PROFILE??'general-company';
+if(!['general-company','hospitality','engineering','legal','uat','local-seed','staff-work','expense','work-cards','messaging','services','booking'].includes(profile))throw new Error('UNSUPPORTED_BROWSER_SIMULATION_PROFILE');
 if(Bun.version!=='1.2.17'||Bun.spawnSync([node,'--version']).stdout.toString().trim()!=='v24.20.0')throw new Error('PINNED_TOOLCHAIN_REQUIRED');
 let adminUrl=process.env.ERPX_TEST_ADMIN_URL;
 if(!adminUrl)for(const file of ['.env.test.local','.env.test','.env.local']){const path=join(root,file);if(!existsSync(path))continue;const value=(await readFile(path,'utf8')).match(/^\s*(?:export\s+)?ERPX_TEST_ADMIN_URL\s*=\s*(.*?)\s*$/m)?.[1];if(value){adminUrl=value.replace(/^(["'])(.*)\1$/,'$2');break;}}
 if(!adminUrl)throw new Error('ISOLATED_TEST_ADMIN_REQUIRED');
 const connection=new URL(adminUrl);if(connection.hostname!=='127.0.0.1'||connection.port!=='5432'||connection.username!=='erpx_test_admin'||connection.pathname!=='/postgres')throw new Error('UNSAFE_TEST_DATABASE_ADMIN');
 const tracks={CONTROL_DB:'control',CONTROL_READ_DB:'control-read',H001_DB:'holding-write',H001_READ_DB:'holding-read',H002_DB:'holding-write',H002_READ_DB:'holding-read',H003_DB:'holding-write',H003_READ_DB:'holding-read'} as const;
-const mode=process.argv[2],diagnostic=mode==='prepare-diagnostic',run=mode==='prepare'||diagnostic?randomBytes(6).toString('hex'):process.argv[3];
+const mode=process.argv[2],diagnostic=mode==='prepare-diagnostic',run=mode==='prepare'||diagnostic?(process.env.ERPX_BROWSER_SIMULATION_RUN_ID??randomBytes(6).toString('hex')):process.argv[3];
 if(!run||!/^([a-f0-9]{12})$/.test(run))throw new Error('EXACT_BROWSER_RUN_ID_REQUIRED');
 const directory=join(parent,run),app=join(directory,'app'),manifestPath=join(directory,'databases.json'),statePath=join(directory,'state.json');
-type State={run:string;prefix:string;createdAt:string;origin:string;port?:number;ready?:boolean;diagnostic?:boolean;pid?:number;jobsPid?:number|null;jobsStartedAt?:string;jobsPaused?:boolean;sourceFingerprint?:string;softwareVersion?:string;webEntrypoint?:string;jobsEntrypoint?:string;release?:{id:string;fileManifestSha256:string};fixture?:Record<string,unknown>};
+type State={run:string;prefix:string;createdAt:string;origin:string;port?:number;profile?:string;templateRun?:string;ready?:boolean;diagnostic?:boolean;pid?:number;jobsPid?:number|null;jobsStartedAt?:string;jobsPaused?:boolean;sourceFingerprint?:string;softwareVersion?:string;webEntrypoint?:string;jobsEntrypoint?:string;release?:{id:string;fileManifestSha256:string};fixture?:Record<string,unknown>};
 const localAttachmentMode=process.env.ERPX_BROWSER_SIMULATION_ATTACHMENTS==='local';
 const localJobsEnabled=process.env.ERPX_BROWSER_SIMULATION_JOBS==='1';
 const safeEnv=(secret:string)=>({
  ...Object.fromEntries(Object.entries(process.env).filter(([name])=>name.startsWith('NEXT_PUBLIC_'))),
- PATH:`${join(root,'.runtime/node/node-v24.20.0-darwin-arm64/bin')}:${process.env.PATH??''}`,
+ PATH:`${dirname(node)}:${process.env.PATH??''}`,
  HOME:process.env.HOME??'',
  TMPDIR:process.env.TMPDIR??'/tmp',
  NODE_ENV:'development' as const,
@@ -45,10 +49,12 @@ const safeEnv=(secret:string)=>({
  NODE_OPTIONS:'--max-old-space-size=8192',
  ERPX_ENVIRONMENT:'local',
  ERPX_BROWSER_SIMULATION_PORT:String(port),
+ ERPX_BROWSER_SIMULATION_RUN_ID:run,
  ERPX_BROWSER_SIMULATION:'thai-hotel-v1',
  ERPX_AI_ADAPTER:'deterministic-v1',
  ERPX_PAYROLL_ADAPTER:'synthetic-fixtures-v1',
  ERPX_EMAIL_ADAPTER:'sandbox',
+ ...(profile==='booking'?{RESEND_API_KEY:'deterministic-browser-booking',RESEND_FROM:'Fictional Hotel <hotel@example.test>'}:{}),
  // Explicit fixture activation for the existing restaurant/hotel pilot.
  // The compiled runtime still checks the enrolled Company and both owners.
  ERPX_POS_ROOM_CHARGE_PILOT_ENABLED:'true',
@@ -58,6 +64,7 @@ const safeEnv=(secret:string)=>({
  ERPX_FRONT_POS_ORIGIN:`http://dev-pos.localhost:${port}`,
  BETTER_AUTH_URL:origin,
  BETTER_AUTH_SECRET:secret,
+ ...isolatedAiCredentialEnvironment(secret),
  ERPX_DATA_DIR:directory,
  ERPX_DATABASE_MANIFEST:manifestPath,
  ERPX_PUBLIC_BETA:'false',
@@ -67,11 +74,12 @@ const safeEnv=(secret:string)=>({
  ...(localAttachmentMode?{
   ERPX_ATTACHMENTS_V2:'true',
   ERPX_ATTACHMENT_UPLOAD_FREEZE:'false',
-  ERPX_CLAMD_SOCKET:join(root,'.scratch/dev/clamav/clamd.sock'),
-  ERPX_CLAMAV_DATABASE_DIR:join(root,'.scratch/dev/clamav/db'),
-  ERPX_CLAMAV_VERSION:'1.5.4',
-  ERPX_HEIF_CONVERT:'/opt/homebrew/opt/libheif/bin/heif-convert',
-  ERPX_PDFTOPPM_BIN:'/opt/homebrew/bin/pdftoppm',
+  ERPX_CLAMD_SOCKET:process.env.ERPX_CLAMD_SOCKET??join(root,'.scratch/dev/clamav/clamd.sock'),
+  ERPX_CLAMAV_DATABASE_DIR:process.env.ERPX_CLAMAV_DATABASE_DIR??join(root,'.scratch/dev/clamav/db'),
+  ERPX_CLAMAV_VERSION:process.env.ERPX_CLAMAV_VERSION??'1.5.4',
+  ERPX_HEIF_CONVERT:process.env.ERPX_HEIF_CONVERT??'/opt/homebrew/opt/libheif/bin/heif-convert',
+  ERPX_HEIF_ENC:process.env.ERPX_HEIF_ENC??'/opt/homebrew/opt/libheif/bin/heif-enc',
+  ERPX_PDFTOPPM_BIN:process.env.ERPX_PDFTOPPM_BIN??'/opt/homebrew/bin/pdftoppm',
  }:{}),
 });
 async function assertAdmin(admin:Pool){const role=(await admin.query('SELECT current_user name,rolsuper,rolcreatedb,rolcreaterole FROM pg_roles WHERE rolname=current_user')).rows[0];if(role.name!=='erpx_test_admin'||role.rolsuper||!role.rolcreatedb||role.rolcreaterole)throw new Error('UNSAFE_TEST_DATABASE_ROLE');const forbidden=await admin.query("SELECT datname FROM pg_database WHERE (datname LIKE 'epsx\\_%' ESCAPE '\\' OR datname IN ('n8n','plf_webapp_dev')) AND has_database_privilege(current_user,datname,'CONNECT')");if(forbidden.rowCount)throw new Error('TEST_ADMIN_CAN_CONNECT_TO_OTHER_PROJECT');}
@@ -88,7 +96,54 @@ if(mode==='prepare'||diagnostic){
  const sourceFingerprint=await runtimeSourceFingerprint(root);
  if(process.env.ERPX_SERVER_SCRIPT_SOURCE_FINGERPRINT&&process.env.ERPX_SERVER_SCRIPT_SOURCE_FINGERPRINT!==sourceFingerprint)
   throw new Error('BROWSER_FIXTURE_COMPILED_SOURCE_MISMATCH');
- await freePort();await mkdir(directory,{recursive:true,mode:0o700});const prefix=`erpx_browser_${run}`,state:State={run,prefix,createdAt:new Date().toISOString(),origin,port,sourceFingerprint};await writePrivate(statePath,state);
+ await freePort();if(existsSync(directory))throw new Error('BROWSER_RUN_ALREADY_EXISTS');await mkdir(directory,{recursive:true,mode:0o700});const prefix=`erpx_browser_${run}`,state:State={run,prefix,createdAt:new Date().toISOString(),origin,port,profile,sourceFingerprint};await writePrivate(statePath,state);
+ const templateRun=process.env.ERPX_BROWSER_SIMULATION_TEMPLATE_RUN;
+ if(templateRun){
+  if(!/^[a-f0-9]{12}$/.test(templateRun)||templateRun===run)throw new Error('EXACT_BROWSER_TEMPLATE_RUN_REQUIRED');
+  const templateDirectory=join(parent,templateRun),template=JSON.parse(await readFile(join(templateDirectory,'state.json'),'utf8')) as State;
+  if(template.run!==templateRun||template.prefix!==`erpx_browser_${templateRun}`||template.profile!==profile||template.port!==port||template.origin!==origin||!template.ready||template.diagnostic||template.pid||template.jobsPid||template.release||template.sourceFingerprint!==sourceFingerprint||await runtimeSourceFingerprint(join(templateDirectory,'app'))!==sourceFingerprint)throw new Error('FROZEN_BROWSER_TEMPLATE_REQUIRED');
+  const templateManifest=JSON.parse(await readFile(join(templateDirectory,'databases.json'),'utf8')) as {version:number;databases:Record<string,string>;slots:Array<{id:string;write:string;read:string;files:string;internal?:boolean}>};
+  for(const [binding,value] of Object.entries(templateManifest.databases)){
+   const url=new URL(value);if(!Object.keys(tracks).includes(binding)||url.hostname!=='127.0.0.1'||url.port!=='5432'||url.username!=='erpx_test_admin'||url.pathname!==`/erpx_browser_${templateRun}_${binding.toLowerCase()}`)throw new Error('BROWSER_TEMPLATE_DATABASE_IDENTITY_CHANGED');
+  }
+  if(Object.keys(templateManifest.databases).length!==8)throw new Error('EXACT_EIGHT_TEMPLATE_DATABASES_REQUIRED');
+  const admin=new Pool({connectionString:adminUrl,max:1}),databases:Record<string,string>={};
+  try{
+   await assertAdmin(admin);
+   for(const binding of Object.keys(tracks)){
+    const source=`erpx_browser_${templateRun}_${binding.toLowerCase()}`,name=`${prefix}_${binding.toLowerCase()}`;
+    const owner=(await admin.query('SELECT pg_get_userbyid(datdba) owner FROM pg_database WHERE datname=$1',[source])).rows[0];
+    if(owner?.owner!=='erpx_test_admin')throw new Error('QUIESCENT_OWNED_BROWSER_TEMPLATE_REQUIRED');
+    // A just-exited preparation process can still have a backend finishing its
+    // socket close. Never terminate it; wait for the owned template to quiesce.
+    const until=Date.now()+10_000;
+    while((await admin.query('SELECT 1 FROM pg_stat_activity WHERE datname=$1',[source])).rowCount){
+     if(Date.now()>=until)throw new Error(`QUIESCENT_OWNED_BROWSER_TEMPLATE_REQUIRED:${binding}`);
+     await new Promise(done=>setTimeout(done,100));
+    }
+    await admin.query(`CREATE DATABASE "${name}" TEMPLATE "${source}"`);
+    const url=new URL(adminUrl);url.pathname=name;databases[binding]=url.href;
+   }
+  }finally{await admin.end();}
+  await cp(templateDirectory,directory,{recursive:true,mode:constants.COPYFILE_FICLONE,filter:path=>{
+   const relative=path.slice(templateDirectory.length+1);
+   return !['state.json','databases.json','databases-jobs.json','databases-migrations.json','server.log','jobs.log','uat-auth','release'].some(name=>relative===name||relative.startsWith(name+'/'))&&relative!=='app/node_modules'&&!isCaseExecutionEvidence(relative);
+  }});
+  await symlink(join(templateDirectory,'app/node_modules'),join(app,'node_modules'),'dir');
+  for(const entry of await readdir(directory))if(entry.endsWith('.json')&&!entry.startsWith('databases')){
+   const path=join(directory,entry),content=JSON.parse(await readFile(path,'utf8'));
+   // Only metadata is rebound. Emails, IDs, snapshots and hashes still name
+   // the exact seeded records copied by PostgreSQL, including their seed run.
+   await writePrivate(path,isClonedFixtureDocument(entry)?clonedFixtureMetadata(content,templateRun,run,templateDirectory,directory):JSON.parse(JSON.stringify(content).replaceAll(templateDirectory,directory)));
+  }
+  const manifest={version:1,databases,slots:templateManifest.slots};assertCohortManifest(manifest);
+  for(const name of ['databases.json','databases-jobs.json','databases-migrations.json'])await writePrivate(join(directory,name),manifest);
+  const fixture=JSON.parse(JSON.stringify(template.fixture??{}).replaceAll(templateDirectory,directory));
+  if(fixture.engineeringWorkplacePlatform)fixture.engineeringWorkplacePlatform=clonedFixtureMetadata(fixture.engineeringWorkplacePlatform,templateRun,run,templateDirectory,directory);
+  Object.assign(state,{templateRun,softwareVersion:template.softwareVersion,fixture});
+  if(await runtimeSourceFingerprint(root)!==sourceFingerprint||await runtimeSourceFingerprint(app)!==sourceFingerprint)throw new Error('BROWSER_PREPARATION_SOURCE_CHANGED');
+  state.ready=true;await writePrivate(statePath,state);console.log(JSON.stringify({run,templateRun,origin,statePath,ready:true}));process.exit(0);
+ }
  const admin=new Pool({connectionString:adminUrl,max:1}),urls:Record<string,string>={};
  try{await assertAdmin(admin);for(const [binding,track] of Object.entries(tracks)){const name=`${prefix}_${binding.toLowerCase()}`;await admin.query(`CREATE DATABASE "${name}" TEMPLATE template0`);const url=new URL(adminUrl);url.pathname=name;urls[binding]=url.href;const db=new PostgresDatabase({connectionString:url.href,max:1});try{await migrateDatabase(db,track);}finally{await db.close();}}}finally{await admin.end();}
  await writePrivate(manifestPath,{version:1,databases:urls,slots:[{id:'h001',write:'H001_DB',read:'H001_READ_DB',files:'H001_FILES'},{id:'h002',write:'H002_DB',read:'H002_READ_DB',files:'H002_FILES'},{id:'h003',write:'H003_DB',read:'H003_READ_DB',files:'H003_FILES',internal:true}]});
@@ -96,14 +151,20 @@ if(mode==='prepare'||diagnostic){
  // production migration identity. The normal Platform command verifies it
  // against the runtime cohort before replaying packaged migrations.
  await writePrivate(join(directory,'databases-migrations.json'),JSON.parse(await readFile(manifestPath,'utf8')));
+ await writePrivate(join(directory,'databases-jobs.json'),JSON.parse(await readFile(manifestPath,'utf8')));
  const secret=randomBytes(32).toString('hex');await writePrivate(join(directory,'runtime.json'),{secret});
  // Bun loads the workspace dotenv before this launcher. Object.assign alone
  // leaves omitted deployment credentials behind; native seed commands must
  // use this cohort's private local files and explicitly declared adapters.
- for(const name of Object.keys(process.env))if(/^(AI_|RESEND_|STRIPE_|SITEMINDER_|ERPX_MINIO_|ERPX_IAM_SECRET_PROFILES|ERPX_MIGRATION_DATABASE_MANIFEST|ERPX_PROCESS_ROLE|ERPX_ENGINEERING_VERIFICATION_RUN|ERPX_ENGINEERING_SOURCE_FINGERPRINT)/.test(name))delete process.env[name];
- Object.assign(process.env,safeEnv(secret));
+ const nativeEnvironment=browserChildEnvironment(process.env,safeEnv(secret));
+ for(const name of Object.keys(process.env))if(!(name in nativeEnvironment))delete process.env[name];
+ Object.assign(process.env,nativeEnvironment);
  const {getRuntime,closeRuntime}=await import('../../src/server/runtime/env'),env=getRuntime();
  try{
+  if(['local-seed','staff-work','expense','work-cards','messaging','services','booking'].includes(profile)){
+   const {prepareModuleBrowser}=await import('../fixtures/module-browser');
+   state.fixture=await prepareModuleBrowser(profile,env,directory);await writePrivate(statePath,state);
+  }else{
   await env.CONTROL_DB.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES('h001','simulation','Browser simulation','H001_DB','H001_READ_DB','H001_FILES','active')").run();
   await env.CONTROL_DB.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES('h002','riverside-lantern','Riverside Lantern Hotel & Kitchen','H002_DB','H002_READ_DB','H002_FILES','active')").run();
   const {seedExpenseCompany}=await import('../../fixtures/expenses/company'),{mapSpendingOrganization}=await import('../../tests/helpers/spending-organization');
@@ -305,7 +366,7 @@ if(mode==='prepare'||diagnostic){
     const legal=await seedLegalBrowserDemo({run,directory,control:env.CONTROL_DB as PostgresDatabase,h001:env.H001_DB as PostgresDatabase,h002:env.H002_DB as PostgresDatabase,h001Files:env.H001_FILES,h002Files:env.H002_FILES});
     state.fixture.legal=legal;await writePrivate(statePath,state);
   }
-  if(port===3104) {
+  if(port===3104||profile==='engineering') {
     const {seedEngineeringMoneyPeopleBrowser}=await import('../fixtures/engineering-money-people-browser');
     const {seedEngineeringBusinessBrowser}=await import('../fixtures/engineering-business-browser');
     const {seedEngineeringWorkplacePlatformBrowser}=await import('../fixtures/engineering-workplace-platform-browser');
@@ -317,16 +378,32 @@ if(mode==='prepare'||diagnostic){
     state.fixture.engineeringWorkplacePlatform=await seedEngineeringWorkplacePlatformBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,h001:env.H001_DB as PostgresDatabase,h002:env.H002_DB as PostgresDatabase,h003:env.H003_DB as PostgresDatabase,h001Files:env.H001_FILES,h002Files:env.H002_FILES,h003Files:env.H003_FILES});
     state.fixture.engineeringThaiPayroll=await seedEngineeringThaiPayrollBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,db:env.H001_DB as PostgresDatabase,files:env.H001_FILES});
     state.fixture.engineeringFinanceClose=await seedEngineeringFinanceCloseBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,db:env.H001_DB as PostgresDatabase,files:env.H001_FILES});
-    const showcaseGuide=await createEngineeringShowcaseGuide({run,directory,origin,sourceFingerprint,fixture:state.fixture,databases:{CONTROL_DB:env.CONTROL_DB as PostgresDatabase,H001_DB:env.H001_DB as PostgresDatabase,H002_DB:env.H002_DB as PostgresDatabase,H003_DB:env.H003_DB as PostgresDatabase}});
-    await writePrivate(join(directory,'engineering-showcase-guide.json'),showcaseGuide);
-    state.fixture.engineeringShowcaseGuide={moduleCount:showcaseGuide.moduleCount,path:join(directory,'engineering-showcase-guide.json')};
+    if(port===3104){
+     const showcaseGuide=await createEngineeringShowcaseGuide({run,directory,origin,sourceFingerprint,fixture:state.fixture,databases:{CONTROL_DB:env.CONTROL_DB as PostgresDatabase,H001_DB:env.H001_DB as PostgresDatabase,H002_DB:env.H002_DB as PostgresDatabase,H003_DB:env.H003_DB as PostgresDatabase}});
+     await writePrivate(join(directory,'engineering-showcase-guide.json'),showcaseGuide);
+     state.fixture.engineeringShowcaseGuide={moduleCount:showcaseGuide.moduleCount,path:join(directory,'engineering-showcase-guide.json')};
+    }
     await writePrivate(statePath,state);
+  }
   }
  }finally{await closeRuntime();}
  // Fixture diagnostics never become a runnable cohort or release evidence.
  // They exercise every native seed while implementation continues, avoiding
  // an expensive app copy and a misleading ready flag on changing source.
  if(diagnostic){state.ready=false;state.diagnostic=true;await writePrivate(statePath,state);console.log(JSON.stringify({run,origin,statePath,ready:false,diagnostic:true,nativeSeedsCompleted:true}));process.exit(0);}
+ if(localAttachmentMode){
+  // Establish actual scanner/checksum/quota receipts once before freezing the
+  // template. Each isolated case inherits only this prerequisite evidence.
+  const resultLog=await open(join(directory,'attachment-baseline.json'),'w',0o600),errorLog=await open(join(directory,'attachment-baseline-error.log'),'w',0o600);
+  try{
+   const reconciliation=Bun.spawn([process.execPath,'--env-file=/dev/null',join(root,'scripts/local/run-server-script.ts'),join(root,'scripts/local/reconcile-attachments.ts'),'--apply','--checksum','--scan','--final'],{
+    cwd:root,env:{...process.env,...safeEnv(secret),ERPX_ATTACHMENTS_V2:'false',ERPX_ATTACHMENT_UPLOAD_FREEZE:'true'},stdout:resultLog.fd,stderr:errorLog.fd,
+   });
+   if(await reconciliation.exited!==0)throw new Error('BROWSER_BASELINE_RECONCILIATION_FAILED');
+  }finally{await resultLog.close();await errorLog.close();}
+  const receipt=JSON.parse(await readFile(join(directory,'attachment-baseline.json'),'utf8'));
+  if(receipt.gateReady!==true||receipt.sourceFingerprint!==sourceFingerprint)throw new Error('BROWSER_BASELINE_ATTACHMENT_GATE_NOT_READY');
+ }
  await mkdir(app,{recursive:true});for(const name of ['src','public','scripts','fixtures','migrations/postgres','tests/helpers','ops/macos/clamav','ops/macos/install-attachment-runtime.py','ops/macos/attachment-rollout.md','ops/macos/erpxctl.py','ops/macos/offsite.py','ops/macos/recovery_status.py','package.json','bun.lock','next.config.ts','tsconfig.json','tsconfig.engineering-tests.json','next-env.d.ts','postcss.config.mjs','node_modules'])await cp(join(root,name),join(app,name),{recursive:true,mode:constants.COPYFILE_FICLONE});
  if(await runtimeSourceFingerprint(root)!==sourceFingerprint||await runtimeSourceFingerprint(app)!==sourceFingerprint)throw new Error('BROWSER_PREPARATION_SOURCE_CHANGED');
  state.softwareVersion=`release-${sourceFingerprint}`;
@@ -411,10 +488,12 @@ if(mode==='prepare'||diagnostic){
  }
  console.log(JSON.stringify({run,pid:state.pid,...(state.jobsPid?{jobsPid:state.jobsPid}:{}),origin,runtime:suppliedRelease?'standalone-release':useWebpack?'webpack':'turbopack',softwareVersion:state.softwareVersion}));
 }else if(mode==='pause-jobs'||mode==='resume-jobs'){
- const state=JSON.parse(await readFile(statePath,'utf8')) as State,releaseDirectory=join(directory,'release'),entrypoint=join(releaseDirectory,'tools/jobs.mjs');
- if(port!==3104||!localJobsEnabled||!localAttachmentMode||state.run!==run||state.prefix!==`erpx_browser_${run}`||state.port!==3104||state.origin!==origin||state.jobsEntrypoint!==entrypoint||!state.release)throw new Error('COMPILED_COHORT_JOBS_REQUIRED');
- const release=JSON.parse(await readFile(join(releaseDirectory,'release.json'),'utf8'));
- if(release.sourceFingerprint!==state.sourceFingerprint||release.softwareVersion!==state.softwareVersion||release.fileManifestSha256!==state.release.fileManifestSha256||createHash('sha256').update(await readFile(join(releaseDirectory,'release-files.json'))).digest('hex')!==release.fileManifestSha256)throw new Error('COHORT_JOBS_RELEASE_MISMATCH');
+ const state=JSON.parse(await readFile(statePath,'utf8')) as State,workingDirectory=state.release?join(directory,'release'):app,entrypoint=state.release?join(workingDirectory,'tools/jobs.mjs'):join(app,'.runtime/jobs/jobs.mjs');
+ if(!localJobsEnabled||!localAttachmentMode||state.run!==run||state.prefix!==`erpx_browser_${run}`||state.port!==port||state.origin!==origin||state.jobsEntrypoint!==entrypoint)throw new Error('EXACT_BROWSER_COHORT_JOBS_REQUIRED');
+ const release=state.release?JSON.parse(await readFile(join(workingDirectory,'release.json'),'utf8')):undefined;
+ if(release){if(port!==3104||release.sourceFingerprint!==state.sourceFingerprint||release.softwareVersion!==state.softwareVersion||release.fileManifestSha256!==state.release!.fileManifestSha256||createHash('sha256').update(await readFile(join(workingDirectory,'release-files.json'))).digest('hex')!==release.fileManifestSha256)throw new Error('COHORT_JOBS_RELEASE_MISMATCH');}
+ else if(await runtimeSourceFingerprint(app)!==state.sourceFingerprint)throw new Error('BROWSER_WORKER_SOURCE_CHANGED');
+ const releaseManifestSha256=release?.fileManifestSha256??null,scope=release?'isolated-engineering':'isolated-browser';
  const manifest=JSON.parse(await readFile(manifestPath,'utf8'));
  assertCohortManifest(manifest);
  const receiptPath=join(directory,'jobs-pause.json');
@@ -424,23 +503,23 @@ if(mode==='prepare'||diagnostic){
   const command=Bun.spawnSync(['ps','-p',String(pid),'-o','command=']).stdout.toString().trim();
   const startedAt=Bun.spawnSync(['ps','-p',String(pid),'-o','lstart=']).stdout.toString().trim();
   const actualCwd=Bun.spawnSync(['lsof','-a','-p',String(pid),'-d','cwd','-Fn']).stdout.toString().split('\n').find(line=>line.startsWith('n'))?.slice(1);
-  if(!command.includes(entrypoint)||startedAt!==state.jobsStartedAt||actualCwd!==releaseDirectory)throw new Error('COHORT_JOB_PROCESS_IDENTITY_CHANGED');
+  if(!command.includes(entrypoint)||startedAt!==state.jobsStartedAt||actualCwd!==workingDirectory)throw new Error('COHORT_JOB_PROCESS_IDENTITY_CHANGED');
   process.kill(-pid,'SIGTERM');
   const deadline=Date.now()+5_000;while(Date.now()<deadline&&Bun.spawnSync(['ps','-p',String(pid),'-o','pid=']).stdout.toString().trim())await Bun.sleep(100);
   if(Bun.spawnSync(['ps','-p',String(pid),'-o','pid=']).stdout.toString().trim())process.kill(-pid,'SIGKILL');
   const stoppedDeadline=Date.now()+5_000;while(Date.now()<stoppedDeadline&&Bun.spawnSync(['ps','-p',String(pid),'-o','pid=']).stdout.toString().trim())await Bun.sleep(100);
   if(Bun.spawnSync(['ps','-p',String(pid),'-o','pid=']).stdout.toString().trim())throw new Error('COHORT_JOB_DID_NOT_STOP');
-  await writePrivate(receiptPath,{scope:'isolated-engineering',run,sourceFingerprint:state.sourceFingerprint,softwareVersion:state.softwareVersion,releaseManifestSha256:release.fileManifestSha256,jobsPid:pid,jobsStartedAt:startedAt,entrypoint,cwd:actualCwd,stopped:true,pausedAt:new Date().toISOString()});
+  await writePrivate(receiptPath,{scope,run,sourceFingerprint:state.sourceFingerprint,softwareVersion:state.softwareVersion,releaseManifestSha256,jobsPid:pid,jobsStartedAt:startedAt,entrypoint,cwd:actualCwd,stopped:true,pausedAt:new Date().toISOString()});
   state.jobsPid=null;state.jobsPaused=true;await writePrivate(statePath,state);console.log(JSON.stringify({run,jobsPaused:true,stoppedPid:pid}));
  }else{
   if(!state.jobsPaused||state.jobsPid)throw new Error('COHORT_JOBS_ALREADY_RUNNING');
-  const pause=JSON.parse(await readFile(receiptPath,'utf8'));if(!pause.stopped||pause.run!==run||pause.releaseManifestSha256!==release.fileManifestSha256)throw new Error('COHORT_JOBS_PAUSE_RECEIPT_REQUIRED');
+  const pause=JSON.parse(await readFile(receiptPath,'utf8'));if(!pause.stopped||pause.scope!==scope||pause.run!==run||pause.sourceFingerprint!==state.sourceFingerprint||pause.softwareVersion!==state.softwareVersion||pause.entrypoint!==entrypoint||pause.cwd!==workingDirectory||pause.releaseManifestSha256!==releaseManifestSha256)throw new Error('COHORT_JOBS_PAUSE_RECEIPT_REQUIRED');
   const {secret}=JSON.parse(await readFile(join(directory,'runtime.json'),'utf8'));
-  const environment:NodeJS.ProcessEnv={...safeEnv(secret),NODE_ENV:'production',PORT:'3104',HOSTNAME:'127.0.0.1',NEXT_DEPLOYMENT_ID:release.deploymentId,ERPX_ENGINEERING_VERIFICATION_RUN:run,ERPX_ENGINEERING_SOURCE_FINGERPRINT:state.sourceFingerprint,ERPX_PROCESS_ROLE:'jobs',ERPX_DATABASE_MANIFEST:manifestPath};
-  const log=await open(join(directory,'jobs.log'),'a',0o600),worker=spawn(node,[entrypoint],{cwd:releaseDirectory,env:environment,detached:true,stdio:['ignore',log.fd,log.fd]});
+  const environment:NodeJS.ProcessEnv={...safeEnv(secret),...(release?{NODE_ENV:'production',PORT:String(port),HOSTNAME:'127.0.0.1',NEXT_DEPLOYMENT_ID:release.deploymentId,ERPX_ENGINEERING_VERIFICATION_RUN:run,ERPX_ENGINEERING_SOURCE_FINGERPRINT:state.sourceFingerprint}:{}),ERPX_PROCESS_ROLE:'jobs',ERPX_DATABASE_MANIFEST:manifestPath};
+  const log=await open(join(directory,'jobs.log'),'a',0o600),worker=spawn(node,[entrypoint],{cwd:workingDirectory,env:environment,detached:true,stdio:['ignore',log.fd,log.fd]});
   if(!worker.pid){await log.close();throw new Error('COHORT_JOBS_RESTART_FAILED');}
   state.jobsPid=worker.pid;state.jobsStartedAt=Bun.spawnSync(['ps','-p',String(worker.pid),'-o','lstart=']).stdout.toString().trim();state.jobsPaused=false;await writePrivate(statePath,state);worker.unref();await log.close();
-  await writePrivate(join(directory,'jobs-resume.json'),{scope:'isolated-engineering',run,sourceFingerprint:state.sourceFingerprint,softwareVersion:state.softwareVersion,releaseManifestSha256:release.fileManifestSha256,jobsPid:state.jobsPid,jobsStartedAt:state.jobsStartedAt,resumedAt:new Date().toISOString()});
+  await writePrivate(join(directory,'jobs-resume.json'),{scope,run,sourceFingerprint:state.sourceFingerprint,softwareVersion:state.softwareVersion,releaseManifestSha256,jobsPid:state.jobsPid,jobsStartedAt:state.jobsStartedAt,resumedAt:new Date().toISOString()});
   console.log(JSON.stringify({run,jobsPaused:false,jobsPid:state.jobsPid}));
  }
 }else if(mode==='destroy'){

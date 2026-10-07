@@ -1,3 +1,4 @@
+import { peoplePayrollPresentationQueries } from "@/server/modules/people_payroll/public/presentation-queries";
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { BetaPeople } from "@/components/beta/people-page";
@@ -10,15 +11,15 @@ import { PageHeader } from "@/components/ui/primitives";
 import { PeopleEditor } from "@/components/workplace/work-editors";
 import { hasPermission } from "@/lib/permissions";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope,requireWorkContext } from "@/server/authorization";
-import { pageError } from "@/server/page-error";
-import { organizationOverview } from "@/server/organization";
-import { canManagePeople,directoryOptions } from "@/server/people-directory";
-import { peopleDirectoryPage } from "@/server/people-directory-page";
-import { peopleLifecycleData } from "@/server/people-lifecycle";
-import { getPerson } from "@/server/people-payroll";
-import { holdingResources } from "@/server/runtime";
-import { staffSettings } from "@/server/staff-settings";
+import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+
+import { canManagePeople,directoryOptions } from "@/server/modules/people_payroll/public/people-directory";
+import { peopleDirectoryPage } from "@/server/modules/people_payroll/public/people-directory-page";
+
+import { getPerson } from "@/server/modules/people_payroll/public/people-payroll";
+
+
 import { RecordLink as Link } from "@/components/records/record-link";
 import { forbidden, redirect } from "next/navigation";
 
@@ -70,7 +71,7 @@ export default async function PeoplePage({
   const editingSelectedPerson = canManage && !!search.person;
   const canExplore = ["people.read","people.manage"].some(p=>hasPermission(actor,p));
   const exploring = canExplore && search.display === "explorer";
-  const { write } = await holdingResources(actor.holdingId);
+  const presentation = await peoplePayrollPresentationQueries(actor.holdingId);
   const [directoryPage, staffOptions, nodes, organization, lifecycle, selectedPersonData] = await Promise.all([
     peopleDirectoryPage(actor,{
       ...search,
@@ -79,10 +80,10 @@ export default async function PeoplePage({
       retirement: archived ? search["archived.retirement"] ?? search.retirement : search.retirement,
       cursor: archived ? search["archived.cursor"] ?? search.cursor : search.cursor,
     }),
-    editing || editingSelectedPerson ? staffSettings(write,actor) : null,
+    editing || editingSelectedPerson ? presentation.staffSettings(actor) : null,
     editing || editingSelectedPerson ? directoryOptions(actor) : [],
-    editing || editingSelectedPerson ? organizationOverview(write,actor) : undefined,
-    (editing || exploring || search.person || search.member || search.case) && ["people.manage","people.read","iam.read","organization.manage"].some(p=>hasPermission(actor,p)) ? peopleLifecycleData(write,actor) : null,
+    editing || editingSelectedPerson ? presentation.organizationOverview(actor) : undefined,
+    (editing || exploring || search.person || search.member || search.case) && ["people.manage","people.read","iam.read","organization.manage"].some(p=>hasPermission(actor,p)) ? presentation.peopleLifecycleData(actor) : null,
     editingSelectedPerson ? getPerson(actor, search.person!).catch(() => null) : null,
   ]).catch(error => pageError(error, holdingSlug));
   const selectedMember = directoryPage?.members.find(m=>m.id===search.member);

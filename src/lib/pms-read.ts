@@ -1,4 +1,4 @@
-import { availability } from "./pms-inventory";
+import { availability } from "./pms-inventory-domain";
 import { pmsAccountKeys, records, type PmsRecord, type Property, type Snapshot } from "./pms-model";
 
 export type PmsSetupFacts = { hasRoomTypes: boolean; hasActiveRooms: boolean; hasActiveRates: boolean };

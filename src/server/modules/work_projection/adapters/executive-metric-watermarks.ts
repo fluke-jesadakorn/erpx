@@ -1,0 +1,2 @@
+import type {SqlDatabase} from '../../runtime/public/runtime/types';export async function executiveMetricWatermarks(sourceDb:SqlDatabase,sourceTables:string[]){return (await sourceDb.prepare(`SELECT table_name,revision::text revision FROM work_cache_revisions WHERE table_name IN (${sourceTables.map(() => "?").join(",")}) ORDER BY table_name`)
+      .bind(...sourceTables).all<{ table_name: string; revision: string }>()).results;}

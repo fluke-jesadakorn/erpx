@@ -8,11 +8,11 @@ import { AccrualScheduleConsole } from "@/components/finance/finance-accrual-con
 import { FinanceWorkspace, financeStyles as styles } from "@/components/finance/finance-workspace";
 import { workspaceBase } from "@/lib/workspace";
 import { hasPermission } from "@/lib/permissions";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { financeEngineWorkspace } from "@/server/finance-engines";
-import { accrualSchedulePage } from "@/server/finance-accruals";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { financeEngineWorkspace } from "@/server/modules/finance/public/finance-engines";
+import { accrualSchedulePage } from "@/server/modules/finance/public/finance-accruals";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { financeCompanyTools } from "@/server/finance-company-tools";
+import { financeCompanyTools } from "@/server/modules/finance/public/finance-company-tools";
 export const dynamic = "force-dynamic";
 export default async function EnginesPage({
   params,

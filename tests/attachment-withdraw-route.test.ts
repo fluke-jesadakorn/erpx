@@ -7,20 +7,20 @@ const state = vi.hoisted(() => ({
   write: { name: "holding-write" },
 }));
 
-vi.mock("../src/server/attachments/service", () => ({
+vi.mock("../src/server/modules/files/public/attachments/service", () => ({
   withdrawAttachmentLink: state.withdraw,
   attachmentLinkStatus: state.status,
 }));
 
-vi.mock("../src/server/authorization", () => ({
+vi.mock("../src/server/modules/identity_access/public/authorization", () => ({
   requireWorkContext: async () => ({ holdingId: "h001", companyId: "acme-co", userId: "requester" }),
 }));
 
-vi.mock("../src/server/public-origin", () => ({
+vi.mock("../src/server/modules/manage_erpx/public/public-origin", () => ({
   requestPublicOrigin: () => "https://dev-erpx.example.test",
 }));
 
-vi.mock("../src/server/runtime", () => ({
+vi.mock("../src/server/modules/runtime/public/runtime", () => ({
   holdingResources: async () => ({ write: state.write }),
 }));
 

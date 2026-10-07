@@ -1,13 +1,14 @@
+import { customerPortalPresentationQueries } from "@/server/modules/customer_360/public/presentation-context-queries";
 import { TimeText } from "@/components/time/time-preference-context";
 import { CustomerPortalActions } from "@/components/customer-portal/customer-portal-actions";
 import { EmptyState, StatusBadge } from "@/components/ui/primitives";
 import { QuickAccessShelf } from "@/components/quick-access/shelf";
 import rail from "@/components/quick-access/area-rail.module.css";
-import { customerPortalContext, customerPortalProjection } from "@/server/customer-portal";
-import { customerPortalQuickAccess } from "@/server/portal-quick-access";
-import { readQuickAccessPreferences } from "@/server/quick-access-preferences";
-import { holdingBindingBySlug } from "@/server/runtime";
-import { pageError } from "@/server/page-error";
+
+import { customerPortalQuickAccess } from "@/server/modules/work_projection/public/portal-quick-access";
+import { readQuickAccessPreferences } from "@/server/modules/work_projection/public/quick-access-preferences";
+import { holdingBindingBySlug } from "@/server/modules/runtime/public/runtime";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { PageContent, Card } from "@/components/ui/foundation";
 
 export const dynamic = "force-dynamic";
@@ -16,8 +17,8 @@ export default async function Page({ params }: { params: Promise<{ holdingSlug: 
   const { holdingSlug } = await params;
   const { data, items, preferences } = await (async () => {
     const binding = await holdingBindingBySlug(holdingSlug);
-    const { write, actor } = await customerPortalContext(holdingSlug);
-    const data = await customerPortalProjection(write, actor);
+    const { queries, actor } = await customerPortalPresentationQueries(holdingSlug);
+    const data = await queries.customerPortalProjection(actor);
     const items = customerPortalQuickAccess(holdingSlug, data.items);
     const preferences = await readQuickAccessPreferences(actor.userId, "customer_portal", binding.id);
     return { data, items, preferences };

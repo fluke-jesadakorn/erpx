@@ -1,17 +1,18 @@
+import {appExecutiveCacheRevisions} from "@/server/modules/work_projection/public/app-executive-cache-source";
 import { after } from "next/server";
 import { z } from "zod";
-import { requireWorkContext } from "@/server/authorization";
-import { holdingResources, runtimeEnv } from "@/server/runtime";
-import { ApiError, errorResponse } from "@/server/http";
-import { requestPublicOrigin } from "@/server/public-origin";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { holdingResources, runtimeEnv } from "@/server/modules/runtime/public/runtime";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import { filtersSchema, generateSchema, metricIds, shareSchema, sharePreviewSchema, transferOwnershipSchema } from "@/lib/executive/canvas";
-import { createReport, reportLibrary, reportView, reportData, reportAccess, saveReport, saveSchema, saveShare, revokeShare, recipients, restoreReport, recipientPreviewContexts, previewShare, ownershipCandidates, transferReportOwnership } from "@/server/executive/reports";
-import { queueGeneration, generationHistory, cancelGeneration, drainExecutiveGeneration } from "@/server/executive/generation";
-import { executiveAiContext } from "@/server/executive/context";
-import { requireAuthor } from "@/server/executive/access";
-import type { WorkContext } from "@/server/authorization";
-import { sha256 } from "@/server/crypto";
-import { readExecutiveEvidence, searchExecutiveEvidence } from "@/server/executive/evidence";
+import { createReport, reportLibrary, reportView, reportData, reportAccess, saveReport, saveSchema, saveShare, revokeShare, recipients, restoreReport, recipientPreviewContexts, previewShare, ownershipCandidates, transferReportOwnership } from "@/server/modules/runtime/public/executive/reports";
+import { queueGeneration, generationHistory, cancelGeneration, drainExecutiveGeneration } from "@/server/modules/runtime/public/executive/generation";
+import { executiveAiContext } from "@/server/modules/runtime/public/executive/context";
+import { requireAuthor } from "@/server/modules/runtime/public/executive/access";
+import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
+import { sha256 } from "@/server/modules/runtime/public/crypto";
+import { readExecutiveEvidence, searchExecutiveEvidence } from "@/server/modules/runtime/public/executive/evidence";
 type Context={params:Promise<{holdingSlug:string;path?:string[]}>};
 const headers={"Cache-Control":"private, no-store"};
 export async function GET(request:Request,context:Context) {
@@ -47,7 +48,7 @@ export async function GET(request:Request,context:Context) {
           const access=await reportAccess(write,a,id);
           if(access.share?.mode==="distribution")await requireAuthor(write,JSON.parse(access.share.publisher_json) as WorkContext,"executive.data.distribute");
           // Transactional table watermarks cover commands, jobs and direct SQL. Reconnect always reconciles the full snapshot.
-          const revisions=(await write.prepare("SELECT table_name,revision FROM work_cache_revisions ORDER BY table_name").all()).results;
+          const revisions=await appExecutiveCacheRevisions(write);
           const revision=await sha256(JSON.stringify([revisions,access.r.version,access.share?.version]));
           if(!closed){controller.enqueue(encoder.encode(revision!==last?`id: ${revision}\nevent: revision\ndata: {}\n\n`:`: heartbeat\n\n`));last=revision;}
           if(Date.now()-started>50000){stop();return;}

@@ -1,6 +1,6 @@
-import { pageLayoutRequest } from "@/server/page-layouts";
-import { requireManageErpxContext } from "@/server/authorization";
-import { errorResponse } from "@/server/http";
+import { pageLayoutRequest } from "@/server/modules/work_projection/public/page-layouts";
+import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
+import { errorResponse } from "@/server/modules/runtime/public/http";
 async function handle(request: Request, context: { params: Promise<{ pageKey: string }> }) {
   try {
     await requireManageErpxContext();

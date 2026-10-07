@@ -7,7 +7,7 @@ import { drainSocialAgent, retryAgentReply } from "../src/server/social-agent";
 import { ApiError } from "../src/server/http";
 import { textSuggestions } from "../src/server/social-text";
 import type { Mention } from "../src/lib/social-text";
-import { plainRichContent } from "../src/lib/home-rich-content";
+import { plainRichContent, type RichNode } from "../src/lib/home-rich-content";
 import { env } from "./runtime-env";
 import { applyMigrations, type TestMigration } from "./runtime-env";
 import { beforeAll, beforeEach, describe, it, expect, vi } from "vitest";
@@ -536,7 +536,7 @@ describe("social post corrections", () => {
     ];
     const rich = (content: PostContent) => ({ version: 1 as const, blocks: content.map(block => block.type === "image"
       ? { type: "image" as const, slotId: block.slotId, attachmentId: block.attachmentId, name: block.name, alt: block.alt, width: block.width }
-      : { type: "text" as const, doc: plainRichContent(block.text).blocks[0].doc }) });
+      : { type: "text" as const, doc: (plainRichContent(block.text).blocks[0] as {type:"text";doc:RichNode}).doc }) });
     let draft = await savePostDraft(db, owner, null, {
       body: "Before\nBetween\nAfter", content: initial, richContent: rich(initial), audience: { kind: "branch", id: branch }, expectedVersion: 1,
     }, key());
@@ -675,14 +675,14 @@ describe("social beta isolation and work", () => {
       db,
       owner,
       id,
-      { action: "submit", expectedVersion: 1, note: "" },
+      { action: "submit", expectedVersion: 1, note: "", attachmentSetIds:[] },
       key(),
     );
     await transitionTask(
       db,
       worker,
       id,
-      { action: "start", expectedVersion: 2, note: "" },
+      { action: "start", expectedVersion: 2, note: "", attachmentSetIds:[] },
       key(),
     );
     await transitionTask(
@@ -692,7 +692,7 @@ describe("social beta isolation and work", () => {
       {
         action: "complete",
         expectedVersion: 3,
-        note: "Replaced the faulty switch. Tested.",
+        note: "Replaced the faulty switch. Tested.",attachmentSetIds:[],
       },
       key(),
     );
@@ -701,7 +701,7 @@ describe("social beta isolation and work", () => {
         db,
         worker,
         id,
-        { action: "approve", expectedVersion: 4, note: "My own work" },
+        { action: "approve", expectedVersion: 4, note: "My own work",attachmentSetIds:[] },
         key(),
       ),
     ).rejects.toMatchObject({ status: 403 });
@@ -709,7 +709,7 @@ describe("social beta isolation and work", () => {
       db,
       reviewer,
       id,
-      { action: "approve", expectedVersion: 4, note: "Inspected and accepted" },
+      { action: "approve", expectedVersion: 4, note: "Inspected and accepted",attachmentSetIds:[] },
       key(),
     );
     expect((await taskDetail(db, owner, id)).task.state).toBe("completed");
@@ -958,9 +958,9 @@ describe("AI reservations and private output", () => {
           ],
         },
       ]) {
-        globalThis.fetch = vi.fn(
+        vi.stubGlobal("fetch",vi.fn(
           async () => new Response(JSON.stringify(payload), { status: 200 }),
-        );
+        ));
         await expect(
           callAi(
             {
@@ -1034,9 +1034,7 @@ describe("tenant admission and verified invitations", () => {
       branchName: "First branch",
       slug: `company-${key().slice(0, 8)}`,
     }));
-    await expect(
-      onboard(
-        {
+    const failedProvisioningEnv={
           ...betaEnv,
           TEST_ONE_WRITE: {
             prepare: env.H001_READ_DB.prepare.bind(env.H001_READ_DB),
@@ -1044,7 +1042,10 @@ describe("tenant admission and verified invitations", () => {
               throw new Error("Injected provisioning failure");
             },
           },
-        },
+        };
+    await expect(
+      onboard(
+        failedProvisioningEnv,
         users[0],
         inputs[0],
       ),
@@ -1152,7 +1153,7 @@ describe("tenant admission and verified invitations", () => {
   });
   it("validates registry capacity and refuses arbitrary binding names", () => {
     expect(resourceSlots({ ERPX_RESOURCE_SLOTS: registry })).toHaveLength(2);
-    expect(() => registeredDatabases(env, "unexpected")).toThrow(
+    expect(() => registeredDatabases({ERPX_RESOURCE_SLOTS:undefined,...env}, "unexpected")).toThrow(
       "HOLDING_NOT_FOUND",
     );
     expect(() =>
@@ -1402,4 +1403,67 @@ it("keeps the newest replies visible in long conversations",async()=>{
  const feed=(await homePosts(db,owner)).find(row=>row.id===p.id)!;
  expect(feed.comments).toHaveLength(2);expect(feed.commentCount).toBe(55);
  await expect(postComments(db,{...owner,companyId:'another-company'},p.id)).rejects.toMatchObject({code:'POST_NOT_FOUND'});
+});
+
+
+it("rolls back a beta branch and department on late outbox failure, then retries and replays the same key", async () => {
+  const commandKey = key(), branchId = `branch-${commandKey}`, name = "Atomic company branch";
+  const suffix = key().replace(/[^a-zA-Z0-9]/g, ""), fault = `beta_branch_fault_${suffix}`, trigger = `beta_branch_outbox_${suffix}`;
+  await db.prepare(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='${commandKey}' THEN RAISE EXCEPTION 'BETA_BRANCH_LATE_FAILURE'; END IF; RETURN NEW; END $$`).run();
+  await db.prepare(`CREATE TRIGGER ${trigger} AFTER INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION ${fault}()`).run();
+  try {
+    await expect(addBetaBranch(db, owner, name, commandKey)).rejects.toThrow("BETA_BRANCH_LATE_FAILURE");
+    expect(await db.prepare("SELECT count(*)::int count FROM organization_nodes WHERE id=? OR parent_id=?").bind(branchId, branchId).first("count")).toBe(0);
+    for (const table of ["command_receipts", "audit_events", "outbox_events"]) {
+      expect(await db.prepare(`SELECT count(*)::int count FROM ${table} WHERE command_id=?`).bind(commandKey).first("count")).toBe(0);
+    }
+  } finally {
+    await db.prepare(`DROP TRIGGER ${trigger} ON outbox_events`).run();
+    await db.prepare(`DROP FUNCTION ${fault}()`).run();
+  }
+  const result = await addBetaBranch(db, owner, name, commandKey);
+  expect(await addBetaBranch(db, owner, name, commandKey)).toEqual(result);
+  expect(await db.prepare("SELECT count(*)::int count FROM organization_nodes WHERE id=? OR parent_id=?").bind(branchId, branchId).first("count")).toBe(2);
+  for (const table of ["command_receipts", "audit_events", "outbox_events"]) {
+    expect(await db.prepare(`SELECT count(*)::int count FROM ${table} WHERE command_id=?`).bind(commandKey).first("count")).toBe(1);
+  }
+});
+
+it("restores post content, revisions and private image state on late outbox failure, then retries and replays once", async () => {
+  const content: PostContent = [
+    {type:"text",text:"Original evidence"},
+    {type:"image",slotId:key(),attachmentId:null,name:"removed.png"},
+    {type:"image",slotId:key(),attachmentId:null,name:"retained.png"},
+  ];
+  const draft=await savePostDraft(db,owner,null,{body:"Original evidence",content,branchId:branch,expectedVersion:1},key());
+  const removed=await readySocialImage(draft.id,"removed.png"),retained=await readySocialImage(draft.id,"retained.png");
+  const populated:PostContent=[content[0],{...content[1],type:"image",slotId:(content[1] as Extract<PostContent[number],{type:"image"}>).slotId,attachmentId:removed.attachmentId,name:"removed.png"},{...content[2],type:"image",slotId:(content[2] as Extract<PostContent[number],{type:"image"}>).slotId,attachmentId:retained.attachmentId,name:"retained.png"}];
+  const saved=await savePostDraft(db,owner,draft.id,{body:"Original evidence",content:populated,branchId:branch,expectedVersion:draft.version},key());
+  const published=await publishPost(db,owner,draft.id,saved.version,key()),commandKey=key();
+  const input={action:"edit" as const,body:"Reviewed evidence",content:[{type:"text" as const,text:"Reviewed evidence"},populated[2]],expectedVersion:published.version};
+  const snapshots=async()=>Promise.all([
+    db.prepare("SELECT * FROM social_posts WHERE id=?").bind(published.id).first(),
+    db.prepare("SELECT * FROM social_post_revisions WHERE post_id=? ORDER BY id").bind(published.id).all().then(rows=>rows.results),
+    db.prepare("SELECT * FROM attachments WHERE owner_type='social_draft' AND owner_id=? ORDER BY id").bind(draft.id).all().then(rows=>rows.results),
+    db.prepare("SELECT * FROM upload_intents WHERE owner_type='social_draft' AND owner_id=? ORDER BY id").bind(draft.id).all().then(rows=>rows.results),
+  ]);
+  const before=await snapshots(),suffix=key().replace(/[^a-zA-Z0-9]/g,''),fault=`social_edit_fault_${suffix}`,trigger=`social_edit_outbox_${suffix}`;
+  await db.prepare(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='${commandKey}' THEN RAISE EXCEPTION 'SOCIAL_EDIT_LATE_FAILURE'; END IF; RETURN NEW; END $$`).run();
+  await db.prepare(`CREATE TRIGGER ${trigger} AFTER INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION ${fault}()`).run();
+  try {
+    await expect(postAction(db,owner,published.id,input,commandKey)).rejects.toThrow('SOCIAL_EDIT_LATE_FAILURE');
+    expect(await snapshots()).toEqual(before);
+    for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*)::int n FROM ${table} WHERE command_id=?`).bind(commandKey).first('n')).toBe(0);
+  } finally {
+    await db.prepare(`DROP TRIGGER ${trigger} ON outbox_events`).run();await db.prepare(`DROP FUNCTION ${fault}()`).run();
+  }
+  const result=await postAction(db,owner,published.id,input,commandKey);
+  expect(await postAction(db,owner,published.id,input,commandKey)).toEqual(result);
+  expect(await db.prepare("SELECT version FROM social_posts WHERE id=?").bind(published.id).first('version')).toBe(published.version+1);
+  expect(await db.prepare("SELECT count(*)::int n FROM social_post_revisions WHERE post_id=?").bind(published.id).first('n')).toBe(1);
+  expect(await db.prepare("SELECT revoked_at FROM attachments WHERE id=?").bind(removed.attachmentId).first('revoked_at')).not.toBeNull();
+  expect(await db.prepare("SELECT status FROM upload_intents WHERE id=?").bind(removed.uploadId).first('status')).toBe('expired');
+  expect(await db.prepare("SELECT revoked_at FROM attachments WHERE id=?").bind(retained.attachmentId).first('revoked_at')).toBeNull();
+  expect(await db.prepare("SELECT status FROM upload_intents WHERE id=?").bind(retained.uploadId).first('status')).toBe('ready');
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*)::int n FROM ${table} WHERE command_id=?`).bind(commandKey).first('n')).toBe(1);
 });

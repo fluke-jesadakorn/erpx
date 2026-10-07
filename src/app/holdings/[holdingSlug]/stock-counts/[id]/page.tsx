@@ -14,15 +14,15 @@ import { RecordNextAction } from "@/components/workplace/record-next-action";
 import { WorkReturn } from "@/components/workplace/work-return";
 import { minorToDecimal } from "@/lib/finance-money";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext } from "@/server/authorization";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import {
   canEditCount,
   canPrepareCounts,
   canReviewCount,
   countDetail,
   countOptions,
-} from "@/server/inventory-counts";
-import { pageError } from "@/server/page-error";
+} from "@/server/modules/inventory/public/inventory-counts";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";

@@ -1,7 +1,8 @@
-import { requireWorkContext } from "@/server/authorization";
-import { holdingResources } from "@/server/runtime";
-import { ApiError, errorResponse } from "@/server/http";
-import { attachmentContent } from "@/server/attachments/service";
+import {appAttachmentSources} from "@/server/modules/files/public/app-attachment-sources";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { attachmentContent } from "@/server/modules/files/public/attachments/service";
 
 export async function GET(
   request: Request,
@@ -11,9 +12,7 @@ export async function GET(
     const { holdingSlug, id } = await context.params;
     const actor = await requireWorkContext(holdingSlug);
     const { write, files } = await holdingResources(actor.holdingId);
-    const canonicalLinks=(await write.prepare(`SELECT l.id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id
-      WHERE l.attachment_id=? AND s.company_id=? AND l.state IN ('draft','bound') ORDER BY CASE l.state WHEN 'bound' THEN 0 ELSE 1 END,l.created_at`)
-      .bind(id,actor.companyId).all<{id:string}>()).results;
+    const canonicalLinks=await appAttachmentSources(write).canonicalLinks(id,actor.companyId);
     if(canonicalLinks.length){
       const preview = new URL(request.url).searchParams.has("page") || new URL(request.url).searchParams.get("variant") === "preview";
       let denial:unknown;

@@ -1,8 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { selectAcmeHoldingOwner } from "./helpers/select-acme-holding-owner";
 
 const base = "/holdings/acme";
 test.setTimeout(120_000);
-test.beforeEach(async ({ context }) => {
+test.beforeEach(async ({ context, page }) => {
   const response = await context.request.post("/api/auth/sign-in/email", {
     headers: { Origin: process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3100" },
     data: {
@@ -11,6 +12,7 @@ test.beforeEach(async ({ context }) => {
     },
   });
   expect(response.status(), await response.text()).toBe(200);
+  await selectAcmeHoldingOwner(page);
 });
 
 async function fitsViewport(page: import("@playwright/test").Page) {
@@ -20,7 +22,9 @@ async function fitsViewport(page: import("@playwright/test").Page) {
 test("HR settings uses one flat topic list and edits inside the People detail panel", async ({ page }, info) => {
   await page.goto(`${base}/people/settings`);
   await expect(page).toHaveURL(/\/people\?.*panel=settings/);
-  const panel = page.getByTestId("people-detail"), sections = panel.getByRole("navigation", { name: "HR settings topics" });
+  const workspace = page.locator("#workspace-content:visible");
+  await expect(workspace).toHaveCount(1);
+  const panel = workspace.getByTestId("people-detail"), sections = panel.getByRole("navigation", { name: "HR settings topics" });
   await expect(panel).toHaveCount(1, { timeout: 30_000 });
   await expect(sections.getByRole("button")).toHaveCount(6);
   await expect(sections.getByRole("button", { name: /Custom attributes/ })).toHaveCount(0);
@@ -53,31 +57,36 @@ test("HR settings uses one flat topic list and edits inside the People detail pa
   await expect(panel.getByRole("combobox", { name: "IT owner", exact: true })).toBeVisible();
   await panel.getByRole("button", { name: "Close details", exact: true }).click();
   await expect(panel).toHaveCount(0);
-  await expect(page.getByTestId("people-organization-rail")).toBeAttached();
+  await expect(workspace.getByTestId("people-organization-rail")).toBeAttached();
 });
 
 test("leave policy wizard preserves draft and submits one reviewed command", async ({ page }) => {
   await page.goto(`${base}/people?panel=settings&section=leave`);
-  await page.getByRole("button", { name: "Create policy", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Basics" })).toBeVisible();
-  await page.getByLabel("Policy key").fill("browser-review-policy");
-  await page.getByLabel("Version").fill("1");
-  await page.getByLabel("Policy name").fill("Browser review policy");
-  await page.getByLabel("Effective from").fill("2026-10-01");
-  await page.getByLabel("Timezone").fill("Asia/Bangkok");
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByRole("heading", { name: "Working days" })).toBeVisible();
-  await page.getByLabel("Saturday").check();
-  await page.getByRole("button", { name: "Back" }).click();
-  await expect(page.getByLabel("Policy name")).toHaveValue("Browser review policy");
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByLabel("Saturday")).toBeChecked();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByRole("heading", { name: "Leave rules" })).toBeVisible();
-  await page.getByLabel("Leave type").selectOption({ index: 1 });
-  await page.getByLabel("Grant units").fill("12");
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByRole("heading", { name: "Review" })).toBeVisible();
+  const workspace = page.locator("#workspace-content:visible");
+  await expect(workspace).toHaveCount(1);
+  await workspace.getByRole("button", { name: "Create policy", exact: true }).click();
+  const wizard = page.getByRole("dialog", { name: "Create leave policy", exact: true });
+  await expect(wizard).toHaveCount(1);
+  await expect(wizard).toBeVisible();
+  await expect(wizard.getByRole("heading", { name: "Basics" })).toBeVisible();
+  await wizard.getByLabel("Policy key").fill("browser-review-policy");
+  await wizard.getByLabel("Version").fill("1");
+  await wizard.getByLabel("Policy name").fill("Browser review policy");
+  await wizard.getByLabel("Effective from").fill("2026-10-01");
+  await wizard.getByLabel("Timezone").fill("Asia/Bangkok");
+  await wizard.getByRole("button", { name: "Continue" }).click();
+  await expect(wizard.getByRole("heading", { name: "Working days" })).toBeVisible();
+  await wizard.getByLabel("Saturday").check();
+  await wizard.getByRole("button", { name: "Back" }).click();
+  await expect(wizard.getByLabel("Policy name")).toHaveValue("Browser review policy");
+  await wizard.getByRole("button", { name: "Continue" }).click();
+  await expect(wizard.getByLabel("Saturday")).toBeChecked();
+  await wizard.getByRole("button", { name: "Continue" }).click();
+  await expect(wizard.getByRole("heading", { name: "Leave rules" })).toBeVisible();
+  await wizard.getByLabel("Leave type").selectOption({ index: 1 });
+  await wizard.getByLabel("Grant units").fill("12");
+  await wizard.getByRole("button", { name: "Continue" }).click();
+  await expect(wizard.getByRole("heading", { name: "Review" })).toBeVisible();
   let calls = 0;
   let posted: Record<string, unknown> | null = null;
   await page.route("**/leave/admin", async route => {
@@ -85,13 +94,13 @@ test("leave policy wizard preserves draft and submits one reviewed command", asy
     posted = route.request().postDataJSON();
     await route.fulfill({ status: calls === 1 ? 422 : 200, contentType: "application/json", body: calls === 1 ? JSON.stringify({ error: { message: "Review API error" } }) : JSON.stringify({ data: { id: "reviewed" } }) });
   });
-  await page.getByRole("button", { name: "Create policy version" }).click();
-  await expect(page.getByRole("alert").filter({ hasText: "Review API error" })).toBeVisible();
-  await expect(page.getByText("Browser review policy", { exact: false }).first()).toBeVisible();
-  await page.getByRole("button", { name: "Back" }).click();
-  await expect(page.getByLabel("Grant units")).toHaveValue("12");
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Create policy version" }).click();
+  await wizard.getByRole("button", { name: "Create policy version" }).click();
+  await expect(wizard.getByRole("alert").filter({ hasText: "Review API error" })).toBeVisible();
+  await expect(wizard.getByText("Browser review policy", { exact: false }).first()).toBeVisible();
+  await wizard.getByRole("button", { name: "Back" }).click();
+  await expect(wizard.getByLabel("Grant units")).toHaveValue("12");
+  await wizard.getByRole("button", { name: "Continue" }).click();
+  await wizard.getByRole("button", { name: "Create policy version" }).click();
   await expect(page).toHaveURL(/section=leave/);
   expect(calls).toBe(2);
   expect(posted).toMatchObject({ resource: "policy", policyKey: "browser-review-policy", name: "Browser review policy", workweek: [1, 2, 3, 4, 5, 6] });
@@ -102,7 +111,9 @@ test("custom attributes live in Technology and old direct links redirect", async
   await page.goto(`${base}/people/settings?section=attributes`, { waitUntil: "domcontentloaded" });
   await expect(page).toHaveURL(/\/technology\?view=attributes$/, { timeout: 60_000 });
   await expect(page.getByRole("link", { name: "Custom attributes", exact: true }).first()).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Custom attributes", exact: true })).toBeVisible();
+  const workspace = page.locator("#workspace-content:visible");
+  await expect(workspace).toHaveCount(1);
+  await expect(workspace.getByRole("heading", { name: "Custom attributes", exact: true })).toBeVisible();
   await fitsViewport(page);
 });
 
@@ -114,7 +125,9 @@ test("pay groups and holiday calendars use existing commands from the People set
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { id: "browser-settings-command" } }) });
   });
   await page.goto(`${base}/people?panel=settings&section=pay-groups`);
-  const panel = page.getByTestId("people-detail");
+  const workspace = page.locator("#workspace-content:visible");
+  await expect(workspace).toHaveCount(1);
+  const panel = workspace.getByTestId("people-detail");
   await panel.locator("summary").filter({ hasText: /^Configure pay group/ }).click();
   await panel.getByLabel("Name", { exact: true }).fill("Browser monthly payroll");
   await panel.getByRole("button", { name: "Save pay group policy", exact: true }).click();
@@ -129,5 +142,5 @@ test("pay groups and holiday calendars use existing commands from the People set
   expect(posted[1]).toMatchObject({ path: `/api/v1${base}/leave/admin`, body: { resource: "calendar", name: "Browser holiday calendar", timezone: "Asia/Bangkok" } });
   await fitsViewport(page);
   await page.goto(`${base}/people/payroll/settings`);
-  await expect(page.getByRole("heading", { name: "Pay groups", exact: true })).toHaveCount(0);
+  await expect(workspace.getByRole("heading", { name: "Pay groups", exact: true })).toHaveCount(0);
 });

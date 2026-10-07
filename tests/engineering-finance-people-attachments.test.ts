@@ -13,7 +13,7 @@ vi.mock("../src/server/runtime",()=>({holdingResources:async()=>({write:env.H001
 // Explicit clean scanner fixture; format detection, preview generation, storage,
 // upload transactions, permissions and owner commands remain production code.
 // The release scanner gate independently proves the real compiled scanner.
-vi.mock("../src/server/attachments/scanner",()=>({
+vi.mock("../src/server/modules/files/public/attachments/scanner",()=>({
  attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:"Declared clean scanner fixture",definitionUpdatedAt:Date.now(),error:null}),
  scanAttachmentBytes:async()=>({clean:true,signature:null,engine:"Declared clean scanner fixture",definitionUpdatedAt:Date.now()}),
 }));

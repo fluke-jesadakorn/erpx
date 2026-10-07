@@ -5,7 +5,7 @@ import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { workFetch } from "@/lib/work-fetch";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { clearGuidedIntakeHandoff, readGuidedIntakeHandoff } from "@/lib/ai/guided-intake";
 import { preparedTaskFields } from "@/lib/ai/prepared-work";
 import { formatUiDateTime } from "@/lib/ui-format";
@@ -13,10 +13,10 @@ import { localMinuteAt } from "@/lib/calendar-timeline";
 import { PreferredDateTimeField } from "@/components/time/preferred-date-time-field";
 import { TimeText, useDisplayTimeZone } from "@/components/time/time-preference-context";
 import { useRouter } from "next/navigation";
-import type { StaffPerson } from "@/server/staff-policy";
-import type { TaskDetail, TaskRow, ProjectRow } from "@/server/staff-tasks";
-import type { ScheduleRow, TemplateRow } from "@/server/routines";
-import type { ApprovalView } from "@/server/approvals";
+import type { StaffPerson } from "@/server/modules/operations/public/staff-policy";
+import type { TaskDetail, TaskRow, ProjectRow } from "@/server/modules/operations/public/staff-tasks";
+import type { ScheduleRow, TemplateRow } from "@/server/modules/operations/public/routines";
+import type { ApprovalView } from "@/server/modules/workflow/public/approvals";
 import {
   AttachmentPanel,
   type AttachmentPanelChange,
@@ -255,6 +255,8 @@ export function TaskEditor({ appearance = "legacy",
   const [defaultDue] = useState(() =>
     initialDueDate && /^\d{4}-\d{2}-\d{2}$/.test(initialDueDate) ? `${initialDueDate}T09:00` : "",
   );
+  const creationForm = useRef<HTMLFormElement>(null);
+  const adoptedCreationDraft = useRef(false);
   const source = task ?? template,
     { send, busy, error } = useStaffCommand(base),
     [title, setTitle] = useState(`${clone ? "Copy of " : ""}${source?.title ?? ""}`),
@@ -279,6 +281,18 @@ export function TaskEditor({ appearance = "legacy",
           : "none",
     ),
     [dueOverride, setDue] = useState<string | null>(null);
+  // Adopt text entered into this server-rendered creation form before any
+  // controlled rerender can replace it with the initial empty draft.
+  useLayoutEffect(() => {
+    if (source || clone || adoptedCreationDraft.current) return;
+    const form = creationForm.current;
+    if (!form) return;
+    adoptedCreationDraft.current = true;
+    const enteredTitle = form.querySelector<HTMLInputElement>('input[name="title"]');
+    const enteredDescription = form.querySelector<HTMLTextAreaElement>('textarea[name="description"]');
+    if (enteredTitle) setTitle(enteredTitle.value);
+    if (enteredDescription) setDescription(enteredDescription.value);
+  }, [source, clone]);
   const due =
     dueOverride ??
     (task?.due_at != null && timeReady
@@ -360,6 +374,7 @@ export function TaskEditor({ appearance = "legacy",
         </div>
       )}
       <form data-ui-appearance={appearance}
+        ref={creationForm}
         onSubmit={(e) => {
           e.preventDefault();
           const f = new FormData(e.currentTarget),

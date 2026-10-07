@@ -26,7 +26,7 @@ vi.mock("../src/server/runtime", () => ({
   activeHoldingBindings: async () => [{ id: "h001", slug: "acme", displayName: "Acme Group" }],
   runtimeEnv: async () => ({ CONTROL_DB: {} }),
 }));
-vi.mock("../src/server/usage", () => ({
+vi.mock("../src/server/modules/commercial/public/usage", () => ({
   usageMonth: (month: string | null) => ({ month: month ?? "2026-09" }),
   readHoldingUsage: async (_binding: unknown, _month: string, branchId: string | null) => {
     state.readBranch = branchId;
@@ -46,7 +46,7 @@ vi.mock("../src/server/usage", () => ({
     };
   },
 }));
-vi.mock("../src/server/usage-projection", () => ({
+vi.mock("../src/server/modules/commercial/public/usage-projection", () => ({
   readPlatformUsageProjection: async () => ({ holdings: [], items: [], unavailable: [] }),
 }));
 

@@ -1,9 +1,11 @@
 import { expect, test } from '@playwright/test';
+import { selectFixtureAssignment } from './helpers/select-fixture-assignment';
 const base = '/holdings/acme';
 test.beforeEach(async ({ context, baseURL }) => {
   test.skip(!['localhost', '127.0.0.1'].includes(new URL(baseURL!).hostname), 'Uses the existing local test account.');
   const response = await context.request.post('/api/auth/sign-in/email', { data: { email: 'mali@erpx.dev', password: 'Mali-ERPX-2026!' } });
   expect(response.status()).toBe(200);
+  await selectFixtureAssignment(context, 'acme-co', 'seed_usr_mali');
 });
 
 test('retired pages render fixed widgets without layout reads or controls', async ({ page }) => {

@@ -2,7 +2,7 @@
 import { Button, Field, Select } from "@/components/ui/foundation";
 
 import { useState } from "react";
-import type { DocumentBrandMode } from "@/server/branding";
+import type { DocumentBrandMode } from "@/server/modules/brand/public/branding";
 import styles from "./business-document.module.css";
 
 export function PrintControls({

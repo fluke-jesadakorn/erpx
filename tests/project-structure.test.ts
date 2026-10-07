@@ -89,3 +89,38 @@ it('rejects hierarchy and dependency deadlocks, stale task sources, competing st
  await expect(projectGraph({...f.owner,companyId:'another-company'},p.id)).rejects.toMatchObject({status:404});
  await db.prepare('UPDATE assignments SET revoked_at=? WHERE id=?').bind(Date.now(),f.owner.assignmentId).run();await expect(projectGraph(f.owner,p.id)).rejects.toMatchObject({status:404});
 });
+it('rolls back issued Projects evidence, Collaboration notification and command journal on late outbox failure, then retries and replays once',async()=>{
+ const p=await newProject(),receipt=key(),handoffId=`project-handoff-${receipt}`,input={action:'prepare-handoff',expectedVersion:1,recipientId:f.head.userId,evidence:'Complete independently reviewed source evidence.',reason:'Receiving member must retain this snapshot.'},suffix=key().replace(/[^a-zA-Z0-9]/g,''),fault=`project_handoff_fault_${suffix}`,trigger=`project_handoff_outbox_${suffix}`;
+ await db.prepare(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='${receipt}' THEN RAISE EXCEPTION 'PROJECT_HANDOFF_LATE_FAILURE'; END IF; RETURN NEW; END $$`).run();
+ await db.prepare(`CREATE TRIGGER ${trigger} AFTER INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION ${fault}()`).run();
+ try{
+  await expect(projectStructureCommand(f.owner,p.id,input,receipt)).rejects.toThrow('PROJECT_HANDOFF_LATE_FAILURE');
+  expect(await db.prepare('SELECT lifecycle_status,version FROM staff_projects WHERE id=?').bind(p.id).first()).toEqual({lifecycle_status:'active',version:1});
+  expect(await db.prepare('SELECT count(*) n FROM staff_project_handoffs WHERE id=?').bind(handoffId).first()).toEqual({n:0});
+  expect(await db.prepare('SELECT count(*) n FROM staff_project_package_events WHERE id=?').bind(`project-package-event-${receipt}`).first()).toEqual({n:0});
+  expect(await db.prepare('SELECT count(*) n FROM staff_notifications WHERE record_id=?').bind(handoffId).first()).toEqual({n:0});
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(receipt).first()).toEqual({n:0});
+ }finally{await db.prepare(`DROP TRIGGER ${trigger} ON outbox_events`).run();await db.prepare(`DROP FUNCTION ${fault}()`).run();}
+ const result=await projectStructureCommand(f.owner,p.id,input,receipt);expect(result).toMatchObject({status:'handoff_pending',version:2,handoffId});
+ expect(await projectStructureCommand(f.owner,p.id,input,receipt)).toEqual(result);
+ expect(await db.prepare('SELECT count(*) n FROM staff_project_handoffs WHERE id=?').bind(handoffId).first()).toEqual({n:1});
+ expect(await db.prepare('SELECT count(*) n FROM staff_notifications WHERE record_id=?').bind(handoffId).first()).toEqual({n:1});
+ for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(receipt).first()).toEqual({n:1});
+});
+it('rolls back independent handoff acceptance and its owner notice after late outbox failure, retaining the issued artifact for same-key retry',async()=>{
+ const p=await newProject(),issued=await command(p.id,{action:'prepare-handoff',recipientId:f.head.userId,evidence:'Frozen source evidence for receiving review.'}),handoffId=String(issued.handoffId),receipt=key(),input={action:'accept-handoff',expectedVersion:2,handoffId,handoffVersion:1,reason:'Independent member verified completed deliverables.'};
+ const before=await db.prepare('SELECT snapshot_json::text snapshot,snapshot_sha256,status,version FROM staff_project_handoffs WHERE id=?').bind(handoffId).first(),suffix=key().replace(/[^a-zA-Z0-9]/g,''),fault=`project_accept_fault_${suffix}`,trigger=`project_accept_outbox_${suffix}`;
+ await db.prepare(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='${receipt}' THEN RAISE EXCEPTION 'PROJECT_ACCEPT_LATE_FAILURE'; END IF; RETURN NEW; END $$`).run();
+ await db.prepare(`CREATE TRIGGER ${trigger} AFTER INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION ${fault}()`).run();
+ try{
+  await expect(projectStructureCommand(f.head,p.id,input,receipt)).rejects.toThrow('PROJECT_ACCEPT_LATE_FAILURE');
+  expect(await db.prepare('SELECT lifecycle_status,version FROM staff_projects WHERE id=?').bind(p.id).first()).toEqual({lifecycle_status:'handoff_pending',version:2});
+  expect(await db.prepare('SELECT snapshot_json::text snapshot,snapshot_sha256,status,version FROM staff_project_handoffs WHERE id=?').bind(handoffId).first()).toEqual(before);
+  expect(await db.prepare('SELECT count(*) n FROM staff_notifications WHERE id=?').bind(`project-handoff-decision-${receipt}`).first()).toEqual({n:0});
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(receipt).first()).toEqual({n:0});
+ }finally{await db.prepare(`DROP TRIGGER ${trigger} ON outbox_events`).run();await db.prepare(`DROP FUNCTION ${fault}()`).run();}
+ const result=await projectStructureCommand(f.head,p.id,input,receipt);expect(result).toMatchObject({status:'completed',version:3});expect(await projectStructureCommand(f.head,p.id,input,receipt)).toEqual(result);
+ expect(await db.prepare('SELECT status,version FROM staff_project_handoffs WHERE id=?').bind(handoffId).first()).toEqual({status:'accepted',version:2});
+ expect(await db.prepare('SELECT count(*) n FROM staff_notifications WHERE id=?').bind(`project-handoff-decision-${receipt}`).first()).toEqual({n:1});
+ expect(await db.prepare('SELECT count(*) n FROM audit_events WHERE command_id=?').bind(receipt).first()).toEqual({n:1});
+});

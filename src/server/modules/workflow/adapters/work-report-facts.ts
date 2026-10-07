@@ -1,0 +1,6 @@
+import "server-only";
+import type {SqlDatabase} from "../../runtime/public/runtime/types";
+export function workReportWorkflowFacts(db:SqlDatabase){return {decisions:(companyId:string,ids:string)=>db.prepare(`SELECT i.record_id,d.id,d.action,d.actor_user_id actor,d.created_at at,d.reason,COALESCE(s.stage,s.authority,'') step,i.cycle,s.route_snapshot_json policy
+ FROM approval_instances i JOIN approval_decisions d ON d.instance_id=i.id LEFT JOIN approval_steps s ON s.id=d.step_id
+ WHERE i.company_id=? AND i.record_id IN (SELECT jsonb_array_elements_text(?::jsonb)) ORDER BY d.created_at,d.id`).bind(companyId,ids).all<{record_id:string;id:string;action:string;actor:string;at:number;reason:string;step:string;cycle:number;policy:string|null}>(),
+savedRoutes:(companyId:string,ids:string)=>db.prepare(`SELECT i.record_id,i.cycle,s.ordinal,s.approver_user_id,s.stage,s.authority,s.route_snapshot_json FROM approval_instances i JOIN approval_steps s ON s.instance_id=i.id WHERE i.company_id=? AND i.record_id IN (SELECT jsonb_array_elements_text(?::jsonb)) ORDER BY i.cycle,s.ordinal`).bind(companyId,ids).all<{record_id:string;cycle:number;ordinal:number;approver_user_id:string;stage:string|null;authority:string;route_snapshot_json:string|null}>()};}

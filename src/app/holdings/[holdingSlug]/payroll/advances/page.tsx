@@ -1,5 +1,5 @@
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext } from "@/server/authorization";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";

@@ -10,12 +10,12 @@ import { ListPagination } from "@/components/ui/list-pagination";
 import { MoneyAmount } from "@/components/money/currency-provider";
 import { hasPermission } from "@/lib/permissions";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { bankWorkspace, listCharts } from "@/server/finance";
-import { pageError } from "@/server/page-error";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { bankWorkspace, listCharts } from "@/server/modules/finance/public/finance";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { FilterBar } from "@/components/ui/foundation";
-import { bankAutomationWorkspace } from "@/server/finance-bank-automation";
-import { financeCompanyTools } from "@/server/finance-company-tools";
+import { bankAutomationWorkspace } from "@/server/modules/finance/public/finance-bank-automation";
+import { financeCompanyTools } from "@/server/modules/finance/public/finance-company-tools";
 import { FinanceBankAutomationControls } from "@/components/finance/finance-bank-automation-controls";
 
 export const dynamic = "force-dynamic";

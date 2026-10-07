@@ -1,8 +1,8 @@
-import { requestPublicOrigin } from "@/server/public-origin";
-import { requireWorkContext } from "@/server/authorization";
-import { newLeaveSchema } from "@/server/leave";
-import { ApiError,errorResponse } from "@/server/http";
-import { createSelfServiceLeave, listOwnLeave, listOwnLeavePage, normalizeLegacyLeave } from "@/server/leave-self-service";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { newLeaveSchema } from "@/server/modules/people_payroll/public/leave";
+import { ApiError,errorResponse } from "@/server/modules/runtime/public/http";
+import { createSelfServiceLeave, listOwnLeave, listOwnLeavePage, normalizeLegacyLeave } from "@/server/modules/people_payroll/public/leave-self-service";
 import { leaveCreateSchema } from "@/lib/leave-self-service";
 export const dynamic = "force-dynamic";
 export async function GET(request:Request,{params}:{params:Promise<{holdingSlug:string}>}) {

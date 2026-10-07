@@ -1,5 +1,5 @@
 import { moduleRegistry } from "@/data/module-registry";
-import { metricIds, type MetricId } from "./canvas";
+import { metricIds, type MetricId } from "@/server/modules/runtime/public/rules/canvas-domain";
 
 type MetricPlan = {
   id: string;

@@ -1,3 +1,5 @@
+import { staffPresentationQueries } from "@/server/modules/work_projection/public/presentation-context-queries";
+
 import { TimeText } from "@/components/time/time-preference-context";
 import betaStyles from "@/components/beta/beta.module.css";
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
@@ -12,11 +14,11 @@ import { StatusBadge } from "@/components/ui/primitives";
 import { FlowPanel,documentFlow } from "@/components/workplace/flow-panel";
 import { RecordNextAction } from "@/components/workplace/record-next-action";
 import { WorkReturn } from "@/components/workplace/work-return";
-import { ApiError } from "@/server/http";
-import { pageError } from "@/server/page-error";
-import { readablePost } from "@/server/social-source";
-import { staffPage } from "@/server/staff-page";
-import { taskDetail } from "@/server/staff-tasks";
+import { ApiError } from "@/server/modules/runtime/public/http";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+
+
+
 import { RecordLink as Link } from "@/components/records/record-link";
 export default async function Task({
   params,
@@ -26,19 +28,16 @@ export default async function Task({
   searchParams: Promise<{ return?: string }>;
 }) {
   const { holdingSlug, id } = await params,
-    { actor, write, base, options, projects } = await staffPage(holdingSlug),
-    detail = await taskDetail(write, actor, id).catch((e) => {
+    { actor, queries, base, options, projects } = await staffPresentationQueries(holdingSlug),
+    detail = await queries.taskDetail(actor, id).catch((e) => {
       return pageError(e, holdingSlug);
     }),
     t = detail.task;
-  const origin = await write
-    .prepare("SELECT post_id FROM social_task_origins WHERE task_id=?")
-    .bind(id)
-    .first<{ post_id: string }>();
+  const origin = await queries.taskSocialOrigin(id);
   let sourceId: string | null = null;
   if (origin) {
     try {
-      await readablePost(write, actor, origin.post_id);
+      await queries.readablePost(actor, origin.post_id);
       sourceId = origin.post_id;
     } catch (e) {
       if (!(e instanceof ApiError) || e.status !== 404) throw e;

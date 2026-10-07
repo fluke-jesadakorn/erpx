@@ -6,7 +6,7 @@ import { Button, Field, TextArea } from "@/components/ui/foundation";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
 import { useState } from "react";
-import type { PlatformDeadLetter } from "@/server/platform-operations";
+import type { PlatformDeadLetter } from "@/server/modules/platform_administration/public/platform-operations";
 import { Card } from "@/components/ui/foundation";
 
 export function PlatformJobRecovery({

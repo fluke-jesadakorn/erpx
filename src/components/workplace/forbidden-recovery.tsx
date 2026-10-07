@@ -14,11 +14,11 @@ import {
   currentSession,
   requirePlatformContext,
   type ResolvedWorkspaceScope,
-} from "@/server/authorization";
-import { ApiError } from "@/server/http";
-import { pageError } from "@/server/page-error";
-import { workRoleOptions } from "@/server/work-role-options";
-import { workspaceChoices } from "@/server/workspace-choices";
+} from "@/server/modules/identity_access/public/authorization";
+import { ApiError } from "@/server/modules/runtime/public/http";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+import { workRoleOptions } from "@/server/modules/work_projection/public/work-role-options";
+import { workspaceChoices } from "@/server/modules/organization/public/workspace-choices";
 import { PlatformRoleSwitcher } from "./platform-role-switcher";
 import { WorkspaceMenu } from "./workspace-menu";
 import styles from "./forbidden-recovery.module.css";

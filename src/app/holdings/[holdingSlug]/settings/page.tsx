@@ -1,3 +1,5 @@
+import { operationsPresentationQueries } from "@/server/modules/operations/public/presentation-queries";
+
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { BetaSettings } from "@/components/beta/settings";
@@ -20,14 +22,14 @@ import { adminSections, type AdminSection } from "@/lib/administration";
 import { workspaceBase } from "@/lib/workspace";
 import { peopleContextHref } from "@/lib/people-route-context";
 import { hasPermission } from "@/lib/permissions";
-import { administrationAccess } from "@/server/administration";
-import { aiProviderOverview } from "@/server/ai-providers";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { listBrandProfiles } from "@/server/branding";
-import { accessPage } from "@/server/page-error";
-import { holdingResources, runtimeEnv } from "@/server/runtime";
-import { serviceTeamOptions } from "@/server/service-team-options";
-import { staffSettings } from "@/server/staff-settings";
+import { administrationAccess } from "@/server/modules/runtime/public/administration";
+
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+
+import { accessPage } from "@/server/modules/work_projection/public/page-error";
+
+
+
 import { RecordLink as Link } from "@/components/records/record-link";
 import { notFound, redirect } from "next/navigation";
 import styles from "./settings.module.css";
@@ -62,16 +64,11 @@ export default async function Settings({
     (query.record || query.kind)
   )
     return accessPage("permission", actor.holdingSlug);
-  const { write } = await holdingResources(actor.holdingId);
+  const presentation = await operationsPresentationQueries(actor.holdingId);
   const options =
-    section === "organization" ? await staffSettings(write, actor) : null;
+    section === "organization" ? await presentation.staffSettings(actor) : null;
   const branches = options
-    ? await write
-        .prepare(
-          "SELECT display_name FROM organization_nodes WHERE company_id=? AND kind='branch' AND status='active' AND (?::text IS NULL OR id=?) ORDER BY display_name",
-        )
-        .bind(actor.companyId, actor.branchId, actor.branchId)
-        .all<{ display_name: string }>()
+    ? await presentation.scopedBranchNames(actor.companyId, actor.branchId, actor.branchId)
     : null;
   const canOpenReadiness =
     access.manageOrganization && !actor.branchId && !actor.departmentId;
@@ -209,14 +206,14 @@ export default async function Settings({
           <AiProviders
             base={base}
             canBilling={access.owner}
-            data={await aiProviderOverview(write, actor, await runtimeEnv())}
+            data={await presentation.aiProviderOverview(actor)}
           />
         )}
         {section === "organization" && options && (
           <>
             <BrandAdministration appearance="standard"
               base={base}
-              {...await listBrandProfiles(write, actor)}
+              {...await presentation.listBrandProfiles(actor)}
               canHolding={access.owner}
               canBranches={access.manageOrganization}
               canStorefront={
@@ -244,7 +241,7 @@ export default async function Settings({
             {access.owner && (
               <ServiceTeams
                 base={base}
-                options={await serviceTeamOptions(write, actor)}
+                options={await presentation.serviceTeamOptions(actor)}
                 companyId={actor.companyId}
                 userId={actor.userId}
               />

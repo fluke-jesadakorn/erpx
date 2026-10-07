@@ -1,8 +1,13 @@
-import { beforeAll, beforeEach, expect, it } from "vitest";
+import { beforeAll, beforeEach, expect, it, vi } from "vitest";
+import {randomUUID} from 'node:crypto';
 import { applyMigrations, env } from "./runtime-env";
 import { readPlatformUsageProjection, syncHoldingUsageProjection } from "../src/server/usage-projection";
 import type { UsageHolding, UsageItem } from "../src/server/usage";
 import { billingMonth, monthBounds } from "../src/lib/billing";
+import {readHoldingUsage} from '../src/server/usage';
+import {expenseFixture,key} from './helpers/expense-fixture';
+
+vi.mock('../src/server/runtime',()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 
 const binding = { id: "h001", slug: "acme", displayName: "Acme" };
 const month = "2026-09";
@@ -11,6 +16,8 @@ const empty = () => ({ ai: { requests: 0, inputTokens: 0, outputTokens: 0 },
 const holding = (): UsageHolding => ({
   holdingId: binding.id, holdingSlug: binding.slug, holdingName: binding.displayName,
   companies: [], totals: empty(), sandboxStoragePreview: { status: "unpriced", amountSatang: null },
+  meterCoverage:{ai:"partial",storage:"partial",seat:"unavailable",unreconciledOriginals:0},
+  seatUsage:{monthly:{status:"unavailable",distinctUsers:null,activeSeatMilliseconds:null},activeNow:{status:"unavailable",count:null,asOf:null}},
 });
 const ai = (overrides: Partial<UsageItem> = {}): UsageItem => ({
   id: "provider-row-1", holdingId: binding.id, companyId: "company-1", companyName: "Company One",
@@ -28,10 +35,40 @@ const storage = (): UsageItem => ({
 
 beforeAll(async () => {
   await applyMigrations(env.CONTROL_DB, env.CONTROL_TEST_MIGRATIONS);
+  await applyMigrations(env.H001_DB,env.STAFF_TEST_MIGRATIONS);
   await env.CONTROL_DB.prepare(`INSERT INTO holding_bindings(
     holding_id,slug,display_name,write_binding,read_binding,files_binding,status)
     VALUES('h001','acme','Acme','H001_DB','H001_READ_DB','H001_FILES','active')
     ON CONFLICT(holding_id) DO NOTHING`).run();
+});
+
+it('keeps Holding source facts local while publishing only the billing meter view',async()=>{
+ const fixture=await expenseFixture(),sourceId=key(),{start}=monthBounds(month);
+ await env.H001_DB.prepare("INSERT INTO ai_provider_usage(id,company_id,branch_id,model,feature,input_tokens,output_tokens,status,created_at,funding_source) VALUES(?,?,?,'private-provider-model','private-work-feature',20,10,'succeeded',?,'byok')").bind(sourceId,fixture.company,fixture.branch,start+1).run();
+ const snapshot=await readHoldingUsage(binding,month,fixture.branch),item=snapshot.items.find(item=>item.id===sourceId);
+ expect(item).toMatchObject({companyId:fixture.company,branchId:fixture.branch,quantity:30,inputTokens:20,outputTokens:10,pricingStatus:'byok'});expect(item?.companyName).not.toBe('Unknown company');
+ expect(snapshot.holding.seatUsage.monthly.status).toBe('unavailable');expect(snapshot.holding.seatUsage.activeNow.status).toBe('unavailable');
+ await syncHoldingUsageProjection(env.CONTROL_DB,binding,month,snapshot,2000);
+ const projection=await readPlatformUsageProjection(env.CONTROL_DB,[binding],month);expect(projection.items).toHaveLength(1);expect(projection.items[0]).toMatchObject({quantity:30,inputTokens:20,outputTokens:10});
+ const rows=(await env.CONTROL_DB.prepare('SELECT source_key,model FROM billing_usage_meters WHERE holding_id=? AND month=?').bind(binding.id,month).all()).results;expect(rows).toHaveLength(1);expect(rows[0]).toMatchObject({model:null});expect(JSON.stringify(rows)).not.toContain(sourceId);expect(JSON.stringify(projection)).not.toContain('private-provider-model');expect(JSON.stringify(projection)).not.toContain('private-work-feature');
+});
+
+it('rolls back meters and header on a late PostgreSQL failure and allows the identical refresh to recover',async()=>{
+ await syncHoldingUsageProjection(env.CONTROL_DB,binding,month,{holding:holding(),items:[ai()]},1000);
+ const original=await env.CONTROL_DB.prepare('SELECT snapshot_id,refreshed_at,source_count FROM billing_usage_snapshots WHERE holding_id=? AND month=?').bind(binding.id,month).first(),fault=`usage_projection_fault_${randomUUID().replaceAll('-','')}`;
+ await env.CONTROL_DB.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'USAGE_PROJECTION_LATE_FAILURE' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER UPDATE ON billing_usage_snapshots FOR EACH ROW WHEN(NEW.holding_id='h001' AND NEW.refreshed_at=2000) EXECUTE FUNCTION ${fault}();`);
+ const corrected={holding:holding(),items:[ai({quantity:60,inputTokens:40,outputTokens:20}),storage()]};
+ try{await expect(syncHoldingUsageProjection(env.CONTROL_DB,binding,month,corrected,2000)).rejects.toThrow();}finally{await env.CONTROL_DB.exec(`DROP TRIGGER ${fault} ON billing_usage_snapshots;DROP FUNCTION ${fault}();`);}
+ expect(await env.CONTROL_DB.prepare('SELECT snapshot_id,refreshed_at,source_count FROM billing_usage_snapshots WHERE holding_id=? AND month=?').bind(binding.id,month).first()).toEqual(original);
+ expect((await readPlatformUsageProjection(env.CONTROL_DB,[binding],month)).items).toEqual([expect.objectContaining({quantity:30,inputTokens:20,outputTokens:10})]);
+ await syncHoldingUsageProjection(env.CONTROL_DB,binding,month,corrected,2000);await syncHoldingUsageProjection(env.CONTROL_DB,binding,month,corrected,2000);
+ expect(await env.CONTROL_DB.prepare('SELECT refreshed_at,source_count FROM billing_usage_snapshots WHERE holding_id=? AND month=?').bind(binding.id,month).first()).toEqual({refreshed_at:2000,source_count:2});
+ expect(await env.CONTROL_DB.prepare('SELECT COUNT(*)::int count FROM billing_usage_meters WHERE holding_id=? AND month=?').bind(binding.id,month).first()).toEqual({count:2});
+});
+
+it('serializes concurrent refreshes and keeps the greatest observation rather than arrival order',async()=>{
+ await Promise.all([syncHoldingUsageProjection(env.CONTROL_DB,binding,month,{holding:holding(),items:[ai({quantity:60,inputTokens:40,outputTokens:20})]},2000),syncHoldingUsageProjection(env.CONTROL_DB,binding,month,{holding:holding(),items:[ai()]},1000)]);
+ expect(await env.CONTROL_DB.prepare('SELECT refreshed_at FROM billing_usage_snapshots WHERE holding_id=? AND month=?').bind(binding.id,month).first()).toEqual({refreshed_at:2000});expect((await readPlatformUsageProjection(env.CONTROL_DB,[binding],month)).items).toEqual([expect.objectContaining({quantity:60,inputTokens:40,outputTokens:20})]);
 });
 
 beforeEach(async () => {

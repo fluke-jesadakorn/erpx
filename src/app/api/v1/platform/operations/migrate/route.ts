@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { requireManageErpxContext } from "@/server/authorization";
-import { errorResponse, ApiError } from "@/server/http";
-import { activeHoldingBindings, holdingMigrationDatabase, runtimeEnv } from "@/server/runtime";
-import { runHoldingMigrations } from "@/server/platform-operations";
-import type { PostgresDatabase } from "@/server/runtime/postgres";
+import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
+import { errorResponse, ApiError } from "@/server/modules/runtime/public/http";
+import { activeHoldingBindings, holdingMigrationDatabase, runtimeEnv } from "@/server/modules/runtime/public/runtime";
+import { runHoldingMigrations } from "@/server/modules/platform_administration/public/platform-operations";
+import type { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
 
 const schema = z.object({
   holdingId: z.string().regex(/^[a-z0-9][a-z0-9._:-]{1,180}$/),

@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import type { PurchaseRequestProgress as Progress } from "@/server/purchase-request-progress";
+import type { PurchaseRequestProgress as Progress } from "@/server/modules/procurement/public/purchase-request-progress";
 import styles from "./purchase-request-progress.module.css";
 import { Card } from "@/components/ui/foundation";
 

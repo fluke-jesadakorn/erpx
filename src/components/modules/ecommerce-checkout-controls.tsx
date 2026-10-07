@@ -6,7 +6,7 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
-import type { ecommerceDetail } from "@/server/ecommerce";
+import type { ecommerceDetail } from "@/server/modules/ecommerce/public/ecommerce";
 import { Card } from "@/components/ui/foundation";
 
 export function EcommerceCheckoutControls({

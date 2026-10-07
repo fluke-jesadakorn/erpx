@@ -7,6 +7,8 @@ import type {IamActor} from '../src/server/iam-context';
 import {connectionInput,saveConnection,testConnection,proposeConnectionActivation,disableConnection,applyDirectoryReview,connectionById} from '../src/server/iam-directories';
 import {decideIamReview,grantIamAccess,grantInput,revokeIamAssignment,iamAuditHistory} from '../src/server/iam-service';
 import {iamCommand} from '../src/server/iam-transactions';
+import {prepareLocalBrowserRealm} from '../scripts/fixtures/local-browser-erpx-realm';
+import {initializeWorkSelection} from '../src/server/modules/work_projection/public/work-role-store';
 const adapter=vi.hoisted(()=>({test:vi.fn()}));
 vi.mock('../src/server/iam-providers',async()=>({...await vi.importActual<typeof import('../src/server/iam-providers')>('../src/server/iam-providers'),testDirectory:adapter.test}));
 vi.mock('../src/server/runtime',()=>({runtimeEnv:async()=>env}));
@@ -50,4 +52,25 @@ it('reviews temporary Platform grants independently and refuses current reads, m
  const revokeKey=key();await revokeIamAssignment(db,reviewer,grant!.id,1,'Inspection complete; withdraw this exact temporary grant',revokeKey);await revokeIamAssignment(db,reviewer,grant!.id,1,'Inspection complete; withdraw this exact temporary grant',revokeKey);await expect(read()).rejects.toMatchObject({code:'ASSIGNMENT_UNAVAILABLE'});
  expect(await db.prepare("SELECT iam_assignment_active(?,?) active").bind(grant!.id,Date.now()).first('active')).toBe(false);expect(await db.prepare("SELECT count(*) n FROM iam_audit WHERE action='assignment.revoke' AND target_id=?").bind(revokeKey).first('n')).toBe(1);
  expect(await db.prepare('SELECT count(*) n FROM iam_receipts WHERE id=?').bind(readKey).first('n')).toBe(1);
+});
+
+it('prepares only the disposable ERPX realm for the existing Platform identity and retains normal owner authority',async()=>{
+ const realm=env.H003_DB;await applyMigrations(realm,env.STAFF_TEST_MIGRATIONS);
+ const before=await realm.prepare('SELECT count(*)::int n FROM assignments').first<{n:number}>();
+ await expect(prepareLocalBrowserRealm(env.CONTROL_DB,realm)).rejects.toThrow('EXISTING_LOCAL_BROWSER_PLATFORM_IDENTITY_REQUIRED');
+ expect(await realm.prepare('SELECT count(*)::int n FROM assignments').first()).toEqual(before);
+ const now=Date.now();
+ await env.CONTROL_DB.prepare('INSERT INTO "user"(id,name,email,emailVerified,createdAt,updatedAt) VALUES(?,?,?,1,?,?)').bind('usr_jesadakorn','Existing fixture owner','existing-realm-owner@example.test',now,now).run();
+ await env.CONTROL_DB.prepare("INSERT INTO platform_assignments(id,user_id,role,modules_json,valid_from,valid_until) VALUES('platform_usr_jesadakorn','usr_jesadakorn','platform_admin','[]',?,?)").bind(now-1000,now+86400000).run();
+ const platformBefore=(await env.CONTROL_DB.prepare("SELECT * FROM platform_assignments WHERE user_id='usr_jesadakorn'").all()).results;
+ const prepared=await prepareLocalBrowserRealm(env.CONTROL_DB,realm);
+ expect(await prepareLocalBrowserRealm(env.CONTROL_DB,realm)).toEqual(prepared);
+ expect((await env.CONTROL_DB.prepare("SELECT * FROM platform_assignments WHERE user_id='usr_jesadakorn'").all()).results).toEqual(platformBefore);
+ expect((await loadIamAuthority(realm,prepared.companyId,prepared.userId,'holding_owner')).permissions).toContain('manage_erpx.access');
+ const eligible=(await realm.prepare("SELECT a.id,a.version FROM assignments a JOIN organization_nodes c ON c.id=a.company_id AND c.kind='company' AND c.status='active' WHERE a.user_id=? AND a.company_id=? AND a.scope_kind='holding' AND iam_assignment_active(a.id,?) AND iam_principal_active(a.user_id,a.company_id,?)").bind(prepared.userId,prepared.companyId,now,now).all<{id:string;version:number}>()).results;
+ expect(eligible.map(a=>a.id)).toEqual([prepared.assignmentId]);
+ const selection=await initializeWorkSelection(realm,{sessionId:key(),userId:prepared.userId,companyId:prepared.companyId,expiresAt:now+86400000},eligible,eligible);
+ expect(selection).toMatchObject({assignment_id:prepared.assignmentId});
+ expect(await env.CONTROL_DB.prepare("SELECT slug,write_binding,read_binding,files_binding FROM holding_bindings WHERE holding_id='h003'").first()).toEqual({slug:'erpx',write_binding:'H003_DB',read_binding:'H003_READ_DB',files_binding:'H003_FILES'});
+ expect(await realm.prepare('SELECT count(*)::int n FROM assignments').first()).toEqual({n:before!.n+1});
 });

@@ -1,10 +1,10 @@
 import { Button, Field, Select } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { requireWorkContext, publicScope } from "@/server/authorization";
+import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
-import { pageError } from "@/server/page-error";
-import { incidentWorkspace } from "@/server/support-incidents";
-import { getSupportTicket, supportRecipients } from "@/server/support";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+import { incidentWorkspace } from "@/server/modules/support/public/support-incidents";
+import { getSupportTicket, supportRecipients } from "@/server/modules/support/public/support";
 import { SupportIncidentConsole } from "@/components/modules/support-incident-console";
 import { PageContent, FormLayout, Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";

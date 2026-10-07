@@ -1,8 +1,8 @@
-import {boundedBody} from '@/server/legal/body';
-import {customerPortalCommand,customerPortalContext,customerPortalList,customerPortalProjection} from '@/server/customer-portal';
-import {ApiError,errorResponse} from '@/server/http';
-import {requestPublicOrigin} from '@/server/public-origin';
-import type {PostgresDatabase} from '@/server/runtime/postgres';
+import {boundedBody} from "@/server/modules/legal/public/legal/body";
+import {customerPortalCommand,customerPortalContext,customerPortalList,customerPortalProjection} from "@/server/modules/customer_360/public/customer-portal";
+import {ApiError,errorResponse} from "@/server/modules/runtime/public/http";
+import {requestPublicOrigin} from "@/server/modules/manage_erpx/public/public-origin";
+import type {PostgresDatabase} from "@/server/modules/runtime/public/runtime/postgres";
 export const dynamic='force-dynamic';
 type Context={params:Promise<{holdingSlug:string}>};
 const headers={'Cache-Control':'private, no-store'};

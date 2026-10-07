@@ -2,11 +2,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import type { WorkContext } from "../src/server/authorization";
 import { applyMigrations, env } from "./runtime-env";
 
-vi.mock("../src/server/attachments/scanner", () => ({
+vi.mock("../src/server/modules/files/public/attachments/scanner", () => ({
   attachmentScannerReadiness: async () => ({ enabled: true, ready: true, engine: "ClamAV test", definitionUpdatedAt: Date.now(), error: null }),
   scanAttachmentBytes: async () => ({ clean: true, signature: null, engine: "ClamAV test", definitionUpdatedAt: Date.now() }),
 }));
-vi.mock("../src/server/attachments/preview", () => ({
+vi.mock("../src/server/modules/files/public/attachments/preview", () => ({
   attachmentPreviewReadiness: async () => ({ ready: true, heifConvert: "/test/heif-convert", pdftoppm: "/test/pdftoppm", error: null }),
   detectedAttachmentMediaType: (_bytes: Uint8Array, declared: string) => declared,
   sanitizedAttachmentPreview: async () => null,

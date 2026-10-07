@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { attachmentComponentKinds } from "@/server/attachments/types";
-import { createAttachmentSet, listAttachmentSets } from "@/server/attachments/service";
-import { requireWorkContext } from "@/server/authorization";
-import { ApiError, errorResponse } from "@/server/http";
-import { requestPublicOrigin } from "@/server/public-origin";
-import { holdingResources } from "@/server/runtime";
+import { attachmentComponentKinds } from "@/server/modules/files/public/attachments/types";
+import { createAttachmentSet, listAttachmentSets } from "@/server/modules/files/public/attachments/service";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
 
 const createSchema=z.object({targetType:z.string().min(1).max(80),targetId:z.string().min(1).max(180),componentKind:z.enum(attachmentComponentKinds),componentRef:z.string().max(180).optional(),purposeKey:z.string().min(1).max(80),expectedTargetVersion:z.number().int().positive()});
 function sameOrigin(request:Request){const origin=request.headers.get("origin");if(origin&&origin!==requestPublicOrigin(request))throw new ApiError(403,"ORIGIN_FORBIDDEN","Use the application origin.");}

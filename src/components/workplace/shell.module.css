@@ -1389,7 +1389,7 @@ a.workspaceChoice:hover {
   background: transparent;
 }
 @media (min-width: 651px) {
-  .main :global([data-feature-tabs]) {
+  .main :global([data-feature-tabs]:not([data-inbox-sections])) {
     display: none;
   }
 }

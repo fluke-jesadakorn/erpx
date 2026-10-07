@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { selectFixtureAssignment } from "./helpers/select-fixture-assignment";
 
 const base = "/holdings/acme";
 const png = Buffer.from(
@@ -11,13 +12,6 @@ test.use({ actionTimeout: 20_000 });
 
 async function visit(page: Page, path: string) {
   await page.goto(`${base}${path}`);
-  if (page.url().includes("/work-role")) {
-    await page
-      .getByRole("combobox", { name: "Role for actions & approvals" })
-      .fill("people manager");
-    await page.getByRole("listbox").getByRole("option").first().click();
-    await page.goto(`${base}${path}`);
-  }
 }
 
 test.beforeEach(async ({ context }) => {
@@ -25,6 +19,7 @@ test.beforeEach(async ({ context }) => {
     data: { email: "mali@erpx.dev", password: "Mali-ERPX-2026!" },
   });
   expect(response.status()).toBe(200);
+  await selectFixtureAssignment(context, "acme-co", "seed_usr_mali");
 });
 
 test("canonical Leave evidence supports resilient private files on desktop and mobile", async ({
@@ -38,12 +33,14 @@ test("canonical Leave evidence supports resilient private files on desktop and m
   );
 
   await visit(page, "/leave/new");
+  await expect(page.getByRole("button", { name: "Review request", exact: true })).toHaveAttribute("data-client-managed-ready", "true");
   await page.getByRole("combobox", { name: "Leave type", exact: true }).selectOption({ index: 1 });
   await page.getByLabel("First day", { exact: true }).fill("2026-11-09");
   await page.getByLabel("Last day", { exact: true }).fill("2026-11-09");
   await page.getByLabel("Handover note").fill("Canonical attachment browser acceptance draft.");
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page).toHaveURL(/\/tasks\/people_payroll\/leave-/);
+  await page.getByRole("tab", { name: "Evidence", exact: true }).click();
 
   const panel = page
     .getByRole("heading", { name: "Medical certificates", exact: true })

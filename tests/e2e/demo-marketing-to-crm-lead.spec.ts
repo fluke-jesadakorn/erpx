@@ -39,7 +39,11 @@ test("consented Marketing candidate hands its brief and attribution to an eligib
     expect(marketer.userId).not.toBe(reviewer.userId);
     expect(marketer.userId).not.toBe(submitter.userId);
 
-    const assetForm = marketingPage.locator("#workspace-content").locator("form").filter({ has: marketingPage.getByRole("heading", { name: "Draft marketing asset" }) });
+    await marketingPage.locator("#workspace-content:visible summary").filter({ hasText: /^Draft marketing asset$/ }).click();
+    const assetDrawer = marketingPage.getByRole("dialog", { name: "Draft marketing asset", exact: true });
+    const assetForm = assetDrawer.locator("form");
+    await expect(assetDrawer).toBeVisible();
+    await expect(assetForm).toHaveCount(1);
     await assetForm.getByLabel("Kind").selectOption("form");
     await assetForm.getByLabel("Name").fill("Demo furniture inquiry");
     await assetForm.getByLabel("Public headline").fill("Tell us what you need");
@@ -49,17 +53,23 @@ test("consented Marketing candidate hands its brief and attribution to an eligib
     await assetForm.getByRole("button", { name: "Draft asset" }).click();
     const draft = await (await draftResponse).json();
     const formId = draft.data.id as string;
+    await assetDrawer.getByRole("button", { name: "Close dialog", exact: true }).click();
+    await expect(assetDrawer).not.toBeVisible();
     await expect(marketingPage.getByRole("heading", { name: "Independent review · Demo furniture inquiry" })).toBeVisible();
 
     await reviewerPage.reload();
-    const reviewForm = reviewerPage.locator("#workspace-content").locator("form").filter({ has: reviewerPage.getByRole("heading", { name: "Independent review · Demo furniture inquiry" }) });
+    const reviewForm = reviewerPage.locator("#workspace-content:visible").locator("form").filter({ has: reviewerPage.getByRole("heading", { name: "Independent review · Demo furniture inquiry" }) });
     await reviewForm.getByLabel("Reason").fill("Consent fields and inquiry preview reviewed.");
     let responsePromise = reviewerPage.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/marketing"));
     await reviewForm.getByRole("button", { name: "Activate" }).click();
     expect((await responsePromise).status()).toBe(200);
 
     await reviewerPage.reload();
-    const capture = reviewerPage.locator("#workspace-content").locator("form").filter({ has: reviewerPage.getByRole("heading", { name: "Capture consented lead" }) });
+    await reviewerPage.locator("#workspace-content:visible summary").filter({ hasText: /^Capture consented lead$/ }).click();
+    const captureDrawer = reviewerPage.getByRole("dialog", { name: "Capture consented lead", exact: true });
+    const capture = captureDrawer.locator("form");
+    await expect(captureDrawer).toBeVisible();
+    await expect(capture).toHaveCount(1);
     await expect(capture.getByLabel("Active form")).toHaveValue(formId);
     await capture.getByLabel("Contact name").fill("Demo prospect - Bangkok");
     await capture.getByLabel("Contact detail").fill("demo-prospect@example.test");
@@ -75,7 +85,7 @@ test("consented Marketing candidate hands its brief and attribution to an eligib
     await expect(reviewerPage.getByRole("heading", { name: "Demo prospect - Bangkok" })).toBeVisible();
 
     await signIn(salesContext, salesPage, credentials, "sales_manager", `/holdings/simulation/marketing/${candidateId}`);
-    const engagementForm = salesPage.locator("#workspace-content").locator("form").filter({ has: salesPage.getByRole("heading", { name: "Record engagement" }) });
+    const engagementForm = salesPage.locator("#workspace-content:visible").locator("form").filter({ has: salesPage.getByRole("heading", { name: "Record engagement" }) });
     await engagementForm.getByLabel("Event").fill("Needs reviewed by Sales");
     await engagementForm.getByLabel("Channel").fill("email");
     await engagementForm.getByLabel("Evidence").fill("Sales manager confirmed scope for 20 sets and seven-day delivery.");
@@ -83,9 +93,9 @@ test("consented Marketing candidate hands its brief and attribution to an eligib
     await engagementForm.getByRole("button", { name: "Record" }).click();
     const engagementResponse = await responsePromise;
     expect(engagementResponse.status(), await engagementResponse.text()).toBe(200);
-    await expect(salesPage.locator("#workspace-content").getByText("Needs reviewed by Sales")).toBeVisible();
+    await expect(salesPage.locator("#workspace-content:visible").getByText("Needs reviewed by Sales")).toBeVisible();
 
-    const handoffForm = salesPage.locator("#workspace-content").locator("form").filter({ has: salesPage.getByRole("heading", { name: "Independent CRM handoff" }) });
+    const handoffForm = salesPage.locator("#workspace-content:visible").locator("form").filter({ has: salesPage.getByRole("heading", { name: "Independent CRM handoff" }) });
     await handoffForm.getByLabel("Due date").fill("2026-10-01");
     await handoffForm.getByLabel("Review evidence").fill("Consent, attribution and delivery brief reviewed for Sales follow-up.");
     responsePromise = salesPage.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/marketing"));
@@ -109,13 +119,20 @@ test("consented Marketing candidate hands its brief and attribution to an eligib
     expect(activitiesResponse.ok(), await activitiesResponse.text()).toBe(true);
     await expect(salesPage.getByRole("link", { name: "Open CRM lead" })).toBeVisible();
     await salesPage.getByRole("link", { name: "Open CRM lead" }).click();
+    const leadDrawer = salesPage.getByTestId("record-detail-drawer");
+    await expect(leadDrawer).toHaveCount(1);
+    await expect(leadDrawer.locator("[data-record-drawer-content]").getByRole("heading", { name: "Marketing lead · Demo prospect - Bangkok", exact: true })).toBeVisible();
+    const leadFullPage = leadDrawer.getByRole("link", { name: "Open full page ↗", exact: true });
+    await expect(leadFullPage).toHaveAttribute("href", `/holdings/simulation/crm/${leadId}`);
+    await leadFullPage.click();
+    await expect(salesPage).toHaveURL(new RegExp(`/crm/${leadId}$`));
     await expect(salesPage.getByRole("heading", { name: "Marketing lead · Demo prospect - Bangkok" })).toBeVisible();
-    await expect(salesPage.locator("#workspace-content").getByText(/Source: Marketing form .*attribution/)).toBeVisible();
-    await expect(salesPage.locator("#workspace-content").getByText("Needs 20 furniture sets within seven days; budget THB 100,000.", { exact: true })).toBeVisible();
+    await expect(salesPage.locator("#workspace-content:visible").getByText(/Source: Marketing form .*attribution/)).toBeVisible();
+    await expect(salesPage.locator("#workspace-content:visible").getByText("Needs 20 furniture sets within seven days; budget THB 100,000.", { exact: true })).toBeVisible();
     expect(new URL(salesPage.url()).pathname.split("/").at(-1)).toBe(leadId);
     await marketingPage.reload();
     await expect(marketingPage.getByRole("heading", { name: "Lead intake by campaign" })).toBeVisible();
-    const campaignRow = marketingPage.locator("#workspace-content")
+    const campaignRow = marketingPage.locator("#workspace-content:visible")
       .locator("table.business-table tbody tr")
       .filter({ hasText: "Bangkok furniture launch" });
     await expect(campaignRow.locator("td")).toHaveText([

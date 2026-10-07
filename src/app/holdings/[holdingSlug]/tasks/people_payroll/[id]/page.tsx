@@ -4,21 +4,21 @@ import { WorkReturn } from "@/components/workplace/work-return";
 import { LeaveDecisions, LeaveEditor } from "@/components/self-service/leave-editor";
 import styles from "@/components/leave/leave-flow.module.css";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import type { ApprovalView } from "@/server/approvals";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import type { ApprovalView } from "@/server/modules/workflow/public/approvals";
 import { ApprovalHistory } from "@/components/modules/approval-history";
 import { OperationSummary } from "@/components/workplace/operation-summary";
-import { getLeave } from "@/server/leave";
-import { leaveSummary } from "@/server/leave-self-service";
-import { pageError } from "@/server/page-error";
-import { getLeaveEvidence } from "@/server/work";
+import { getLeave } from "@/server/modules/people_payroll/public/leave";
+import { leaveSummary } from "@/server/modules/people_payroll/public/leave-self-service";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+import { getLeaveEvidence } from "@/server/modules/work_projection/public/work";
 import {
   attachmentsV2Readable,
   attachmentsV2ReadOnly,
-} from "@/server/attachments/feature";
-import { parseLeaveEvidencePolicy } from "@/server/leave-evidence";
+} from "@/server/modules/files/public/attachments/feature";
+import { parseLeaveEvidencePolicy } from "@/server/modules/people_payroll/public/leave-evidence";
 import { LeaveEvidencePanel } from "@/components/self-service/leave-evidence-panel";
-import { ApiError } from "@/server/http";
+import { ApiError } from "@/server/modules/runtime/public/http";
 
 function dateLabel(value: string | null | undefined) {
   if (!value) return "—";

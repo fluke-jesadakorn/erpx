@@ -1,16 +1,13 @@
 import { test, expect } from "@playwright/test";
+import { selectFixtureAssignment } from "./helpers/select-fixture-assignment";
 
-test("a signed-in shift worker sees My shifts",async({page,context},info)=>{
-  test.skip(info.project.name!=="desktop","The roster layout is also covered by responsive checks.");
-  const login=await context.request.post("/api/auth/sign-in/email",{data:{email:"elena.suwan@erpx.dev",password:"12345678"}});
+test("a signed-in shift worker sees My shifts",async({page,context})=>{
+
+  const login=await context.request.post("/api/auth/sign-in/email",{data:{email:process.env.ERPX_E2E_READER_EMAIL??"elena.suwan@erpx.dev",password:process.env.ERPX_E2E_READER_PASSWORD??"12345678"}});
   expect(login.ok()).toBe(true);
+  await selectFixtureAssignment(context, "acme-co", "demo-org-v1-bangkok-operations-staff-employee", "acme", "/branches/bangkok/departments/operations");
   const path="/holdings/acme/branches/bangkok/departments/operations/people/roster";
   await page.goto(path);
-  if(page.url().includes("/work-role")) {
-    await page.getByRole("combobox",{name:"Role for actions & approvals"}).fill("employee");
-    await page.getByRole("listbox").getByRole("option").first().click();
-    await page.goto(path);
-  }
   await expect(page.getByRole("heading",{name:"My shifts",exact:true}).first()).toBeVisible();
   await expect(page).toHaveURL(/\/people\?.*panel=schedule/);
   await page.getByRole("combobox",{name:"Schedule view",exact:true}).selectOption("team");
@@ -22,17 +19,13 @@ test("a signed-in shift worker sees My shifts",async({page,context},info)=>{
   await expect(page).not.toHaveURL(/panel=schedule/);
 });
 
-test("a signed-in backoffice manager sees team management without My shifts",async({page,context},info)=>{
-  test.skip(info.project.name!=="desktop","The roster layout is also covered by responsive checks.");
+test("a signed-in backoffice manager sees team management without My shifts",async({page,context})=>{
+
   const login=await context.request.post("/api/auth/sign-in/email",{data:{email:"mali@erpx.dev",password:"Mali-ERPX-2026!"}});
   expect(login.ok()).toBe(true);
+  await selectFixtureAssignment(context, "acme-co", "seed_usr_mali");
   const path="/holdings/acme/branches/bangkok/departments/operations/people/roster?view=mine";
   await page.goto(path);
-  if(page.url().includes("/work-role")) {
-    await page.getByRole("combobox",{name:"Role for actions & approvals"}).fill("people manager");
-    await page.getByRole("listbox").getByRole("option").first().click();
-    await page.goto(path);
-  }
   await expect(page.getByRole("heading",{name:"Team roster",exact:true})).toBeVisible();
   await expect(page).toHaveURL(/\/people\?.*panel=schedule/);
   await expect(page.getByRole("heading",{name:"My shifts",exact:true})).toHaveCount(0);

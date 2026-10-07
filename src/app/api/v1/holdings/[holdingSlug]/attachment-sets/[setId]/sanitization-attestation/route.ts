@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { attestAttachmentSetSanitized } from "@/server/attachments/service";
-import { requireWorkContext } from "@/server/authorization";
-import { ApiError, errorResponse } from "@/server/http";
-import { requestPublicOrigin } from "@/server/public-origin";
-import { holdingResources } from "@/server/runtime";
+import { attestAttachmentSetSanitized } from "@/server/modules/files/public/attachments/service";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
 
 const schema = z.object({
   confirmed: z.literal(true),

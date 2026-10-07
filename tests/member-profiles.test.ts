@@ -88,3 +88,29 @@ it("saves only the owner's profile with optimistic versioning and idempotency", 
   const colleague = await memberProfileView(first.owner, second.owner.userId);
   expect(colleague.bio).toBe("");
 });
+
+import {uploadMemberProfileMedia,removeMemberProfileMedia} from '../src/server/modules/organization/public/profile-media-command';
+import {accountTimePreference,changeAccountTimePreference} from '../src/server/modules/identity_access/public/account-time-preference';
+vi.mock('../src/server/modules/files/public/attachments/scanner',()=>({scanAttachmentBytes:async()=>({clean:true})}));
+const profilePng=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=','base64'));
+it('rolls back profile media and its journal on late outbox failure, compensates storage and retries or replays each command once',async()=>{
+ const actor=first.owner,db=env.H001_DB,key=randomUUID(),removeKey=randomUUID(),input={kind:'avatar' as const,contentType:'image/png',contentLength:String(profilePng.byteLength),version:'0',commandId:key},body=async()=>profilePng.buffer;
+ const put=vi.spyOn(env.H001_FILES,'put'),del=vi.spyOn(env.H001_FILES,'delete');
+ const rows=async(sql:string,bindings:string[])=>(await db.prepare(sql).bind(...bindings).all()).results;
+ const snapshot=async()=>JSON.stringify({profile:await rows('SELECT * FROM member_profiles WHERE user_id=?',[actor.userId]),receipt:await rows('SELECT * FROM command_receipts WHERE command_id IN (?,?) ORDER BY command_id',[key,removeKey]),audit:await rows('SELECT * FROM audit_events WHERE command_id IN (?,?) ORDER BY id',[key,removeKey]),outbox:await rows('SELECT * FROM outbox_events WHERE aggregate_id=? ORDER BY id',[actor.userId]),assertions:await rows('SELECT * FROM command_assertions WHERE command_id IN (?,?) ORDER BY command_id,step',[key,removeKey])});
+ const fail=async()=>{if(!/^[a-zA-Z0-9_-]+$/.test(actor.userId))throw new Error('Unsafe fixture identifier');await db.prepare(`ALTER TABLE outbox_events ADD CONSTRAINT test_profile_media_final_outbox CHECK(aggregate_id<>'${actor.userId}') NOT VALID`).run();};
+ const clear=()=>db.prepare('ALTER TABLE outbox_events DROP CONSTRAINT test_profile_media_final_outbox').run();
+ try{
+  const before=await snapshot();await fail();try{await expect(uploadMemberProfileMedia(actor,input,body)).rejects.toMatchObject({code:'CONFLICT',cause:{code:'23514',constraint:'test_profile_media_final_outbox'}});expect(await snapshot()).toBe(before);const rejectedKey=put.mock.calls.at(-1)?.[0];if(!rejectedKey)throw new Error('Stored image compensation was not exercised');expect(await env.H001_FILES.head(rejectedKey)).toBeNull();expect(del).toHaveBeenCalledWith(rejectedKey);}finally{await clear();}
+  const uploaded=await uploadMemberProfileMedia(actor,input,body);expect(uploaded).toEqual({version:1});const retained=await snapshot();expect(await uploadMemberProfileMedia(actor,input,body)).toEqual(uploaded);expect(await snapshot()).toBe(retained);
+  const profile=await db.prepare('SELECT avatar_key,version FROM member_profiles WHERE user_id=?').bind(actor.userId).first<{avatar_key:string;version:number}>();if(!profile)throw new Error('Committed profile image is missing');expect(await env.H001_FILES.head(profile.avatar_key)).not.toBeNull();
+  await expect(uploadMemberProfileMedia(actor,{...input,commandId:randomUUID()},body)).rejects.toBeDefined();
+  const removal={kind:'avatar' as const,version:'1',commandId:removeKey},deletesBefore=del.mock.calls.length,beforeRemoval=await snapshot();await fail();try{await expect(removeMemberProfileMedia(actor,removal)).rejects.toMatchObject({code:'CONFLICT',cause:{code:'23514',constraint:'test_profile_media_final_outbox'}});expect(await snapshot()).toBe(beforeRemoval);expect(del.mock.calls.length).toBe(deletesBefore);expect(await env.H001_FILES.head(profile.avatar_key)).not.toBeNull();}finally{await clear();}
+  const removed=await removeMemberProfileMedia(actor,removal);expect(removed).toEqual({version:2});const final=await snapshot();expect(await removeMemberProfileMedia(actor,removal)).toEqual(removed);expect(await snapshot()).toBe(final);expect(await env.H001_FILES.head(profile.avatar_key)).toBeNull();expect(del.mock.calls.filter(([objectKey])=>objectKey===profile.avatar_key)).toHaveLength(1);
+ }finally{put.mockRestore();del.mockRestore();}
+});
+it('compares account time preference versions atomically on PostgreSQL across competing initial writes and stale changes',async()=>{
+ const id=first.owner.userId;expect(await accountTimePreference(id)).toEqual({mode:'system',timeZone:null,hourCycle:'h23',version:0});const input={mode:'manual',timeZone:'Asia/Bangkok',hourCycle:'h12',version:0};
+ const competing=await Promise.allSettled([changeAccountTimePreference(id,input),changeAccountTimePreference(id,{...input,timeZone:'UTC'})]);expect(competing.filter(x=>x.status==='fulfilled')).toHaveLength(1);const rejection=competing.find(x=>x.status==='rejected');if(rejection?.status!=='rejected')throw new Error('Competing create was not rejected');expect(rejection.reason).toMatchObject({status:409,code:'TIME_PREFERENCE_CHANGED'});
+ expect(await accountTimePreference(id)).toMatchObject({version:1,mode:'manual'});await expect(changeAccountTimePreference(id,input)).rejects.toMatchObject({status:409,code:'TIME_PREFERENCE_CHANGED'});const changed=await changeAccountTimePreference(id,{mode:'system',timeZone:null,hourCycle:'h23',version:1});expect(changed).toEqual({mode:'system',timeZone:null,hourCycle:'h23',version:2});expect(await accountTimePreference(id)).toEqual(changed);
+});

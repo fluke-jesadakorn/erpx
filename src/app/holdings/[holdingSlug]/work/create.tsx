@@ -1,23 +1,24 @@
+import { workProjectionPresentationQueries } from "@/server/modules/work_projection/public/presentation-queries";
 
 import { PageContent } from "@/components/ui/patterns";
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { PageHeader } from "@/components/ui/primitives";
 import { CountEditor,ExpenseEditor,LeaveControls,RequestEditor,TransferEditor } from "@/components/workplace/work-editors";
-import { getEmployeeRequest } from "@/server/employee-requests";
-import { expenseOptions } from "@/server/expenses";
-import { countOptions } from "@/server/inventory-counts";
-import { transferOptions } from "@/server/inventory-transfers";
-import { requestPageOptions } from "@/server/request-page";
-import { holdingResources } from "@/server/runtime";
-import { getWorkCapabilities } from "@/server/work-capabilities";
+
+import { expenseOptions } from "@/server/modules/people_payroll/public/expenses";
+import { countOptions } from "@/server/modules/inventory/public/inventory-counts";
+import { transferOptions } from "@/server/modules/inventory/public/inventory-transfers";
+
+
+
 import { RecordLink as Link } from "@/components/records/record-link";
 import { notFound,redirect } from "next/navigation";
 
-import type { WorkContext } from "@/server/authorization";
+import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 export async function CreateWork({actor,base,newKind,current,query}:{actor:WorkContext;base:string;newKind:string;current:string;query:Record<string,string|string[]|undefined>}) {
   if(newKind === "leave" || newKind === "overtime")redirect(`${base}/${newKind}/new`);
-  const { write } = await holdingResources(actor.holdingId),
-    capabilities = await getWorkCapabilities(write, actor);
+  const presentation = await workProjectionPresentationQueries(actor.holdingId),
+    capabilities = await presentation.getWorkCapabilities(actor);
   if (
     !capabilities.creation.some(
       (c) => c.kind === newKind && c.kind !== "conversation",
@@ -35,10 +36,10 @@ export async function CreateWork({actor,base,newKind,current,query}:{actor:WorkC
   const parentId =
     requestKind && typeof query.from === "string" ? query.from : null;
   const parent = parentId
-    ? await getEmployeeRequest(write, actor, parentId)
+    ? await presentation.getEmployeeRequest(actor, parentId)
     : null;
   const requestOptions = requestKind
-    ? await requestPageOptions(write, actor)
+    ? await presentation.requestPageOptions(actor)
     : null;
   if (parent && requestOptions) {
     requestOptions.branchId = parent.branch_id;

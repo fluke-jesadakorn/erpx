@@ -1,5 +1,6 @@
 import { afterAll,beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { createECDH } from "node:crypto";
+import { hashPassword } from "better-auth/crypto";
 import { env,applyMigrations } from "./runtime-env";
 import { seedExpenseCompany } from "../fixtures/expenses/company";
 import { publishInboxEvent } from "../src/server/inbox";
@@ -7,8 +8,12 @@ import { drainWebPush,pushSettings,quietDelayMs,registerPush,removePushDevice,re
 import { leavePushForWorkspaceChange } from "../src/lib/push-client";
 import type { WorkContext } from "../src/server/authorization";
 import type { SqlDatabase } from "../src/server/runtime/types";
+import { createAuth } from "../src/server/modules/identity_access/public/auth";
+import { DELETE as cleanPushSession } from "../src/app/api/v1/holdings/[holdingSlug]/push/session/route";
 
-vi.mock("../src/server/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+// Only runtime composition is isolated; normal Better Auth, registered Holding
+// resolution, the route, owner cleanup and PostgreSQL effects remain real.
+vi.mock("../src/server/runtime/env",()=>({getRuntime:()=>env}));
 const db=env.H001_DB,control=env.CONTROL_DB;
 const previous=Object.fromEntries(["ERPX_PUSH_VAPID_PUBLIC_KEY","ERPX_PUSH_VAPID_PRIVATE_KEY","ERPX_PUSH_VAPID_SUBJECT","ERPX_PUSH_DATA_KEY"].map(key=>[key,process.env[key]]));
 const subscription={endpoint:"https://fcm.googleapis.com/fcm/send/test-token",keys:{
@@ -203,4 +208,135 @@ it("retries a temporary provider failure without another Inbox event",async()=>{
   expect(success).toHaveBeenCalledTimes(1);
   expect((await db.prepare("SELECT count(*)::int n FROM push_delivery_jobs WHERE company_id=?")
     .bind(actor.companyId).first<{n:number}>())?.n).toBe(1);
+});
+
+const pushOrigin="http://localhost:3100";
+async function signedInPushSession() {
+  const now=Date.now(),email=`${actor.userId}@example.test`,password="Fictional-push-password-2026!";
+  await db.prepare("UPDATE assignments SET scope_kind='department',scope_node_id=?,branch_id=? WHERE user_id=?")
+    .bind(fixture.department,fixture.branch,actor.userId).run();
+  expect((await db.prepare("SELECT count(*)::int n FROM assignments WHERE user_id=? AND scope_kind='holding' AND revoked_at IS NULL")
+    .bind(actor.userId).first<{n:number}>())?.n).toBe(0);
+  expect((await db.prepare("SELECT count(*)::int n FROM assignments WHERE user_id=? AND scope_kind='department' AND scope_node_id=? AND revoked_at IS NULL")
+    .bind(actor.userId,fixture.department).first<{n:number}>())?.n).toBe(1);
+  await control.prepare('INSERT INTO account(id,"accountId","providerId","userId",password,"createdAt","updatedAt") VALUES(?,?,\'credential\',?,?,?,?)')
+    .bind(crypto.randomUUID(),actor.userId,actor.userId,await hashPassword(password),now,now).run();
+  const auth=await createAuth(pushOrigin);
+  const login=await auth.handler(new Request(`${pushOrigin}/api/auth/sign-in/email`,{
+    method:"POST",headers:{"Content-Type":"application/json",Origin:pushOrigin,Host:"localhost:3100"},
+    body:JSON.stringify({email,password}),
+  }));
+  expect(login.status).toBe(200);
+  const cookie=login.headers.getSetCookie().map(value=>value.split(";")[0]).join("; ");
+  expect(cookie).toContain("better-auth.session_token=");
+  expect(cookie).not.toContain("erpx_company_");
+  const authenticated=await auth.api.getSession({headers:new Headers({Cookie:cookie})});
+  expect(authenticated?.user.id).toBe(actor.userId);
+  if(!authenticated)throw Error("Normal sign-in did not establish its session");
+  return {cookie,id:authenticated.session.id};
+}
+async function registeredPushHolding() {
+  const slug=`push-cleanup-${crypto.randomUUID()}`;
+  await control.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES('h001',?,'Fictional Push holding','H001_DB','H001_READ_DB','H001_FILES','active') ON CONFLICT(holding_id) DO UPDATE SET slug=excluded.slug,status='active'")
+    .bind(slug).run();
+  return slug;
+}
+function pushCleanupRequest(slug:string,cookie?:string,origin:string|null=pushOrigin,body?:unknown) {
+  const headers=new Headers({Host:"localhost:3100"});
+  if(cookie)headers.set("Cookie",cookie);
+  if(origin!==null)headers.set("Origin",origin);
+  if(body!==undefined)headers.set("Content-Type","application/json");
+  return cleanPushSession(new Request(`${pushOrigin}/api/v1/holdings/${slug}/push/session`,{
+    method:"DELETE",headers,...(body!==undefined?{body:JSON.stringify(body)}:{}),
+  }),{params:Promise.resolve({holdingSlug:slug})});
+}
+
+it("uses same-origin and normal session authentication for Push cleanup before workspace selection",async()=>{
+  const slug=await registeredPushHolding();
+  for(const origin of [null,"https://unrelated.example"]) {
+    const denied=await pushCleanupRequest(slug,undefined,origin);
+    expect(denied.status).toBe(403);
+    await expect(denied.json()).resolves.toEqual({error:{code:"ORIGIN_FORBIDDEN",message:"Use this workspace's own origin."}});
+  }
+  const signedOut=await pushCleanupRequest(slug);
+  expect(signedOut.status).toBe(401);
+  await expect(signedOut.json()).resolves.toEqual({error:{code:"UNAUTHENTICATED",message:"Sign in to continue."}});
+  const authenticated=await signedInPushSession();
+  const cleaned=await pushCleanupRequest(slug,authenticated.cookie);
+  expect(cleaned.status).toBe(200);
+  expect(cleaned.headers.get("cache-control")).toBe("private, no-store");
+  await expect(cleaned.json()).resolves.toEqual({data:{removed:true}});
+});
+
+it("refuses unknown, inactive and unregistered Holdings without changing authenticated Push subscriptions",async()=>{
+  const slug=await registeredPushHolding(),authenticated=await signedInPushSession();
+  const current={...actor,authority:{sessionId:authenticated.id,revision:1,assignmentVersion:1}};
+  await registerPush(db,current,pushOrigin,"/holdings/test/inbox?tab=updates",subscription);
+  const stored=await db.prepare("SELECT * FROM push_subscriptions WHERE user_id=? AND session_id=? ORDER BY id")
+    .bind(actor.userId,authenticated.id).all();
+  await control.prepare("UPDATE holding_bindings SET status='suspended' WHERE holding_id='h001'").run();
+  await control.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES('h999',?,'Unregistered fictional holding','H999_DB','H999_READ_DB','H999_FILES','active')")
+    .bind(`unregistered-${slug}`).run();
+  for(const requested of [`missing-${slug}`,slug,`unregistered-${slug}`]) {
+    const denied=await pushCleanupRequest(requested,authenticated.cookie);
+    expect(denied.status).toBe(404);
+    await expect(denied.json()).resolves.toEqual({error:{code:"NOT_FOUND",message:"Workspace not found."}});
+  }
+  expect((await db.prepare("SELECT * FROM push_subscriptions WHERE user_id=? AND session_id=? ORDER BY id")
+    .bind(actor.userId,authenticated.id).all()).results).toEqual(stored.results);
+});
+
+it("cleans only the normally authenticated user and session across Companies while preserving other sessions, users and jobs",async()=>{
+  const slug=await registeredPushHolding(),authenticated=await signedInPushSession();
+  const current={...actor,authority:{sessionId:authenticated.id,revision:1,assignmentVersion:1}},secondCompany=`second-cleanup-company-${crypto.randomUUID()}`;
+  const foreign=fixture.manager,foreignSession=crypto.randomUUID(),now=Date.now(),iso=new Date(now).toISOString();
+  await control.prepare('INSERT INTO "user"(id,name,email,"createdAt","updatedAt") VALUES(?,?,?,?,?)')
+    .bind(foreign.userId,foreign.name,`${foreign.userId}@example.test`,now,now).run();
+  await control.prepare('INSERT INTO session(id,token,"expiresAt","createdAt","updatedAt","userId") VALUES(?,?,?,?,?,?)')
+    .bind(foreignSession,crypto.randomUUID(),new Date(now+86400000).toISOString(),iso,iso,foreign.userId).run();
+  const otherUser={...foreign,authority:{sessionId:foreignSession,revision:1,assignmentVersion:1}};
+  await registerPush(db,current,pushOrigin,"/holdings/test/inbox?tab=updates",subscription);
+  await registerPush(db,{...current,companyId:secondCompany},pushOrigin,"/holdings/test/inbox?tab=updates",subscription);
+  await registerPush(db,actor,pushOrigin,"/holdings/test/inbox?tab=updates",{...subscription,endpoint:`${subscription.endpoint}-other-session`});
+  await registerPush(db,otherUser,pushOrigin,"/holdings/test/inbox?tab=updates",{...subscription,endpoint:`${subscription.endpoint}-other-user`});
+  await publishInboxEvent(db,{key:`session-cleanup:${crypto.randomUUID()}`,companyId:actor.companyId,sourceType:"task",sourceId:"fictional-session-cleanup",sourceVersion:1,category:"work",preview:"Fictional Push cleanup proof",recipientIds:[actor.userId,foreign.userId]});
+  const subscriptions=(await db.prepare("SELECT id,user_id,session_id FROM push_subscriptions WHERE company_id=? AND user_id IN (?,?) ORDER BY id")
+    .bind(actor.companyId,actor.userId,foreign.userId).all<{id:string;user_id:string;session_id:string}>()).results;
+  expect(subscriptions).toHaveLength(3);
+  for(const stored of subscriptions) {
+    const delivery=await db.prepare("SELECT id FROM inbox_deliveries WHERE company_id=? AND user_id=? ORDER BY delivered_at DESC,id DESC LIMIT 1")
+      .bind(actor.companyId,stored.user_id).first<{id:string}>();
+    expect(delivery?.id).toBeTruthy();
+    await db.prepare("INSERT INTO push_delivery_jobs(id,company_id,inbox_delivery_id,subscription_id,next_attempt_at,created_at) VALUES(?,?,?,?,?,?)")
+      .bind(crypto.randomUUID(),actor.companyId,delivery!.id,stored.id,now,now).run();
+  }
+  const preserved=(await db.prepare("SELECT * FROM push_subscriptions WHERE company_id=? AND (user_id=? AND session_id=? OR user_id=?) ORDER BY id")
+    .bind(actor.companyId,actor.userId,session,foreign.userId).all()).results;
+  const preservedJobs=(await db.prepare("SELECT j.* FROM push_delivery_jobs j JOIN push_subscriptions s ON s.id=j.subscription_id WHERE s.company_id=? AND (s.user_id=? AND s.session_id=? OR s.user_id=?) ORDER BY j.id")
+    .bind(actor.companyId,actor.userId,session,foreign.userId).all()).results;
+  const preferences=(await db.prepare("SELECT * FROM push_preferences WHERE company_id=? AND user_id IN (?,?) ORDER BY user_id")
+    .bind(actor.companyId,actor.userId,foreign.userId).all()).results;
+  expect(preserved).toHaveLength(2);expect(preservedJobs).toHaveLength(2);
+  // Request content is untrusted: even explicit foreign IDs cannot select its owner.
+  const cleaned=await pushCleanupRequest(slug,authenticated.cookie,pushOrigin,{userId:foreign.userId,sessionId:foreignSession});
+  expect(cleaned.status).toBe(200);
+  await expect(cleaned.json()).resolves.toEqual({data:{removed:true}});
+  expect((await db.prepare("SELECT count(*)::int n FROM push_subscriptions WHERE user_id=? AND session_id=?")
+    .bind(actor.userId,authenticated.id).first<{n:number}>())?.n).toBe(0);
+  const currentSubscription=subscriptions.find(s=>s.session_id===authenticated.id)!;
+  expect((await db.prepare("SELECT count(*)::int n FROM push_delivery_jobs WHERE subscription_id=?")
+    .bind(currentSubscription.id).first<{n:number}>())?.n).toBe(0);
+  expect((await db.prepare("SELECT * FROM push_subscriptions WHERE company_id=? AND (user_id=? AND session_id=? OR user_id=?) ORDER BY id")
+    .bind(actor.companyId,actor.userId,session,foreign.userId).all()).results).toEqual(preserved);
+  expect((await db.prepare("SELECT j.* FROM push_delivery_jobs j JOIN push_subscriptions s ON s.id=j.subscription_id WHERE s.company_id=? AND (s.user_id=? AND s.session_id=? OR s.user_id=?) ORDER BY j.id")
+    .bind(actor.companyId,actor.userId,session,foreign.userId).all()).results).toEqual(preservedJobs);
+  expect((await db.prepare("SELECT * FROM push_preferences WHERE company_id=? AND user_id IN (?,?) ORDER BY user_id")
+    .bind(actor.companyId,actor.userId,foreign.userId).all()).results).toEqual(preferences);
+  expect((await db.prepare("SELECT enabled FROM push_preferences WHERE company_id=? AND user_id=?")
+    .bind(secondCompany,actor.userId).first<{enabled:boolean}>())?.enabled).toBe(false);
+  const repeated=await pushCleanupRequest(slug,authenticated.cookie);
+  expect(repeated.status).toBe(200);
+  await expect(repeated.json()).resolves.toEqual({data:{removed:true}});
+  expect((await db.prepare("SELECT * FROM push_subscriptions WHERE company_id=? AND (user_id=? AND session_id=? OR user_id=?) ORDER BY id")
+    .bind(actor.companyId,actor.userId,session,foreign.userId).all()).results).toEqual(preserved);
 });

@@ -42,13 +42,13 @@ import {
   type DataMap,
   type Kind,
   type PmsRecord,
-} from "@/lib/pms-model";
+} from "@/server/modules/pms/public/rules/pms-model";
 import { useCurrency, useMoneyFormatter } from "@/components/money/currency-provider";
-import { availability } from "@/lib/pms-inventory";
-import { nightBlockers } from "@/lib/pms-read";
+import { availability } from "@/server/modules/pms/public/rules/pms-inventory";
+import { nightBlockers } from "@/server/modules/pms/public/rules/pms-read";
 import { workFetch } from "@/lib/work-fetch";
 import { TimeText } from "@/components/time/time-preference-context";
-import type { PmsWorkspace } from "@/server/pms";
+import type { PmsWorkspace } from "@/server/modules/pms/public/pms";
 import {
   BedDouble,
   CalendarDays,

@@ -1,6 +1,6 @@
-import { requireWorkContext } from "@/server/authorization";
-import { ApiError, errorResponse } from "@/server/http";
-import { setActiveSchema, setFollow } from "@/server/social";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { setActiveSchema, setFollow } from "@/server/modules/collaboration/public/social";
 
 export async function PUT(request: Request, context: RouteContext<"/api/v1/holdings/[holdingSlug]/posts/[id]/follow">) {
   try {

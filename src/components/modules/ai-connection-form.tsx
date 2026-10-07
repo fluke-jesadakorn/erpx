@@ -26,7 +26,7 @@ import {
   type AiPreset,
 } from "@/lib/ai/providers";
 import { workFetch } from "@/lib/work-fetch";
-import type { AiConnectionView } from "@/server/ai-providers";
+import type { AiConnectionView } from "@/server/modules/agent/public/ai-providers";
 import styles from "./ai-connection-form.module.css";
 
 function comparableBaseUrl(value: string) {

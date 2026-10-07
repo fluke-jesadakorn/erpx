@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { selectAcmeHoldingOwner } from "./helpers/select-acme-holding-owner";
 
 test("company Finance authority can require supplier matching and restore the policy with immutable history", async ({ context, page }) => {
   const login = await context.request.post("/api/auth/sign-in/email", {
@@ -8,10 +9,14 @@ test("company Finance authority can require supplier matching and restore the po
     },
   });
   expect(login.ok()).toBe(true);
+  await selectAcmeHoldingOwner(page);
 
   await page.goto("/holdings/acme/supplier-bills");
-  await expect(page.getByRole("heading", { name: "Supplier invoice reviews" })).toBeVisible();
-  const policy = page.locator("section.card").filter({ has: page.getByRole("heading", { name: "Supplier invoice matching policy" }) });
+  const workspace = page.locator("#workspace-content:visible");
+  await expect(workspace).toHaveCount(1);
+  await expect(workspace.getByRole("heading", { name: "Supplier invoice reviews" })).toBeVisible();
+  const policy = workspace.locator('section[data-slot="card"]').filter({ has: page.getByRole("heading", { name: "Supplier invoice matching policy", exact: true }) });
+  await expect(policy).toHaveCount(1);
   await expect(policy.getByText(/Current policy:/)).toBeVisible();
 
   async function changePolicy(mode: "optional" | "required", reason: string) {

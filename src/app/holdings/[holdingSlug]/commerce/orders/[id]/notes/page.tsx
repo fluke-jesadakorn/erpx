@@ -1,8 +1,8 @@
 import { RecordLink as Link } from "@/components/records/record-link";
-import {requireWorkContext,publicScope} from '@/server/authorization';
+import {requireWorkContext,publicScope} from "@/server/modules/identity_access/public/authorization";
 import {workspaceBase} from '@/lib/workspace';
-import {pageError} from '@/server/page-error';
-import {customerNotesForOrder} from '@/server/customer-notes';
+import {pageError} from "@/server/modules/work_projection/public/page-error";
+import {customerNotesForOrder} from "@/server/modules/sales/public/customer-notes";
 import {CustomerNotes} from '@/components/modules/customer-notes';
 import { PageContent } from "@/components/ui/foundation";
 export const dynamic='force-dynamic';

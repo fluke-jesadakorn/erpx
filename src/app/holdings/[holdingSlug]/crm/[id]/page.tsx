@@ -1,10 +1,10 @@
 import { InlineNotice } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
-import {requireWorkContext,publicScope} from '@/server/authorization';
+import {requireWorkContext,publicScope} from "@/server/modules/identity_access/public/authorization";
 import {workspaceBase} from '@/lib/workspace';
-import {pageError} from '@/server/page-error';
-import {crmDetail} from '@/server/crm';
-import {crmActivityWorkspace} from '@/server/crm-activities';
+import {pageError} from "@/server/modules/work_projection/public/page-error";
+import {crmDetail} from "@/server/modules/crm/public/crm";
+import {crmActivityWorkspace} from "@/server/modules/crm/public/crm-activities";
 import {CRMConsole} from '@/components/modules/crm-console';
 import {CRMActivityConsole} from '@/components/modules/crm-activity-console';
 import { PageContent, Card } from "@/components/ui/foundation";

@@ -1,4 +1,4 @@
-import { requireWorkContext } from "@/server/authorization";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { SocialPage } from "@/components/beta/social-page";
 export default async function Home({params,searchParams}:PageProps<"/holdings/[holdingSlug]/home">) {
   const query = await searchParams;

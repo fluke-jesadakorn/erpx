@@ -1,0 +1,1 @@
+export type FinanceReviewFileSource={link_id:string;source_id:string|null;link_state:string;set_state:string;purpose_key:string;checksum_sha256:string|null;media_type:string|null;bytes:number|null;source_state:string|null};

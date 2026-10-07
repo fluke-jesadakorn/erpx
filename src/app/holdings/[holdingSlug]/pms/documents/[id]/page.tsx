@@ -1,3 +1,4 @@
+import { pmsPresentationQueries } from "@/server/modules/pms/public/presentation-queries";
 import {recordCanonicalHref} from "@/lib/record-drawer";
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Table, TableFrame } from "@/components/ui/foundation";
@@ -7,13 +8,14 @@ import {
   FeatureWidget,
   WidgetGrid,
 } from "@/components/features/feature-page";
-import { money, type Entry, type Folio, type Guest, type PmsRecord } from "@/lib/pms-model";
+import { money, type Entry, type Folio, type Guest, type PmsRecord } from "@/server/modules/pms/public/rules/pms-model";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { resolveDocumentBrand } from "@/server/branding";
-import { requirePermission } from "@/server/iam-permissions";
-import { loadPms } from "@/server/pms";
-import { holdingResources } from "@/server/runtime";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+
+import { requirePermission } from "@/server/modules/identity_access/public/iam-permissions";
+
+
+
 import { RecordLink as Link } from "@/components/records/record-link";
 import { notFound } from "next/navigation";
 import styles from "@/components/pms/document.module.css";
@@ -25,28 +27,14 @@ export default async function PmsDocument({
 }) {
   const { holdingSlug, id } = await params,
     actor = requirePermission(await requireWorkContext(holdingSlug), "pms.read"),
-    { write } = await holdingResources(actor.holdingId);
+    presentation = await pmsPresentationQueries(actor.holdingId);
   const { hasPermission } = await import("@/lib/permissions");
   if (!hasPermission(actor, "pms.cashier") && !hasPermission(actor, "pms.reports")) notFound();
-  const doc = await write.prepare("SELECT * FROM pms_documents WHERE id=?").bind(id).first<{
-    property_id: string;
-    folio_id: string;
-    kind: string;
-    snapshot_json: string;
-    created_at: number;
-    finance_id: string | null;
-  }>();
+  const queries = presentation.pmsDocumentQueries();
+  const doc = await queries.document(id);
   if (!doc) notFound();
-  const s = await loadPms(write, actor, doc.property_id);
-  const postings = (
-    await write
-      .prepare(
-        `SELECT DISTINCT pp.journal_id FROM pms_postings pp JOIN pms_records r ON r.id=pp.record_id AND r.property_id=pp.property_id
-    WHERE pp.property_id=? AND r.kind='entry' AND r.data_json::jsonb->>'folioId'=(SELECT folio_id FROM pms_documents WHERE id=?)`,
-      )
-      .bind(doc.property_id, id)
-      .all<{ journal_id: string }>()
-  ).results;
+  const s = await presentation.loadPms(actor, doc.property_id);
+  const postings = await queries.relatedPostings(doc.property_id, id);
   const snap = JSON.parse(doc.snapshot_json) as {
     property: { name: string; currency: string };
     guest: Guest;
@@ -56,7 +44,7 @@ export default async function PmsDocument({
     businessDate: string;
     openingJournalId?: string;
   };
-  const brand = await resolveDocumentBrand(write, actor, {
+  const brand = await presentation.resolveDocumentBrand(actor, {
     branchId: s.property.branchId,
   });
   const titles: Record<string, string> = {

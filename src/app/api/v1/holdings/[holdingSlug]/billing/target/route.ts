@@ -1,10 +1,10 @@
 import { billingMonth } from "@/lib/billing";
-import { requestedHoldingScope, requireWorkContext } from "@/server/authorization";
-import { readTargetBillingPeriod } from "@/server/billing-target";
-import { ApiError, errorResponse } from "@/server/http";
-import { holdingResources, runtimeEnv } from "@/server/runtime";
-import type { PostgresDatabase } from "@/server/runtime/postgres";
-import { requireCompanyAuthority } from "@/server/staff-policy";
+import { requestedHoldingScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { readTargetBillingPeriod } from "@/server/modules/billing/public/billing-target";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { holdingResources, runtimeEnv } from "@/server/modules/runtime/public/runtime";
+import type { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
+import { requireCompanyAuthority } from "@/server/modules/operations/public/staff-policy";
 
 export async function GET(request: Request, context: { params: Promise<{ holdingSlug: string }> }) {
   try {

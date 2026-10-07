@@ -6,7 +6,7 @@ import { Field, Select } from "@/components/ui/foundation";
 import { workFetch } from "@/lib/work-fetch";
 
 import { useState } from "react";
-import type { WorkAssignment } from "@/server/authorization";
+import type { WorkAssignment } from "@/server/modules/identity_access/public/authorization";
 import { useContextSwitch } from "./context-switch-provider";
 
 export function PlatformRoleSwitcher({

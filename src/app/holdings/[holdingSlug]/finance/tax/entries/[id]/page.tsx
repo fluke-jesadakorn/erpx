@@ -1,11 +1,11 @@
 import { RecordLink as Link } from "@/components/records/record-link";
-import { publicScope,requireWorkContext } from "@/server/authorization";
+import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { hasPermission } from "@/lib/permissions";
 import { minorToDecimal } from "@/lib/finance-money";
 import { vatReviewLabels,vatTreatmentLabels } from "@/lib/finance-vat-labels";
-import { taxEntryDetail } from "@/server/finance-tax-register";
-import { pageError } from "@/server/page-error";
+import { taxEntryDetail } from "@/server/modules/finance/public/finance-tax-register";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { FinanceWorkspace } from "@/components/finance/finance-workspace";
 import { VatCorrectionPreparation } from "@/components/finance/vat-register-controls";
 import { Card } from "@/components/ui/foundation";

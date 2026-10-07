@@ -1,0 +1,2 @@
+export type PeopleDirectoryRow={retirementDate?:string|null;retired?:boolean|null;id:string;name:string;email:string;jobTitle:string;status:string;personId:string|null;userId:string|null;engagementId:string|null;positionId:string|null;managerPersonId:string|null;accounts?:{id:string;name:string;email:string}[]};
+export type DirectoryQuery={q?:string;status?:string;level?:string;department?:string;retirement?:string;cursor?:string;person?:string;member?:string;case?:string};

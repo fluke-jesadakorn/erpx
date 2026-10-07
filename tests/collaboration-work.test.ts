@@ -290,3 +290,19 @@ it("hides unreadable source-backed content and links from lists, exports, Work a
  expect((await collaborationWorkspace(f.claimant)).cards).toEqual([]);expect(await collaborationActionWork(f.claimant)).toEqual([]);
  expect((await collaborationWorkspace(f.owner)).cards).toHaveLength(1);
 });
+it('rolls back the card, source guards, owner notification and command journal on late outbox failure, then retries and replays once',async()=>{
+ const receipt=key(),id=`action-card-${receipt}`,input={sourceType:'support_ticket',sourceId:ticket,title:'Verified customer delivery',ownerId:f.claimant.userId,dueAt:Date.now()+3600000,reason:'Current source requires follow-up'},suffix=key().replace(/[^a-zA-Z0-9]/g,''),fault=`collaboration_card_fault_${suffix}`,trigger=`collaboration_card_outbox_${suffix}`;
+ await db.prepare(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='${receipt}' THEN RAISE EXCEPTION 'COLLABORATION_CARD_LATE_FAILURE'; END IF; RETURN NEW; END $$`).run();
+ await db.prepare(`CREATE TRIGGER ${trigger} AFTER INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION ${fault}()`).run();
+ try{
+  await expect(createActionCard(f.owner,input,receipt)).rejects.toThrow('COLLABORATION_CARD_LATE_FAILURE');
+  expect(await db.prepare('SELECT count(*) n FROM collaboration_action_cards WHERE id=?').bind(id).first()).toEqual({n:0});
+  expect(await db.prepare('SELECT count(*) n FROM collaboration_action_events WHERE card_id=?').bind(id).first()).toEqual({n:0});
+  expect(await db.prepare('SELECT count(*) n FROM staff_notifications WHERE record_id=?').bind(id).first()).toEqual({n:0});
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(receipt).first()).toEqual({n:0});
+ }finally{await db.prepare(`DROP TRIGGER ${trigger} ON outbox_events`).run();await db.prepare(`DROP FUNCTION ${fault}()`).run();}
+ const result=await createActionCard(f.owner,input,receipt);expect(result).toMatchObject({id,version:1,status:'open'});expect(await createActionCard(f.owner,input,receipt)).toEqual(result);
+ expect(await db.prepare('SELECT count(*) n FROM collaboration_action_cards WHERE id=?').bind(id).first()).toEqual({n:1});
+ expect(await db.prepare('SELECT count(*) n FROM staff_notifications WHERE record_id=?').bind(id).first()).toEqual({n:1});
+ for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(receipt).first()).toEqual({n:1});
+});

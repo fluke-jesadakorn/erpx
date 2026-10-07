@@ -1,6 +1,6 @@
-import { requireWorkContext } from "@/server/authorization";
-import { ApiError, errorResponse } from "@/server/http";
-import { createPost, createPostSchema, feedFilterSchema, listFeed } from "@/server/social";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { createPost, createPostSchema, feedFilterSchema, listFeed } from "@/server/modules/collaboration/public/social";
 
 export const dynamic = "force-dynamic";
 

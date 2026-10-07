@@ -1,7 +1,7 @@
-import { requestPublicOrigin } from "@/server/public-origin";
-import { requireWorkContext } from "@/server/authorization";
-import { ApiError, errorResponse } from "@/server/http";
-import { administerLeave, leaveAdminSchema, leaveAdministration } from "@/server/leave-self-service";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { administerLeave, leaveAdminSchema, leaveAdministration } from "@/server/modules/people_payroll/public/leave-self-service";
 
 export async function POST(request: Request, context: RouteContext<"/api/v1/holdings/[holdingSlug]/leave/admin">) {
   try {

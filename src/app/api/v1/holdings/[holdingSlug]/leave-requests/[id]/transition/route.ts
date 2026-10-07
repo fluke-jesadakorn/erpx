@@ -1,7 +1,7 @@
-import { requestPublicOrigin } from "@/server/public-origin";
-import { requireWorkContext } from "@/server/authorization";
-import { transitionLeave,leaveLifecycleSchema } from "@/server/leave";
-import { ApiError,errorResponse } from "@/server/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { transitionLeave,leaveLifecycleSchema } from "@/server/modules/people_payroll/public/leave";
+import { ApiError,errorResponse } from "@/server/modules/runtime/public/http";
 export async function POST(request:Request,{params}:{params:Promise<{holdingSlug:string;id:string}>}) {
   try {
     const origin=request.headers.get("origin");if(origin&&origin!==requestPublicOrigin(request))throw new ApiError(403,"ORIGIN_FORBIDDEN","Use the application origin.");

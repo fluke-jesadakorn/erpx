@@ -1,27 +1,28 @@
+import { posMovementSaleForPresentation } from "@/server/modules/pos/public/movement-presentation-query";
 import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { FrontAppShell, FrontLocationPicker, FrontPmsNavigation } from "@/components/front/front-app-shell";
 import { PosConsole } from "@/components/pos/pos-console";
 import { PmsWorkspaceView } from "@/components/pms/workspace";
 import { PmsToday } from "@/components/pms/home";
-import { pmsHome } from "@/server/pms/home";
+import { pmsHome } from "@/server/modules/pms/public/pms/home";
 import { hasPermission } from "@/lib/permissions";
 import { WorkContextBoundary } from "@/components/workplace/work-context-boundary";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext, currentSession } from "@/server/authorization";
-import { frontCompanyApp, frontCompanyBrand, frontCookieName, frontRouteForLocation, frontScopeFromLocation, ensureFrontRole, frontPmsSections, type FrontAppKind } from "@/server/front-app";
-import { posWorkspace } from "@/server/pos";
-import { holdingResources } from "@/server/runtime";
-import { one } from "@/server/pos-core";
-import {pmsListSelection} from "@/lib/pms-read-selection";
-import { pmsWorkspace } from "@/server/pms";
-import { pmsCrossLinks } from "@/lib/pms-cross-links";
-import { companyFeatureCatalogue } from "@/server/hospitality-rollout";
+import { publicScope, requireWorkContext, currentSession } from "@/server/modules/identity_access/public/authorization";
+import { frontCompanyApp, frontCompanyBrand, frontCookieName, frontRouteForLocation, frontScopeFromLocation, ensureFrontRole, frontPmsSections, type FrontAppKind } from "@/server/modules/work_projection/public/front-app";
+import { posWorkspace } from "@/server/modules/pos/public/pos";
+
+
+import {pmsListSelection} from "@/server/modules/pms/public/rules/pms-read-selection";
+import { pmsWorkspace } from "@/server/modules/pms/public/pms";
+import { pmsCrossLinks } from "@/server/modules/pms/public/rules/pms-cross-links";
+import { companyFeatureCatalogue } from "@/server/modules/pms/public/hospitality-rollout";
 import type { Metadata } from "next";
 import { frontAppForHost, frontVisibleLocation, frontVisiblePath } from "@/lib/front-host";
-import { frontActionItems } from "@/server/front-quick-access";
-import { readQuickAccessPreferences } from "@/server/quick-access-preferences";
-import { moneyContext } from "@/server/company-money";
+import { frontActionItems } from "@/server/modules/work_projection/public/front-quick-access";
+import { readQuickAccessPreferences } from "@/server/modules/work_projection/public/quick-access-preferences";
+import { moneyContext } from "@/server/modules/finance/public/company-money";
 import { PushSettings } from "@/components/settings/push-settings";
 import Link from "next/link";
 import { consoleOrigin } from "@/lib/erpx-hosts";
@@ -170,9 +171,7 @@ export default async function FrontAppPage({
     </section>;
   } else if (app === "pos") {
     const movement = typeof query.movement === "string"
-      ? await one((await holdingResources(actor.holdingId)).write,
-          "SELECT l.sale_id FROM pos_stock_moves m JOIN pos_lines l ON l.fulfillment_id=m.fulfillment_id JOIN pos_sales s ON s.id=l.sale_id WHERE m.id=? AND s.company_id=? AND (?::text IS NULL OR s.branch_id=?) ORDER BY s.created_at LIMIT 1",
-          query.movement, actor.companyId, actor.branchId, actor.branchId)
+      ? await posMovementSaleForPresentation(actor, query.movement)
       : null;
     const dailyTabs = [["sale", "pos.sell"], ["kitchen", "pos.kitchen"], ["shifts", "pos.sell"], ["history", "pos.read"]].filter(([tab, permission]) => hasPermission(actor, permission) || (tab === "shifts" && hasPermission(actor, "pos.approve"))).map(([tab]) => tab);
     const posTab = typeof query.tab === "string" && dailyTabs.includes(query.tab) ? query.tab : dailyTabs[0] ?? "history";

@@ -2,15 +2,15 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { ActionAnchor as UiActionAnchor } from "@/components/ui/foundation";
 import { Table, TableFrame } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { publicScope, requireWorkContext } from "@/server/authorization";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { hasPermission } from "@/lib/permissions";
 import { minorToDecimal } from "@/lib/finance-money";
 import { vatPackageLabels, vatTreatmentLabels } from "@/lib/finance-vat-labels";
-import { vatPackageDetail, type TaxRow } from "@/server/finance-tax-register";
+import { vatPackageDetail, type TaxRow } from "@/server/modules/finance/public/finance-tax-register";
 import { FinanceWorkspace } from "@/components/finance/finance-workspace";
 import { VatPackageControls } from "@/components/finance/vat-register-controls";
-import { pageError } from "@/server/page-error";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { Card } from "@/components/ui/foundation";
 
 export const dynamic = "force-dynamic";

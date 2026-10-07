@@ -8,11 +8,33 @@ import { loadIamAuthority } from "../src/server/iam-store";
 import { decideDepartmentOverride,departmentOverrideDetail,departmentOverrideWork } from "../src/server/department-decisions";
 import { saveEmployeeRequest,employeeRequestSchema,actOnEmployeeRequest,requestActionSchema,getEmployeeRequest } from "../src/server/employee-requests";
 import { reconcilePositionGpo } from "../src/server/position-gpo";
+import { flowSettingsHub } from "../src/server/modules/work_projection/public/flow-settings-hub";
+import { departmentFlowSettingsHistory } from "../src/server/modules/organization/public/flow-settings-facts";
+import { activeLeavePolicySettings, leavePolicySettingsHistory } from "../src/server/modules/people_payroll/public/flow-settings-facts";
+import { serviceCoverageSettingsHistory } from "../src/server/modules/support/public/flow-settings-facts";
+import { spendingSettingsHistory } from "../src/server/modules/workflow/public/flow-settings-facts";
 
 vi.mock("../src/server/runtime",()=>({holdingResources:async()=>({write:db,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();});
+
+it("projects Flow settings through scoped owner queries without broadening visible policy history",async()=>{
+  await publishDepartmentFlow(db,f.head,{departmentId:f.department,expectedVersion:0,steps:[{kind:"person",personId:`person-${f.tie.userId}`}],reason:"Visible department policy"},key());
+  const view=await flowSettingsHub(f.head,"history");
+  expect(view.policyHistory).toEqual(await departmentFlowSettingsHistory(db,f.company,view.authority.departments.map(department=>department.id)));
+  expect(view.policyHistory.map(policy=>policy.department_id)).toEqual([f.department]);
+  expect(view.canPublish).toBe(true);
+  expect(view.configurationHistory).toEqual([]);
+  expect(view.serviceOptions).toBeNull();
+  expect(view.leavePolicies).toEqual([]);
+  expect(await departmentFlowSettingsHistory(db,`unavailable-${f.company}`,[f.department])).toEqual([]);
+  expect(await activeLeavePolicySettings(db,`unavailable-${f.company}`)).toEqual([]);
+  expect(await leavePolicySettingsHistory(db,`unavailable-${f.company}`)).toEqual([]);
+  expect(await serviceCoverageSettingsHistory(db,`unavailable-${f.company}`)).toEqual([]);
+  expect(await spendingSettingsHistory(db,`unavailable-${f.company}`)).toEqual([]);
+  expect(await spendingSettingsHistory(db,f.company)).toEqual((await db.prepare("SELECT 'Company spending rules' title,record_version version,actor_id actor,created_at at,'Spending rules revision' kind FROM audit_events WHERE action='spending.template.save' AND record_id=? AND authority_json::jsonb->>'companyId'=? ORDER BY created_at DESC").bind(f.company,f.company).all()).results);
+});
 
 it("accepts 1–20 ordered selectors and rejects an empty or 21-step flow",()=>{
   const base={departmentId:"department",expectedVersion:0,reason:"Publish ordered approval"};

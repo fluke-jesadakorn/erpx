@@ -12,8 +12,8 @@ import dynamic from "next/dynamic";
 import type { OrganizationAccessData } from "@/lib/organization-access";
 import type { OrganizationOverview } from "@/lib/organization";
 import type { PeopleLifecycleData } from "@/lib/people-lifecycle";
-import type { HoldingPeopleDirectory } from "@/server/holding-people-directory";
-import type { getPerson } from "@/server/people-payroll";
+import type { HoldingPeopleDirectory } from "@/server/modules/organization/public/holding-people-directory";
+import type { getPerson } from "@/server/modules/people_payroll/public/people-payroll";
 import {
   type OrganizationExplorerContext,
   type OrganizationSelection,

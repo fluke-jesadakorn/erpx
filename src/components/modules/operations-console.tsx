@@ -6,7 +6,7 @@ import {useRef,useState} from "react";
 import {useRouter} from "next/navigation";
 import {Button,Field,Select,TextArea,TextInput} from "@/components/ui/foundation";
 import {workFetch} from "@/lib/work-fetch";
-import type {operationsWorkspace,operationsExceptionDetail} from "@/server/operations-exceptions";
+import type {operationsWorkspace,operationsExceptionDetail} from "@/server/modules/operations/public/operations-exceptions";
 import { FormLayout, Card } from "@/components/ui/foundation";
 type Workspace=Awaited<ReturnType<typeof operationsWorkspace>>;
 type Detail=Awaited<ReturnType<typeof operationsExceptionDetail>>;

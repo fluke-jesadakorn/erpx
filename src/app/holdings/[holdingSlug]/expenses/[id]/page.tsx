@@ -19,7 +19,7 @@ import { FlowPanel,documentFlow } from "@/components/workplace/flow-panel";
 import { RecordNextAction } from "@/components/workplace/record-next-action";
 import { WorkReturn } from "@/components/workplace/work-return";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope,requireWorkContext } from "@/server/authorization";
+import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import {
 canAccountExpenses,
 canEditExpense,
@@ -27,10 +27,9 @@ canPostExpenses,
 canReviewExpense,
 expenseDetail,
 expenseOptions,
-} from "@/server/expenses";
-import { pageError } from "@/server/page-error";
-import { holdingResources } from "@/server/runtime";
-import { staffSettings } from "@/server/staff-settings";
+} from "@/server/modules/people_payroll/expense";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+import { expensePageCapabilities } from "@/server/modules/people_payroll/expense";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
@@ -62,8 +61,7 @@ export default async function Expense({
       permittedActions,
     } = data,
     editable = canEditExpense(actor, expense);
-  const { write } = await holdingResources(actor.holdingId),
-    staffOptions = await staffSettings(write, actor);
+  const staffOptions = await expensePageCapabilities(actor);
   if (expense.workflow_version === 2)
     return (
       <FeaturePage className="ui-page-content" data-source="live" data-print-document={printing || undefined}><FinanceRecordWorkspace base={base} active="receivables" title={String(expense.merchant || "New expense claim")} description={`${expense.legal_name} · ${expense.request_kind === "payment" ? "Payment request" : "Expense claim"}`} actions={<StatusBadge appearance="standard" status={String(expense.status)}/>}><WorkReturn base={base}/><BusinessDocumentBranding actor={actor} kind="expense" recordId={id} requestedMode={query.brand} title={expense.request_kind === "payment" ? "Payment request" : "Expense claim"} reference={String(expense.receipt_reference ?? id)} printing={printing}/><ExpenseWorkflowPage
@@ -71,7 +69,7 @@ export default async function Expense({
         actor={actor}
         data={data}
         options={options}
-        canRepair={staffOptions.canManage}
+        canRepair={staffOptions.canRepair}
       /></FinanceRecordWorkspace></FeaturePage>
     );
   const posting =
@@ -217,7 +215,7 @@ export default async function Expense({
         /></FeatureWidget>
       )}
 
-      {staffOptions.canManage &&
+      {staffOptions.canRepair &&
         (expense.status === "submitted" ||
           !!expense.approval_blocked_reason) && (
           <ApprovalAdminLink

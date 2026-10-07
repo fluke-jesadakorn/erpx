@@ -54,11 +54,39 @@ export async function openAccountMenu(page: Page) {
   return menu;
 }
 
+export async function roleSearchInput(page: Page) {
+  const standard = page.getByRole("combobox", { name: "Role for actions & approvals", exact: true });
+  const legacy = page.locator(".role-combobox");
+  await expect(standard.or(legacy), "Exactly one rendered role selector is required").toHaveCount(1);
+  if (await legacy.count() === 1) {
+    await expect(legacy).toBeVisible();
+    const search = legacy.getByRole("combobox", { name: "Search roles", exact: true });
+    if (await search.count() === 0) {
+      const trigger = legacy.getByRole("button", { name: /Role for actions & approvals/ });
+      await expect(trigger).toHaveCount(1);
+      await expect(trigger).toBeEnabled();
+      await trigger.click();
+    }
+    await expect(search).toHaveCount(1);
+    await expect(search).toBeVisible();
+    await expect(search).toBeEnabled();
+    return search;
+  }
+  await expect(standard).toBeVisible();
+  await expect(standard).toBeEnabled();
+  return standard;
+}
+
 export async function searchRoleOptions(page: Page, query: string) {
-  const search = page.getByRole("combobox", { name: "Search roles", exact: true });
-  if (!await search.isVisible()) await page.getByRole("button", { name: /Role for actions & approvals/ }).click();
+  const search = await roleSearchInput(page);
   await search.fill(query);
-  return page.getByRole("listbox", { name: "Available roles", exact: true });
+  await search.press("ArrowDown");
+  await expect(search).toHaveAttribute("aria-expanded", "true");
+  const roles = await page.locator(".role-combobox").count() === 1
+    ? page.locator(".role-combobox").getByRole("listbox", { name: "Available roles", exact: true })
+    : page.locator('[data-slot="combobox-popup"]').getByRole("listbox");
+  await expect(roles).toHaveCount(1);
+  return roles;
 }
 
 export async function chooseRole(page: Page, role: string) {

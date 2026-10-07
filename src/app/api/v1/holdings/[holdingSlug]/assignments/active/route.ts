@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { assignmentApplies } from '@/server/authorization';
-import { workRoleOptions } from '@/server/work-role-options';
-import { selectWorkRole } from '@/server/work-role-store';
-import { ApiError,errorResponse } from '@/server/http';
+import { assignmentApplies } from "@/server/modules/identity_access/public/authorization";
+import { workRoleOptions } from "@/server/modules/work_projection/public/work-role-options";
+import { selectWorkRole } from "@/server/modules/work_projection/public/work-role-store";
+import { ApiError,errorResponse } from "@/server/modules/runtime/public/http";
 const schema=z.object({assignmentId:z.string().min(1).max(128),revision:z.number().int().nonnegative()});
 export async function GET(_request:Request,context:RouteContext<'/api/v1/holdings/[holdingSlug]/assignments/active'>){
  try{const state=await workRoleOptions((await context.params).holdingSlug);return NextResponse.json({data:{valid:!!state.selection && state.selection.expires_at>Date.now() && state.options.some(a=>a.id===state.selection!.assignment_id && a.version===state.selection!.assignment_version && assignmentApplies(a,state.access.scope)),options:state.options,revision:state.selection?.revision??0,assignmentId:state.selection?.assignment_id??null,companyId:state.access.scope.companyId,userId:state.access.userId}},{headers:{'Cache-Control':'private, no-store'}});}catch(e){return errorResponse(e);}

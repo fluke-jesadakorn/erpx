@@ -1,7 +1,7 @@
 import { InlineNotice } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
-import type { WorkContext } from "@/server/authorization";
-import { runtimeEnv } from "@/server/runtime";
+import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
+import { accountInvitationList } from "@/server/modules/identity_access/public/account-invitation-list";
 import { StatusBadge } from "@/components/ui/primitives";
 import { AccountInvitationActions } from "./account-invitation-actions";
 import { TimeText } from "@/components/time/time-preference-context";
@@ -23,28 +23,13 @@ export async function AccountInvitations({
   actor: WorkContext;
   base: string;
 }) {
-  if (actor.role !== "holding_owner") return null;
-  const env = await runtimeEnv();
-  const invitations = await env.CONTROL_DB.prepare(
-    "SELECT i.id,i.person_id,i.email,CASE WHEN i.status='pending' AND i.expires_at<=(floor(extract(epoch FROM clock_timestamp()))::bigint*1000) THEN 'expired' ELSE i.status END status,i.expires_at,d.state delivery_state,d.attempts,d.error,d.sent_at FROM account_invitations i LEFT JOIN account_invitation_delivery_jobs d ON d.invitation_id=i.id WHERE i.holding_id=? AND i.company_id=? AND (?::text IS NULL OR i.branch_id=?) ORDER BY i.created_at DESC LIMIT 100",
-  )
-    .bind(actor.holdingId, actor.companyId, actor.branchId, actor.branchId)
-    .all<{
-      id: string;
-      person_id: string;
-      email: string;
-      status: string;
-      expires_at: number;
-      delivery_state: string | null;
-      attempts: number | null;
-      error: string | null;
-      sent_at: number | null;
-    }>();
+  const invitations = await accountInvitationList(actor);
+  if (invitations === null) return null;
   return (
     <Card as="section" appearance="standard" className="ui-panel">
       <h2>Activation invitations</h2>
-      {!invitations.results.length && <p>No activation invitations yet.</p>}
-      {invitations.results.map((invite) => (
+      {!invitations.length && <p>No activation invitations yet.</p>}
+      {invitations.map((invite) => (
         <div className="ui-record-item" key={invite.id}>
           <div className="row-main">
             <Link href={`${base}/people/${invite.person_id}?tab=access`}>

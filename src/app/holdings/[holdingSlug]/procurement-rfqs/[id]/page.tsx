@@ -1,8 +1,8 @@
 import { RecordLink as Link } from "@/components/records/record-link";
-import {requireWorkContext,publicScope} from '@/server/authorization';
+import {requireWorkContext,publicScope} from "@/server/modules/identity_access/public/authorization";
 import {workspaceBase} from '@/lib/workspace';
-import {pageError} from '@/server/page-error';
-import {rfqDetail,rfqWorkspace} from '@/server/procurement-rfqs';
+import {pageError} from "@/server/modules/work_projection/public/page-error";
+import {rfqDetail,rfqWorkspace} from "@/server/modules/procurement/public/procurement-rfqs";
 import {RfqConsole} from '@/components/modules/procurement-rfq-console';
 import { PageContent } from "@/components/ui/foundation";
 export const dynamic='force-dynamic';

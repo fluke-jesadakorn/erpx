@@ -119,7 +119,16 @@ it("splits this and future occurrences while retaining earlier responses and inv
   expect(invitation).toBeTruthy();
 });
 it("stores an all-day appointment with an exclusive end date",async()=>{
-  const saved=await command(appointment({allDay:true,startDate:date,endDate:addDays(date,2),startLocal:undefined,endLocal:undefined}),f.claimant);
+  const receiptKey=key(),input=appointment({allDay:true,startDate:date,endDate:addDays(date,2),startLocal:undefined,endLocal:undefined});
+  const tables=["calendar_appointments","calendar_attendees","calendar_appointment_participants","calendar_series","calendar_occurrence_exceptions","calendar_occurrence_responses","calendar_reminder_deliveries","calendar_history","inbox_events","inbox_deliveries","command_receipts","command_assertions","audit_events","outbox_events"];
+  const snapshot=async()=>Object.fromEntries(await Promise.all(tables.map(async table=>[table,(await db.prepare(`SELECT coalesce(jsonb_agg(row_value ORDER BY row_value::text),'[]'::jsonb) rows FROM (SELECT to_jsonb(t) row_value FROM ${table} t) snapshot`).first<{rows:unknown}>())!.rows])));
+  const before=await snapshot();
+  await db.prepare(`CREATE FUNCTION fail_calendar_final_outbox() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='${receiptKey}' THEN RAISE EXCEPTION 'calendar final outbox rollback'; END IF; RETURN NEW; END $$`).run();
+  await db.prepare("CREATE TRIGGER fail_calendar_final_outbox BEFORE INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION fail_calendar_final_outbox()").run();
+  try{await expect(command(input,f.claimant,receiptKey)).rejects.toThrow("calendar final outbox rollback");expect(await snapshot()).toEqual(before);}finally{await db.prepare("DROP TRIGGER fail_calendar_final_outbox ON outbox_events").run();await db.prepare("DROP FUNCTION fail_calendar_final_outbox()").run();}
+  const saved=await command(input,f.claimant,receiptKey);
+  expect(await command(input,f.claimant,receiptKey)).toEqual(saved);
+  for(const table of ["command_receipts","audit_events","outbox_events"])expect(await db.prepare(`SELECT count(*)::int count FROM ${table} WHERE command_id=?`).bind(receiptKey).first()).toEqual({count:1});
   const item=(await read(f.claimant,{mode:"mine",view:"week",date})).items.find(item=>item.sourceId===saved.id)!;
   expect(item.allDay).toBe(true);
   expect(item.startDate).toBe(date);

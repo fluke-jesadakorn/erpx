@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { peopleContextHref, type PeopleRouteSearch } from "@/lib/people-route-context";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { draftAuthority } from "@/server/organization-drafts";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { draftAuthority } from "@/server/modules/organization/public/organization-drafts";
 
 export const dynamic = "force-dynamic";
 

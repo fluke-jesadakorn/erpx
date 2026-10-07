@@ -1,3 +1,6 @@
+import { fulfillmentSchema } from "../src/server/commerce";
+import { settlementSchema } from "../src/server/commerce";
+import { refundConfirmationSchema } from "../src/server/refunds";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "./runtime-env";
 import {
@@ -61,7 +64,7 @@ it("collects a Sales-backed checkout and completes its reviewed return and bank 
  await changeEcommerce(reviewer,'checkout',checkoutId,approveInput,approveKey);
  await expect(changeEcommerce(reviewer,'checkout',checkoutId,approveInput,approveKey)).resolves.toMatchObject({status:'confirmed',salesOrderVersion:4});
  await assignStock(orderId);
- const order=await getOrder(owner,orderId),delivered=await fulfillOrder(owner,orderId,{expectedVersion:4,date:'2026-09-22',lines:[{lineId:String(order.lines[0].id),quantity:'2',allocations:[{lotId,quantity:'2'}]}],...(await deliveryEvidence(db,owner,orderId))},key());
+ const order=await getOrder(owner,orderId),delivered=await fulfillOrder(owner,orderId,fulfillmentSchema.parse({expectedVersion:4,date:'2026-09-22',lines:[{lineId:String(order.lines[0].id),quantity:'2',allocations:[{lotId,quantity:'2'}]}],...(await deliveryEvidence(db,owner,orderId))}),key());
  const fulfillmentId=String(delivered.fulfillmentId),goodsJournal=String(await db.prepare('SELECT journal_id FROM commerce_fulfillments WHERE id=?').bind(fulfillmentId).first('journal_id'));
  await assignOwnerStep('journal',goodsJournal,'draft',fixture.manager.userId);await postJournal(fixture.manager,goodsJournal,key(),{expectedVersion:1});
  await assignOwnerStep('order',orderId,'invoicing',owner.userId);
@@ -69,7 +72,7 @@ it("collects a Sales-backed checkout and completes its reviewed return and bank 
  await assignOwnerStep('invoice',invoiceId,'draft',fixture.manager.userId);await postInvoice(fixture.manager,invoiceId,{expectedVersion:1,periodId:fixture.period,entryDate:'2026-09-22'},key());
  await assignOwnerStep('invoice',invoiceId,'posted',fixture.payer.userId);
  const payKey=key(),payInput={expectedVersion:2,date:'2026-09-22',amount:'50',reference:'Fictional customer transfer after verified receipt'};
- await settleInvoice(fixture.payer,invoiceId,payInput,payKey);await expect(settleInvoice(fixture.payer,invoiceId,payInput,payKey)).resolves.toMatchObject({id:orderId,outstandingMinor:0});
+ await settleInvoice(fixture.payer,invoiceId,settlementSchema.parse(payInput),payKey);await expect(settleInvoice(fixture.payer,invoiceId,settlementSchema.parse(payInput),payKey)).resolves.toMatchObject({id:orderId,outstandingMinor:0});
  expect(await db.prepare('SELECT status,outstanding_minor,base_outstanding_minor FROM finance_invoices WHERE id=?').bind(invoiceId).first()).toEqual({status:'paid',outstanding_minor:0,base_outstanding_minor:0});
  expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:0,value_minor:0});
  const original=await db.prepare("SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE source_type='finance_invoice' AND source_id=? AND amount_kind='total'").bind(invoiceId).first<{amount_units:string;usd_units:string;fx_rate_id:string}>();
@@ -101,8 +104,8 @@ it("collects a Sales-backed checkout and completes its reviewed return and bank 
  const statement=await importBankStatement(fixture.payer,{bankAccount:fixture.accounts.cash,statementNumber:key(),statementDate:'2026-09-23',opening:'100',closing:'75',sourceHash:key(),rows:[{transactionDate:'2026-09-23',externalId:'SIMULATED-Ecommerce-REFUND',description:'Fictional exact customer refund',amount:'-25',currency:'THB'}]},key());
  const bank=(await db.prepare('SELECT id,version FROM finance_bank_transactions WHERE statement_id=?').bind(statement.id).first<{id:string;version:number}>())!;
  const confirmationKey=key(),confirmation={expectedVersion:2,bankTransactionId:bank.id,bankVersion:bank.version,periodId:fixture.period,bankReference:'SIMULATED-Ecommerce-REFUND',evidence:'Exact independent bank statement confirms the approved refund'};
- await confirmRefundInstruction(fixture.payer,String(instruction.id),confirmation,confirmationKey);
- await expect(confirmRefundInstruction(fixture.payer,String(instruction.id),confirmation,confirmationKey)).resolves.toMatchObject({status:'confirmed'});
+ await confirmRefundInstruction(fixture.payer,String(instruction.id),refundConfirmationSchema.parse(confirmation),confirmationKey);
+ await expect(confirmRefundInstruction(fixture.payer,String(instruction.id),refundConfirmationSchema.parse(confirmation),confirmationKey)).resolves.toMatchObject({status:'confirmed'});
  expect((await refundWorkspace(fixture.payer,refundId)).owner).toMatchObject({status:'settled',outstanding_minor:0});
  const after=await ecommerceDetail(owner,checkoutId);
  expect(after.returnLinks).toHaveLength(1);expect(after.order.returns).toMatchObject([{id:returnId,status:'posted',refund_minor:2500}]);
@@ -359,7 +362,7 @@ it("fulfills only reserved stock and syncs immutable delivery evidence", async (
     {
       expectedVersion: Number(order.order.version),
       date: "2026-09-22",
-      lines: [{ lineId: order.lines[0].id, quantity: "1" }],
+      lines: [{ lineId: String(order.lines[0].id), quantity: "1", allocations: [] }],
       ...(await deliveryEvidence(db, owner, String(checkout.salesOrderId))),
     },
     key(),
@@ -423,7 +426,7 @@ it("rejects stale carts and refuses a return before the Sales fulfillment is inv
     {
       expectedVersion: Number(order.order.version),
       date: "2026-09-22",
-      lines: [{ lineId: order.lines[0].id, quantity: "1" }],
+      lines: [{ lineId: String(order.lines[0].id), quantity: "1", allocations: [] }],
       ...(await deliveryEvidence(db, owner, String(checkout.salesOrderId))),
     },
     key(),

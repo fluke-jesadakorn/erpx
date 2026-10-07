@@ -7,7 +7,7 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 import { workFetch } from "@/lib/work-fetch";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { TransferRow as Row } from "@/server/inventory-transfers";
+import type { TransferRow as Row } from "@/server/modules/inventory/public/inventory-transfers";
 import { minorToDecimal } from "@/lib/finance-money";
 import {
   AttachmentPanel,

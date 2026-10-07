@@ -1,13 +1,14 @@
+import {recordField} from "./helpers/required-fact";
 import { afterAll,beforeAll,beforeEach,describe,expect,it,vi } from "vitest";
 import { createHash } from "node:crypto";
 import type { WorkContext } from "../src/server/authorization";
 import { applyMigrations,env } from "./runtime-env";
 
-vi.mock("../src/server/attachments/scanner",()=>({
+vi.mock("../src/server/modules/files/public/attachments/scanner",()=>({
   attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:"ClamAV test",definitionUpdatedAt:Date.now(),error:null}),
   scanAttachmentBytes:async()=>({clean:true,signature:null,engine:"ClamAV test",definitionUpdatedAt:Date.now()}),
 }));
-vi.mock("../src/server/attachments/preview",()=>({
+vi.mock("../src/server/modules/files/public/attachments/preview",()=>({
   attachmentPreviewReadiness:async()=>({ready:true,heifConvert:"/test/heif-convert",pdftoppm:"/test/pdftoppm",error:null}),
   detectedAttachmentMediaType:(_bytes:Uint8Array,declared:string)=>declared,
   sanitizedAttachmentPreview:async(_bytes:Uint8Array,mediaType:string)=>mediaType.startsWith("image/")?{bytes:new Uint8Array([82,73,70,70,4,0,0,0,87,69,66,80]),mediaType:"image/webp" as const}:null,
@@ -159,7 +160,7 @@ describe("canonical attachment lifecycle",()=>{
     actorA=marketingActor;
     await availableProductFile(set.id);
     const bound=await bindRecordAttachmentSet(db,marketingActor,set.id,1,key());
-    expect(bound.version).toBe(2);
+    expect(recordField(bound,"version")).toBe(2);
     expect(await db.prepare("SELECT version FROM marketing_assets WHERE id=?").bind(assetId).first("version")).toBe(2);
     await expect(createAttachmentSet(db,marketingActor,{targetType:"marketing_asset",targetId:assetId,componentKind:"record",purposeKey:"source",expectedTargetVersion:1},key())).rejects.toMatchObject({status:409,code:"ATTACHMENT_TARGET_CHANGED"});
   });
@@ -280,7 +281,15 @@ describe("canonical attachment lifecycle",()=>{
     await expect(attachmentContent(db,env.H001_FILES,actorB,reserved.attachmentLinkId,"original")).rejects.toMatchObject({status:404,code:"ATTACHMENT_LINK_NOT_FOUND"});
     await expect(withdrawAttachmentLink(db,actorB,reserved.attachmentLinkId,"foreign withdrawal",key())).rejects.toMatchObject({status:404,code:"ATTACHMENT_LINK_NOT_FOUND"});
     await expect(prepareAttachmentBinding(db,actorB,{attachmentSetIds:[set.id],bindingContract:{targetType:"product",bindingType:"record_document",contexts:[{purposeKey:"product_image",componentKind:"record",componentRef:null}]},targetId:productA,expectedTargetVersion:1,commandId:key(),bindingId:productA})).rejects.toMatchObject({status:404,code:"ATTACHMENT_SET_NOT_FOUND"});
-    const bound=await bindRecordAttachmentSet(db,actorA,set.id,1,key());expect(bound.version).toBe(2);
+    const bindingCommand=key(),bindingTables=["commerce_products","attachment_sets","attachment_links","attachments","upload_intents","attachment_events","attachment_storage_ledger","command_assertions","command_receipts","audit_events","outbox_events"];
+    const bindingSnapshot=async()=>Object.fromEntries(await Promise.all(bindingTables.map(async table=>[table,(await db.prepare(`SELECT to_jsonb(snapshot) row FROM ${table} snapshot ORDER BY to_jsonb(snapshot)::text`).all<{row:unknown}>()).results.map(result=>result.row)])));
+    const beforeBinding=await bindingSnapshot();
+    await db.prepare("CREATE FUNCTION fail_attachment_binding_final_outbox() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id=TG_ARGV[0] THEN RAISE EXCEPTION 'ATTACHMENT_BINDING_FINAL_OUTBOX'; END IF; RETURN NEW; END $$").run();
+    await db.prepare(`CREATE TRIGGER fail_attachment_binding_final_outbox BEFORE INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION fail_attachment_binding_final_outbox('${bindingCommand}')`).run();
+    try{await expect(bindRecordAttachmentSet(db,actorA,set.id,1,bindingCommand)).rejects.toThrow(/ATTACHMENT_BINDING_FINAL_OUTBOX/);expect(await bindingSnapshot()).toEqual(beforeBinding);}finally{await db.prepare("DROP TRIGGER fail_attachment_binding_final_outbox ON outbox_events").run();await db.prepare("DROP FUNCTION fail_attachment_binding_final_outbox()").run();}
+    const bound=await bindRecordAttachmentSet(db,actorA,set.id,1,bindingCommand);expect(recordField(bound,"version")).toBe(2);
+    expect(await bindRecordAttachmentSet(db,actorA,set.id,1,bindingCommand)).toEqual(bound);
+    for(const table of ["command_receipts","audit_events","outbox_events"])expect(Number(await db.prepare(`SELECT count(*) FROM ${table} WHERE command_id=?`).bind(bindingCommand).first("count"))).toBe(1);
     expect((await listAttachmentSets(db,peerA,{targetType:"product",targetId:productA})).map(item=>item.id)).toContain(set.id);
     await expect(db.prepare("UPDATE attachment_sets SET purpose_key='specification' WHERE id=?").bind(set.id).run()).rejects.toThrow(/BOUND_ATTACHMENT_SET_IMMUTABLE/);
     await expect(db.prepare("UPDATE attachment_sets SET updated_at=updated_at+1 WHERE id=?").bind(set.id).run()).rejects.toThrow(/BOUND_ATTACHMENT_SET_IMMUTABLE/);
@@ -671,7 +680,7 @@ describe("canonical attachment lifecycle",()=>{
       for(const objectKey of fixture.keys)expect(await files.head(objectKey)).not.toBeNull();
       expect(await single.prepare("SELECT source_state FROM attachments WHERE id=?").bind(fixture.sourceId).first("source_state")).toBe("available");
       await files.put(orphan,"Original orphan bytes with unresolved owner");
-      await sealUnreferencedStoredObjects({db:single,files,objectKeys:[orphan],storeId:"h001",operatorId:"test-storage-operator",reason:"Preserve unresolved owner bytes during transaction cleanup",environment:{ERPX_ENVIRONMENT:"local",ERPX_ATTACHMENTS_V2:"false",ERPX_ATTACHMENT_UPLOAD_FREEZE:"true"}});
+      await sealUnreferencedStoredObjects({db:single,files,objectKeys:[orphan],storeId:"h001",operatorId:"test-storage-operator",reason:"Preserve unresolved owner bytes during transaction cleanup",environment:{NODE_ENV:'test',ERPX_ENVIRONMENT:"local",ERPX_ATTACHMENTS_V2:"false",ERPX_ATTACHMENT_UPLOAD_FREEZE:"true"}});
       await single.transaction(async tx=>{await expect(files.delete(orphan,{database:tx})).rejects.toThrow("FILE_PRESERVED_PENDING_OWNER");});
       expect(await (await files.get(orphan))!.text()).toBe("Original orphan bytes with unresolved owner");
       expect(await single.prepare("SELECT COUNT(*)::int count FROM attachment_events WHERE attachment_id=? AND action='source.bytes_deleted'").bind(fixture.sourceId).first("count")).toBe(0);

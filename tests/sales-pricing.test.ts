@@ -6,6 +6,14 @@ import {decidePriceList,savePriceList,updatePriceList} from '../src/server/sales
 import {assignFlowPrimary,resolveFlow} from '../src/server/flow-routing';
 
 vi.mock('../src/server/runtime',()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+const lateFailure=vi.hoisted(()=>({enabled:false}));
+vi.mock('../src/server/modules/workflow/public/commands',async importOriginal=>{
+ const original=await importOriginal<typeof import('../src/server/modules/workflow/public/commands')>();
+ return {...original,executeCommand:async(...args:Parameters<typeof original.executeCommand>)=>{
+  if(lateFailure.enabled&&args[3]==='sales.price-list.update')args[8]=[...args[8],args[0].prepare('SELECT 1/0')];
+  return original.executeCommand(...args);
+ }};
+});
 let f:Awaited<ReturnType<typeof expenseFixture>>,productId:string,customerId:string,warehouseId:string;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();f.manager.role='sales_manager';f.manager.branchId=null;f.manager.departmentId=null;f.manager.assignmentId=await f.grant(f.manager,'sales_manager');warehouseId=String((await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Pricing warehouse'},key())).id);productId=String((await saveMaster(f.owner,'products',null,{sku:key(),name:'Controlled service kit',price:'120',taxBps:700},key())).id);customerId=String((await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Pricing customer'},key())).id);});
@@ -45,4 +53,23 @@ it('keeps an approved current list available when a later dated list is activate
  const october=await saveOrder(f.owner,null,orderSchema.parse({kind:'quote',partyId:customerId,warehouseId,orderDate:'2026-10-02',dueDate:'2026-10-10',lines:[{productId,quantity:'1',price:'120',taxBps:700}]}),key());
  expect((await getOrder(f.owner,String(september.id))).order.price_list_id).toBe(current.id);
  expect((await getOrder(f.owner,String(october.id))).order.price_list_id).toBe(future.id);
+});
+
+it('serializes concurrent revision commands and replays the winning immutable command',async()=>{
+ const draft=await savePriceList(f.owner,{name:'Concurrent price control',currency:'THB',customerId:null,validFrom:'2026-10-01',validUntil:'2026-10-31',maxAutoDiscountBps:0,items:[{productId,price:'100',taxBps:700}]},key()),id=String(draft.id);
+ const change={expectedVersion:1,name:'Concurrent revised price control',currency:'THB',customerId:null,validFrom:'2026-10-01',validUntil:'2026-10-31',maxAutoDiscountBps:0,items:[{productId,price:'110',taxBps:700}]},keys=[key(),key()];
+ const results=await Promise.allSettled(keys.map(command=>updatePriceList(f.owner,id,change,command)));
+ expect(results.filter(result=>result.status==='fulfilled')).toHaveLength(1);
+ const winner=results.findIndex(result=>result.status==='fulfilled');expect(await updatePriceList(f.owner,id,change,keys[winner])).toMatchObject({id,version:2});
+ expect(await db.prepare('SELECT version FROM sales_price_lists WHERE id=?').bind(id).first()).toEqual({version:2});
+ expect(await db.prepare('SELECT COUNT(*)::int count FROM sales_price_list_items WHERE price_list_id=?').bind(id).first()).toEqual({count:1});
+});
+
+it('rolls back item replacement, list revision, receipt, audit and outbox after a late PostgreSQL failure',async()=>{
+ const draft=await savePriceList(f.owner,{name:'Atomic price control',currency:'THB',customerId:null,validFrom:'2026-10-01',validUntil:'2026-10-31',maxAutoDiscountBps:0,items:[{productId,price:'100',taxBps:700}]},key()),id=String(draft.id),command=key();
+ lateFailure.enabled=true;
+ try{await expect(updatePriceList(f.owner,id,{expectedVersion:1,name:'Must roll back',currency:'THB',customerId:null,validFrom:'2026-10-01',validUntil:'2026-10-31',maxAutoDiscountBps:0,items:[{productId,price:'1',taxBps:700}]},command)).rejects.toThrow();}finally{lateFailure.enabled=false;}
+ expect(await db.prepare('SELECT name,version FROM sales_price_lists WHERE id=?').bind(id).first()).toEqual({name:'Atomic price control',version:1});
+ expect(await db.prepare('SELECT price_minor FROM sales_price_list_items WHERE price_list_id=?').bind(id).first()).toEqual({price_minor:10000});
+ for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT COUNT(*)::int count FROM ${table} WHERE command_id=?`).bind(command).first()).toEqual({count:0});
 });

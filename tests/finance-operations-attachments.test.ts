@@ -107,7 +107,7 @@ describe("Finance, hospitality, Organization and system attachment policy", () =
       "read",
     )).rejects.toMatchObject({ status: 404, code: "ATTACHMENT_TARGET_NOT_FOUND" });
 
-    const scopedActor = withPermissions({ ...fixture.owner, branchId: fixture.branch, assignmentScope: "branch", scope: { kind: "branch", holdingId: fixture.owner.holdingId, holdingSlug: fixture.owner.holdingSlug, holdingName: fixture.owner.holdingName, companyId: fixture.company, branchId: fixture.branch } }, ["pos.read", "pos.sell"]);
+    const scopedActor = withPermissions({ ...fixture.owner, branchId: fixture.branch, assignmentScope: "branch", scope: { kind: "branch", holdingId: fixture.owner.holdingId, holdingSlug: fixture.owner.holdingSlug, holdingName: fixture.owner.holdingName, companyId: fixture.company, branchId: fixture.branch, branchSlug: "finance-fixture", branchName: "Finance fixture" } }, ["pos.read", "pos.sell"]);
     const fakeDb = {
       prepare: () => ({
         bind: () => ({

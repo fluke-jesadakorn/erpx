@@ -59,3 +59,17 @@ it("rejects self-review, stale versions and missing group entities", async () =>
   const missing = `missing-${key()}`;
   await expect(createIntercompany(f.owner, { ...input, targetCompanyId: missing, reference: `IC-${key()}` }, key())).rejects.toMatchObject({ code: "GROUP_ENTITY_REQUIRED" });
 });
+
+it('rolls back an independent handoff and its immutable event after final outbox failure, then retries and replays once',async()=>{
+ const item=await createIntercompany(f.owner,intercompanyTransactionSchema.parse({targetCompanyId:target,reference:`IC-${key()}`,currency:'THB',amount:'125.50'}),key()),id=String(item.id),command=key(),input={expectedVersion:1,reason:'Independent scoped document handoff'},fault=`intercompany_fault_${crypto.randomUUID().replaceAll('-','')}`,before=await db.prepare('SELECT * FROM finance_intercompany_transactions WHERE id=?').bind(id).first();
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'INTERCOMPANY_LATE_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.event_type='finance.intercompany.match') EXECUTE FUNCTION ${fault}();`);
+ try{
+  await expect(decideIntercompany(f.manager,id,'match',input,command)).rejects.toThrow();
+  expect(await db.prepare('SELECT * FROM finance_intercompany_transactions WHERE id=?').bind(id).first()).toEqual(before);
+  expect(Number(await db.prepare('SELECT count(*) n FROM finance_intercompany_events WHERE transaction_id=?').bind(id).first('n'))).toBe(1);
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n'))).toBe(0);
+ }finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
+ const matched=await decideIntercompany(f.manager,id,'match',input,command);expect(await decideIntercompany(f.manager,id,'match',input,command)).toEqual(matched);expect(matched).toMatchObject({status:'matched',version:2});
+ expect(Number(await db.prepare('SELECT count(*) n FROM finance_intercompany_events WHERE transaction_id=?').bind(id).first('n'))).toBe(2);
+ for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n'))).toBe(1);
+});

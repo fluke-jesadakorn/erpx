@@ -13,7 +13,7 @@ import type {
   accessEntries,
   accessMetadata,
   accessComparison,
-} from "@/server/people-access";
+} from "@/server/modules/people_payroll/public/people-access";
 import styles from "./access-explorer.module.css";
 import { type UiAppearance } from "@/components/ui/foundation";
 type Meta = ReturnType<typeof accessMetadata>;

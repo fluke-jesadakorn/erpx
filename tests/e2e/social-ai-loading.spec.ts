@@ -1,4 +1,5 @@
 import { expect, test, type BrowserContext } from "@playwright/test";
+import { selectFixtureAssignment } from "./helpers/select-fixture-assignment";
 
 const base = "/holdings/acme/branches/bangkok";
 
@@ -10,6 +11,7 @@ async function login(context: BrowserContext) {
     },
   });
   expect(response.status(), await response.text()).toBe(200);
+  await selectFixtureAssignment(context, "acme-co", "seed_usr_mali");
 }
 
 test("shows a distinct loading state while AI prepares a task", async ({

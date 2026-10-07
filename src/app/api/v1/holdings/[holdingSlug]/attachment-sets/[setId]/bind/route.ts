@@ -1,9 +1,10 @@
+import {appAttachmentSources} from "@/server/modules/files/public/app-attachment-sources";
 import { z } from "zod";
-import { bindRecordAttachmentSet } from "@/server/attachments/service";
-import { requireWorkContext } from "@/server/authorization";
-import { ApiError, errorResponse } from "@/server/http";
-import { requestPublicOrigin } from "@/server/public-origin";
-import { holdingResources } from "@/server/runtime";
+import { bindRecordAttachmentSet } from "@/server/modules/files/public/attachments/service";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
 
 const schema = z.object({ expectedTargetVersion: z.number().int().positive() });
 
@@ -32,18 +33,7 @@ export async function POST(
         parsed.error.issues[0]?.message ?? "Invalid record document bind.",
       );
     const { write } = await holdingResources(actor.holdingId);
-    const compatibilityAdapter = Boolean(
-      await write
-        .prepare(
-          `SELECT 1 FROM attachment_sets set_row
-           JOIN attachment_events event ON event.set_id=set_row.id AND event.company_id=set_row.company_id
-           WHERE set_row.id=? AND set_row.company_id=? AND event.action='set.created'
-             AND COALESCE((event.details_json::jsonb->>'compatibilityAdapter')::boolean,false)=true
-           LIMIT 1`,
-        )
-        .bind(setId, actor.companyId)
-        .first(),
-    );
+    const compatibilityAdapter = await appAttachmentSources(write).compatibilitySet(setId,actor.companyId);
     return Response.json({
       data: await bindRecordAttachmentSet(
         write,

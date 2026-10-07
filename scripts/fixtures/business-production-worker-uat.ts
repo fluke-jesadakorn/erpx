@@ -1,6 +1,8 @@
 /** Actual packaged production jobs, strict paused disposable cohort, and native Business sources. */
 import {readFile,writeFile,open,realpath} from 'node:fs/promises';
-import {resolve,join} from 'node:path';
+import {resolve,join,dirname} from 'node:path';
+import {pinnedNodeBinary,attachmentToolEnvironment} from '../testing/runtime-tooling';
+import {browserChildEnvironment} from '../testing/runner-environment';
 import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {PostgresDatabase} from '../../src/server/runtime/postgres';
@@ -12,7 +14,7 @@ import {runtimeSourceFingerprint} from '../local/source-fingerprint';
 
 const root=resolve(import.meta.dir,'../..'),run=process.argv[2];
 if(!run||!/^[a-f0-9]{12}$/.test(run)||!process.argv[3])throw new Error('EXACT_RUN_AND_COMPILED_RELEASE_REQUIRED');
-const directory=join(root,'.runtime/browser',run),release=await realpath(resolve(process.argv[3])),node=join(root,'.runtime/node/node-v24.20.0-darwin-arm64/bin/node');
+const directory=join(root,'.runtime/browser',run),release=await realpath(resolve(process.argv[3])),node=pinnedNodeBinary(root);
 if(release!==join(directory,'release'))throw new Error('ATTESTED_ISOLATED_COMPILED_RELEASE_REQUIRED');
 if(Bun.version!=='1.2.17'||Bun.spawnSync([node,'--version']).stdout.toString().trim()!=='v24.20.0')throw new Error('PINNED_TOOLCHAIN_REQUIRED');
 const artifact=JSON.parse(await readFile(join(release,'release.json'),'utf8'));
@@ -37,9 +39,11 @@ if(attestation.scope!=='isolated-engineering'||attestation.run!==run||attestatio
 const checksums=JSON.parse(manifestBytes.toString()) as Record<string,string>;
 for(const name of ['server.js','tools/jobs.mjs'])if(checksums[name]!==createHash('sha256').update(await readFile(join(release,name))).digest('hex'))throw new Error('PACKAGED_RUNTIME_CHECKSUM_MISMATCH');
 const {secret}=JSON.parse(await readFile(join(directory,'runtime.json'),'utf8'));
-const environment:NodeJS.ProcessEnv={PATH:`${join(root,'.runtime/node/node-v24.20.0-darwin-arm64/bin')}:${process.env.PATH??''}`,HOME:process.env.HOME??'',TMPDIR:process.env.TMPDIR??'/tmp',NODE_ENV:'production',ERPX_PROCESS_ROLE:'jobs',ERPX_ENVIRONMENT:'local',PORT:'3104',ERPX_BROWSER_SIMULATION_PORT:'3104',ERPX_ENGINEERING_VERIFICATION_RUN:run,ERPX_ENGINEERING_SOURCE_FINGERPRINT:artifact.sourceFingerprint,ERPX_PUBLIC_ORIGIN:'http://127.0.0.1:3104',BETTER_AUTH_URL:'http://127.0.0.1:3104',BETTER_AUTH_SECRET:secret,ERPX_DATA_DIR:directory,ERPX_DATABASE_MANIFEST:join(directory,'databases.json'),ERPX_PUBLIC_BETA:'false',ERPX_EMAIL_ADAPTER:'sandbox',ERPX_ATTACHMENTS_V2:'true',ERPX_ATTACHMENT_UPLOAD_FREEZE:'false',ERPX_CLAMD_SOCKET:join(root,'.scratch/dev/clamav/clamd.sock'),ERPX_CLAMAV_DATABASE_DIR:join(root,'.scratch/dev/clamav/db'),ERPX_CLAMAV_VERSION:'1.5.4',ERPX_HEIF_CONVERT:'/opt/homebrew/opt/libheif/bin/heif-convert',ERPX_PDFTOPPM_BIN:'/opt/homebrew/bin/pdftoppm',NEXT_TELEMETRY_DISABLED:'1'};
+const environment:NodeJS.ProcessEnv={PATH:`${dirname(node)}:${process.env.PATH??''}`,HOME:process.env.HOME??'',TMPDIR:process.env.TMPDIR??'/tmp',NODE_ENV:'production',ERPX_PROCESS_ROLE:'jobs',ERPX_ENVIRONMENT:'local',PORT:'3104',ERPX_BROWSER_SIMULATION_PORT:'3104',ERPX_ENGINEERING_VERIFICATION_RUN:run,ERPX_ENGINEERING_SOURCE_FINGERPRINT:artifact.sourceFingerprint,ERPX_PUBLIC_ORIGIN:'http://127.0.0.1:3104',BETTER_AUTH_URL:'http://127.0.0.1:3104',BETTER_AUTH_SECRET:secret,ERPX_DATA_DIR:directory,ERPX_DATABASE_MANIFEST:join(directory,'databases.json'),ERPX_PUBLIC_BETA:'false',ERPX_EMAIL_ADAPTER:'sandbox',ERPX_ATTACHMENTS_V2:'true',ERPX_ATTACHMENT_UPLOAD_FREEZE:'false',...attachmentToolEnvironment(root),NEXT_TELEMETRY_DISABLED:'1'};
 // Native source commands run under the declared fixture environment. Only packaged jobs enforce production gates.
-Object.assign(process.env,{...environment,NODE_ENV:'development'});
+const nativeEnvironment=browserChildEnvironment(process.env,{...environment,NODE_ENV:'development'});
+for(const name of Object.keys(process.env))if(!(name in nativeEnvironment))delete process.env[name];
+Object.assign(process.env,nativeEnvironment);
 const databases=Object.fromEntries(await Promise.all(bindings.map(async binding=>{const db=new PostgresDatabase({connectionString:manifest.databases[binding],max:2});const row=await db.prepare('SELECT current_database() name,current_user actor,pg_get_userbyid(datdba) owner FROM pg_database WHERE datname=current_database()').first<{name:string;actor:string;owner:string}>();if(row?.name!==`erpx_browser_${run}_${binding.toLowerCase()}`||row.actor!=='erpx_test_admin'||row.owner!=='erpx_test_admin'){await db.close();throw new Error('UAT_DATABASE_OWNER_CHANGED');}return [binding,db] as const;})));
 const db=databases.H001_DB,control=databases.CONTROL_DB,files=new LocalFileStore(join(directory,'files/h001'),db),now=Date.now();
 const names=['enabled','disabled','unenrolled','withdrawn','expired'] as const;

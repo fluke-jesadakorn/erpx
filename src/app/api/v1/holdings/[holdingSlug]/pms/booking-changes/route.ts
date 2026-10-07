@@ -1,9 +1,9 @@
-import {requireWorkContext} from '@/server/authorization';
-import {holdingResources} from '@/server/runtime';
-import {isTransactionalSqlDatabase} from '@/server/runtime/types';
-import {requestPublicOrigin} from '@/server/public-origin';
-import {ApiError,errorResponse} from '@/server/http';
-import {staffBookingChange} from '@/server/pms/staff-booking-changes';
+import {requireWorkContext} from "@/server/modules/identity_access/public/authorization";
+import {holdingResources} from "@/server/modules/runtime/public/runtime";
+import {isTransactionalSqlDatabase} from "@/server/modules/runtime/public/runtime/types";
+import {requestPublicOrigin} from "@/server/modules/manage_erpx/public/public-origin";
+import {ApiError,errorResponse} from "@/server/modules/runtime/public/http";
+import {staffBookingChange} from "@/server/modules/pms/public/pms/staff-booking-changes";
 export const dynamic='force-dynamic';
 export async function POST(request:Request,{params}:{params:Promise<{holdingSlug:string}>}){
  try{

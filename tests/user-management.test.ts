@@ -20,7 +20,7 @@ import {
 } from "../src/lib/user-management";
 import type { IamActor } from "../src/server/iam-context";
 vi.mock("../src/server/runtime", () => ({ runtimeEnv: async () => env }));
-vi.mock("../src/server/iam-mfa", () => ({ requireFreshMfa: async () => {} }));
+vi.mock("../src/server/modules/identity_access/public/iam-mfa", () => ({ requireFreshMfa: async () => {} }));
 const db = iamDb(env.H001_DB),
   key = () => crypto.randomUUID();
 beforeAll(async () => {
@@ -741,6 +741,17 @@ it("keeps previews retryable, permits clearing optional attributes, and rejects 
   const input = group("Idempotent"),
     preview = await managementCommand(db, f.owner, input, key(), true),
     commandKey = key();
+  const beforeHistory = await db.prepare("SELECT count(*) count FROM um_history WHERE company_id=?").bind(f.companyId).first<{count:number}>();
+  await db.exec(`CREATE FUNCTION fail_management_audit_test() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.target_id='${commandKey}' THEN RAISE EXCEPTION 'forced final management audit failure' USING ERRCODE='23514'; END IF; RETURN NEW; END $$; CREATE TRIGGER fail_management_audit_test BEFORE INSERT ON iam_audit FOR EACH ROW EXECUTE FUNCTION fail_management_audit_test()`);
+  try {
+    await expect(managementCommand(db,f.owner,input,commandKey,false,preview.previewToken)).rejects.toMatchObject({code:'23514'});
+  } finally {
+    await db.exec('DROP TRIGGER fail_management_audit_test ON iam_audit; DROP FUNCTION fail_management_audit_test()');
+  }
+  expect(await db.prepare('SELECT id FROM iam_receipts WHERE id=?').bind(commandKey).first()).toBeNull();
+  expect(await db.prepare('SELECT id FROM iam_audit WHERE target_id=?').bind(commandKey).first()).toBeNull();
+  expect(await db.prepare("SELECT id FROM um_groups WHERE company_id=? AND definition->>'name'='Idempotent'").bind(f.companyId).first()).toBeNull();
+  expect(await db.prepare('SELECT count(*) count FROM um_history WHERE company_id=?').bind(f.companyId).first()).toEqual(beforeHistory);
   const first = await managementCommand(
     db,
     f.owner,
@@ -759,6 +770,9 @@ it("keeps previews retryable, permits clearing optional attributes, and rejects 
       preview.previewToken,
     ),
   ).toEqual(first);
+  expect(await db.prepare('SELECT count(*) count FROM iam_receipts WHERE id=?').bind(commandKey).first()).toEqual({count:1});
+  expect(await db.prepare('SELECT count(*) count FROM iam_audit WHERE target_id=?').bind(commandKey).first()).toEqual({count:1});
+  expect(await db.prepare("SELECT count(*) count FROM um_groups WHERE company_id=? AND definition->>'name'='Idempotent'").bind(f.companyId).first()).toEqual({count:1});
   await expect(
     change(f.owner, {
       operation: "policy",

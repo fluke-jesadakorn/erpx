@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import {useMoneyFormatter} from '@/components/money/currency-provider';
 import { useSearchParams } from 'next/navigation';
 import { RecordCollectionDrawer, RecordFacts } from './record-collection';
-import type { PmsWorkspace } from '@/server/pms';
+import type { PmsWorkspace } from "@/server/modules/pms/public/pms";
 /** Console and Front each call their own owner API and keep its visibility projection. */
 export function PmsEntryDetail({base,propertyId,renderAction}:{base:string;propertyId?:string;renderAction?:(id:string,snapshot:PmsWorkspace)=>ReactNode}) {
  const formatMoney=useMoneyFormatter();

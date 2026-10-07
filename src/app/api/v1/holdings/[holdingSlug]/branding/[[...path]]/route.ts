@@ -1,8 +1,9 @@
+import {appAttachmentSources} from "@/server/modules/files/public/app-attachment-sources";
 import { z } from "zod";
-import { documentBrandModes, listBrandProfiles, updateBrandProfile, updateStorefrontAppBrand } from "@/server/branding";
-import { requireWorkContext } from "@/server/authorization";
-import { holdingResources } from "@/server/runtime";
-import { ApiError, errorResponse } from "@/server/http";
+import { documentBrandModes, listBrandProfiles, updateBrandProfile, updateStorefrontAppBrand } from "@/server/modules/brand/public/branding";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 
 const patchSchema = z.object({
   documentMode: z.enum(documentBrandModes).optional(),
@@ -45,7 +46,7 @@ export async function PATCH(
         commandId,
       });
       if (changed.previousId) {
-        const old = await write.prepare("SELECT object_key FROM attachments WHERE id=?").bind(changed.previousId).first<{ object_key: string }>();
+        const old = await appAttachmentSources(write).previousObject(changed.previousId);
         if (old?.object_key) await files.delete(old.object_key).catch(() => undefined);
       }
       return Response.json({ data: changed.result });
@@ -58,7 +59,7 @@ export async function PATCH(
     if (!target) throw new ApiError(404, "NOT_FOUND", "Brand profile not found.");
     const changed = await updateBrandProfile(write, actor, { ...target, ...input, commandId });
     if (changed.previousId) {
-      const old = await write.prepare("SELECT object_key FROM attachments WHERE id=?").bind(changed.previousId).first<{ object_key: string }>();
+      const old = await appAttachmentSources(write).previousObject(changed.previousId);
       if (old?.object_key) await files.delete(old.object_key).catch(() => undefined);
     }
     return Response.json({ data: changed.result });

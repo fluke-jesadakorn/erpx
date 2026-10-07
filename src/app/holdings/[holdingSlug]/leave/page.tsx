@@ -1,7 +1,7 @@
-import { requireWorkContext, publicScope } from "@/server/authorization";
+import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
-import { leaveSummary } from "@/server/leave-self-service";
-import { leaveListFilterSchema } from "@/server/leave-self-service";
+import { leaveSummary } from "@/server/modules/people_payroll/public/leave-self-service";
+import { leaveListFilterSchema } from "@/server/modules/people_payroll/public/leave-self-service";
 import { LeaveSelfService } from "@/components/leave/leave-self-service";
 import { today } from "@/lib/calendar-date";
 

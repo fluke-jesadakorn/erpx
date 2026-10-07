@@ -2,7 +2,7 @@
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { FinanceAiPolicyControls } from "@/components/finance/finance-ai-panel";
 import { AccountingProfileControls } from "@/components/finance/accounting-profile-controls";
-import { accountingProfiles } from "@/server/accounting-profiles";
+import { accountingProfiles } from "@/server/modules/finance/public/accounting-profiles";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { FeaturePage } from "@/components/features/feature-page";
 import { FinanceWorkspace, financeStyles as styles } from "@/components/finance/finance-workspace";
@@ -10,12 +10,12 @@ import { FinanceChartControls, type FinanceChart, type FinanceAccount } from "@/
 import { OpeningBalanceImport } from "@/components/modules/ledger-controls";
 import { hasPermission } from "@/lib/permissions";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { financeSetupWorkspace } from "@/server/finance-workspace";
-import { ledgerWorkspace } from "@/server/ledger";
-import { financeBookWorkspace } from "@/server/finance-books";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { financeSetupWorkspace } from "@/server/modules/finance/public/finance-workspace";
+import { ledgerWorkspace } from "@/server/modules/finance/public/ledger";
+import { financeBookWorkspace } from "@/server/modules/finance/public/finance-books";
 import { FinanceBookControls } from "@/components/finance/finance-book-controls";
-import { financeCompanyTools } from "@/server/finance-company-tools";
+import { financeCompanyTools } from "@/server/modules/finance/public/finance-company-tools";
 import { FinanceToolControls } from "@/components/finance/finance-tool-controls";
 import { FinanceStarterControls } from "@/components/finance/finance-starter-controls";
 

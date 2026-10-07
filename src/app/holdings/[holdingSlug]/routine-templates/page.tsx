@@ -1,3 +1,4 @@
+import { staffPresentationQueries } from "@/server/modules/work_projection/public/presentation-context-queries";
 import { FeaturePage, FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { ServiceNavigation } from "@/components/modules/service-navigation";
 import {
@@ -6,9 +7,9 @@ TaskEditor,
 } from "@/components/modules/staff-work-controls";
 import { ListFilters } from "@/components/ui/list-filters";
 import { EmptyState,PageHeader } from "@/components/ui/primitives";
-import { administrationAccess } from "@/server/administration";
-import { listTemplates } from "@/server/routines";
-import { staffPage } from "@/server/staff-page";
+import { administrationAccess } from "@/server/modules/runtime/public/administration";
+
+
 import { RecordLink as Link } from "@/components/records/record-link";
 import { Card } from "@/components/ui/foundation";
 export default async function Routines({
@@ -19,9 +20,9 @@ export default async function Routines({
   searchParams: Promise<{q?:string;status?:string}>;
 }) {
   const { holdingSlug } = await params,
-    { actor, write, base, options, projects, staff } =
-      await staffPage(holdingSlug),
-    templates = await listTemplates(write, actor);
+    { actor, queries, base, options, projects, staff } =
+      await staffPresentationQueries(holdingSlug),
+    templates = await queries.listTemplates(actor);
   const query=await searchParams;
   const visible=templates.filter(t=>(!query.q||t.title.toLowerCase().includes(query.q.toLowerCase()))&&(!query.status||query.status==="all"||(query.status==="published"?t.published:!t.published)));
   const access = await administrationAccess(actor);

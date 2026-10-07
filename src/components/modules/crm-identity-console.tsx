@@ -6,12 +6,12 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
-import type { crmIdentities } from "@/server/crm-identities";
+import type { crmIdentities } from "@/server/modules/crm/public/crm-identities";
 import { HubForm } from "@/components/sales-customers/hub-form";
 import { HubPagination, HubSegments } from "@/components/sales-customers/hub-shell";
 import { HubFilters, HubTable, hubPage } from "@/components/sales-customers/hub-list";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { queryValue, type HubQuery } from "@/lib/sales-customers";
+import { queryValue, type HubQuery } from "@/server/modules/sales/public/rules/navigation";
 import styles from "@/components/sales-customers/hub.module.css";
 import { FormLayout } from "@/components/ui/foundation";
 

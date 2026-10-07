@@ -1,6 +1,6 @@
 # Browser acceptance บนฐานข้อมูลจำลองแยก
 
-ใช้ `bun --conditions=react-server scripts/local/browser-simulation.ts prepare` เพื่อสร้างฐานข้อมูลทดสอบหกชุดด้วย `erpx_test_admin` บน `127.0.0.1:5432` พร้อมสำเนาแอปและบัญชีจำลองหกบทบาท ไม่มี session ที่สร้างข้ามขั้น login และไม่มีธุรกรรมปลายทางที่ทำให้ scenario ผ่านล่วงหน้า
+ใช้ `bun run demo:prepare` เพื่อสร้างฐานข้อมูลทดสอบแปดชุดด้วย `erpx_test_admin` บน `127.0.0.1:5432` พร้อมสำเนาแอปและบัญชีจำลองหกบทบาท ไม่มี session ที่สร้างข้ามขั้น login และไม่มีธุรกรรมปลายทางที่ทำให้ scenario ผ่านล่วงหน้า
 
 คำสั่งคืน run ID และตำแหน่งไฟล์ credentials ที่อ่านได้เฉพาะเจ้าของไฟล์ ห้ามนำ password หรือ runtime secret ลงรายงาน/Git จากนั้นใช้ `start <run-id>` เปิดสำเนาบน loopback `3102` ด้วย Node 24.20.0 และ Bun 1.2.17 คำสั่งตรวจ port ก่อนเริ่มและไม่หยุด process ที่ครอบครอง port อยู่
 
@@ -18,3 +18,13 @@
 บัญชีและ stock ยกมาเป็น fixture เท่านั้น ไม่มี email/payment/provider จริง การตรวจ live integrations, อุปกรณ์ และ business UAT ยังต้องแยกดำเนินการ
 
 เวอร์ชันปัจจุบันเตรียม inventory/equity accounts แยกและ opening stock GL ผ่าน create/independent-post commands สำหรับการตรวจครั้งถัดไป หลักฐาน run เก่าระบุข้อจำกัดของผังบัญชีเดิมไว้ ไม่แก้ย้อนหลังหรืออ้างว่าตรวจ fixture ใหม่นี้แล้ว
+
+## Runner ตามเจ้าของโมดูล
+
+ใช้ `bun run test:e2e --module=<registry-id>` หรือ `--suite=<suite-id>`; เพิ่ม `--list` เพื่อดู selection ก่อนรัน ตัว runner อ่าน fixture profile, jobs และ scanner จาก suite manifest สร้าง template ที่ไม่มี web/jobs process แล้ว clone เป็นฐานข้อมูลและไฟล์ใหม่ต่อกรณี ไม่แชร์ผลการแก้ข้อมูลระหว่างกรณี การรันเดี่ยว รันซ้ำ หรือสลับลำดับจึงเริ่มจาก prerequisites เดียวกัน
+
+เลือก `--case-order=forward|reverse` เพื่อกำหนดลำดับ suite, project และกรณี โดยไม่เปลี่ยน assertion หรือ identity ของเทสต์ Full regression และ CI ต้องมีทั้ง forward และ reverse ของทุกกรณีที่รับผิดชอบบน fingerprint เดียวกัน คั่นด้วย fault probe ของ harness หลัง readiness ก่อน Playwright ซึ่งต้องเก็บผลล้มเหลวและ cleanup สำเร็จก่อนเริ่ม reverse; probe ไม่ใช่ผลผ่านของ business case ผลเฉพาะส่วนหรือความสามารถในการแยกข้อมูลเพียงอย่างเดียวใช้แทนหลักฐานรันซ้ำครบไม่ได้
+
+Collection มี cohort ของตัวเองเพราะเทสต์เดิมบางไฟล์อ่าน fixture ตอน import เมื่อเริ่มกรณีจริง runner ตรวจ health/readiness และใช้ exact project/file/title ด้วย zero retries ผลผ่านต้องมีกรณีที่เลือกตรงหนึ่งกรณีและ assertion ผ่านจริง การ skip จาก prerequisite ที่ขาดถือว่าล้มเหลว ทุกเส้นทางใช้ `finally` เก็บ log/trace/receipt ก่อน cleanup และตรวจลบเฉพาะ run ที่ตนเองเป็นเจ้าของ รวมถึง template
+
+UAT เตรียม login เฉพาะ profile ที่ระบุใน annotation ของกรณีนั้น; anonymous cases ไม่เตรียม session ส่วน Legal UAT login ผ่านกรณีของตนเองตามเดิม Full runner ใช้ compiled release ที่ fingerprint ตรงกับ candidate บน 3104 พร้อม scanner/jobs ไม่ใช้ development หรือ staging เป็น fixture

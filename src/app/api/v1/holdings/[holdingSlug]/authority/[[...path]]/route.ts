@@ -1,9 +1,9 @@
-import { requireWorkContext } from "@/server/authorization";
-import { holdingResources } from "@/server/runtime";
-import { requestPublicOrigin } from "@/server/public-origin";
-import { ApiError, errorResponse } from "@/server/http";
-import { appointmentOverview, changeAppointment, publishDepartmentFlow } from "@/server/department-authority";
-import { decideDepartmentOverride } from "@/server/department-decisions";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { appointmentOverview, changeAppointment, publishDepartmentFlow } from "@/server/modules/organization/public/department-authority";
+import { decideDepartmentOverride } from "@/server/modules/organization/public/department-decisions";
 
 type Context={params:Promise<{holdingSlug:string;path?:string[]}>};
 export const dynamic="force-dynamic";

@@ -1,9 +1,10 @@
+import { iamPresentationQueries } from "@/server/modules/identity_access/public/presentation-context-queries";
 import { notFound } from "next/navigation";
 import { IamConsole } from "@/components/iam/iam-console";
 import { iamSections, type IamSection } from "@/lib/iam";
-import { requireManageErpxContext } from "@/server/authorization";
-import { iamContext } from "@/server/iam-context";
-import { iamOverview } from "@/server/iam-service";
+import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
+
+
 export default async function IamPage({
   params,
 }: {
@@ -17,10 +18,10 @@ export default async function IamPage({
   )
     notFound();
   await requireManageErpxContext();
-  const { db, actor } = await iamContext(null);
+  const { queries, actor } = await iamPresentationQueries(null);
   return (
     <IamConsole
-      data={await iamOverview(db, actor, section === "my-access")}
+      data={await queries.iamOverview(actor, section === "my-access")}
       section={section}
       base="/holdings/erpx/manage-erpx"
       api="/api/v1/platform/iam"

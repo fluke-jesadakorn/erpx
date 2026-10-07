@@ -1,8 +1,8 @@
-import { requestPublicOrigin } from "@/server/public-origin";
-import { requireWorkContext } from "@/server/authorization";
-import { holdingResources } from "@/server/runtime";
-import { saveDocumentPage } from "@/server/document-derivatives";
-import { ApiError, errorResponse } from "@/server/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { saveDocumentPage } from "@/server/modules/files/public/document-derivatives";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 export async function POST(
   request: Request,
   context: { params: Promise<{ holdingSlug: string; id: string }> },

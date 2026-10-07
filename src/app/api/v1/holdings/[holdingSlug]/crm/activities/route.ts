@@ -1,7 +1,7 @@
-import {requireWorkContext} from '@/server/authorization';
-import {requestPublicOrigin} from '@/server/public-origin';
-import {ApiError,errorResponse} from '@/server/http';
-import {crmActivityWorkspace,createCRMActivity,changeCRMActivity} from '@/server/crm-activities';
+import {requireWorkContext} from "@/server/modules/identity_access/public/authorization";
+import {requestPublicOrigin} from "@/server/modules/manage_erpx/public/public-origin";
+import {ApiError,errorResponse} from "@/server/modules/runtime/public/http";
+import {crmActivityWorkspace,createCRMActivity,changeCRMActivity} from "@/server/modules/crm/public/crm-activities";
 type Context={params:Promise<{holdingSlug:string}>};
 const headers={'Cache-Control':'private, no-store'};
 export async function GET(r:Request,c:Context){try{const a=await requireWorkContext((await c.params).holdingSlug),leadId=new URL(r.url).searchParams.get('leadId');if(!leadId)throw new ApiError(422,'LEAD_REQUIRED','Choose a CRM lead.');return Response.json({data:await crmActivityWorkspace(a,leadId)},{headers});}catch(e){return errorResponse(e);}}

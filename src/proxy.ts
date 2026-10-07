@@ -152,6 +152,15 @@ export function proxy(request: NextRequest) {
   if (!frontApp && path.startsWith("/front-access")) return new NextResponse("Not found", { status: 404 });
   if (!frontApp && path === "/api/v1/front-access/quick-access") return new NextResponse("Not found", { status: 404 });
   if (!frontApp && path.startsWith("/api/v1/front/") && frontOrigin("pms") && frontOrigin("pos")) return new NextResponse("Not found", { status: 404 });
+  // Retired UI destinations must finish before a streamed layout can commit 200.
+  // Host boundaries above and the separate records APIs retain their existing behavior.
+  const pageDestination = path.startsWith("/platform/")
+    ? path.slice("/platform/".length).split("/").filter(Boolean)
+    : path.startsWith("/holdings/")
+      ? parse(path.slice("/holdings/".length).split("/").filter(Boolean))?.destination
+      : undefined;
+  if (pageDestination && (pageDestination[0] === "modules" || pageDestination[0] === "records" || (pageDestination[0] === "preview" && pageDestination[1] === "records")))
+    return new NextResponse("Not found", { status: 404 });
   if (request.nextUrl.pathname.startsWith("/platform/")) {
     const headers = new Headers(request.headers);
     headers.set("x-erpx-page-path", requestedPagePath(request));

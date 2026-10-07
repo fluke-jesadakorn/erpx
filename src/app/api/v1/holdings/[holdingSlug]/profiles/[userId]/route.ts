@@ -1,6 +1,6 @@
-import { requireWorkContext } from "@/server/authorization";
-import { errorResponse } from "@/server/http";
-import { memberProfileView } from "@/server/member-profiles";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { errorResponse } from "@/server/modules/runtime/public/http";
+import { memberProfileView } from "@/server/modules/organization/public/member-profiles";
 
 export async function GET(request: Request, context: RouteContext<"/api/v1/holdings/[holdingSlug]/profiles/[userId]">) {
   try {

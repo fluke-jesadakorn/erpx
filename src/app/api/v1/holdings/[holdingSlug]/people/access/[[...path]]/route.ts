@@ -1,13 +1,13 @@
-import { iamContext } from "@/server/iam-context";
-import { readManagement } from "@/server/user-management";
+import { iamContext } from "@/server/modules/identity_access/public/iam-context";
+import { readManagement } from "@/server/modules/identity_access/public/user-management";
 import {
   accessComparison,
   accessDetail,
   accessEntries,
   accessMetadata,
   peopleAccessData,
-} from "@/server/people-access";
-import { ApiError, errorResponse } from "@/server/http";
+} from "@/server/modules/people_payroll/public/people-access";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 export const dynamic = "force-dynamic";
 export async function GET(
   request: Request,

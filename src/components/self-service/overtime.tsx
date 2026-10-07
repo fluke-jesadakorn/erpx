@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { workFetch } from "@/lib/work-fetch";
 import { overtimeLabels, type OvertimeDetails } from "@/lib/overtime";
-import type { OvertimeDetail, previewOvertime } from "@/server/overtime";
+import type { OvertimeDetail, previewOvertime } from "@/server/modules/people_payroll/public/overtime";
 import { ApprovalHistory } from "@/components/modules/approval-history";
 import {
   AttachmentPanel,

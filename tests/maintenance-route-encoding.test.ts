@@ -9,7 +9,7 @@ import MaintenancePage from "../src/app/holdings/[holdingSlug]/maintenance/[id]/
 
 vi.mock("../src/server/runtime", () => ({ holdingResources: async () => ({ write: db, files: env.H001_FILES }), runtimeEnv: async () => env }));
 vi.mock("../src/server/authorization", () => ({ requireWorkContext: async () => actor, publicScope: () => ({ kind: "holding", holdingSlug: "test" }) }));
-vi.mock("../src/server/page-error", () => ({ pageError: (error: unknown) => { throw error; } }));
+vi.mock("../src/server/modules/work_projection/public/page-error", () => ({ pageError: (error: unknown) => { throw error; } }));
 let actor: WorkContext, f: Awaited<ReturnType<typeof expenseFixture>>, workId: string;
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
 beforeEach(async () => {

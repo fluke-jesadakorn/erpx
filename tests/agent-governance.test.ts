@@ -1,3 +1,4 @@
+import {requiredFact,stringField} from "./helpers/required-fact";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "./runtime-env";
 import {
@@ -133,10 +134,10 @@ it("routes an approved immutable version through a pool and records private invo
     turn,
     generate,
   );
-  const evidence = await db
+  const evidence = requiredFact(await db
     .prepare("SELECT * FROM ai_invocation_evidence WHERE turn_id=?")
     .bind(turn)
-    .first<Record<string, string | number | null>>();
+    .first<Record<string, string | number | null>>());
   expect(evidence).toMatchObject({
     agent_version_id: v.id,
     outcome: "succeeded",
@@ -144,7 +145,7 @@ it("routes an approved immutable version through a pool and records private invo
     output_tokens: 7,
     user_id: f.claimant.userId,
   });
-  expect(JSON.parse(evidence.authority_snapshot_json)).toMatchObject({
+  expect(JSON.parse(stringField(evidence,"authority_snapshot_json"))).toMatchObject({
     assignmentId: f.claimant.assignmentId,
     companyId: f.company,
   });
@@ -315,4 +316,21 @@ it("records provider failure without exposing another user's private session", a
         .first("c"),
     ),
   ).toBe(0);
+});
+
+it("rolls back agent creation, receipt and audit on late outbox failure, then accepts the same key and replays",async()=>{
+  const commandKey=key(),agentId=`agent-${commandKey}`,input={name:"Rollback-safe guide",purpose:"Read authorized work evidence"},suffix=key().replace(/[^a-zA-Z0-9]/g,""),fault=`agent_outbox_fault_${suffix}`,trigger=`agent_outbox_${suffix}`;
+  await db.prepare(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='${commandKey}' THEN RAISE EXCEPTION 'AGENT_TEST_LATE_FAILURE'; END IF; RETURN NEW; END $$`).run();
+  await db.prepare(`CREATE TRIGGER ${trigger} AFTER INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION ${fault}()`).run();
+  try{
+    await expect(createAgent(f.owner,input,commandKey)).rejects.toThrow("AGENT_TEST_LATE_FAILURE");
+    expect(await db.prepare("SELECT count(*)::int count FROM agent_catalog WHERE id=?").bind(agentId).first("count")).toBe(0);
+    for(const table of ["command_receipts","audit_events","outbox_events"]){expect(await db.prepare(`SELECT count(*)::int count FROM ${table} WHERE command_id=?`).bind(commandKey).first("count")).toBe(0);}
+  }finally{
+    await db.prepare(`DROP TRIGGER ${trigger} ON outbox_events`).run();
+    await db.prepare(`DROP FUNCTION ${fault}()`).run();
+  }
+  const result=await createAgent(f.owner,input,commandKey);
+  expect(await createAgent(f.owner,input,commandKey)).toEqual(result);
+  expect(await db.prepare("SELECT version FROM agent_catalog WHERE id=?").bind(agentId).first("version")).toBe(1);
 });

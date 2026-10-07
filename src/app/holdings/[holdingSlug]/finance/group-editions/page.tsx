@@ -1,12 +1,12 @@
 import { FeaturePage } from "@/components/features/feature-page";
 import { FinanceWorkspace } from "@/components/finance/finance-workspace";
 import { FinanceGroupEditionControls } from "@/components/finance/finance-group-edition-controls";
-import { publicScope, requireWorkContext } from "@/server/authorization";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { hasPermission } from "@/lib/permissions";
-import { groupExpansionWorkspace } from "@/server/finance-group-editions";
-import { financeCompanyTools } from "@/server/finance-company-tools";
-import { pageError } from "@/server/page-error";
+import { groupExpansionWorkspace } from "@/server/modules/finance/public/finance-group-editions";
+import { financeCompanyTools } from "@/server/modules/finance/public/finance-company-tools";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
 export const dynamic = "force-dynamic";
 export default async function GroupEditionsPage({
   params,

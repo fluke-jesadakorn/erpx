@@ -1,6 +1,6 @@
 'use client';
 import {useFrontLanguage} from '@/components/front/front-language';
-import type {BookingPolicy} from '@/lib/pms-model';
+import type {BookingPolicy} from "@/server/modules/pms/public/rules/pms-model";
 export function BookingPolicySummary({policy}:{policy?:BookingPolicy}){
  const language=useFrontLanguage();
  if(!policy)return <p>{language==='th'?'ติดต่อโรงแรมเพื่อสอบถามเงื่อนไขการจอง':'Contact the hotel for booking terms'}</p>;

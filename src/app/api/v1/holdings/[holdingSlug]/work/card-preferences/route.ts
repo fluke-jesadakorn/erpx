@@ -1,13 +1,13 @@
-import { requireWorkContext } from "@/server/authorization";
-import { holdingResources } from "@/server/runtime";
-import { errorResponse } from "@/server/http";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { errorResponse } from "@/server/modules/runtime/public/http";
 import {
   readWorkCardPreferences,
   saveWorkCardPreferences,
   workCardPreferenceSchema,
-} from "@/server/work-card-preferences";
-import { getWorkSummary } from "@/server/work-summary";
-import { serviceCommandBody } from "@/server/service-http";
+} from "@/server/modules/work_projection/public/work-card-preferences";
+import { getWorkSummary } from "@/server/modules/work_projection/public/work-summary";
+import { serviceCommandBody } from "@/server/modules/support/public/service-http";
 type Context = { params: Promise<{ holdingSlug: string }> };
 export async function GET(_request: Request, context: Context) {
   try {

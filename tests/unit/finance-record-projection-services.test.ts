@@ -1,0 +1,81 @@
+import {describe,expect,it,vi} from 'vitest';
+import {createFinanceRecordDetails,type FinanceRecordDetailPorts,type ForecastFacts} from '../../src/server/modules/finance/application/record-details';
+import {createFinanceExpansionRecords,type FinanceExpansionRecordPorts} from '../../src/server/modules/finance/application/expansion-records';
+import {isFinanceExtraKind,isFinanceExpansionKind,type FinanceRecordRow as Row} from '../../src/server/modules/finance/domain/record-kinds';
+import type {WorkContext} from '../../src/server/authorization';
+import { createDocumentPostingPreview, type DocumentPostingPreviewPorts } from '../../src/server/modules/finance/application/document-posting-preview';
+const actor:WorkContext={userId:'reviewer',name:'Reviewer',email:'reviewer@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['finance'],assignments:[],workspaces:[]};
+function postingPreview(overrides: Partial<DocumentPostingPreviewPorts> = {}) {
+ const ports: DocumentPostingPreviewPorts = {
+  invoice: vi.fn(async () => ({ status: 'draft', kind: 'payable', subtotal_minor: 1000, tax_minor: 70, total_minor: 1070, debit_account_id: 'net', credit_account_id: 'control', tax_account_id: 'tax' })),
+  stockCount: vi.fn(async () => ({ status: 'draft', journal_id: null })), accounts: vi.fn(async () => [{ id: 'net', code: '5000', name: 'Expense' }]),
+  journalLines: vi.fn(async () => [{ id: 'retained', debit: 4321, credit: 0 }, { id: 'control', debit: 0, credit: 4321 }]),
+  matchedInvoiceLines: vi.fn(async () => null), stockConfiguration: vi.fn(async () => ({ inventory_account_id: 'stock', variance_account_id: 'variance' })),
+  stockDeltas: vi.fn(async () => [{ delta: 250 }, { delta: -100 }, { delta: 0 }]), ...overrides,
+ };
+ return { ports, run: createDocumentPostingPreview(ports) };
+}
+describe('Finance document posting preview owner composition', () => {
+ it('does not read downstream owners for missing or voided drafts', async () => {
+  const absent = postingPreview({ invoice: async () => null });
+  expect(await absent.run('company', 'invoice', 'missing')).toBeNull(); expect(absent.ports.accounts).not.toHaveBeenCalled();
+  const voided = postingPreview({ invoice: async () => ({ status: 'voided' }) });
+  expect(await voided.run('company', 'invoice', 'voided')).toEqual({ state: 'voided' });
+  expect(voided.ports.accounts).not.toHaveBeenCalled(); expect(voided.ports.matchedInvoiceLines).not.toHaveBeenCalled();
+ });
+ it('preserves payable and receivable tax directions and supplied Company identity', async () => {
+  const payable = postingPreview();
+  expect(await payable.run('company', 'invoice', 'invoice')).toMatchObject({ posted: false, debit: 1070, credit: 1070, lines: [{ id: 'net', debit: 1000, credit: 0 }, { id: 'control', debit: 0, credit: 1070 }, { id: 'tax', debit: 70, credit: 0 }] });
+  expect(payable.ports.invoice).toHaveBeenCalledWith('company', 'invoice'); expect(payable.ports.accounts).toHaveBeenCalledWith('company'); expect(payable.ports.matchedInvoiceLines).toHaveBeenCalledWith('company', 'invoice');
+  const receivable = postingPreview({ invoice: async () => ({ kind: 'receivable', subtotal_minor: 1000, tax_minor: 70, total_minor: 1070, debit_account_id: 'control', credit_account_id: 'net', tax_account_id: 'tax' }) });
+  expect(await receivable.run('company', 'invoice', 'invoice')).toMatchObject({ lines: [{ id: 'control', debit: 1070, credit: 0 }, { id: 'net', debit: 0, credit: 1000 }, { id: 'tax', debit: 0, credit: 70 }] });
+ });
+ it('uses Procurement matched posting lines instead of recomputing the invoice summary', async () => {
+  const lines = [{ id: 'clearing', debit: 900, credit: 0 }, { id: 'variance', debit: 100, credit: 0 }, { id: 'control', debit: 0, credit: 1000 }];
+  const matched = postingPreview({ matchedInvoiceLines: async () => lines });
+  const result = await matched.run('company', 'invoice', 'invoice');
+  expect(result).toMatchObject({ lines, debit: 1000, credit: 1000 }); expect(result?.state === 'ready' && result.lines).toBe(lines);
+ });
+ it('retains posted journal order and amounts without re-reading draft configuration', async () => {
+  const posted = postingPreview({ stockCount: async () => ({ journal_id: 'retained-journal' }) });
+  expect(await posted.run('company', 'stock_count', 'count')).toMatchObject({ posted: true, debit: 4321, credit: 4321, lines: [{ id: 'retained', debit: 4321, credit: 0 }, { id: 'control', debit: 0, credit: 4321 }] });
+  expect(posted.ports.journalLines).toHaveBeenCalledWith('retained-journal'); expect(posted.ports.stockConfiguration).not.toHaveBeenCalled(); expect(posted.ports.stockDeltas).not.toHaveBeenCalled();
+ });
+ it('keeps positive and negative stock adjustments separate and blocks absent configuration', async () => {
+  const stock = postingPreview();
+  expect(await stock.run('company', 'stock_count', 'count')).toMatchObject({ posted: false, debit: 350, credit: 350, lines: [{ id: 'stock', debit: 250, credit: 0 }, { id: 'variance', debit: 0, credit: 250 }, { id: 'variance', debit: 100, credit: 0 }, { id: 'stock', debit: 0, credit: 100 }] });
+  expect(stock.ports.stockDeltas).toHaveBeenCalledWith('count');
+  const absent = postingPreview({ stockConfiguration: async () => null });
+  expect(await absent.run('company', 'stock_count', 'count')).toEqual({ state: 'configuration-required' }); expect(absent.ports.stockDeltas).not.toHaveBeenCalled();
+ });
+ it('represents a zero adjustment without inventing a journal and propagates owner read failures', async () => {
+  expect(await postingPreview({ stockDeltas: async () => [{ delta: 0 }] }).run('company', 'stock_count', 'count')).toMatchObject({ lines: [], debit: 0, credit: 0 });
+  const failed = postingPreview({ matchedInvoiceLines: async () => { throw new Error('Procurement source unavailable'); } });
+  await expect(failed.run('company', 'invoice', 'invoice')).rejects.toThrow('Procurement source unavailable');
+ });
+});
+const error=(status:number,code:string,message:string)=>Object.assign(new Error(message),{status,code});
+type Details=FinanceRecordDetailPorts<{recognitions:Row[];retained:string},{retained:string},{retained:string},ForecastFacts>;
+function details(extra:Partial<Details>={}){const ports:Details={error,permission:a=>a,ready:vi.fn(async()=>{}),today:()=> '2026-10-06',bankWorkspace:async()=>({retained:'bank'}),contractWorkspace:async()=>({retained:'contract',recognitions:[{id:'recognition',billing_run_id:'bill'},{id:'other',billing_run_id:'other'}]}),collectionWorkspace:vi.fn(async()=>({retained:'collection'})),forecast:async()=>({currency:'THB',opening:'20.00',basis:'Snapshot basis',months:[{month:'2026-10',closing:'30.00',movement:'10.00',invoiceIds:['invoice']}]}),row:async()=>({id:'record'}),collectionCase:async()=>({id:'case',version:4,current_invoice_version:8,is_current:0}),bill:async()=>({id:'bill',effective_contract_content_json:'retained version',result_json:JSON.stringify({items:[{key:'first',amount:'10'},{key:'second',amount:'20'}]})}),historicalInvoices:vi.fn(async()=>[{id:'invoice',outstanding_minor:1000}]),bankAccounts:vi.fn(async()=>[{id:'bank'}]),...extra};return {ports,run:createFinanceRecordDetails(ports)}}
+type Expansion=FinanceExpansionRecordPorts<{retained:string},{assets:Row[];retained:string}>;
+function expansion(extra:Partial<Expansion>={}){const ports:Expansion={error,permission:a=>a,ready:vi.fn(async()=>{}),row:async()=>({id:'run',instrument_id:'edition',policy_id:'policy',kind:'payoff',ordinal:3,input_json:'{}',entry_date:'2026-10-06'}),tools:async()=>[{tool:'instruments',enabled:1},{tool:'asset_policies',enabled:0}],instrumentWorkspace:vi.fn(async()=>({retained:'instrument'})),assetPolicyWorkspace:async()=>({retained:'policy',assets:[{id:'asset',asset_number:'FA-001'}]}),instrumentEdition:vi.fn(async()=>({id:'edition',number:'IN-001'})),instrumentRuns:vi.fn(async()=>[{id:'scheduled',ordinal:1}]),assetPolicy:vi.fn(async()=>({id:'policy',asset_id:'asset'})),assetPolicyRuns:vi.fn(async()=>[{id:'monthly',ordinal:1}]),...extra};return {ports,run:createFinanceExpansionRecords(ports)}}
+describe('Finance scoped detail and historical projection services',()=>{
+ it('keeps closed exact kind selection before adapter table dispatch',()=>{expect(isFinanceExtraKind('bank_profile')).toBe(true);expect(isFinanceExtraKind('finance_journals')).toBe(false);expect(isFinanceExpansionKind('finance_instrument_run')).toBe(true);expect(isFinanceExpansionKind('other')).toBe(false)});
+ it('checks read permission before acquiring resources',async()=>{const c=details({permission:()=>{throw error(403,'FORBIDDEN','Denied')}});await expect(c.run.financeExtraRecord(actor,'bank_profile','record',{},1)).rejects.toMatchObject({code:'FORBIDDEN'});expect(c.ports.ready).not.toHaveBeenCalled()});
+ it('limits bank detail to the selected group or mapping and clears unrelated candidates',async()=>{const c=details();expect(await c.run.financeExtraRecord(actor,'bank_profile','record',{},1)).toMatchObject({data:{retained:'bank',groups:[],mappings:[{id:'record'}],suggestions:[],rows:[],targets:[]}});expect(await c.run.financeExtraRecord(actor,'bank_match_group','record',{},1)).toMatchObject({data:{groups:[{id:'record'}],mappings:[]}})});
+ it('uses the injected current date only when collection asOf is omitted',async()=>{const c=details();expect(await c.run.financeExtraRecord(actor,'collection_case','case',{},1)).toMatchObject({row:{version:4,current_invoice_version:8,is_current:0},data:{cases:[{id:'case'}],invoices:[]}});expect(c.ports.collectionWorkspace).toHaveBeenLastCalledWith(actor,'2026-10-06');await c.run.financeExtraRecord(actor,'collection_case','case',{asOf:'2025-12-31'},1);expect(c.ports.collectionWorkspace).toHaveBeenLastCalledWith(actor,'2025-12-31')});
+ it('collects cumulative forecast source IDs before paginating at 30 rows',async()=>{const earlier=Array.from({length:30},(_,n)=>`earlier-${n}`),c=details({forecast:async()=>({currency:'THB',opening:'20.00',basis:'Retained as of',months:[{month:'2026-09',closing:'25.00',movement:'5.00',invoiceIds:earlier},{month:'2026-10',closing:'30.00',movement:'5.00',invoiceIds:['current']},{month:'2026-11',closing:'40.00',movement:'10.00',invoiceIds:['future']}]})});expect(await c.run.financeExtraRecord(actor,'cash_forecast_sources','2026-10',{chartId:'chart',asOf:'2026-09-30'},2)).toMatchObject({hasNext:false,page:2,related:[{kind:'finance_account',id:'bank',args:{endDate:'2026-09-30'}}]});expect(c.ports.historicalInvoices).toHaveBeenCalledWith(actor,'2026-09-30',['current']);expect(c.ports.bankAccounts).toHaveBeenCalledWith(actor,'chart','2026-09-30')});
+ it('skips the historical invoice query for an empty page and denies absent forecast month',async()=>{const c=details();expect(await c.run.financeExtraRecord(actor,'cash_forecast_sources','2026-10',{chartId:'chart',asOf:'2026-09-30'},2)).toMatchObject({rows:[]});expect(c.ports.historicalInvoices).not.toHaveBeenCalled();await expect(c.run.financeExtraRecord(actor,'cash_forecast_sources','2026-12',{chartId:'chart',asOf:'2026-09-30'},1)).rejects.toMatchObject({code:'FORECAST_MONTH_NOT_FOUND'})});
+ it('selects only the retained obligation item and recognitions of its billing run',async()=>{const c=details(),result=await c.run.financeExtraRecord(actor,'finance_obligation','bill',{item:'second'},1);expect(result).toMatchObject({row:{effective_contract_content_json:'retained version',result_json:JSON.stringify({items:[{key:'second',amount:'20'}]})},data:{contracts:[],bills:[{id:'bill'}],recognitions:[{id:'recognition'}]}})});
+ it('rejects a missing retained obligation without emitting a different item',async()=>{await expect(details().run.financeExtraRecord(actor,'finance_obligation','bill',{item:'unknown'},1)).rejects.toMatchObject({code:'OBLIGATION_NOT_FOUND'})});
+ it('keeps only the selected contract or recognition while retaining workspace facts',async()=>{const c=details();expect(await c.run.financeExtraRecord(actor,'finance_business_contract','contract',{},1)).toMatchObject({data:{retained:'contract',contracts:[{id:'record'}],bills:[],recognitions:[]}});expect(await c.run.financeExtraRecord(actor,'finance_recognition','recognition',{},1)).toMatchObject({data:{contracts:[],bills:[],recognitions:[{id:'record'}]}})});
+ it('retains distinct scoped not-found errors for bank case and bill sources',async()=>{await expect(details({row:async()=>null}).run.financeExtraRecord(actor,'bank_profile','foreign',{},1)).rejects.toMatchObject({code:'BANK_RECORD_NOT_FOUND'});await expect(details({collectionCase:async()=>null}).run.financeExtraRecord(actor,'collection_case','foreign',{},1)).rejects.toMatchObject({code:'CASE_NOT_FOUND'});await expect(details({bill:async()=>null}).run.financeExtraRecord(actor,'finance_business_bill','foreign',{},1)).rejects.toMatchObject({code:'BILL_NOT_FOUND'})});
+});
+describe('Finance immutable instrument and depreciation policy detail projection',()=>{
+ it('uses the authorized actor returned by permission and stops foreign records before workspace reads',async()=>{const authorized={...actor,companyId:'authorized-company'},row=vi.fn(async()=>null),c=expansion({permission:()=>authorized,row});await expect(c.run.financeExpansionRecord(actor,'finance_instrument','foreign')).rejects.toMatchObject({code:'FINANCE_RECORD_NOT_FOUND'});expect(row).toHaveBeenCalledWith(authorized,'finance_instrument','foreign');expect(c.ports.instrumentWorkspace).not.toHaveBeenCalled()});
+ it('shows payoff and instalment labels from the original instrument edition',async()=>{expect(await expansion().run.financeExpansionRecord(actor,'finance_instrument_run','run')).toMatchObject({row:{name:'IN-001 · Early payoff'},enabled:true,instrumentData:{retained:'instrument',editions:[{id:'edition'}],runs:[{id:'run'}]}});expect(await expansion({row:async()=>({id:'run',instrument_id:'edition',kind:'instalment',ordinal:4})}).run.financeExpansionRecord(actor,'finance_instrument_run','run')).toMatchObject({row:{name:'IN-001 · Instalment 4'}})});
+ it('loads ordered runs for an instrument edition without loading a different current edition',async()=>{const c=expansion({row:async()=>({id:'edition',number:'IN-001'})});expect(await c.run.financeExpansionRecord(actor,'finance_instrument','edition')).toMatchObject({instrumentData:{editions:[{id:'edition'}],runs:[{id:'scheduled'}]}});expect(c.ports.instrumentEdition).not.toHaveBeenCalled();expect(c.ports.instrumentRuns).toHaveBeenCalledWith(actor,'edition')});
+ it('uses retained depreciationMonth instead of posting date and preserves disabled tools',async()=>{const c=expansion({row:async()=>({id:'run',policy_id:'policy',input_json:'{"depreciationMonth":"2026-09"}',entry_date:'2026-10-06'})});expect(await c.run.financeExpansionRecord(actor,'finance_asset_policy_run','run')).toMatchObject({row:{name:'FA-001 · Depreciation 2026-09'},enabled:false,assetPolicyData:{policies:[{id:'policy'}],runs:[{id:'run'}]}})});
+ it('falls back to retained posting month or generic asset label and loads policy runs',async()=>{expect(await expansion({assetPolicyWorkspace:async()=>({retained:'policy',assets:[]})}).run.financeExpansionRecord(actor,'finance_asset_policy_run','run')).toMatchObject({row:{name:'Fixed asset · Depreciation 2026-10'}});const c=expansion({row:async()=>({id:'policy',asset_id:'asset'})});expect(await c.run.financeExpansionRecord(actor,'finance_asset_policy','policy')).toMatchObject({row:{name:'FA-001 · Depreciation policy'},assetPolicyData:{runs:[{id:'monthly'}]}});expect(c.ports.assetPolicy).not.toHaveBeenCalled()});
+ it('rejects a missing retained edition or policy rather than using workspace current state',async()=>{await expect(expansion({instrumentEdition:async()=>null}).run.financeExpansionRecord(actor,'finance_instrument_run','run')).rejects.toMatchObject({code:'FINANCE_RECORD_NOT_FOUND'});await expect(expansion({assetPolicy:async()=>null}).run.financeExpansionRecord(actor,'finance_asset_policy_run','run')).rejects.toMatchObject({code:'FINANCE_RECORD_NOT_FOUND'})});
+});

@@ -1,0 +1,25 @@
+import type { CalendarItem } from "@/server/modules/work_projection/public/rules/calendar-domain";
+export type AppointmentRow = {
+    id: string;
+    company_id: string;
+    branch_id: string | null;
+    department_id: string | null;
+    organizer_person_id: string | null;
+    title: string;
+    description: string;
+    starts_at: number;
+    ends_at: number;
+    timezone: string;
+    location: string;
+    meeting_url: string;
+    private: boolean;
+    guests: NonNullable<CalendarItem["details"]>["guests"];
+    status: string;
+    version: number;
+    created_by: string;
+    created_at: number;
+    updated_at: number;
+    all_day: boolean;
+    start_date: string | null;
+    end_date: string | null;
+};

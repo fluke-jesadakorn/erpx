@@ -466,14 +466,22 @@ it("stores PDF pages under original access and quota, rejects missing pages and 
     ),
   ).rejects.toMatchObject({ code: "PDF_PREPARATION_REQUIRED" });
   const jpeg = new Uint8Array([255, 216, 255, 217]).buffer;
-  await saveDocumentPage(
-    db,
-    env.H001_FILES,
-    f.claimant,
-    attachment,
-    { page: 1, pageCount: 2, originalChecksum: "pdf-original", bytes: jpeg },
-    key(),
-  );
+  const pageInput={page:1,pageCount:2,originalChecksum:"pdf-original",bytes:jpeg},pageKey=key();
+  const pageFilesBefore=(await env.H001_FILES.list({prefix:`${f.claimant.holdingId}/document-pages/`})).objects.map(object=>object.key).sort();
+  const trigger="page_late_"+pageKey.replace(/[^a-zA-Z0-9]/g,""),fn=trigger+"_failure";
+  await db.prepare(`CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'late document page outbox failure' USING ERRCODE='23514'; END $$`).run();
+  await db.prepare(`CREATE TRIGGER ${trigger} BEFORE INSERT ON outbox_events FOR EACH ROW WHEN (NEW.command_id='${pageKey}') EXECUTE FUNCTION ${fn}()`).run();
+  try {
+    await expect(saveDocumentPage(db,env.H001_FILES,f.claimant,attachment,pageInput,pageKey)).rejects.toThrow("late document page outbox failure");
+    expect(await db.prepare("SELECT COUNT(*)::int n FROM attachment_documents WHERE attachment_id=?").bind(attachment).first("n")).toBe(0);
+    expect(await db.prepare("SELECT COUNT(*)::int n FROM attachment_derivatives WHERE attachment_id=?").bind(attachment).first("n")).toBe(0);
+    expect(await db.prepare("SELECT COUNT(*)::int n FROM attachment_storage_ledger WHERE attachment_id=? AND variant='derivative'").bind(attachment).first("n")).toBe(0);
+    for(const table of ["command_receipts","audit_events","outbox_events"])expect(await db.prepare(`SELECT COUNT(*)::int n FROM ${table} WHERE command_id=?`).bind(pageKey).first("n")).toBe(0);
+    expect((await env.H001_FILES.list({prefix:`${f.claimant.holdingId}/document-pages/`})).objects.map(object=>object.key).sort()).toEqual(pageFilesBefore);
+  } finally {await db.prepare(`DROP TRIGGER ${trigger} ON outbox_events`).run();await db.prepare(`DROP FUNCTION ${fn}()`).run();}
+  const rendered=await saveDocumentPage(db,env.H001_FILES,f.claimant,attachment,pageInput,pageKey);
+  expect(await saveDocumentPage(db,env.H001_FILES,f.claimant,attachment,pageInput,pageKey)).toEqual(rendered);
+  for(const table of ["command_receipts","audit_events","outbox_events"])expect(await db.prepare(`SELECT COUNT(*)::int n FROM ${table} WHERE command_id=?`).bind(pageKey).first("n")).toBe(1);
   await expect(
     queueExpenseAi(
       db,

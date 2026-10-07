@@ -1,8 +1,9 @@
-import { requireManageErpxContext } from "@/server/authorization";
-import { readSeatForecastBaseline } from "@/server/billing-forecast";
-import { ApiError, errorResponse } from "@/server/http";
-import { runtimeEnv } from "@/server/runtime";
-import type { PostgresDatabase } from "@/server/runtime/postgres";
+import {customerHoldingBindingExists} from "@/server/modules/runtime/public/app-native-sources";
+import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
+import { readSeatForecastBaseline } from "@/server/modules/billing/public/billing-forecast";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { runtimeEnv } from "@/server/modules/runtime/public/runtime";
+import type { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
 
 export async function GET(request: Request) {
   try {
@@ -13,9 +14,8 @@ export async function GET(request: Request) {
     if (!holdingId || holdingId === "h003")
       throw new ApiError(422, "HOLDING_REQUIRED", "Select a Customer Holding.");
     const db = (await runtimeEnv()).CONTROL_DB as PostgresDatabase;
-    const binding = await db.pool.query(
-      "SELECT 1 FROM holding_bindings WHERE holding_id=$1 AND holding_id<>'h003'", [holdingId]);
-    if (!binding.rowCount) throw new ApiError(404, "NOT_FOUND", "Customer Holding not found.");
+    const binding = await customerHoldingBindingExists(db,holdingId);
+    if (!binding) throw new ApiError(404, "NOT_FOUND", "Customer Holding not found.");
     return Response.json({ data: await readSeatForecastBaseline(db, holdingId) },
       { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error); }

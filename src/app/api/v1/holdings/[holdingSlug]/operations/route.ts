@@ -1,7 +1,7 @@
-import {requireWorkContext} from "@/server/authorization";
-import {requestPublicOrigin} from "@/server/public-origin";
-import {ApiError,errorResponse} from "@/server/http";
-import {operationsWorkspace,operationsExceptionDetail,draftQueuePolicy,reviewQueuePolicy,openOperationsException,changeOperationsException} from "@/server/operations-exceptions";
+import {requireWorkContext} from "@/server/modules/identity_access/public/authorization";
+import {requestPublicOrigin} from "@/server/modules/manage_erpx/public/public-origin";
+import {ApiError,errorResponse} from "@/server/modules/runtime/public/http";
+import {operationsWorkspace,operationsExceptionDetail,draftQueuePolicy,reviewQueuePolicy,openOperationsException,changeOperationsException} from "@/server/modules/operations/public/operations-exceptions";
 type Context={params:Promise<{holdingSlug:string}>};
 const headers={"Cache-Control":"private, no-store"};
 export async function GET(r:Request,c:Context){

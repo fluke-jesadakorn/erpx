@@ -14,6 +14,9 @@ import { overtimeDetailsSchema } from '@/lib/overtime';
 import { assertLeaveAttachmentAccess,availableLeaveEvidence,leaveEvidenceManifest,pendingLeaveEvidenceCount } from '@/server/leave-evidence';
 import { withdrawAttachmentLink } from '@/server/attachments/service';
 import { getLeaveEvidence } from '@/server/work';
+import { prepareLocalBrowserHrReviewer,prepareLocalBrowserLeaveRecords } from '../scripts/fixtures/local-browser-leave';
+import { peopleRequestRoute } from '@/server/modules/organization/public/department-authority';
+import { loadIamAuthority } from '@/server/modules/identity_access/public/iam-store';
 vi.mock('@/server/runtime',()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES})}));
 const db=env.H001_DB,key=()=>crypto.randomUUID();
 let company:string,employee:WorkContext,manager:WorkContext,hr:WorkContext,other:WorkContext,type:string,policy:string;
@@ -44,6 +47,42 @@ beforeEach(async()=>{
  await runLeaveAccruals(db,'2026-09-17');
 });
 const leaveInput=()=>({leaveTypeId:type,startDate:'2026-10-05',endDate:'2026-10-05',startSegment:'full' as const,endSegment:'full' as const,handoverNote:'Private handover',saveOnly:false});
+it('prepares missing browser leave prerequisites without approving the request, changing other policies or duplicating grants',async()=>{
+ const existing=await db.prepare('SELECT id,policy_version_id,version FROM leave_policy_assignments WHERE company_id=? AND engagement_id=?').bind(company,`e-${employee.userId}`).first();
+ await db.prepare('UPDATE hr_engagements SET department_id=? WHERE id=?').bind(`department-${company}`,`e-${other.userId}`).run();
+ expect((await leaveSummary(other)).setupMessage).toContain('a leave policy has not been assigned');
+ const input={companyId:company,userId:other.userId,requestId:`browser-request-${company}`,requestNumber:`LV-${company}`,now:Date.UTC(2026,9,6)};
+ await prepareLocalBrowserLeaveRecords(db,input);
+ const summary=await leaveSummary(other);
+ expect(summary.setupMessage).toBeNull();
+ expect(summary.balances).toHaveLength(1);expect(summary.balances[0].available).toBe(30);
+ const request=await getLeave('h001',input.requestId,other);
+ expect(request.state).toBe('draft');expect(request.permittedActions).toContain('submit');
+ expect(request.approval.blockedReason).toBeNull();
+ await db.prepare("UPDATE leave_requests SET version=4,handover_note='Retained case correction' WHERE id=?").bind(input.requestId).run();
+ await prepareLocalBrowserLeaveRecords(db,{...input,now:input.now+1});
+ expect(await db.prepare('SELECT state,version,handover_note FROM leave_requests WHERE id=?').bind(input.requestId).first()).toEqual({state:'draft',version:4,handover_note:'Retained case correction'});
+ expect((await leaveSummary(other)).balances[0].available).toBe(30);
+ expect(await db.prepare('SELECT id,policy_version_id,version FROM leave_policy_assignments WHERE company_id=? AND engagement_id=?').bind(company,`e-${employee.userId}`).first()).toEqual(existing);
+ expect(Number(await db.prepare('SELECT count(*) count FROM approval_instances WHERE record_id=?').bind(input.requestId).first('count'))).toBe(0);
+});
+it('declares the independent browser HR reviewer without depending on role sort order or replacing another appointment',async()=>{
+ const owner=await person('Owner','holding_owner'),extraHr=await person('AAA-HR','hr_admin');
+ expect((await peopleRequestRoute(db,company,employee.userId)).steps.map(step=>step.userId)).toEqual([manager.userId,extraHr.userId]);
+ await expect(prepareLocalBrowserHrReviewer(db,employee,hr.userId)).rejects.toMatchObject({status:403});
+ expect(await db.prepare("SELECT person_id FROM authority_seats WHERE company_id=? AND kind='hr'").bind(company).first('person_id')).toBeNull();
+ const first=await prepareLocalBrowserHrReviewer(db,owner,hr.userId);
+ expect(first).toEqual({personId:`p-${hr.userId}`,version:1});
+ expect((await peopleRequestRoute(db,company,employee.userId)).steps.map(step=>step.userId)).toEqual([manager.userId,hr.userId]);
+ expect((await loadIamAuthority(db,company,hr.userId,'hr_admin')).permissions).toContain('people.manage');
+ expect((await loadIamAuthority(db,company,extraHr.userId,'hr_admin')).permissions).not.toContain('people.manage');
+ const snapshot=await db.prepare("SELECT * FROM authority_seats WHERE company_id=? AND kind='hr'").bind(company).first();
+ expect(await prepareLocalBrowserHrReviewer(db,owner,hr.userId)).toEqual(first);
+ await expect(prepareLocalBrowserHrReviewer(db,owner,extraHr.userId)).rejects.toThrow('BROWSER_HR_APPOINTMENT_ALREADY_OWNED');
+ expect(await db.prepare("SELECT * FROM authority_seats WHERE company_id=? AND kind='hr'").bind(company).first()).toEqual(snapshot);
+ expect(Number(await db.prepare("SELECT count(*) count FROM authority_appointments WHERE company_id=? AND kind='hr'").bind(company).first('count'))).toBe(1);
+ expect(Number(await db.prepare('SELECT count(*) count FROM approval_instances WHERE company_id=?').bind(company).first('count'))).toBe(0);
+});
 async function sums(id:string){return (await db.prepare('SELECT kind,sum(units)::float units FROM leave_balance_entries WHERE request_id=? GROUP BY kind ORDER BY kind').bind(id).all<{kind:string;units:number}>()).results;}
 function parseJson(value:unknown){return typeof value==='string'?JSON.parse(value):value as Record<string,unknown>;}
 async function stageLeaveEvidence(
@@ -81,14 +120,14 @@ it('holds scheduled leave accrual until People is enabled for the company in pro
  } finally {vi.unstubAllEnvs();}
 });
 async function otAction(actor:WorkContext,id:string,action:'submit'|'authorize'|'actuals'|'verify'|'approve'|'return'|'withdraw',details?:ReturnType<typeof actual>,commandKey=key()){
- const row=await getOvertime(actor,id);return commandOvertime(actor,id,{action,expectedVersion:row.version,note:'Reviewed independently',details},commandKey);
+ const row=await getOvertime(actor,id);return commandOvertime(actor,id,{action,override:false,attachmentSetIds:[],expectedVersion:row.version,note:'Reviewed independently',details},commandKey);
 }
 describe('Staff self-service transactional journeys',()=>{
  it('reserves once under retries; rejection releases without usage and resubmission re-previews',async()=>{
   const input=leaveInput(),k=key(),created=await createSelfServiceLeave(employee,input,k),id=String(created.id);
   expect(await createSelfServiceLeave(employee,input,k)).toEqual(created);
   expect(await sums(id)).toEqual([{kind:'reservation',units:-1}]);
-  await transitionLeave(manager,id,{action:'reject',expectedVersion:1,note:'Choose another date'},key());
+  await transitionLeave(manager,id,{action:'reject',override:false,expectedVersion:1,note:'Choose another date'},key());
   expect(await sums(id)).toEqual([{kind:'reservation',units:-1},{kind:'reservation_release',units:1}]);
   await editSelfServiceLeave(employee,id,{...input,startSegment:'first_half',endSegment:'first_half',expectedVersion:2},key());
   expect((await getLeave('h001',id,employee)).calculated_units).toBe(.5);
@@ -101,14 +140,14 @@ describe('Staff self-service transactional journeys',()=>{
  });
  it('keeps approved absence until both cancellation reviews, with exactly one reversal',async()=>{
   const id=String((await createSelfServiceLeave(employee,leaveInput(),key())).id);
-  await approveLeave('h001',id,{expectedVersion:1,note:''},key(),manager);
-  await approveLeave('h001',id,{expectedVersion:2,note:''},key(),hr);
-  const k=key(),command={action:'cancel' as const,expectedVersion:3,note:'Plans changed'};
+  await approveLeave('h001',id,{override:false,expectedVersion:1,note:''},key(),manager);
+  await approveLeave('h001',id,{override:false,expectedVersion:2,note:''},key(),hr);
+  const k=key(),command={override:false,action:'cancel' as const,expectedVersion:3,note:'Plans changed'};
   const cancellation=await transitionLeave(employee,id,command,k);expect(await transitionLeave(employee,id,command,k)).toEqual(cancellation);
   expect((await getLeave('h001',id,employee)).state).toBe('approved');
-  await decideLeaveCancellation(manager,id,{expectedVersion:4,note:''},key(),true);
+  await decideLeaveCancellation(manager,id,{override:false,expectedVersion:4,note:''},key(),true);
   expect((await getLeave('h001',id,employee)).state).toBe('approved');
-  const finalKey=key(),input={expectedVersion:5,note:''};await decideLeaveCancellation(hr,id,input,finalKey,true);await decideLeaveCancellation(hr,id,input,finalKey,true);
+  const finalKey=key(),input={override:false,expectedVersion:5,note:''};await decideLeaveCancellation(hr,id,input,finalKey,true);await decideLeaveCancellation(hr,id,input,finalKey,true);
   expect((await getLeave('h001',id,employee)).state).toBe('cancelled');expect((await sums(id)).find(e=>e.kind==='usage_reversal')?.units).toBe(1);
  });
  it('freezes versioned medical policy, permits submission first, and gates final approval on a clean certificate',async()=>{
@@ -123,13 +162,13 @@ describe('Staff self-service transactional journeys',()=>{
   await expect(assertLeaveAttachmentAccess(db,other,{leaveRequestId:id,purposeKey:'medical_certificate',operation:'read'})).rejects.toMatchObject({status:403});
   await expect(assertLeaveAttachmentAccess(db,manager,{leaveRequestId:id,purposeKey:'medical_certificate',operation:'read'})).resolves.toMatchObject({version:1});
   const supporting=await stageLeaveEvidence(id,1,'leave_supporting_photo','image/jpeg','support-checksum');
-  await approveLeave('h001',id,{expectedVersion:1,note:''},key(),manager);
+  await approveLeave('h001',id,{override:false,expectedVersion:1,note:''},key(),manager);
   expect(await db.prepare('SELECT state,binding_type FROM attachment_links WHERE id=?').bind(supporting.linkId).first()).toEqual({state:'bound',binding_type:'leave_approval'});
   expect((await getLeave('h001',id,employee)).evidence_version).toBe(1);
-  await expect(withdrawAttachmentLink(db,employee,supporting.linkId,'Replace the supporting photo')).rejects.toMatchObject({code:'BOUND_ATTACHMENT_IMMUTABLE'});
-  await expect(approveLeave('h001',id,{expectedVersion:2,note:''},key(),hr)).rejects.toMatchObject({code:'LEAVE_EVIDENCE_REQUIRED'});
+  await expect(withdrawAttachmentLink(db,employee,supporting.linkId,'Replace the supporting photo',key())).rejects.toMatchObject({code:'BOUND_ATTACHMENT_IMMUTABLE'});
+  await expect(approveLeave('h001',id,{override:false,expectedVersion:2,note:''},key(),hr)).rejects.toMatchObject({code:'LEAVE_EVIDENCE_REQUIRED'});
   const certificate=await stageLeaveEvidence(id,2,'medical_certificate','application/pdf','certificate-checksum');
-  await approveLeave('h001',id,{expectedVersion:2,note:''},key(),hr);
+  await approveLeave('h001',id,{override:false,expectedVersion:2,note:''},key(),hr);
   const approved=await getLeave('h001',id,employee);
   expect(approved).toMatchObject({state:'approved',evidence_version:2});
   await expect(assertLeaveAttachmentAccess(db,manager,{leaveRequestId:id,purposeKey:'medical_certificate',operation:'read'}))
@@ -159,13 +198,13 @@ describe('Staff self-service transactional journeys',()=>{
    const request=await createSelfServiceLeave(employee,leaveInput(),key()),id=String(request.id);
    const certificate=await stageLeaveEvidence(id,1,'medical_certificate','application/pdf','gate-off-certificate',true);
 
-   await approveLeave('h001',id,{expectedVersion:1,note:'Reviewed the compatibility attachment'},key(),manager);
+   await approveLeave('h001',id,{override:false,expectedVersion:1,note:'Reviewed the compatibility attachment'},key(),manager);
    expect(await db.prepare('SELECT state,binding_type FROM attachment_links WHERE id=?').bind(certificate.linkId).first())
      .toEqual({state:'bound',binding_type:'leave_approval'});
    expect(await db.prepare('SELECT state FROM attachment_sets WHERE id=?').bind(certificate.setId).first())
      .toEqual({state:'bound'});
 
-   await approveLeave('h001',id,{expectedVersion:2,note:'Final medical evidence review'},key(),hr);
+   await approveLeave('h001',id,{override:false,expectedVersion:2,note:'Final medical evidence review'},key(),hr);
    expect((await getLeave('h001',id,employee)).state).toBe('approved');
    const manifests=(await db.prepare('SELECT manifest_json FROM leave_evidence_manifests WHERE request_id=? ORDER BY request_version').bind(id).all<{manifest_json:string}>()).results;
    expect(manifests).toHaveLength(2);
@@ -215,8 +254,8 @@ describe('Staff self-service transactional journeys',()=>{
    await expect(availableLeaveEvidence(db,id,{purposeKey:'medical_certificate',minimumCount:1})).resolves.toEqual({count:0,setIds:[]});
    await expect(leaveEvidenceManifest(db,id)).resolves.toMatchObject({manifest:[],canonicalManifest:[],legacyManifest:[],draftSetIds:[]});
    await expect(pendingLeaveEvidenceCount(db,id)).resolves.toBe(0);
-   await approveLeave('h001',id,{expectedVersion:1,note:'No in-scope evidence was submitted'},key(),manager);
-   await expect(approveLeave('h001',id,{expectedVersion:2,note:'Final review'},key(),hr))
+   await approveLeave('h001',id,{override:false,expectedVersion:1,note:'No in-scope evidence was submitted'},key(),manager);
+   await expect(approveLeave('h001',id,{override:false,expectedVersion:2,note:'Final review'},key(),hr))
      .rejects.toMatchObject({code:'LEAVE_EVIDENCE_REQUIRED'});
    await db.batch([
     db.prepare(`INSERT INTO attachment_sets(id,company_id,target_type,target_id,component_kind,component_ref,purpose_key,expected_target_version,
@@ -254,7 +293,7 @@ describe('Staff self-service transactional journeys',()=>{
      WHERE policy_version_id=? AND leave_type_id=?`).bind(policy,type).run();
    const request=await createSelfServiceLeave(employee,leaveInput(),key()),id=String(request.id);
    const first=await stageLeaveEvidence(id,1,'medical_certificate','application/pdf','first-certificate');
-   await approveLeave('h001',id,{expectedVersion:1,note:'Reviewed the submitted documents'},key(),manager);
+   await approveLeave('h001',id,{override:false,expectedVersion:1,note:'Reviewed the submitted documents'},key(),manager);
    const duplicateSet=key(),duplicateLink=key();
    // A later canonical reuse of the same physical source must not satisfy a
    // two-document policy twice.
@@ -266,7 +305,7 @@ describe('Staff self-service transactional journeys',()=>{
     db.prepare("INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) VALUES(?,?,?,'draft',?,2,9999999999999)")
       .bind(duplicateLink,duplicateSet,first.source,employee.userId),
    ]);
-   await expect(approveLeave('h001',id,{expectedVersion:2,note:'Final review'},key(),hr))
+   await expect(approveLeave('h001',id,{override:false,expectedVersion:2,note:'Final review'},key(),hr))
      .rejects.toMatchObject({code:'LEAVE_EVIDENCE_REQUIRED'});
    const upload=key(),source=key(),link=key();
    await db.batch([
@@ -277,7 +316,7 @@ describe('Staff self-service transactional journeys',()=>{
     db.prepare("INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) VALUES(?,?,?,'draft',?,3,9999999999999)")
       .bind(link,duplicateSet,source,employee.userId),
    ]);
-   await approveLeave('h001',id,{expectedVersion:2,note:'Final review'},key(),hr);
+   await approveLeave('h001',id,{override:false,expectedVersion:2,note:'Final review'},key(),hr);
    expect((await getLeave('h001',id,employee)).state).toBe('approved');
   } finally { vi.unstubAllEnvs(); }
  });
@@ -289,7 +328,7 @@ describe('Staff self-service transactional journeys',()=>{
  it('reviews retrospective overnight actuals and creates exactly one immutable payroll handoff',async()=>{
   const id=String((await createOvertime(employee,actual(),key())).id);await otAction(employee,id,'submit');
   await expect(otAction(hr,id,'approve')).rejects.toMatchObject({status:403});
-  await otAction(manager,id,'verify');const current=await getOvertime(hr,id),k=key(),input={action:'approve' as const,expectedVersion:current.version,note:'Checked'};
+  await otAction(manager,id,'verify');const current=await getOvertime(hr,id),k=key(),input={override:false,attachmentSetIds:[],action:'approve' as const,expectedVersion:current.version,note:'Checked'};
   await commandOvertime(hr,id,input,k);await commandOvertime(hr,id,input,k);
   const row=await getOvertime(employee,id);expect(row.minutes).toBe(210);expect(row.state).toBe('approved');expect(row.permittedActions).toEqual([]);
   expect(await db.prepare('SELECT count(*)::int n FROM overtime_payroll_handoffs WHERE request_id=?').bind(id).first()).toEqual({n:1});
@@ -334,7 +373,7 @@ describe('Staff self-service transactional journeys',()=>{
   const second=await createSelfServiceLeave(employee,{...input,startSegment:'second_half',endSegment:'second_half'},key());
   expect((await getLeave('h001',String(second.id),employee)).calculated_units).toBe(.5);
   const span=await createSelfServiceLeave(employee,{...input,startDate:'2026-10-09',endDate:'2026-10-12'},key()),id=String(span.id);
-  await approveLeave('h001',id,{expectedVersion:1,note:''},key(),manager);await approveLeave('h001',id,{expectedVersion:2,note:''},key(),hr);
+  await approveLeave('h001',id,{override:false,expectedVersion:1,note:''},key(),manager);await approveLeave('h001',id,{override:false,expectedVersion:2,note:''},key(),hr);
   const snapshot=JSON.parse((await getLeave('h001',id,employee)).calculation_snapshot!);
   expect(snapshot.policy.workweek).toEqual([1,2,3,4,5]);
   const items=await leaveItems(db,await calendarAccess(db,employee),calendarQuerySchema.parse({date:'2026-10-09',mode:'mine'}),'2026-10-09','2026-10-13',100);

@@ -1,4 +1,4 @@
-import { frontCompanyBrand, storefrontLogo } from "@/server/front-app";
+import { frontCompanyBrand, storefrontLogo } from "@/server/modules/work_projection/public/front-app";
 
 export async function GET(
   _request: Request,

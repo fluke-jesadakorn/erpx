@@ -7,7 +7,7 @@ import { FormDrawer } from "@/components/ui/dialog";
 import { LeavePolicyWizard } from "@/components/self-service/leave-policy-wizard";
 import { staffLevelTitles, type OrganizationTemplatePosition } from "@/lib/organization";
 import type { HoldingPeopleTemplate } from "@/lib/people-templates";
-import type { PeopleHrTopic, peopleHrSettingsData } from "@/server/people-hr-settings";
+import type { PeopleHrTopic, peopleHrSettingsData } from "@/server/modules/people_payroll/public/people-hr-settings";
 import { usePeopleIntegrationCommand, usePeopleIntegrationData } from "./people-integration-data";
 import styles from "./people-hr-settings.module.css";
 import { type UiAppearance } from "@/components/ui/foundation";

@@ -1,14 +1,8 @@
 import Link from "next/link";
-import type { WorkContext } from "@/server/authorization";
-import { holdingResources } from "@/server/runtime";
-import { serviceOwner } from "@/server/service-access";
-import {
-  listEmployeeRequests,
-  employeeRequestDetail,
-} from "@/server/employee-requests";
+import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
+import { requestAdministrationData } from "@/server/modules/records/public/request-administration";
 import { RequestRepair } from "./service-teams";
 import { approvalAdminHref } from "@/lib/administration";
-import { resourceRequestRoute } from "@/server/expense-routing";
 import { Card } from "@/components/ui/foundation";
 export async function RequestAdministration({
   actor,
@@ -19,24 +13,8 @@ export async function RequestAdministration({
   base: string;
   record?: string;
 }) {
-  const { write } = await holdingResources(actor.holdingId);
-  if (!(await serviceOwner(write, actor))) return null;
-  const rows = record
-    ? [(await employeeRequestDetail(write, actor, record)).request]
-    : (await listEmployeeRequests(write, actor)).filter(
-        (r) =>
-          !["draft", "returned", "closed", "cancelled", "rejected"].includes(
-            r.state,
-          ),
-      );
-  const details = await Promise.all(
-    rows.map((r) => employeeRequestDetail(write, actor, r.id)),
-  );
-  const issues = record
-    ? details
-    : details.filter(
-        (d) => !!d.blockedReason,
-      );
+  const issues = await requestAdministrationData(actor, record);
+  if (!issues) return null;
   return (
     <Card as="section" appearance="standard" className="ui-panel">
       <h2>Employee request routing</h2>
@@ -52,43 +30,33 @@ export async function RequestAdministration({
       {!issues.length && (
         <p>No employee request routing issues in this scope.</p>
       )}
-      {await Promise.all(
-        issues.map(async (d) => {
-          const route =
-            d.request.kind !== "service"
-              ? await resourceRequestRoute(
-                  write,
-                  actor.companyId,
-                  d.request.requester_user_id,
-                  d.request.created_by,
-                )
-              : null;
-          return (
-            <Card as="article" appearance="standard" className="ui-panel" key={d.request.id}>
-              <h3>
-                <Link href={`${base}/requests/${d.request.id}`}>
-                  {d.request.title || "Untitled request"}
-                </Link>
-              </h3>
-              <p>{d.blockedReason ?? d.nextAction}</p>
-              {record ? (
-                <RequestRepair
-                  base={base}
-                  id={d.request.id}
-                  version={d.request.version}
-                  approvers={route?.steps[0]?.candidateUserIds ?? []}
-                  companyId={actor.companyId}
-                  userId={actor.userId}
-                />
-              ) : (
-                <Link href={approvalAdminHref(base, "request", d.request.id)}>
-                  Resolve routing issue
-                </Link>
-              )}
-            </Card>
-          );
-        }),
-      )}
+      {issues.map((d) => {
+        const route = d.route;
+        return (
+          <Card as="article" appearance="standard" className="ui-panel" key={d.request.id}>
+            <h3>
+              <Link href={`${base}/requests/${d.request.id}`}>
+                {d.request.title || "Untitled request"}
+              </Link>
+            </h3>
+            <p>{d.blockedReason ?? d.nextAction}</p>
+            {record ? (
+              <RequestRepair
+                base={base}
+                id={d.request.id}
+                version={d.request.version}
+                approvers={route?.steps[0]?.candidateUserIds ?? []}
+                companyId={actor.companyId}
+                userId={actor.userId}
+              />
+            ) : (
+              <Link href={approvalAdminHref(base, "request", d.request.id)}>
+                Resolve routing issue
+              </Link>
+            )}
+          </Card>
+        );
+      })}
     </Card>
   );
 }

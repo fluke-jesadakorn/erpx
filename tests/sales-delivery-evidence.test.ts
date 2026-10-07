@@ -1,3 +1,4 @@
+import { fulfillmentSchema } from '../src/server/commerce';
 import {beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from './runtime-env';
 import {expenseDb as db,expenseFixture,key} from './helpers/expense-fixture';
@@ -28,23 +29,23 @@ it('requires, preserves, exposes, and prevents reuse of delivery evidence',async
   const flow=await resolveFlow(db,f.owner,'order',orderId);
   await assignFlowPrimary(db,f.owner,'order',orderId,{stepKey:'confirmed',userId:warehouseActor.userId,reason:'Assign the approved order to its current warehouse delivery operator.',saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());
   const lineId=String((await getOrder(f.owner,orderId)).lines[0].id);
-  await expect(fulfillOrder(warehouseActor,orderId,{expectedVersion:3,date:'2026-09-22',lines:[{lineId,quantity:'1'}]},key())).rejects.toMatchObject({code:'DELIVERY_EVIDENCE_REQUIRED'});
+  await expect(fulfillOrder(warehouseActor,orderId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-22',lines:[{lineId,quantity:'1'}]}),key())).rejects.toMatchObject({code:'DELIVERY_EVIDENCE_REQUIRED'});
   const pending=await seedAttachmentSet(db,warehouseActor,{targetType:'commerce_order_delivery',targetId:orderId,purposeKey:'proof_of_delivery',componentRef:'delivery',expectedTargetVersion:3,requiredCount:1,sourceState:'quarantined'});
-  await expect(fulfillOrder(warehouseActor,orderId,{expectedVersion:3,date:'2026-09-22',evidenceNote:'Customer receipt is still being scanned',attachmentSetIds:[pending.setId],lines:[{lineId,quantity:'1'}]},key())).rejects.toMatchObject({code:'ATTACHMENT_SCAN_PENDING'});
+  await expect(fulfillOrder(warehouseActor,orderId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-22',evidenceNote:'Customer receipt is still being scanned',attachmentSetIds:[pending.setId],lines:[{lineId,quantity:'1'}]}),key())).rejects.toMatchObject({code:'ATTACHMENT_SCAN_PENDING'});
   expect(await attachmentBindingState(db,pending.setId)).toMatchObject({set_state:'draft',link_state:'draft',binding_type:null,binding_id:null});
   expect((await getOrder(f.owner,orderId)).order).toMatchObject({version:3,state:'confirmed'});
   const proof=await deliveryEvidence(db,warehouseActor,orderId,'Customer signed carrier receipt CR-101');
   expect((await getOrder(f.owner,orderId)).pendingDeliveryEvidence).toHaveLength(1);
-  const delivered=await fulfillOrder(warehouseActor,orderId,{expectedVersion:3,date:'2026-09-22',lines:[{lineId,quantity:'1'}],...proof},key());
+  const delivered=await fulfillOrder(warehouseActor,orderId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-22',lines:[{lineId,quantity:'1'}],...proof}),key());
   const detail=await getOrder(f.owner,orderId);
   expect(detail.pendingDeliveryEvidence).toHaveLength(0);
   expect(detail.fulfillmentEvidence).toEqual([expect.objectContaining({fulfillment_id:delivered.fulfillmentId,attachment_id:proof.evidenceIds[0]})]);
   expect(detail.fulfillments[0]).toMatchObject({evidence_note:'Customer signed carrier receipt CR-101'});
-  await expect(fulfillOrder(warehouseActor,orderId,{expectedVersion:4,date:'2026-09-22',lines:[{lineId,quantity:'1'}],...proof},key())).rejects.toMatchObject({code:'DELIVERY_EVIDENCE_INVALID'});
+  await expect(fulfillOrder(warehouseActor,orderId,fulfillmentSchema.parse({expectedVersion:4,date:'2026-09-22',lines:[{lineId,quantity:'1'}],...proof}),key())).rejects.toMatchObject({code:'DELIVERY_EVIDENCE_INVALID'});
   const clean=await seedAttachmentSet(db,warehouseActor,{targetType:'commerce_order_delivery',targetId:orderId,purposeKey:'proof_of_delivery',componentRef:'delivery',expectedTargetVersion:4,requiredCount:1,compatibilityAdapter:true}),previous=process.env.ERPX_ATTACHMENTS_V2;
   process.env.ERPX_ATTACHMENTS_V2='false';
   let final:Awaited<ReturnType<typeof fulfillOrder>>;
-  try{final=await fulfillOrder(warehouseActor,orderId,{expectedVersion:4,date:'2026-09-22',evidenceNote:'Second customer delivery receipt checked',attachmentSetIds:[clean.setId],lines:[{lineId,quantity:'1'}]},key());}
+  try{final=await fulfillOrder(warehouseActor,orderId,fulfillmentSchema.parse({expectedVersion:4,date:'2026-09-22',evidenceNote:'Second customer delivery receipt checked',attachmentSetIds:[clean.setId],lines:[{lineId,quantity:'1'}]}),key());}
   finally{if(previous===undefined)delete process.env.ERPX_ATTACHMENTS_V2;else process.env.ERPX_ATTACHMENTS_V2=previous;}
   expect(await attachmentBindingState(db,clean.setId)).toMatchObject({set_state:'bound',link_state:'bound',binding_type:'commerce_fulfillment',binding_id:String(final.fulfillmentId)});
   await expect(db.prepare('DELETE FROM commerce_fulfillment_evidence WHERE attachment_id=?').bind(proof.evidenceIds[0]).run()).rejects.toThrow('FULFILLMENT_EVIDENCE_IMMUTABLE');

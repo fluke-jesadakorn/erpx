@@ -1,12 +1,19 @@
-import { test, expect, type Page } from "@playwright/test";
-import { selectRoleForSetup } from "../helpers/context-switching-browser";
+import { captureCaseScreenshot } from "../helpers/case-screenshot";
+import { browserProjects } from "../../scripts/testing/browser-results";
+import { test, expect, type Locator, type Page } from "@playwright/test";
+import { frontOrigin } from "../helpers/front-simulation-session";
+import { openAccountMenu, searchRoleOptions } from "../helpers/context-switching-browser";
+import { selectAcmeHoldingOwner } from "./helpers/select-acme-holding-owner";
 test.use({ actionTimeout: 15000 });
+function workspace(page: Page) {
+  return page.locator("#workspace-content:visible");
+}
 async function login(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Work email").fill(
     process.env.ERPX_E2E_ADMIN_EMAIL ?? "jesadakorn.kirtnu@gmail.com",
   );
-  await page.getByLabel("Password", { exact: true }).fill(
+  await page.getByLabel(/^Password(?:\s*\*)?$/).fill(
     process.env.ERPX_E2E_ADMIN_PASSWORD ?? "12345678",
   );
   const signIn = page.waitForResponse((response) =>
@@ -14,21 +21,51 @@ async function login(page: Page) {
   );
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   expect((await signIn).ok()).toBe(true);
-  await selectRoleForSetup(page.context(), "holding_owner");
+  await selectAcmeHoldingOwner(page);
   await page.goto("/holdings/acme/home");
   await expect(page).toHaveURL(/\/holdings\/acme\/home$/);
+  await expect(workspace(page)).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Search workspace", exact: true })).toBeEnabled();
 }
 test("canonical workspace routes and legacy aliases retain their scope", async ({
   page,
-}, info) => {
-  test.skip(
-    info.project.name !== "desktop",
-    "The same route contract is checked once.",
-  );
+}) => {
+
   await login(page);
+  const acmeRoleResponse = await page.request.get("/api/v1/holdings/acme/assignments/active");
+  expect(acmeRoleResponse.ok()).toBe(true);
+  const acmeRoleState = (await acmeRoleResponse.json()).data as { valid: boolean; companyId: string; userId: string; assignmentId: string; revision: number };
+  expect(acmeRoleState).toMatchObject({ valid: true, companyId: "acme-co", userId: "usr_jesadakorn" });
+  const managePath = "/holdings/erpx/manage-erpx";
+  await page.goto(`/work-role?from=${encodeURIComponent(managePath)}`);
+  const erpxRoleResponse = await page.request.get("/api/v1/holdings/erpx/assignments/active");
+  expect(erpxRoleResponse.ok()).toBe(true);
+  const erpxRoleState = (await erpxRoleResponse.json()).data as { revision: number; options: { id: string; role: string }[] };
+  const erpxOwners = erpxRoleState.options.filter(role => role.role === "holding_owner");
+  expect(erpxOwners).toHaveLength(1);
+  const erpxOptions = await searchRoleOptions(page, "holding owner");
+  const erpxOwner = erpxOptions.getByRole("option").filter({ hasText: "ERPX browser realm" });
+  await expect(erpxOwner).toHaveCount(1);
+  const erpxSelected = page.waitForResponse(response => response.request().method() === "POST" && response.url().endsWith("/holdings/erpx/assignments/active"));
+  await erpxOwner.click();
+  const erpxSelection = await erpxSelected;
+  expect(erpxSelection.status()).toBe(200);
+  expect(erpxSelection.request().postDataJSON()).toEqual({ assignmentId: erpxOwners[0].id, revision: erpxRoleState.revision });
+  await expect(page).toHaveURL(managePath);
+  expect((await page.request.get("/platform/home")).status(), "/platform/home").toBe(200);
+  await page.goto("/holdings/acme/home");
+  const returnedAcmeResponse = await page.request.get("/api/v1/holdings/acme/assignments/active");
+  expect(returnedAcmeResponse.ok()).toBe(true);
+  const returnedAcme = (await returnedAcmeResponse.json()).data as typeof acmeRoleState;
+  expect(returnedAcme).toMatchObject({ valid: true, companyId: acmeRoleState.companyId, userId: acmeRoleState.userId, assignmentId: acmeRoleState.assignmentId });
+  expect(returnedAcme.revision).toBeGreaterThanOrEqual(acmeRoleState.revision);
+  const returnedWorkspace = page.locator("[data-work-assignment]");
+  await expect(returnedWorkspace).toHaveAttribute("data-work-company", returnedAcme.companyId);
+  await expect(returnedWorkspace).toHaveAttribute("data-work-assignment", returnedAcme.assignmentId);
+  await expect(returnedWorkspace).toHaveAttribute("data-work-user", returnedAcme.userId);
+  await expect(returnedWorkspace).toHaveAttribute("data-work-revision", String(returnedAcme.revision));
+  await expect(page.getByRole("button", { name: "Search workspace", exact: true })).toBeEnabled();
   for (const path of [
-    "/platform/home",
     "/holdings/acme/home",
     "/holdings/acme/branches/bangkok/home",
     // The current local roster places Finance inside Bangkok Operations.
@@ -43,16 +80,14 @@ test("canonical workspace routes and legacy aliases retain their scope", async (
     /\/branches\/bangkok\/work\?queue=all&type=staff_task&q=handover$/,
   );
   await page.goto("/holdings/acme/staff-settings");
-  await expect(page).toHaveURL(/settings\?section=organization$/);
+  await expect(page).toHaveURL("/holdings/acme/people?company=acme-co&tab=settings");
+  await expect(workspace(page).getByRole("heading", { name: "People", exact: true, level: 1 })).toBeVisible();
   expect((await page.request.get("/h/h001/home")).status()).toBe(404);
 });
 test("development module and generic record UI routes are unavailable without redirects", async ({
   page,
-}, info) => {
-  test.skip(
-    info.project.name !== "desktop",
-    "Route coverage is independent of viewport.",
-  );
+}) => {
+
   await login(page);
   for (const path of [
     "/holdings/acme/modules",
@@ -84,46 +119,49 @@ test("desktop and mobile navigation place live business destinations correctly",
   const nav = page
     .getByRole("navigation", { name: /^(Primary|Mobile navigation)$/ })
     .filter({ visible: true });
-  for (const destination of ["Today", "Calendar", "Messages"])
+  for (const destination of info.project.name === "desktop"
+    ? ["Today", "My work", "Calendar", "Messages"]
+    : ["Today", "My work", "Messages"])
     await expect(
       nav.getByRole("link", { name: new RegExp(`^${destination}(?:\\s|$)`) }),
     ).toBeVisible();
   const moreButton = nav.getByRole("button", { name: "App launcher" });
-  await expect(nav.getByRole("button", { name: "Start", exact: true })).toBeVisible();
+  await expect(nav.getByRole("button", { name: info.project.name === "desktop" ? "Start" : "Start work", exact: true })).toBeVisible();
   if (info.project.name === "desktop") {
     await page.goto("/holdings/acme/people");
     await expect(page.getByRole("button", { name: "Search workspace", exact: true })).toBeEnabled();
     await expect(nav.getByRole("button", { name: "Collapse People & organization" })).toHaveAttribute("aria-expanded", "true");
     await expect(nav.getByRole("link", { name: "People", exact: true })).toBeVisible();
-    await nav.getByRole("button", { name: "Expand Projects & Routines" }).click();
-    await expect(nav.getByRole("button", { name: "Collapse Projects & Routines" })).toHaveAttribute("aria-expanded", "true");
+    await nav.getByRole("button", { name: "Expand Projects & routines" }).click();
+    await expect(nav.getByRole("button", { name: "Collapse Projects & routines" })).toHaveAttribute("aria-expanded", "true");
     await expect(nav.getByRole("button", { name: "Expand People & organization" })).toHaveAttribute("aria-expanded", "false");
     await expect(nav.getByRole("link", { name: "All projects", exact: true })).toBeVisible();
-    await nav.getByRole("button", { name: "Expand Procurement" }).click();
+    await nav.getByRole("button", { name: "Expand Purchasing" }).click();
     await expect(nav.getByRole("link", { name: "Suppliers", exact: true })).toBeVisible();
     await page.reload();
     await expect(page.getByRole("button", { name: "Search workspace", exact: true })).toBeEnabled();
     await expect(nav.getByRole("button", { name: "Collapse People & organization" })).toHaveAttribute("aria-expanded", "true");
     await nav.getByRole("button", { name: "Collapse sidebar" }).click();
     await expect(nav).toHaveAttribute("data-rail", "true");
-    await page.screenshot({ path: ".scratch/dev/people-navigation-rail-900-final.png" });
+    await captureCaseScreenshot(page, "people-navigation-rail-900-final.png");
     await page.setViewportSize({ width: 1280, height: 600 });
     await expect(nav.getByRole("button", { name: "App launcher", exact: true })).toBeInViewport();
     await expect(nav.getByRole("button", { name: "Expand sidebar", exact: true })).toBeInViewport();
-    await nav.getByRole("button", { name: "Expand System", exact: true }).click();
-    const systemFlyout = nav.getByRole("group", { name: "System", exact: true });
+    await nav.getByRole("button", { name: "Expand Administration", exact: true }).click();
+    const systemFlyout = nav.getByRole("group", { name: "Administration", exact: true });
     await expect(systemFlyout).toBeVisible();
     const flyoutBounds = (await systemFlyout.boundingBox())!;
     expect(flyoutBounds.y).toBeGreaterThanOrEqual(0);
     expect(flyoutBounds.y + flyoutBounds.height).toBeLessThanOrEqual(600);
-    await page.screenshot({ path: ".scratch/dev/people-navigation-rail-600-final.png" });
+    await captureCaseScreenshot(page, "people-navigation-rail-600-final.png");
     await page.keyboard.press("Escape");
     await page.reload();
     await expect(page.getByRole("button", { name: "Search workspace", exact: true })).toBeEnabled();
     await expect(nav).toHaveAttribute("data-rail", "true");
+    const peopleRailTrigger = nav.getByRole("button", { name: "Expand People & organization" });
+    await peopleRailTrigger.click();
     await expect(nav.getByRole("group", { name: "People & organization" })).toBeVisible();
     await page.keyboard.press("Escape");
-    const peopleRailTrigger = nav.getByRole("button", { name: "Expand People & organization" });
     await expect(peopleRailTrigger).toBeFocused();
     await peopleRailTrigger.click();
     await nav.getByRole("button", { name: "Expand sidebar" }).click();
@@ -132,7 +170,9 @@ test("desktop and mobile navigation place live business destinations correctly",
   await moreButton.click();
   const more = page.getByRole("dialog", { name: "App launcher", exact: true });
   await expect(more).toBeVisible();
-  for (const heading of ["People & organization", "CRM", "Sales", "Procurement", "Inventory", "Projects & Routines", "Finance", "Management", "System"])
+  await expect(more.getByRole("link", { name: /^Calendar(?:\s|$)/ }))
+    .toHaveAttribute("href", "/holdings/acme/calendar");
+  for (const heading of ["People & organization", "Customers & sales", "Purchasing", "Inventory & quality", "Projects & routines", "Finance", "Administration", "Knowledge"])
     await expect(more.getByRole("heading", { name: heading, exact: true })).toBeVisible();
   await expect(more.getByRole("link", { name: "People", exact: true })).toBeVisible();
   await expect(more.getByRole("link", { name: "People directory", exact: true })).toHaveCount(0);
@@ -140,10 +180,10 @@ test("desktop and mobile navigation place live business destinations correctly",
   const launcherSearch = more.getByRole("searchbox", { name: "Search apps and pages" });
   for (const [query, name, href] of [
     ["roster", /People.*People/, /\/people$/],
-    ["suppliers", /Suppliers.*Procurement/, /\/commerce\?view=parties&kind=supplier$/],
+    ["suppliers", /Suppliers.*Purchasing/, /\/commerce\?view=parties&kind=supplier$/],
     ["bank reconciliation", /Cash & banking.*Finance/, /\/finance\/bank$/],
-    ["contracts", /Legal.*Management/, /\/legal$/],
-    ["gpo", /Organization & Access.*Technology/, /\/technology\?view=organization$/],
+    ["contracts", /Legal.*Services/, /\/legal$/],
+    ["gpo", /Organization & Access.*Administration/, /\/technology\?view=organization$/],
   ] as const) {
     await launcherSearch.fill(query);
     await expect(more.getByRole("link", { name })).toHaveAttribute("href", href);
@@ -174,7 +214,7 @@ test("desktop and mobile navigation place live business destinations correctly",
       await expect(mobile.getByRole("link")).toHaveCount(3);
       await expect(mobile.getByRole("button", { name: "App launcher" })).toBeVisible();
       await expect(mobile.getByRole("button", { name: "Start work" })).toBeVisible();
-      for (const destination of ["Today", "Calendar", "Messages"])
+      for (const destination of ["Today", "My work", "Messages"])
         await expect(mobile.getByRole("link", { name: new RegExp(`^${destination}(?:\\s|$)`) })).toBeVisible();
     }
   }
@@ -206,56 +246,126 @@ test("desktop and mobile navigation place live business destinations correctly",
     .filter({ visible: true })
     .getByRole("link", { name: "Messages", exact: true })
     .click();
-  await expect(page.getByRole("heading", { name: "Your inbox" })).toBeVisible();
+  await expect(workspace(page).getByRole("heading", { name: "Your inbox" })).toBeVisible();
   expect(browserErrors).toEqual([]);
 });
-test("POS opens directly from the sidebar, rail, and app launcher", async ({ page }, info) => {
-  test.skip(info.project.name !== "desktop", "The rail is available on desktop only.");
+test("POS opens directly from the sidebar, rail, and app launcher", browserProjects(["desktop"], "The case verifies the desktop sidebar and collapsed rail; mobile app launcher access remains required in the navigation case."), async ({ page }) => {
+
   await page.setViewportSize({ width: 1440, height: 900 });
   await login(page);
   const base = "/holdings/acme";
+  const frontHref = "/front/acme/acme-co/pos/holding";
+  const frontUrl = new URL("/acme/acme-co/holding", frontOrigin("pos")).toString();
+  const ownerAssignment = "dev_usr_jesadakorn_acme-co_holding_owner";
   await page.goto(`${base}/home`);
   const nav = page.getByRole("navigation", { name: "Primary" }).filter({ visible: true });
   await expect(nav.getByRole("button", { name: "Expand POS" })).toBeVisible();
   await nav.getByRole("button", { name: "Expand POS" }).click();
   await expect(nav.getByRole("button", { name: "Collapse POS" })).toHaveAttribute("aria-expanded", "true");
   for (const [label, href] of [
-    ["Point of sale", `${base}/pos`],
-    ["Kitchen", `${base}/pos?tab=kitchen`],
-    ["Cash sessions", `${base}/pos?tab=shifts`],
-    ["Receipts & refunds", `${base}/pos?tab=history`],
+    ["Open POS Front, opens in a new tab", frontHref],
+    ["POS approvals", `${base}/pos?tab=history&queue=approval`],
     ["POS reports", `${base}/pos?tab=reports`],
     ["POS settings", `${base}/pos?tab=settings`],
   ]) await expect(nav.getByRole("link", { name: label, exact: true })).toHaveAttribute("href", href);
-  await nav.getByRole("link", { name: "Cash sessions" }).click();
-  await expect(page).toHaveURL(`${base}/pos?tab=shifts`);
-  await expect(nav.getByRole("link", { name: "Cash sessions" })).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("heading", { name: "Point of sale" })).toBeVisible();
-  await nav.getByRole("link", { name: "Kitchen", exact: true }).click();
-  await expect(page).toHaveURL(`${base}/pos?tab=kitchen`);
-  await expect(nav.getByRole("link", { name: "Kitchen", exact: true })).toHaveAttribute("aria-current", "page");
+
+  async function openFront(link: Locator, firstSignIn: boolean) {
+    await expect(link).toHaveAttribute("href", frontHref);
+    await expect(link).toHaveAttribute("target", "_blank");
+    const [front] = await Promise.all([page.waitForEvent("popup"), link.click()]);
+    if (firstSignIn) {
+      // Front owns its session cookie. Use the same real account on its sign-in page.
+      await expect(front).toHaveURL(new URL("/login?next=%2Facme%2Facme-co%2Fholding", frontOrigin("pos")).toString());
+      await expect(front.getByRole("heading", { name: "Staff sign in", exact: true })).toBeVisible();
+      await front.getByLabel("Work email").fill(process.env.ERPX_E2E_ADMIN_EMAIL ?? "jesadakorn.kirtnu@gmail.com");
+      await front.getByLabel(/^Password(?:\s*\*)?$/).fill(process.env.ERPX_E2E_ADMIN_PASSWORD ?? "12345678");
+      const signIn = front.waitForResponse(response => response.url().endsWith("/api/auth/sign-in/email"));
+      await front.getByRole("button", { name: "Sign in", exact: true }).click();
+      expect((await signIn).status()).toBe(200);
+      await expect(front).toHaveURL(frontUrl);
+      await expect(front.locator("html")).toHaveAttribute("lang", "th");
+      await front.getByRole("button", { name: "EN", exact: true }).click();
+      await expect(front.locator("html")).toHaveAttribute("lang", "en");
+      await front.locator("summary").filter({ hasText: /^More/ }).click();
+      const role = front.getByRole("combobox", { name: "Work role", exact: true });
+      await expect(role).toBeEnabled();
+      await expect(role.getByRole("option", { includeHidden: true }).filter({ hasText: "holding owner" })).toHaveAttribute("value", ownerAssignment);
+      const currentAssignment = await role.inputValue();
+      // Selecting the already-active role is a no-op in the normal Front picker.
+      if (currentAssignment !== ownerAssignment) {
+        const revision = Number(await front.locator("[data-work-revision]:visible").getAttribute("data-work-revision"));
+        const selected = front.waitForResponse(response => response.request().method() === "POST" && response.url().endsWith("/pos/roles"));
+        await role.selectOption(ownerAssignment);
+        const response = await selected;
+        expect(response.status()).toBe(200);
+        expect(response.request().postDataJSON()).toEqual({ location: "holding", assignmentId: ownerAssignment, revision });
+      }
+      await expect(front.locator("[data-work-assignment]:visible")).toHaveAttribute("data-work-assignment", ownerAssignment);
+      await expect(front.locator("html")).not.toHaveAttribute("data-work-switching", "true");
+      if (currentAssignment !== ownerAssignment) {
+        // The context commit remounts the ordinary More menu in its closed state.
+        const more = front.locator("details").filter({ has: front.locator("summary").filter({ hasText: /^More/ }) });
+        await expect(more).toHaveJSProperty("open", false);
+        await more.locator("summary").click();
+      }
+      await expect(role).toHaveValue(ownerAssignment);
+      await front.locator("summary").filter({ hasText: /^More/ }).click();
+    }
+    await expect(front).toHaveURL(frontUrl);
+    await expect(front.locator("html")).toHaveAttribute("lang", "en");
+    await expect(front.locator("[data-work-assignment]:visible")).toHaveAttribute("data-work-company", "acme-co");
+    await expect(front.locator("[data-work-assignment]:visible")).toHaveAttribute("data-work-assignment", ownerAssignment);
+    await expect(front.locator("[data-work-assignment]:visible")).toHaveAttribute("data-work-stale", "false");
+    await expect(front.getByRole("heading", { name: "Point of sale", exact: true, level: 1 })).toBeVisible();
+    return front;
+  }
+
+  const sidebarFront = await openFront(nav.getByRole("link", { name: "Open POS Front, opens in a new tab", exact: true }), true);
+  try {
+    const dailyNavigation = sidebarFront.getByRole("navigation", { name: "Point of sale", exact: true });
+    for (const [label, tab] of [["Cash shifts", "shifts"], ["Kitchen", "kitchen"], ["History", "history"]]) {
+      const destination = dailyNavigation.getByRole("button", { name: label, exact: true });
+      await destination.click();
+      await expect(sidebarFront).toHaveURL(`${frontUrl}?tab=${tab}`);
+      await expect(destination).toHaveAttribute("aria-current", "page");
+      await expect(sidebarFront.getByRole("heading", { name: "Point of sale", exact: true, level: 1 })).toBeVisible();
+    }
+  } finally {
+    await sidebarFront.close();
+  }
+  await nav.getByRole("link", { name: "POS approvals", exact: true }).click();
+  await expect(page).toHaveURL(`${base}/pos?tab=history&queue=approval`);
+  await expect(nav.getByRole("link", { name: "POS approvals", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(workspace(page).getByRole("heading", { name: "Point of sale", exact: true, level: 1 })).toBeVisible();
+  await page.setViewportSize({ width: 1280, height: 900 });
   await nav.getByRole("button", { name: "Collapse sidebar" }).click();
   await expect(nav).toHaveAttribute("data-rail", "true");
-  await nav.getByRole("button", { name: "Collapse POS" }).click();
+  await expect(nav.getByRole("button", { name: "Expand POS" })).toHaveAttribute("aria-expanded", "false");
   await nav.getByRole("button", { name: "Expand POS" }).click();
-  const flyout = nav.getByRole("group", { name: "POS" });
-  await expect(flyout.getByRole("link", { name: "Receipts & refunds" })).toBeVisible();
-  await flyout.getByRole("link", { name: "Receipts & refunds" }).click();
-  await expect(page).toHaveURL(`${base}/pos?tab=history`);
+  const flyout = nav.getByRole("group", { name: "POS", exact: true });
+  await expect(flyout.getByRole("link", { name: "POS approvals", exact: true })).toBeVisible();
+  const railFront = await openFront(flyout.getByRole("link", { name: "Open POS Front, opens in a new tab", exact: true }), false);
+  await railFront.close();
+  await expect(flyout).toBeHidden();
+  await nav.getByRole("button", { name: "Expand POS" }).click();
+  await nav.getByRole("group", { name: "POS", exact: true }).getByRole("link", { name: "POS settings", exact: true }).click();
+  await expect(page).toHaveURL(`${base}/pos?tab=settings`);
+  await expect(workspace(page).getByRole("heading", { name: "Point of sale", exact: true, level: 1 })).toBeVisible();
   await nav.getByRole("button", { name: "App launcher" }).click();
-  const launcher = page.getByRole("dialog", { name: "App launcher" });
-  await expect(launcher.getByRole("heading", { name: "POS" })).toBeVisible();
-  await expect(launcher.getByRole("link", { name: "POS reports" })).toHaveAttribute("href", `${base}/pos?tab=reports`);
-  await launcher.getByRole("link", { name: "POS reports" }).click();
+  const launcher = page.getByRole("dialog", { name: "App launcher", exact: true });
+  await expect(launcher.getByRole("heading", { name: "POS", exact: true })).toBeVisible();
+  await expect(launcher.getByRole("link", { name: "POS reports", exact: true })).toHaveAttribute("href", `${base}/pos?tab=reports`);
+  const launcherFront = await openFront(launcher.getByRole("link", { name: "Open POS Front, opens in a new tab", exact: true }), false);
+  await launcherFront.close();
+  await expect(launcher).toBeHidden();
+  await nav.getByRole("button", { name: "App launcher" }).click();
+  await launcher.getByRole("link", { name: "POS reports", exact: true }).click();
   await expect(page).toHaveURL(`${base}/pos?tab=reports`);
-  await expect(page.getByRole("heading", { name: "Point of sale" })).toBeVisible();
+  await expect(workspace(page).getByRole("heading", { name: "Point of sale", exact: true, level: 1 })).toBeVisible();
 });
-test("breadcrumb returns to live business parents", async ({ page }, info) => {
+test("breadcrumb returns to live business parents", browserProjects(["desktop"], "The full breadcrumb exists in the desktop shell; mobile uses the compact workspace menu covered by responsive navigation."), async ({ page }) => {
   test.setTimeout(180_000);
-  test.skip(
-    info.project.name !== "desktop",
-    "Mobile uses the compact workspace menu.",
-  );
+
   await login(page);
   await page.goto("/holdings/acme/people/organization");
   await expect(page).toHaveURL(/\/people(?:\?|$)/);
@@ -270,11 +380,11 @@ test("a person row opens profile and employment in one detail panel", async ({
   await page.setViewportSize({ width: info.project.name === "desktop" ? 1440 : 390, height: 900 });
   await login(page);
   await page.goto("/holdings/acme/people");
-  await expect(page.getByRole("tablist")).toHaveCount(0);
+  await expect(workspace(page).getByRole("tablist")).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
-  await page.getByRole("searchbox", { name: "Search people, positions, and units" }).fill("Ada Bennett");
-  await page.locator('[data-testid^="people-person-"]').filter({ hasText: "Ada Bennett" }).getByRole("button").first().click();
-  const drawer = page.getByTestId("people-detail");
+  await workspace(page).getByRole("searchbox", { name: "Search people, positions, and units" }).fill("Ada Bennett");
+  await workspace(page).locator('[data-testid^="people-person-"]').filter({ hasText: "Ada Bennett" }).getByRole("button").first().click();
+  const drawer = workspace(page).getByTestId("people-detail");
   await expect(drawer).toBeVisible({ timeout: 30000 });
   await expect(drawer.getByRole("heading", { name: "Ada Bennett", exact: true })).toBeVisible();
   await expect(drawer.getByText("Work email", { exact: true })).toBeVisible({ timeout: 30_000 });
@@ -284,13 +394,10 @@ test("a person row opens profile and employment in one detail panel", async ({
   await expect(drawer).toBeHidden();
   await expect(page).not.toHaveURL(/[?&]person=/);
 });
-test("live workspace pages fit three widths and both themes", async ({
+test("live workspace pages fit three widths and both themes", browserProjects(["desktop"], "This case explicitly sweeps mobile, tablet and desktop widths in both themes once; device-specific navigation cases run in both projects."), async ({
   page,
 }, info) => {
-  test.skip(
-    info.project.name !== "desktop",
-    "This matrix explicitly includes mobile widths.",
-  );
+
   test.setTimeout(300000);
   await login(page);
   const routes = [
@@ -316,7 +423,8 @@ test("live workspace pages fit three widths and both themes", async ({
       await page.setViewportSize({ width, height: 900 });
       for (const [name, path] of routes) {
         await page.goto(path);
-        await expect(page.locator("h1").first()).toBeVisible();
+        if (name === "commerce") await expect(page).toHaveURL(new URL("/holdings/acme/sales?view=documents&kind=customer&type=sales", page.url()).toString());
+        await expect(workspace(page).getByRole("heading", { level: 1 }).first()).toBeVisible();
         await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
         expect(
           await page.evaluate(
@@ -335,7 +443,7 @@ test("live workspace pages fit three widths and both themes", async ({
 test("learn retains captioned lessons", async ({ page }) => {
   await login(page);
   await page.goto("/holdings/acme/learn");
-  const video = page.locator("video").first();
+  const video = workspace(page).locator("video").first();
   await expect(video).toBeVisible();
   await expect(video.locator("track")).toHaveAttribute("kind", "captions");
   const source = await video.locator("source").getAttribute("src");
@@ -345,28 +453,52 @@ test("restricted staff sees only authorized live destinations", async ({
   page,
 }, info) => {
   await login(page);
-  await page.getByRole("button", { name: /Account menu for/ }).click();
-  const role = page.getByRole("combobox", {
-    name: "Role for actions & approvals",
-  });
-  await role.fill("operations manager");
-  await Promise.all([
-    page.waitForEvent("load"),
-    page.getByRole("listbox").getByRole("option").click(),
-  ]);
+  const endpoint = "/api/v1/holdings/acme/assignments/active";
+  const previousResponse = await page.request.get(endpoint);
+  expect(previousResponse.status()).toBe(200);
+  const previous = (await previousResponse.json()).data as { revision: number; companyId: string; userId: string };
+  expect(previous).toMatchObject({ companyId: "acme-co", userId: "usr_jesadakorn" });
+  await openAccountMenu(page);
+  const roles = await searchRoleOptions(page, "operations manager");
+  const operations = roles.getByRole("option").filter({ hasText: "Acme Corporation" }).filter({ hasText: /operations manager/i });
+  await expect(operations).toHaveCount(1);
+  const selectedRole = page.waitForResponse(response => response.request().method() === "POST" && response.url().endsWith("/assignments/active"));
+  await operations.click();
+  const selected = await selectedRole;
+  expect(selected.status()).toBe(200);
+  expect(selected.request().postDataJSON()).toEqual({ assignmentId: "dev_usr_jesadakorn_acme-co_operations_manager", revision: previous.revision });
+  const ready = page.locator("[data-work-assignment]:visible");
+  await expect(ready).toHaveAttribute("data-work-assignment", "dev_usr_jesadakorn_acme-co_operations_manager");
+  await expect(page.locator("html")).not.toHaveAttribute("data-work-switching", "true");
+  await expect(page.getByRole("dialog", { name: "Account switcher", exact: true })).toBeHidden();
+  const persistedResponse = await page.request.get(endpoint);
+  expect(persistedResponse.status()).toBe(200);
+  const persisted = (await persistedResponse.json()).data as { valid: boolean; revision: number; companyId: string; userId: string; assignmentId: string };
+  expect(persisted).toMatchObject({ valid: true, companyId: "acme-co", userId: "usr_jesadakorn", assignmentId: "dev_usr_jesadakorn_acme-co_operations_manager" });
+  expect(persisted.revision).toBeGreaterThan(previous.revision);
+  await expect(ready).toHaveAttribute("data-work-company", persisted.companyId);
+  await expect(ready).toHaveAttribute("data-work-user", persisted.userId);
+  await expect(ready).toHaveAttribute("data-work-revision", String(persisted.revision));
   const nav = page
     .getByRole("navigation", { name: /^(Primary|Mobile navigation)$/ })
     .filter({ visible: true });
   if (info.project.name === "desktop") {
+    await nav.getByRole("button", { name: "Expand People & organization", exact: true }).click();
     await expect(nav.getByRole("link", { name: "People", exact: true })).toBeVisible();
+    await nav.getByRole("button", { name: "Expand Projects & routines", exact: true }).click();
     await expect(nav.getByRole("link", { name: "Operations", exact: true })).toBeVisible();
     await expect(nav.getByRole("link", { name: "Finance", exact: true })).toHaveCount(0);
+    await expect(nav.getByRole("button", { name: /^(?:Expand|Collapse) Finance$/ })).toHaveCount(0);
   } else {
-    await nav.getByRole("button", { name: "More navigation" }).click();
-    const more = page.getByRole("dialog", { name: "More", exact: true });
-    await expect(more.getByRole("link", { name: "People", exact: true })).toBeVisible();
-    await expect(more.getByRole("link", { name: "Operations", exact: true })).toBeVisible();
-    await expect(more.getByRole("link", { name: "Finance", exact: true })).toHaveCount(0);
+    await nav.getByRole("button", { name: "App launcher", exact: true }).click();
+    const more = page.getByRole("dialog", { name: "App launcher", exact: true });
+    const appSearch = more.getByRole("searchbox", { name: "Search apps and pages", exact: true });
+    await appSearch.fill("People");
+    await expect(more.getByRole("link", { name: /^People(?:\s|$)/ })).toBeVisible();
+    await appSearch.fill("Operations");
+    await expect(more.getByRole("link", { name: /^Operations(?:\s|$)/ })).toBeVisible();
+    await appSearch.fill("Finance");
+    await expect(more.getByRole("link", { name: /^Finance(?:\s|$)/ })).toHaveCount(0);
     await page.keyboard.press("Escape");
   }
   await page.getByRole("button", { name: "Search workspace" }).click();
@@ -376,10 +508,10 @@ test("restricted staff sees only authorized live destinations", async ({
   await page.keyboard.press("Escape");
   await page.goto("/holdings/acme/branches/bangkok/inbox");
   await expect(
-    page.getByRole("heading", { name: "Live work notifications" }),
+    workspace(page).getByRole("heading", { name: "Live work notifications" }),
   ).toHaveCount(0);
   await expect(
-    page.getByRole("navigation", { name: "Inbox sections" }),
+    workspace(page).getByRole("navigation", { name: "Inbox sections" }),
   ).toBeVisible();
 });
 test("post drafts survive failures and collapsed UI; dialogs retain keyboard focus", async ({
@@ -387,9 +519,13 @@ test("post drafts survive failures and collapsed UI; dialogs retain keyboard foc
 }) => {
   await login(page);
   await page.goto("/holdings/acme/feed");
-  await page.getByText("Share an update", { exact: true }).click();
-  const input = page.getByLabel("Post message", { exact: true }),
+  const openComposer = workspace(page).locator("details.beta-composer > summary");
+  await openComposer.click();
+  const composer = page.getByRole("dialog", { name: "Share an update", exact: true });
+  await expect(composer).toBeVisible();
+  const input = composer.getByLabel("Post message", { exact: true }),
     draft = "A detailed handover for tomorrow. ".repeat(60);
+  await expect(input).toHaveAttribute("contenteditable", "true");
   await input.fill(draft);
   await page.route("**/beta/drafts", (r) =>
     r.request().method() === "POST"
@@ -402,17 +538,30 @@ test("post drafts survive failures and collapsed UI; dialogs retain keyboard foc
         })
       : r.continue(),
   );
-  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await composer.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(
-    page
+    composer
       .getByRole("status")
       .filter({ hasText: "Drafts temporarily unavailable" }),
   ).toBeVisible();
-  await expect(input).toHaveValue(draft);
-  await page.getByText("Share an update", { exact: true }).click();
-  await expect(input).not.toBeVisible();
-  await page.getByText("Share an update", { exact: true }).click();
-  await expect(input).toHaveValue(draft);
+  await expect(input).toHaveText(draft);
+  await composer.getByRole("button", { name: "Close dialog", exact: true }).click();
+  const unsaved = page.getByRole("dialog", { name: "Unsaved changes", exact: true });
+  if (await unsaved.isVisible()) {
+    await unsaved.getByRole("button", { name: "Close without saving", exact: true }).click();
+    await expect(unsaved).toBeHidden();
+  }
+  await expect(composer).not.toBeVisible();
+  await expect(openComposer).toBeFocused();
+  await openComposer.click();
+  await expect(composer).toBeVisible();
+  await expect(input).toHaveText(draft);
+  await composer.getByRole("button", { name: "Close dialog", exact: true }).click();
+  if (await unsaved.isVisible()) {
+    await unsaved.getByRole("button", { name: "Close without saving", exact: true }).click();
+    await expect(unsaved).toBeHidden();
+  }
+  await expect(composer).not.toBeVisible();
   const trigger = page.getByRole("button", { name: "Search workspace" });
   await trigger.click();
   const dialog = page.getByRole("dialog", { name: "Go to…" });
@@ -443,38 +592,49 @@ test("Administration consolidates tools without granting staff approval manageme
   page,
   browser,
 }, info) => {
-  test.skip(
-    info.project.name !== "desktop",
-    "Administration policy is viewport-independent; mobile hierarchy is covered separately.",
-  );
+
   await login(page);
   await page.goto("/holdings/acme/settings?section=organization");
+  await expect(page).toHaveURL("/holdings/acme/people?company=acme-co&tab=settings");
+  await expect(workspace(page).getByRole("heading", { name: "People", exact: true, level: 1 })).toBeVisible();
+  if (info.project.name === "mobile") await workspace(page).getByRole("dialog", { name: "Acme Corporation details", exact: true }).getByRole("button", { name: "Close details", exact: true }).click();
+  await workspace(page).getByRole("button", { name: "HR settings", exact: true }).click();
+  const hrSettings = workspace(page).getByTestId("people-detail");
+  await hrSettings.getByRole("navigation", { name: "HR settings topics", exact: true })
+    .getByRole("button", { name: /^Staff levels/ }).click();
   await expect(
-    page.getByRole("heading", { name: "Company level catalog" }),
+    hrSettings.getByRole("heading", { name: "Staff levels", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Assign current level" }),
+    workspace(page).getByRole("heading", { name: "Assign current level" }),
   ).toHaveCount(0);
   await expect(
-    page.getByRole("heading", { name: "Approval routing administration" }),
+    workspace(page).getByRole("heading", { name: "Approval routing administration" }),
   ).toHaveCount(0);
-  await page
-    .getByRole("navigation", { name: "Administration sections" })
-    .getByRole("link", { name: "Approvals & routines", exact: true })
-    .click();
+  await hrSettings.getByRole("button", { name: "Close details", exact: true }).click();
+  await page.getByRole("navigation", { name: /^(Primary|Mobile navigation)$/ }).filter({ visible: true })
+    .getByRole("button", { name: "App launcher", exact: true }).click();
+  const ownerLauncher = page.getByRole("dialog", { name: "App launcher", exact: true });
+  await ownerLauncher.getByRole("searchbox", { name: "Search apps and pages", exact: true }).fill("Approval routing");
+  const approvalRouting = ownerLauncher.getByRole("link", { name: /^Approval routing(?:\s|$)/ });
+  await expect(approvalRouting).toHaveAttribute("href", "/holdings/acme/settings?section=approvals");
+  await approvalRouting.click();
+  await workspace(page).getByRole("navigation", { name: "Approval routing views", exact: true }).getByRole("link", { name: "Routing issues", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Approval issues", exact: true }),
+    workspace(page).getByRole("heading", { name: "Approval issues", exact: true }),
   ).toBeVisible();
   await expect(
     page
-      .locator("#workspace-content")
+      .locator("#workspace-content:visible")
       .getByRole("link", { name: "Routine templates", exact: true }),
   ).toBeVisible();
   await page.goto("/holdings/acme/settings?section=people");
+  await expect(page).toHaveURL("/holdings/acme/people?panel=settings");
   await expect(
-    page.getByRole("link", { name: "Open people directory" }),
+    workspace(page).getByRole("heading", { name: "People", exact: true, level: 1 }),
   ).toBeVisible();
-  await expect(page.getByRole("combobox", { name: "Teammate" })).toHaveCount(0);
+  await expect(workspace(page).getByTestId("people-detail").getByRole("heading", { name: "HR settings", exact: true })).toBeVisible();
+  await expect(workspace(page).getByRole("combobox", { name: "Teammate" })).toHaveCount(0);
   const c = await browser.newContext(info.project.use);
   try {
     await c.request.post("/api/auth/sign-in/email", {
@@ -486,35 +646,29 @@ test("Administration consolidates tools without granting staff approval manageme
     const primaryNavigation = p
       .getByRole("navigation", { name: /^(Primary|Mobile navigation)$/ })
       .filter({ visible: true });
-    const secondaryToggle = primaryNavigation.getByRole("button", {
-      name: "More navigation",
-    });
-    if (info.project.name !== "desktop") await secondaryToggle.click();
-    const secondaryNavigation =
-      info.project.name === "desktop"
-        ? primaryNavigation
-        : p.getByRole("dialog", { name: "More", exact: true });
+    await primaryNavigation.getByRole("button", { name: "App launcher", exact: true }).click();
+    const staffLauncher = p.getByRole("dialog", { name: "App launcher", exact: true });
+    const appSearch = staffLauncher.getByRole("searchbox", { name: "Search apps and pages", exact: true });
+    await appSearch.fill("Approval routing");
+    await expect(staffLauncher.getByRole("link", { name: /^Approval routing(?:\s|$)/ })).toHaveCount(0);
+    await appSearch.fill("Help using ERPX");
+    await expect(staffLauncher.getByRole("link", { name: /^Help using ERPX(?:\s|$)/ }))
+      .toHaveAttribute("href", "/holdings/acme/branches/new-york/settings?section=feedback");
+    await appSearch.fill("Routine templates");
+    const staffRoutines = staffLauncher.getByRole("link", { name: /^Routine templates(?:\s|$)/ });
+    await expect(staffRoutines).toHaveAttribute("href", "/holdings/acme/branches/new-york/routine-templates");
+    await staffRoutines.click();
     await expect(
-      secondaryNavigation.getByRole("link", {
-        name: "Administration",
-        exact: true,
-      }),
+      workspace(p).getByRole("heading", { name: "Routine templates", exact: true, level: 1 }),
     ).toBeVisible();
     await expect(
-      secondaryNavigation.getByRole("link", { name: "Help & feedback" }),
-    ).toBeVisible();
-    await p.getByRole("link", { name: "Administration", exact: true }).click();
-    await expect(
-      p.getByRole("link", { name: "Routine templates", exact: true }),
-    ).toBeVisible();
-    await expect(
-      p.getByRole("heading", { name: "Approval issues", exact: true }),
+      workspace(p).getByRole("heading", { name: "Approval issues", exact: true }),
     ).toHaveCount(0);
     await p.goto(
       "/holdings/acme/branches/new-york/settings?section=approvals&kind=leave&record=leave_001",
     );
     await expect(
-      p.getByRole("heading", { name: "This view isn’t available" }),
+      p.getByRole("heading", { name: "Your role cannot open this view", exact: true, level: 1 }),
     ).toBeVisible();
     await expect(
       p.getByRole("button", { name: "Record rerouting" }),

@@ -7,8 +7,8 @@ import {useRouter} from 'next/navigation';
 import {Button,Field,Select,TextArea,TextInput} from '@/components/ui/foundation';
 import {PreferredDateTimeField} from '@/components/time/preferred-date-time-field';
 import {workFetch} from '@/lib/work-fetch';
-import type {maintenanceWorkspace} from '@/server/asset-maintenance';
-import type {preventivePlanDetail} from '@/server/maintenance-preventive';
+import type {maintenanceWorkspace} from "@/server/modules/maintenance/public/asset-maintenance";
+import type {preventivePlanDetail} from "@/server/modules/maintenance/public/maintenance-preventive";
 import { FormLayout } from "@/components/ui/foundation";
 
 export function MaintenancePreventiveConsole({base,data,detail}:{base:string;data?:Awaited<ReturnType<typeof maintenanceWorkspace>>;detail?:Awaited<ReturnType<typeof preventivePlanDetail>>}){

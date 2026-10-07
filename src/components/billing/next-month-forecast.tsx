@@ -5,7 +5,7 @@ import { Button, TextInput } from "@/components/ui/foundation";
 
 import { betaFetch } from "@/lib/beta-client";
 import { calculateSeatForecast, parseForecastBaht, parseForecastGb } from "@/lib/billing-forecast";
-import type { SeatForecastBaseline } from "@/server/billing-forecast";
+import type { SeatForecastBaseline } from "@/server/modules/billing/public/billing-forecast";
 import { useEffect, useState } from "react";
 import { TimeText } from "@/components/time/time-preference-context";
 import styles from "./next-month-forecast.module.css";

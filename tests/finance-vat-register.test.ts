@@ -1,3 +1,4 @@
+import type { FinanceRow } from "../src/server/modules/finance/public/finance";
 import { beforeAll,beforeEach,describe,expect,it,vi } from "vitest";
 import { applyMigrations,env } from "./runtime-env";
 import { expenseDb as db,expenseFixture,key } from "./helpers/expense-fixture";
@@ -91,13 +92,13 @@ describe("Source-derived Thai VAT register and filing preparation",()=>{
     await expect(db.batch(lateSteps)).rejects.toThrow("PERIOD_CLOSED");
     expect(Number(await db.prepare("SELECT COUNT(*) n FROM finance_journals WHERE id=?").bind(journal).first("n"))).toBe(0);
     const correction=await prepareVatCorrection(f.reviewer,entry,vatCorrectionSchema.parse({...facts(source,{documentReference:"Corrected supporting tax invoice reference"}),expectedEntryVersion:2,reason:"Review newly received document evidence without changing retained tax amounts"}),key());
-    const period=await db.prepare("SELECT * FROM finance_periods WHERE id=?").bind(f.period).first();
+    const period=await db.prepare("SELECT * FROM finance_periods WHERE id=?").bind(f.period).first<FinanceRow>();
     expect(await calculateCloseReconciliations(db,f.manager,period!)).toMatchObject({ready:false,vat:{ready:false,pendingCorrections:1,rows:[expect.objectContaining({ledger_minor:700,register_minor:700})]}});
     await expect(closePeriod(f.manager,f.period,{expectedVersion:Number(prepared.version),proof:"Reject unmatched VAT source evidence"},key())).rejects.toMatchObject({code:"CLOSE_RECONCILIATION_STALE"});
     await cancelClose(f.reviewer,f.period,{expectedVersion:Number(prepared.version),reason:"Resolve changed source evidence before preparing the close again"},key());
     await reviewVatCorrection(f.manager,correction.id,"reject",{expectedVersion:1,reason:"Retain independently reviewed original tax reference"},key());
     await db.batch(lateSteps);
-    const openPeriod=await db.prepare("SELECT * FROM finance_periods WHERE id=?").bind(f.period).first();
+    const openPeriod=await db.prepare("SELECT * FROM finance_periods WHERE id=?").bind(f.period).first<FinanceRow>();
     expect(await calculateCloseReconciliations(db,f.manager,openPeriod!)).toMatchObject({ready:false,vat:{ready:false,rows:[expect.objectContaining({ledger_minor:800,register_minor:700})]}});
     await expect(beginClose(f.reviewer,f.period,key())).rejects.toMatchObject({code:"CLOSE_VAT_RECONCILIATION_FAILED"});
     expect(JSON.parse(String(await db.prepare("SELECT detail_json FROM finance_close_checks WHERE period_id=? AND check_key='statutory-vat'").bind(f.period).first("detail_json"))).rows[0].ledger_minor).toBe(700);
@@ -171,5 +172,23 @@ describe("Source-derived Thai VAT register and filing preparation",()=>{
     await reviewVatCorrection(f.manager,group.id,"approve",{expectedVersion:1,reason:"A currently authorized independent reviewer checked the correction"},key());
     expect(await taxEntryDetail(f.manager,entry)).toMatchObject({currentId:replacement,history:[expect.objectContaining({id:entry}),expect.objectContaining({id:replacement})]});
     expect(await vatPackageDetail(f.manager,p.id)).toMatchObject({currentRegisterMatches:false,pendingCorrections:0});
+  });
+
+  it("rolls back a reviewed correction if final outbox fails and retries with one immutable history revision",async()=>{
+    const source=await invoice("payable"),entry=await approvedEntry(source),original=await db.prepare("SELECT * FROM finance_tax_entries WHERE id=?").bind(entry).first(),group=await prepareVatCorrection(f.reviewer,entry,vatCorrectionSchema.parse({...facts(source),expectedEntryVersion:2,treatment:"allocated",deductibleBps:5000,reason:"Reviewed proportionate deduction for original tax evidence"}),key());
+    const retained=await vatCorrectionDetail(f.manager,group.id),replacement=String(retained.entries[0].replacement.id),command=key(),input={expectedVersion:1,reason:"Independently reviewed original evidence and proportionate deduction"},fault=`vat_review_fault_${crypto.randomUUID().replaceAll("-","")}`;
+    await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'VAT_REVIEW_LATE_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.event_type='finance.vat-correction.approve') EXECUTE FUNCTION ${fault}();`);
+    try{
+      await expect(reviewVatCorrection(f.manager,group.id,"approve",input,command)).rejects.toThrow();
+      expect(await vatCorrectionDetail(f.manager,group.id)).toEqual(retained);
+      expect(await db.prepare("SELECT * FROM finance_tax_entries WHERE id=?").bind(entry).first()).toEqual(original);
+      expect(await db.prepare("SELECT id FROM finance_current_tax_entries WHERE company_id=? AND source_type='invoice' AND source_id=? AND status='approved'").bind(f.company,source).first("id")).toBe(entry);
+      for(const table of ["command_receipts","decision_evidence","audit_events","outbox_events"])expect(Number(await db.prepare(`SELECT COUNT(*) n FROM ${table} WHERE command_id=?`).bind(command).first("n"))).toBe(0);
+    }finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
+    const result=await reviewVatCorrection(f.manager,group.id,"approve",input,command);expect(await reviewVatCorrection(f.manager,group.id,"approve",input,command)).toEqual(result);
+    expect(result).toMatchObject({id:group.id,status:"approved",version:2,entryCount:1});
+    expect(await taxEntryDetail(f.manager,entry)).toMatchObject({currentId:replacement,history:[expect.objectContaining({id:entry}),expect.objectContaining({id:replacement})]});
+    expect(await db.prepare("SELECT * FROM finance_tax_entries WHERE id=?").bind(entry).first()).toEqual(original);
+    for(const table of ["command_receipts","decision_evidence","audit_events","outbox_events"])expect(Number(await db.prepare(`SELECT COUNT(*) n FROM ${table} WHERE command_id=?`).bind(command).first("n"))).toBe(1);
   });
 });

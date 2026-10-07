@@ -1,3 +1,4 @@
+import { collaborationPresentationQueries } from "@/server/modules/collaboration/public/presentation-queries";
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { TimeText } from "@/components/time/time-preference-context";
@@ -6,10 +7,10 @@ import { PageHeader } from "@/components/ui/primitives";
 import { HandbookEditor } from "@/components/workplace/handbook-controls";
 import styles from "@/components/workplace/services.module.css";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope,requireWorkContext } from "@/server/authorization";
-import { handbookAccess,handbookArticle } from "@/server/handbook";
-import { accessPage,pageError } from "@/server/page-error";
-import { holdingResources } from "@/server/runtime";
+import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+
+import { accessPage,pageError } from "@/server/modules/work_projection/public/page-error";
+
 import { RecordLink as Link } from "@/components/records/record-link";
 export default async function Article({
   params,
@@ -21,12 +22,12 @@ export default async function Article({
   const { holdingSlug, id } = await params,
     actor = await requireWorkContext(holdingSlug),
     base = workspaceBase(publicScope(actor)),
-    { write } = await holdingResources(actor.holdingId),
+    presentation = await collaborationPresentationQueries(actor.holdingId),
     query = await searchParams,
     editing = query.edit === "1",
     historyView = query.revision !== undefined;
   if (id === "new") {
-    if (!(await handbookAccess(write, actor)).editor) return accessPage("permission", actor.holdingSlug);
+    if (!(await presentation.handbookAccess(actor)).editor) return accessPage("permission", actor.holdingSlug);
     return (
       <FeaturePage className={`content ${styles.stack}`}>
         <Link href={`${base}/handbook?edit=1`}>← Company handbook</Link>
@@ -40,13 +41,7 @@ export default async function Article({
   }
   let data;
   try {
-    data = await handbookArticle(
-      write,
-      actor,
-      id,
-      editing,
-      historyView ? Number(query.revision) : undefined,
-    );
+    data = await presentation.handbookArticle(actor, id, editing, historyView ? Number(query.revision) : undefined);
   } catch (e) {
     return pageError(e, actor.holdingSlug);
   }

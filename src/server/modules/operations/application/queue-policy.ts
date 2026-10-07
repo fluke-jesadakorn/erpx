@@ -1,0 +1,4 @@
+import {policySchema,type QueuePolicyInput} from "../domain/queue-policy";
+import type {Clock} from "../../shared";
+export interface QueuePolicyPorts {clock:Clock;authorize():Promise<void>;replay(key:string,operation:string,id:string,input:QueuePolicyInput):Promise<Record<string,unknown>|null>;persist(command:{key:string;operation:string;id:string;input:QueuePolicyInput;sourceKinds:QueuePolicyInput["sourceKinds"];now:number}):Promise<Record<string,unknown>>;}
+export function createQueuePolicyApplication(ports:QueuePolicyPorts){return async(raw:unknown,key:string)=>{await ports.authorize();const input=policySchema.parse(raw),id=`queue-policy-${key}`,operation="operations.policy.draft",prior=await ports.replay(key,operation,id,input);if(prior)return prior;return ports.persist({key,operation,id,input,sourceKinds:[...new Set(input.sourceKinds)].sort(),now:ports.clock.now()});};}

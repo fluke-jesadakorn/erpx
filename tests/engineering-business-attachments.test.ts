@@ -15,7 +15,7 @@ vi.mock('../src/server/runtime',()=>({holdingResources:async()=>({write:env.H001
 // The clean scanner is a declared fixture. Upload bytes, sniffing, sanitized
 // preview creation, quota, storage, owner policy and transactions are real.
 // Root verifies ClamAV with the compiled scanner separately on this source.
-vi.mock('../src/server/attachments/scanner',()=>({
+vi.mock('../src/server/modules/files/public/attachments/scanner',()=>({
  attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:'Declared clean scanner fixture',definitionUpdatedAt:Date.now(),error:null}),
  scanAttachmentBytes:async()=>({clean:true,signature:null,engine:'Declared clean scanner fixture',definitionUpdatedAt:Date.now()}),
 }));
@@ -57,7 +57,7 @@ describe('Business File Sources owner intake',()=>{
  it.each(tuples.map(row=>[row.id,row] as const))('proves authorized intake scan binding reload and revocation for %s',async(_id,tuple)=>{
   const componentKind=tuple.componentKind as AttachmentComponentKind,policy=attachmentPolicy(tuple.targetType,tuple.purposeKey,componentKind),owner=await businessFileTarget(db,await expenseFixture(),policy,componentKind),actor=owner.actor;
   actor.iam=await loadIamAuthority(db,actor.companyId,actor.userId,actor.role);
-  const componentRef=owner.componentRef;
+  const componentRef=owner.componentRef??undefined;
   const input={targetType:tuple.targetType,targetId:owner.targetId,componentKind,purposeKey:tuple.purposeKey,componentRef,expectedTargetVersion:owner.version};
   await expect(createAttachmentSet(db,actor,{...input,expectedTargetVersion:owner.version+1},key())).rejects.toMatchObject({status:409,code:'ATTACHMENT_TARGET_CHANGED'});
   const setKey=key(),set=await createAttachmentSet(db,actor,input,setKey);expect(await createAttachmentSet(db,actor,input,setKey)).toMatchObject({id:set.id,state:'draft'});
@@ -73,9 +73,9 @@ describe('Business File Sources owner intake',()=>{
   expect(await attachmentLinkStatus(db,actor,reserved.attachmentLinkId)).toMatchObject({sourceState:'available',linkState:'draft',bindable:true,previewAvailable:true,scan:{lastResult:'clean',lastError:null}});
   expect(await db.prepare('SELECT company_id,owner_type,owner_id,purpose,checksum_sha256,bytes,detected_media_type,source_state FROM attachments WHERE id=?').bind(uploaded.sourceId).first()).toMatchObject({company_id:actor.companyId,owner_type:tuple.targetType,owner_id:owner.targetId,purpose:tuple.purposeKey,checksum_sha256:checksum,bytes:png.byteLength,detected_media_type:'image/png',source_state:'available'});
   expect(await db.prepare('SELECT status,checksum_sha256,actual_bytes FROM upload_intents WHERE id=?').bind(reserved.uploadIntentId).first()).toEqual({status:'ready',checksum_sha256:checksum,actual_bytes:png.byteLength});
-  const command=key(),bindingType=owner.bindingType;
+  const command=key(),bindingType=owner.bindingType??null;
   const bind=()=>componentKind==='record'?bindRecordAttachmentSet(db,actor,set.id,owner.version,command):owner.bindAction?owner.bindAction(set.id,command):Promise.reject(new Error(`Native owner attachment command missing for ${tuple.id}`));
-  await expect(prepareAttachmentBinding(db,actor,{attachmentSetIds:[set.id],bindingContract:{targetType:tuple.targetType,bindingType,contexts:[{purposeKey:tuple.purposeKey,componentKind,componentRef}]},targetId:owner.targetId,expectedTargetVersion:owner.version+1,commandId:key(),bindingId:owner.targetId})).rejects.toMatchObject({status:409,code:'ATTACHMENT_SET_STALE'});
+  await expect(prepareAttachmentBinding(db,actor,{attachmentSetIds:[set.id],bindingContract:{targetType:tuple.targetType,bindingType,contexts:[{purposeKey:tuple.purposeKey,componentKind,componentRef:componentRef??null}]},targetId:owner.targetId,expectedTargetVersion:owner.version+1,commandId:key(),bindingId:owner.targetId})).rejects.toMatchObject({status:409,code:'ATTACHMENT_SET_STALE'});
   if(componentKind!=='record')await expect(bindRecordAttachmentSet(db,actor,set.id,owner.version,key())).rejects.toMatchObject({code:'ACTION_EVIDENCE_DOMAIN_BIND_REQUIRED'});
   const result=await bind();expect(await bind()).toEqual(result);if(owner.assertNative)await owner.assertNative();
   expect(await db.prepare(`SELECT version FROM ${owner.table} WHERE id=?`).bind(owner.targetId).first('version')).toBe(owner.version+1);

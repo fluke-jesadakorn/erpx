@@ -8,7 +8,7 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
-import type { agentWorkspace } from "@/server/agent-governance";
+import type { agentWorkspace } from "@/server/modules/agent/public/agent-governance";
 import { FormLayout, Card } from "@/components/ui/foundation";
 export function AgentGovernanceConsole({ recordOnly=false,
   base,

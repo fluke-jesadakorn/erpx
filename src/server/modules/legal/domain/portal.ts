@@ -1,0 +1,2 @@
+export type PortalActor={userId:string;email:string;sessionId:string};
+export function legalPortalActor(user:{id:string;email:string;emailVerified:boolean},sessionId:string,error:(status:number,code:string,message:string)=>Error):PortalActor{if(!user.emailVerified)throw error(403,"LEGAL_EMAIL_UNVERIFIED","Verify your account email before opening shared legal documents.");return {userId:user.id,email:user.email.toLowerCase(),sessionId};}

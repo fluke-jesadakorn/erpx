@@ -9,8 +9,8 @@ import {legalDestructionManifest} from '../src/server/legal/destruction-sources'
 import {LocalFileStore} from '../src/server/runtime/filesystem';
 import {createAttachmentSet,linkExistingAttachment,withdrawAttachmentLink} from '../src/server/attachments/service';
 vi.mock('../src/server/runtime',()=>({runtimeEnv:async()=>env}));
-vi.mock('../src/server/attachments/scanner',()=>({attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:'retention scanner fixture',definitionUpdatedAt:Date.now(),error:null}),scanAttachmentBytes:async()=>({clean:true,signature:null,engine:'retention scanner fixture',definitionUpdatedAt:Date.now()})}));
-vi.mock('../src/server/attachments/preview',()=>({attachmentPreviewReadiness:async()=>({ready:true,error:null}),detectedAttachmentMediaType:(_bytes:Uint8Array,type:string)=>type,sanitizedAttachmentPreview:async()=>null}));
+vi.mock('../src/server/modules/files/public/attachments/scanner',()=>({attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:'retention scanner fixture',definitionUpdatedAt:Date.now(),error:null}),scanAttachmentBytes:async()=>({clean:true,signature:null,engine:'retention scanner fixture',definitionUpdatedAt:Date.now()})}));
+vi.mock('../src/server/modules/files/public/attachments/preview',()=>({attachmentPreviewReadiness:async()=>({ready:true,error:null}),detectedAttachmentMediaType:(_bytes:Uint8Array,type:string)=>type,sanitizedAttachmentPreview:async()=>null}));
 const db=env.H001_DB,key=()=>crypto.randomUUID();let f:Awaited<ReturnType<typeof seedExpenseCompany>>,files:LocalFileStore;
 beforeAll(()=>applyMigrations(db,env.STAFF_TEST_MIGRATIONS));
 beforeEach(async()=>{f=await seedExpenseCompany(db,env.H001_FILES);f.manager=await f.member('retention-author','legal_manager');f.tie=await f.member('retention-reviewer','legal_manager');files=new LocalFileStore(env.H001_FILES.root,db);await legalCommand(db,f.manager,{action:'settings',enabled:true},key());vi.stubEnv('ERPX_ATTACHMENTS_V2','true');});

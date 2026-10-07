@@ -2,7 +2,7 @@
 import Image from 'next/image';
 import { useState } from 'react';
 import { Button } from '@/components/ui/foundation';
-import type { BookingImage } from '@/lib/pms-model';
+import type { BookingImage } from "@/server/modules/pms/public/rules/pms-model";
 import styles from './booking.module.css';
 export function BookingGallery({slug,images=[],compact=false}:{slug:string;images?:BookingImage[];compact?:boolean}){
  const [selected,setSelected]=useState(0);

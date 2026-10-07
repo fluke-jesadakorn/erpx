@@ -7,7 +7,7 @@ import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { workFetch } from "@/lib/work-fetch";
-import type { DailyPlanView } from "@/server/daily-plan";
+import type { DailyPlanView } from "@/server/modules/work_projection/public/daily-plan";
 import styles from "./daily-plan.module.css";
 
 type PlanItem = DailyPlanView["items"][number];

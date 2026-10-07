@@ -7,8 +7,8 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { hubResultHref } from "@/lib/hub-result";
 import { workFetch } from "@/lib/work-fetch";
-import type { Row } from "@/server/commerce";
-import type { customerFollowupDetail } from "@/server/customer-followups";
+import type { Row } from "@/server/modules/commerce/public/commerce";
+import type { customerFollowupDetail } from "@/server/modules/sales/public/customer-followups";
 import { Card, FormLayout } from "@/components/ui/foundation";
 export function CustomerFollowupForm({
   base,

@@ -1,6 +1,6 @@
-import { requireWorkContext } from "@/server/authorization";
-import { errorResponse, ApiError } from "@/server/http";
-import { archiveRecord, getRecord, recordContext, updateRecord, updateRecordSchema } from "@/server/records";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { errorResponse, ApiError } from "@/server/modules/runtime/public/http";
+import { archiveRecord, getRecord, recordContext, updateRecord, updateRecordSchema } from "@/server/modules/records/public/records";
 
 export const dynamic = "force-dynamic";
 export async function GET(_request: Request, context: RouteContext<"/api/v1/holdings/[holdingSlug]/records/[module]/[id]">) {

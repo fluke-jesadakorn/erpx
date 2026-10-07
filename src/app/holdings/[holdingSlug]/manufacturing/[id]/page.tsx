@@ -1,8 +1,8 @@
 import { RecordLink as Link } from "@/components/records/record-link";
-import { requireWorkContext, publicScope } from "@/server/authorization";
+import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
-import { pageError } from "@/server/page-error";
-import { productionDetail } from "@/server/production";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+import { productionDetail } from "@/server/modules/manufacturing/public/production";
 import { ProductionConsole } from "@/components/modules/production-console";
 import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
 import { hasPermission } from "@/lib/permissions";

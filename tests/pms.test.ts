@@ -434,6 +434,7 @@ it("settles a pending hotel transfer only after independent exact bank evidence"
   const result=await pmsCommand(db,reviewer,verify,verifyKey);
   expect(result).toMatchObject({id:pending.id,state:"verified",bankTransactionId:bankId,transferVersion:2});
   expect(await pmsCommand(db,reviewer,verify,verifyKey)).toEqual(result);
+  if(!("entryId" in result)||!result.entryId)throw new Error("Verified transfer must retain its entry receipt");
   const transfer=await db.prepare("SELECT state,entry_id,finance_payment_id,bank_transaction_id FROM pms_transfer_requests WHERE id=?").bind(pending.id).first<{state:string;entry_id:string;finance_payment_id:string;bank_transaction_id:string}>();
   expect(transfer).toMatchObject({state:"verified",entry_id:result.entryId,bank_transaction_id:bankId});
   const bank=await db.prepare("SELECT match_status,matched_type,matched_id FROM finance_bank_transactions WHERE id=?").bind(bankId).first();
@@ -740,6 +741,28 @@ it("blocks closed accounting periods and keeps the payment and folio atomic", as
   ).rejects.toMatchObject({ code: "PMS_PERIOD_CLOSED" });
   expect(record(await snapshot(), "folio", b.folioId).data.advance).toBe(0);
   expect(records(await snapshot(), "entry")).toHaveLength(0);
+  await db.prepare("UPDATE finance_periods SET state='open' WHERE id=?").bind(f.period).run();
+  const initial=await snapshot(),commandId=key(),request={propertyId,expectedVersion:initial.property.version,operation:"payment.receive",input:{folioId:b.folioId,amount:10700,method:"cash",shiftId:sh}};
+  const retained=async()=>({
+    property:await db.prepare("SELECT version,config_json FROM pms_properties WHERE id=?").bind(propertyId).first(),
+    records:(await db.prepare("SELECT id,kind,data_json,version FROM pms_records WHERE property_id=? ORDER BY id").bind(propertyId).all()).results,
+    journals:(await db.prepare("SELECT id,status FROM finance_journals WHERE company_id=? ORDER BY id").bind(f.company).all()).results,
+    payments:(await db.prepare("SELECT id,status,amount_minor FROM finance_payments WHERE company_id=? ORDER BY id").bind(f.company).all()).results,
+    documents:(await db.prepare("SELECT id,finance_id,snapshot_json FROM pms_documents WHERE property_id=? ORDER BY id").bind(propertyId).all()).results,
+    money:(await db.prepare("SELECT source_type,source_id,amount_kind,amount_units::text,usd_units::text FROM money_transaction_snapshots WHERE company_id=? ORDER BY source_type,source_id,amount_kind").bind(f.company).all()).results,
+  });
+  const before=await retained(),fault=`pms_payment_late_${key().replaceAll("-","")}`;
+  await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'PMS_PAYMENT_LATE_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.command_id='${commandId}') EXECUTE FUNCTION ${fault}();`);
+  try {
+    await expect(pmsCommand(db,owner,request,commandId)).rejects.toMatchObject({code:"PMS_CONFLICT"});
+    expect(await retained()).toEqual(before);
+    for(const table of ["command_receipts","audit_events","outbox_events"])expect(await db.prepare(`SELECT command_id FROM ${table} WHERE command_id=?`).bind(commandId).first()).toBeNull();
+  } finally {await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
+  const result=await pmsCommand(db,owner,request,commandId),settled=await retained();
+  expect(await pmsCommand(db,owner,request,commandId)).toEqual(result);
+  expect(await retained()).toEqual(settled);
+  expect(records(await snapshot(),"entry")).toHaveLength(1);
+  for(const table of ["command_receipts","audit_events","outbox_events"])expect(await db.prepare(`SELECT COUNT(*)::int n FROM ${table} WHERE command_id=?`).bind(commandId).first("n")).toBe(1);
 });
 it("durably blocks failed night audit and resumes under a valid auditor", async () => {
   const b = await book();

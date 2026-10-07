@@ -1,7 +1,7 @@
-import {requireWorkContext} from '@/server/authorization';
-import {requestPublicOrigin} from '@/server/public-origin';
-import {ApiError,errorResponse} from '@/server/http';
-import {changePreventivePlan,preventivePlanDetail,preventivePlans,savePreventivePlan} from '@/server/maintenance-preventive';
+import {requireWorkContext} from "@/server/modules/identity_access/public/authorization";
+import {requestPublicOrigin} from "@/server/modules/manage_erpx/public/public-origin";
+import {ApiError,errorResponse} from "@/server/modules/runtime/public/http";
+import {changePreventivePlan,preventivePlanDetail,preventivePlans,savePreventivePlan} from "@/server/modules/maintenance/public/maintenance-preventive";
 type Context={params:Promise<{holdingSlug:string}>};
 const headers={'Cache-Control':'private, no-store'};
 export async function GET(request:Request,context:Context){try{const a=await requireWorkContext((await context.params).holdingSlug),id=new URL(request.url).searchParams.get('id');return Response.json({data:id?await preventivePlanDetail(a,id):await preventivePlans(a)},{headers});}catch(error){return errorResponse(error);}}

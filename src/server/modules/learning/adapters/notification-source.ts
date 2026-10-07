@@ -1,0 +1,1 @@
+export function learningAssignmentNoticeSource(change:"assigned"|"changed"){const message=change==="assigned"?"New learning assignment: review course and due date":"Learning assignment updated: review current status";return `SELECT ?,company_id,learner_id,'learning_assignment',id,version,'${message}',updated_at FROM learning_assignments WHERE id=?`;}

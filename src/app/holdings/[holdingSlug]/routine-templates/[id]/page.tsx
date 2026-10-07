@@ -1,15 +1,13 @@
+import { staffPresentationQueries } from "@/server/modules/work_projection/public/presentation-context-queries";
+
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import {
 RoutineScheduleControls,
 TaskEditor,
 } from "@/components/modules/staff-work-controls";
-import { pageError } from "@/server/page-error";
-import {
-canEditTemplate,
-getTemplate,
-type ScheduleRow,
-} from "@/server/routines";
-import { staffPage } from "@/server/staff-page";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+
+
 import { RecordLink as Link } from "@/components/records/record-link";
 export default async function Routine({
   params,
@@ -17,18 +15,13 @@ export default async function Routine({
   params: Promise<{ holdingSlug: string; id: string }>;
 }) {
   const { holdingSlug, id } = await params,
-    { actor, write, base, options, projects } = await staffPage(holdingSlug),
-    template = await getTemplate(write, actor, id).catch((e) => {
+    { actor, queries, base, options, projects } = await staffPresentationQueries(holdingSlug),
+    template = await queries.getTemplate(actor, id).catch((e) => {
       return pageError(e, holdingSlug);
     }),
-    canEdit = await canEditTemplate(write, actor, template),
+    canEdit = await queries.canEditTemplate(actor, template),
     schedules = (
-      await write
-        .prepare(
-          "SELECT * FROM routine_schedules WHERE template_id=? AND company_id=? ORDER BY created_at",
-        )
-        .bind(id, actor.companyId)
-        .all<ScheduleRow>()
+      await queries.routineTemplateSchedules(id, actor.companyId)
     ).results;
   return (
     <FeaturePage className="ui-page-content" data-source="live">

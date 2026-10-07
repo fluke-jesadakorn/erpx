@@ -1,3 +1,5 @@
+import { fulfillmentSchema } from "../src/server/commerce";
+import { returnRequestSchema } from "../src/server/commerce";
 import { beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { applyMigrations,env } from "./runtime-env";
 import { expenseDb as db,expenseFixture,key } from "./helpers/expense-fixture";
@@ -21,7 +23,7 @@ it("returns a supplier receipt through independent review, stock reversal and de
   const warehouse=await saveMaster(f.owner,"warehouses",null,{branchId:f.branch,code:key(),name:"Return warehouse"},key()),product=await saveMaster(f.owner,"products",null,{sku:key(),name:"Return product",price:"10"},key()),party=await saveMaster(f.owner,"parties",null,{kind:"supplier",code:key(),name:"Return supplier"},key());
   const order=await saveOrder(f.owner,null,orderSchema.parse({kind:"purchase",partyId:party.id,warehouseId:warehouse.id,orderDate:"2026-09-02",dueDate:"2026-09-03",lines:[{productId:product.id,quantity:"2",price:"10",taxBps:0}]}),key()),orderId=String(order.id);
   await transitionOrder(f.owner,orderId,{action:"submit",expectedVersion:1},key());await transitionOrder(f.head,orderId,{action:"approve",expectedVersion:2},key());await assign("order",orderId,"stock_gl",f.manager.userId);
-  let details=await getOrder(f.owner,orderId);const receiptFiles=await seedAttachmentSet(db,f.owner,{targetType:"purchase_order",targetId:orderId,purposeKey:"delivery_note",componentRef:"goods-receipt",expectedTargetVersion:3});const receipt=await fulfillOrder(f.owner,orderId,{expectedVersion:3,date:"2026-09-02",lines:[{lineId:String(details.lines[0].id),quantity:"2"}],attachmentSetIds:[receiptFiles.setId]},key());
+  let details=await getOrder(f.owner,orderId);const receiptFiles=await seedAttachmentSet(db,f.owner,{targetType:"purchase_order",targetId:orderId,purposeKey:"delivery_note",componentRef:"goods-receipt",expectedTargetVersion:3});const receipt=await fulfillOrder(f.owner,orderId,fulfillmentSchema.parse({expectedVersion:3,date:"2026-09-02",lines:[{lineId:String(details.lines[0].id),quantity:"2"}],attachmentSetIds:[receiptFiles.setId]}),key());
   expect(await attachmentBindingState(db,receiptFiles.setId)).toMatchObject({set_state:"bound",link_state:"bound",binding_type:"purchase_receipt",binding_id:String(receipt.fulfillmentId)});
   const goodsJournal=String((await db.prepare("SELECT journal_id FROM commerce_fulfillments WHERE id=?").bind(receipt.fulfillmentId).first("journal_id")));await assign("journal",goodsJournal,"draft",f.manager.userId);await postJournal(f.manager,goodsJournal,key(),{expectedVersion:1});
   await assign("order",orderId,"invoicing",f.owner.userId);const invoice=await invoiceFulfillment(f.owner,String(receipt.fulfillmentId),{expectedVersion:1,date:"2026-09-02",dueDate:"2026-09-03"},key());await assign("invoice",String(invoice.invoiceId),"draft",f.manager.userId);await postInvoice(f.manager,String(invoice.invoiceId),{expectedVersion:1,periodId:f.period,entryDate:"2026-09-02"},key());
@@ -33,7 +35,7 @@ it("returns a supplier receipt through independent review, stock reversal and de
   await expect(settleInvoice(f.payer,String(invoice.invoiceId),{expectedVersion:2,date:"2026-09-03",amount:"1",reference:"Unlinked raw proof",paymentSlipId:rawSlip,attachmentSetIds:[]},key())).rejects.toMatchObject({code:"PAYMENT_SLIP_REQUIRED"});
   const {createSupplierBatch,decideSupplierBatch}=await import('../src/server/supplier-payments');
   const reserved=await createSupplierBatch(f.owner,{bankAccountId:f.accounts.cash,plannedDate:'2026-09-03',items:[{invoiceId:String(invoice.invoiceId),expectedVersion:2,amount:'20',beneficiaryName:'Simulated supplier',beneficiaryAccount:'SIMULATED-001'}]},key());
-  details=await getOrder(f.owner,orderId);const line=details.fulfillmentLines[0],returnFiles=await seedAttachmentSet(db,f.owner,{targetType:"commerce_fulfillment",targetId:String(receipt.fulfillmentId),purposeKey:"return_condition",componentRef:"return-request",expectedTargetVersion:2}),requested=await requestCommerceReturn(f.owner,String(receipt.fulfillmentId),{expectedVersion:2,date:"2026-09-03",reason:"Supplier accepted damaged unit",lines:[{lineId:String(line.id),quantity:"1"}],attachmentSetIds:[returnFiles.setId]},key());
+  details=await getOrder(f.owner,orderId);const line=details.fulfillmentLines[0],returnFiles=await seedAttachmentSet(db,f.owner,{targetType:"commerce_fulfillment",targetId:String(receipt.fulfillmentId),purposeKey:"return_condition",componentRef:"return-request",expectedTargetVersion:2}),requested=await requestCommerceReturn(f.owner,String(receipt.fulfillmentId),returnRequestSchema.parse({expectedVersion:2,date:"2026-09-03",reason:"Supplier accepted damaged unit",lines:[{lineId:String(line.id),quantity:"1"}],attachmentSetIds:[returnFiles.setId]}),key());
   expect(await attachmentBindingState(db,returnFiles.setId)).toMatchObject({set_state:"bound",link_state:"bound",binding_type:"commerce_return",binding_id:String(requested.id)});
   await expect(decideCommerceReturn(f.owner,String(requested.id),"approve",{expectedVersion:1,reason:"Self approval"},key())).rejects.toMatchObject({code:"INDEPENDENT_APPROVER_REQUIRED"});
   await expect(decideCommerceReturn(f.head,String(requested.id),'approve',{expectedVersion:1,reason:'Cannot return a reserved invoice'},key())).rejects.toMatchObject({code:'CONFLICT'});
@@ -43,7 +45,7 @@ it("returns a supplier receipt through independent review, stock reversal and de
   for(const journalId of [String(approved.stockJournalId),String(approved.creditJournalId)]){await assign("journal",journalId,"draft",f.manager.userId);await postJournal(f.manager,journalId,key(),{expectedVersion:1});const sums=await db.prepare("SELECT SUM(debit_minor) debit,SUM(credit_minor) credit FROM finance_journal_lines WHERE journal_id=?").bind(journalId).first();expect(sums?.debit).toBe(sums?.credit);}
   const completed=await completeCommerceReturn(f.manager,String(requested.id),{expectedVersion:2},key());expect(completed).toMatchObject({status:"posted",version:3});
   expect(await db.prepare("SELECT outstanding_minor,status FROM finance_invoices WHERE id=?").bind(invoice.invoiceId).first()).toEqual({outstanding_minor:1000,status:"partially_paid"});
-  await expect(requestCommerceReturn(f.owner,String(receipt.fulfillmentId),{expectedVersion:2,date:"2026-09-04",reason:"Exceeds remaining quantity",lines:[{lineId:String(line.id),quantity:"2"}]},key())).rejects.toMatchObject({code:"OVER_RETURN"});
+  await expect(requestCommerceReturn(f.owner,String(receipt.fulfillmentId),returnRequestSchema.parse({expectedVersion:2,date:"2026-09-04",reason:"Exceeds remaining quantity",lines:[{lineId:String(line.id),quantity:"2"}]}),key())).rejects.toMatchObject({code:"OVER_RETURN"});
 });
 
 async function paidReturn(kind:'sales'|'purchase',paid='15',taxBps=0,returnDate='2026-09-04') {
@@ -60,7 +62,7 @@ async function paidReturn(kind:'sales'|'purchase',paid='15',taxBps=0,returnDate=
   await transitionOrder(f.head,orderId,{action:'approve',expectedVersion:2},key());
   await assign('order',orderId,'stock_gl',f.manager.userId);
   let details=await getOrder(f.owner,orderId);
-  const fulfillment=await fulfillOrder(f.owner,orderId,{expectedVersion:3,date:'2026-09-02',lines:[{lineId:String(details.lines[0].id),quantity:'2'}],...(kind==='sales'?await deliveryEvidence(db,f.owner,orderId):{})},key());
+  const fulfillment=await fulfillOrder(f.owner,orderId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-02',lines:[{lineId:String(details.lines[0].id),quantity:'2'}],...(kind==='sales'?await deliveryEvidence(db,f.owner,orderId):{})}),key());
   const goodsJournal=String(await db.prepare('SELECT journal_id FROM commerce_fulfillments WHERE id=?').bind(fulfillment.fulfillmentId).first('journal_id'));
   await assign('journal',goodsJournal,'draft',f.manager.userId);await postJournal(f.manager,goodsJournal,key(),{expectedVersion:1});
   await assign('order',orderId,'invoicing',f.owner.userId);
@@ -74,9 +76,9 @@ async function paidReturn(kind:'sales'|'purchase',paid='15',taxBps=0,returnDate=
   if(paymentEvidence)expect(await attachmentBindingState(db,paymentEvidence.setId)).toMatchObject({set_state:'bound',link_state:'bound',binding_type:'invoice_payment_settlement'});
   details=await getOrder(f.owner,orderId);
   const requestKey=key(),input={expectedVersion:2,date:returnDate,reason:'Customer or supplier accepted the whole return',lines:[{lineId:String(details.fulfillmentLines[0].id),quantity:'2',...(kind==='sales'?{condition:'unknown' as const,conditionNote:'Returned units require independent Quality inspection',qualityDueDate:new Date(Date.parse(returnDate)+86400000).toISOString().slice(0,10)}:{})}]};
-  const requested=await requestCommerceReturn(f.owner,String(fulfillment.fulfillmentId),input,requestKey);
-  expect(await requestCommerceReturn(f.owner,String(fulfillment.fulfillmentId),input,requestKey)).toEqual(requested);
-  await expect(requestCommerceReturn(f.owner,'different-source',input,requestKey)).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
+  const requested=await requestCommerceReturn(f.owner,String(fulfillment.fulfillmentId),returnRequestSchema.parse(input),requestKey);
+  expect(await requestCommerceReturn(f.owner,String(fulfillment.fulfillmentId),returnRequestSchema.parse(input),requestKey)).toEqual(requested);
+  await expect(requestCommerceReturn(f.owner,'different-source',returnRequestSchema.parse(input),requestKey)).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
   // A later configuration edit must not redirect historical stock reversals.
   await db.prepare('UPDATE commerce_settings SET inventory_account_id=?,cogs_account_id=?,clearing_account_id=? WHERE company_id=?').bind(f.accounts.expense,f.accounts.cash,f.accounts.cash,f.company).run();
   const approved=await decideCommerceReturn(f.head,String(requested.id),'approve',{expectedVersion:1,reason:'Return condition and original evidence reviewed'},key());
@@ -112,7 +114,7 @@ async function paidReturn(kind:'sales'|'purchase',paid='15',taxBps=0,returnDate=
     await expect(db.prepare('UPDATE commerce_return_lines SET condition_note=? WHERE return_id=?').bind('Rewrite condition',requested.id).run()).rejects.toThrow('RETURN_QUALITY_EVIDENCE_IMMUTABLE');
     const holdId=String(await db.prepare("SELECT id FROM inventory_quality_holds WHERE source_type='customer_return' AND source_id=?").bind(`${requested.id}-0`).first('id'));
     const {inspectQualityHold,releaseQualityHold}=await import('../src/server/quality');
-    await inspectQualityHold(f.owner,holdId,{expectedVersion:1,result:'pass',evidence:'Packaging and functional check passed after customer return',measurements:[],attachmentIds:[]},key());
+    await inspectQualityHold(f.owner,holdId,{expectedVersion:1,result:'pass',evidence:'Packaging and functional check passed after customer return',measurements:[],attachmentIds:[],attachmentSetIds:[]},key());
     f.tie.role='quality_manager';f.tie.assignmentId=await f.grant(f.tie,'quality_manager');
     await releaseQualityHold(f.tie,holdId,{expectedVersion:2,reason:'Independent review confirms the returned units are resalable'},key());
     expect(await db.prepare('SELECT inventory_quarantined_quantity(?,?) quantity').bind(warehouse.id,product.id).first('quantity')).toBe(0);
@@ -260,7 +262,7 @@ it('holds uncertain payments, requires independent failure review, and serialize
  expect(await db.prepare("SELECT COUNT(*) n FROM finance_journals WHERE company_id=? AND source_type='return_refund'").bind(f.company).first('n')).toBe(0);
  const closing=await beginClose(f.owner,f.period,key());
  await bankEvidence('-1');
- await expect(closePeriod(f.head,f.period,{expectedVersion:Number(closing.version),proof:'Late bank data must block final close'},key())).rejects.toMatchObject({status:409});
+ await expect(closePeriod(f.head,f.period,{expectedVersion:Number(closing.version),proof:'Late bank data must block final close',attachmentSetIds:[]},key())).rejects.toMatchObject({status:409});
 });
 
 it('keeps tax in the full paid credit and creates exactly the gross refund obligation',async()=>{

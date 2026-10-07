@@ -67,8 +67,9 @@ test("isolated demo publishes a mentioned update and keeps thread actions after 
     expect(mentioned, "mentioned employee").toBeTruthy();
 
     await signInRole(ownerContext, ownerPage, credentials, "holding_owner");
-    const composer = ownerPage.locator("#workspace-content details.beta-composer");
-    await composer.locator("summary").click();
+    await ownerPage.locator("#workspace-content details.beta-composer summary").click();
+    const composer = ownerPage.getByRole("dialog", { name: "Share an update", exact: true });
+    await expect(composer).toBeVisible();
     const body = `Operations handoff ${Date.now()} @Support`;
     await composer.getByLabel("Post message", { exact: true }).fill(body);
     const mentionMenu = ownerPage.getByRole("listbox", {

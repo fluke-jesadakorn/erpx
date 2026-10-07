@@ -1,11 +1,11 @@
 import { isMyAction, workMatchesView } from "@/lib/work-item";
-import { requireWorkContext } from "@/server/authorization";
-import { holdingResources } from "@/server/runtime";
-import { workSnapshot } from "@/server/work-items";
-import { getWorkCardProjection } from "@/server/work-summary";
-import { markHomeRead, unreadHomeCount } from "@/server/navigation-counts";
-import { betaBody } from "@/server/beta-http";
-import { errorResponse } from "@/server/http";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { workSnapshot } from "@/server/modules/work_projection/public/work-items";
+import { getWorkCardProjection } from "@/server/modules/work_projection/public/work-summary";
+import { markHomeRead, unreadHomeCount } from "@/server/modules/work_projection/public/navigation-counts";
+import { betaBody } from "@/server/modules/manage_erpx/public/beta-http";
+import { errorResponse } from "@/server/modules/runtime/public/http";
 import { z } from "zod";
 
 type Context = { params: Promise<{ holdingSlug: string }> };

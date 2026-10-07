@@ -1,8 +1,8 @@
 import { headers } from "next/headers";
 import { frontAppForHost, safeFrontReturnPath } from "@/lib/front-host";
 import { LoginForm } from "@/app/login/login-form";
-import { currentSession } from "@/server/authorization";
-import { workspaceChoices } from "@/server/workspace-choices";
+import { currentSession } from "@/server/modules/identity_access/public/authorization";
+import { workspaceChoices } from "@/server/modules/organization/public/workspace-choices";
 import { consoleOrigin } from "@/lib/erpx-hosts";
 import styles from "../front-access.module.css";
 

@@ -1,0 +1,11 @@
+import 'server-only';
+/** Closed explicit-column owner projections for the supplied IAM statement snapshot.
+ * No caller-supplied table, SQL, predicate or alias is accepted. */
+export function learningTalentSnapshotSources(){return {
+  "learning_adapters_learning_hr_people_p_join": "JOIN (SELECT \"id\", \"user_id\", \"company_id\", \"legal_name\", \"preferred_name\", \"email\", \"phone\", \"country_code\", \"status\", \"version\", \"created_by\", \"created_at\", \"updated_at\", \"merged_into_id\", \"work_email\", \"work_phone\" FROM hr_people) p",
+  "learning_adapters_learning_hr_engagements_e_join": "JOIN (SELECT \"id\", \"person_id\", \"company_id\", \"branch_id\", \"department_id\", \"worker_type\", \"employment_type\", \"status\", \"start_date\", \"end_date\", \"manager_person_id\", \"job_title\", \"currency\", \"version\", \"created_by\", \"created_at\", \"updated_at\", \"pay_group_id\", \"level_id\", \"position_id\", \"self_service_top_level\" FROM hr_engagements) e",
+  "learning_adapters_learning_hr_people_from": "FROM (SELECT \"id\", \"user_id\", \"company_id\", \"legal_name\", \"preferred_name\", \"email\", \"phone\", \"country_code\", \"status\", \"version\", \"created_by\", \"created_at\", \"updated_at\", \"merged_into_id\", \"work_email\", \"work_phone\" FROM hr_people) hr_people",
+  "learning_adapters_learning_hr_people_p_from": "FROM (SELECT \"id\", \"user_id\", \"company_id\", \"legal_name\", \"preferred_name\", \"email\", \"phone\", \"country_code\", \"status\", \"version\", \"created_by\", \"created_at\", \"updated_at\", \"merged_into_id\", \"work_email\", \"work_phone\" FROM hr_people) p",
+  "learning_adapters_learning_eligibility_hr_people_p_join": "JOIN (SELECT \"id\", \"user_id\", \"company_id\", \"legal_name\", \"preferred_name\", \"email\", \"phone\", \"country_code\", \"status\", \"version\", \"created_by\", \"created_at\", \"updated_at\", \"merged_into_id\", \"work_email\", \"work_phone\" FROM hr_people) p",
+  "talent_adapters_talent_hr_people_p_join": "JOIN (SELECT \"id\", \"user_id\", \"company_id\", \"legal_name\", \"preferred_name\", \"email\", \"phone\", \"country_code\", \"status\", \"version\", \"created_by\", \"created_at\", \"updated_at\", \"merged_into_id\", \"work_email\", \"work_phone\" FROM hr_people) p"
+} as const;}

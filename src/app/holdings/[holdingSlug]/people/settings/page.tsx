@@ -1,3 +1,6 @@
+import { iamPresentationQueries } from "@/server/modules/identity_access/public/presentation-context-queries";
+import { peoplePayrollPresentationQueries } from "@/server/modules/people_payroll/public/presentation-queries";
+
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
@@ -8,7 +11,7 @@ import { OrganizationWorkspace } from "@/components/modules/organization-workspa
 import { AccountInvitations } from "@/components/modules/account-invitations";
 import { PeopleNavigation } from "@/components/modules/people-navigation";
 import { LevelLeaveDefaults } from "@/components/people/level-leave-defaults";
-import { defaultCatalog } from "@/server/staff-defaults";
+
 import { ServiceNavigation } from "@/components/modules/service-navigation";
 import { DirectoryWorkspace } from "@/components/people/directory-workspace";
 import { HoldingTemplates } from "@/components/people/holding-templates";
@@ -19,18 +22,18 @@ import { iamSections, type IamSection } from "@/lib/iam";
 import { hasPermission } from "@/lib/permissions";
 import { workspaceBase } from "@/lib/workspace";
 import { peopleContextHref, type PeopleRouteSearch } from "@/lib/people-route-context";
-import { administrationAccess } from "@/server/administration";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { directoryAutomationData } from "@/server/directory-operations";
-import { ApiError } from "@/server/http";
-import { iamContext } from "@/server/iam-context";
-import { iamOverview } from "@/server/iam-service";
-import { leaveAdministration } from "@/server/leave-self-service";
-import { organizationOverview } from "@/server/organization";
-import { peopleLifecycleData } from "@/server/people-lifecycle";
-import { peopleTemplatesData } from "@/server/people-templates";
-import { holdingResources } from "@/server/runtime";
-import { readManagement } from "@/server/user-management";
+import { administrationAccess } from "@/server/modules/runtime/public/administration";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+
+import { ApiError } from "@/server/modules/runtime/public/http";
+
+
+import { leaveAdministration } from "@/server/modules/people_payroll/public/leave-self-service";
+
+
+
+
+
 import styles from "./settings.module.css";
 
 const sections = [
@@ -55,14 +58,14 @@ export default async function PeopleSettings({ params, searchParams }: {
   const feature = section === "matrix" ? "roles" : section;
   const featureTitle = feature === "groups" ? "Groups & policies" : (iamSections.find(([id]) => id === feature)?.[1] ?? "People settings");
   const admin = technology ? await administrationAccess(actor) : null;
-  const { write } = await holdingResources(actor.holdingId);
+  const presentation = await peoplePayrollPresentationQueries(actor.holdingId);
   const needsIam = hasPermission(actor, "iam.read") && (section === "templates" || iamSections.some(([id]) => id === section));
-  const iam = needsIam || section === "my-access" ? await iamContext(slug) : null;
-  const data = iam && (section === "templates" || iamSections.some(([id]) => id === section)) ? await iamOverview(iam.db, iam.actor, section === "my-access") : null;
-  const management = iam && section === "connections" ? await readManagement(iam.db, iam.actor) : null;
+  const iam = needsIam || section === "my-access" ? await iamPresentationQueries(slug) : null;
+  const data = iam && (section === "templates" || iamSections.some(([id]) => id === section)) ? await iam.queries.iamOverview(iam.actor, section === "my-access") : null;
+  const management = iam && section === "connections" ? await iam.queries.readManagement(iam.actor) : null;
   const canManageTemplates = hasPermission(actor, "organization.manage") && hasPermission(actor, "people.manage");
-  const lifecycle = canManageTemplates && (section === "templates" || section === "") ? await peopleLifecycleData(write, actor) : null;
-  const holdingTemplates = section === "templates" && iam?.actor.scopeKind === "holding" && query.view !== "advanced" ? await peopleTemplatesData(iam.db, iam.actor) : null;
+  const lifecycle = canManageTemplates && (section === "templates" || section === "") ? await presentation.peopleLifecycleData(actor) : null;
+  const holdingTemplates = section === "templates" && iam?.actor.scopeKind === "holding" && query.view !== "advanced" ? await iam.queries.peopleTemplatesData(iam.actor) : null;
   let leave: Awaited<ReturnType<typeof leaveAdministration>> | null = null;
   if (section === "leave" || section === "") {
     try { leave = await leaveAdministration(actor); }
@@ -80,9 +83,9 @@ export default async function PeopleSettings({ params, searchParams }: {
       {canManageTemplates && lifecycle && <Link className={styles.summary} href={`${base}/people/settings?section=templates`}><span><strong>HR templates</strong><small>IT handoff owner: {lifecycle.settings.itAssigneeId ? "Assigned" : "Unassigned"} · {lifecycle.tasks.filter(t => t.kind === "position" && t.status === "pending").length} position preparation tasks pending</small></span><span>Open templates →</span></Link>}
       {!leave && !canManageTemplates && <p>Your selected role does not manage these settings.</p>}
     </div>}
-    {section === "leave" && (leave ? <><SelfServiceSettings base={base} data={leave} /><details className={styles.advancedSettings}><summary>Leave defaults by staff level</summary><LevelLeaveDefaults appearance="standard" base={base} levels={(await write.prepare("SELECT id,name,level_number FROM staff_levels WHERE company_id=? AND active=1 AND level_number IS NOT NULL ORDER BY level_number").bind(actor.companyId).all<{id:string;name:string;level_number:number}>()).results} defaults={(await defaultCatalog(write,actor)).leave}/></details></> : <p>HR setup or permission is required to manage leave and overtime.</p>)}
-    {section === "templates" && canManageTemplates && (query.view === "advanced" ? <><UiActionLink appearance="standard" variant="secondary" href={`${base}/people/settings?section=templates`}>← Back to HR templates</UiActionLink><OrganizationWorkspace appearance="standard" base={base} data={await organizationOverview(write, actor)} initialView="templates" /></> : <WidgetGrid><FeatureWidget appearance="standard" id="templates" title="Templates & lifecycle handoff"><div className={styles.templateStack}>{lifecycle && <LifecycleSettings base={base} data={lifecycle} owners={templateOwners} />}{holdingTemplates && <HoldingTemplates base={base} data={holdingTemplates} />}<Link href={`${base}/people/settings?section=templates&view=advanced`}>Advanced organization templates →</Link></div></FeatureWidget></WidgetGrid>)}
+    {section === "leave" && (leave ? <><SelfServiceSettings base={base} data={leave} /><details className={styles.advancedSettings}><summary>Leave defaults by staff level</summary><LevelLeaveDefaults appearance="standard" base={base} levels={(await presentation.leaveDefaultLevels(actor.companyId)).results} defaults={(await presentation.defaultCatalog(actor)).leave}/></details></> : <p>HR setup or permission is required to manage leave and overtime.</p>)}
+    {section === "templates" && canManageTemplates && (query.view === "advanced" ? <><UiActionLink appearance="standard" variant="secondary" href={`${base}/people/settings?section=templates`}>← Back to HR templates</UiActionLink><OrganizationWorkspace appearance="standard" base={base} data={await presentation.organizationOverview(actor)} initialView="templates" /></> : <WidgetGrid><FeatureWidget appearance="standard" id="templates" title="Templates & lifecycle handoff"><div className={styles.templateStack}>{lifecycle && <LifecycleSettings base={base} data={lifecycle} owners={templateOwners} />}{holdingTemplates && <HoldingTemplates base={base} data={holdingTemplates} />}<Link href={`${base}/people/settings?section=templates&view=advanced`}>Advanced organization templates →</Link></div></FeatureWidget></WidgetGrid>)}
     {iam && data && iamSections.some(([id]) => id === section) && <WidgetGrid>{(feature === "roles" ? (["roles", "matrix"] as IamSection[]) : [section as IamSection]).map(panel => <FeatureWidget appearance="standard" key={panel} id={panel} title={iamSections.find(([id]) => id === panel)?.[1] ?? panel}><IamConsole embedded data={data} base={base} api={`/api/v1${base}/iam`} section={panel} /></FeatureWidget>)}{section === "reviews" && hasPermission(actor, "iam.roles.manage") && <FeatureWidget appearance="standard" id="account-invitations" title="Activation invitations"><AccountInvitations actor={actor} base={base} /></FeatureWidget>}</WidgetGrid>}
-    {section === "connections" && iam?.actor.scopeKind === "holding" && <DirectoryWorkspace appearance="standard" base={base} initial={await directoryAutomationData(iam.db, iam.actor)} mode="settings" attributes={management?.attributes ?? []} people={management?.people ?? []} />}
+    {section === "connections" && iam?.actor.scopeKind === "holding" && <DirectoryWorkspace appearance="standard" base={base} initial={await iam.queries.directoryAutomationData(iam.actor)} mode="settings" attributes={management?.attributes ?? []} people={management?.people ?? []} />}
   </FeaturePage>;
 }

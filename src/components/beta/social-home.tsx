@@ -3,7 +3,7 @@ import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Select } from "@/components/ui/foundation";
 
-import type { SelfServiceSeed } from "@/server/self-service";
+import type { SelfServiceSeed } from "@/server/modules/records/public/self-service";
 
 import { AnnouncementFeed } from "@/components/calendar/announcement-feed";
 import { workFetch } from "@/lib/work-fetch";
@@ -16,10 +16,10 @@ import { isMyAction } from "@/lib/work-item";
 import { StartActions } from "@/components/today/start-actions";
 import { DailyPlan } from "@/components/today/daily-plan";
 import { HandoverComposer } from "@/components/today/handover-composer";
-import type { WorkSummary } from "@/server/work-summary";
+import type { WorkSummary } from "@/server/modules/work_projection/public/work-summary";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { betaFetch } from "@/lib/beta-client";
-import type { HomePost } from "@/server/social-home";
+import type { HomePost } from "@/server/modules/collaboration/public/social-home";
 import type { Meta } from "./social-types";
 import { SocialComposer } from "./social-composer";
 import { SocialPost } from "./social-post";

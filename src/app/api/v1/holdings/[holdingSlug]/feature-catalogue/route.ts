@@ -1,7 +1,7 @@
-import { requireWorkContext } from '@/server/authorization';
-import { companyFeatureCatalogue, changeCompanyFeatureRollout } from '@/server/hospitality-rollout';
-import { ApiError, errorResponse } from '@/server/http';
-import { requestPublicOrigin } from '@/server/public-origin';
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { companyFeatureCatalogue, changeCompanyFeatureRollout } from "@/server/modules/pms/public/hospitality-rollout";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 
 type Context = { params: Promise<{holdingSlug:string}> };
 

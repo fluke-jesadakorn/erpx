@@ -1,9 +1,9 @@
 import { InlineNotice } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
-import {requireWorkContext,publicScope} from '@/server/authorization';
+import {requireWorkContext,publicScope} from "@/server/modules/identity_access/public/authorization";
 import {workspaceBase} from '@/lib/workspace';
-import {pageError} from '@/server/page-error';
-import {customerFollowupDetail} from '@/server/customer-followups';
+import {pageError} from "@/server/modules/work_projection/public/page-error";
+import {customerFollowupDetail} from "@/server/modules/sales/public/customer-followups";
 import {CustomerFollowupForm} from '@/components/modules/customer-followups';
 import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic='force-dynamic';

@@ -1,3 +1,6 @@
+import { recordsPresentationQueries } from "@/server/modules/records/public/presentation-queries";
+
+
 import { RecordSections } from "@/components/workplace/record-sections";
 import { InlineNotice } from "@/components/ui/foundation";
 
@@ -19,13 +22,13 @@ import styles from "@/components/workplace/services.module.css";
 import { approvalAdminHref } from "@/lib/administration";
 import { categoryLabel,requestKinds } from "@/lib/employee-services";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope,requireWorkContext } from "@/server/authorization";
-import { commercePermissions } from "@/server/commerce";
-import { employeeRequestDetail } from "@/server/employee-requests";
-import { purchaseRequestProgress } from "@/server/purchase-request-progress";
-import { pageError } from "@/server/page-error";
-import { requestPageOptions } from "@/server/request-page";
-import { holdingResources } from "@/server/runtime";
+import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { commercePermissions } from "@/server/modules/commerce/public/commerce";
+
+
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+
+
 import { RecordLink as Link } from "@/components/records/record-link";
 import { Card } from "@/components/ui/foundation";
 export default async function RequestPage({
@@ -38,8 +41,8 @@ export default async function RequestPage({
   const { holdingSlug, id } = await params,
     actor = await requireWorkContext(holdingSlug),
     base = workspaceBase(publicScope(actor)),
-    { write } = await holdingResources(actor.holdingId),
-    detail = await employeeRequestDetail(write, actor, id).catch(
+    presentation = await recordsPresentationQueries(actor.holdingId),
+    detail = await presentation.employeeRequestDetail(actor, id).catch(
       (e: unknown) => {
         return pageError(e, actor.holdingSlug);
       },
@@ -47,7 +50,7 @@ export default async function RequestPage({
     row = detail.request,
     query = await searchParams;
   const purchaseProgress = row.kind === "purchase"
-    ? await purchaseRequestProgress(write, actor, row.id)
+    ? await presentation.purchaseRequestProgress(actor, row.id)
     : null;
   const back = new URLSearchParams(query.return ?? "");
   for (const key of [...back.keys()])
@@ -58,10 +61,10 @@ export default async function RequestPage({
   const savedApproval = JSON.parse(row.approval_json) as {route?:{steps?:{userId:string}[]};decisions?:{userId?:string;originalApproverUserId?:string;actualApproverUserId?:string}[]};
   const approverIds = [...new Set([...(savedApproval.route?.steps??[]).map(step=>step.userId),...(savedApproval.decisions??[]).flatMap(decision=>[decision.userId,decision.originalApproverUserId,decision.actualApproverUserId].filter((id):id is string=>!!id))])];
   const approverNames = Object.fromEntries(await Promise.all(approverIds.map(async userId=>{
-    const person=await write.prepare("SELECT legal_name FROM hr_people WHERE company_id=? AND iam_same_person(user_id,?,company_id) AND merged_into_id IS NULL LIMIT 1").bind(actor.companyId,userId).first<{legal_name:string}>();
+    const person=await presentation.requestApproverLegalName(actor.companyId, userId);
     return [userId,person?.legal_name??userId] as const;
   })));
-  const quotation = row.kind === "purchase" && commercePermissions(actor).purchase ? await write.prepare("SELECT id FROM procurement_rfqs WHERE request_id=? AND company_id=? AND status<>'cancelled'").bind(id,actor.companyId).first<{id:string}>() : null;
+  const quotation = row.kind === "purchase" && commercePermissions(actor).purchase ? await presentation.requestQuotation(id, actor.companyId) : null;
   return (
     <FeaturePage className={`content ${styles.stack}`} data-source="live">
       <Link href={`${base}/work${back.size ? `?${back}` : ""}`}>
@@ -121,7 +124,7 @@ export default async function RequestPage({
         <RequestEditor
           base={base}
           kind={row.kind}
-          options={await requestPageOptions(write, actor)}
+          options={await presentation.requestPageOptions(actor)}
           request={row}
           returnTo={back.toString()}
         />

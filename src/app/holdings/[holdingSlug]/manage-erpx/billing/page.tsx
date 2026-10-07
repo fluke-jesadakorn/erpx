@@ -1,5 +1,5 @@
 import { BillingConsole } from "@/components/billing/billing-console";
-import { requireManageErpxContext } from "@/server/authorization";
+import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
 import { PageContent } from "@/components/ui/foundation";
 export default async function BillingPage() {
   const { platform: a } = await requireManageErpxContext();

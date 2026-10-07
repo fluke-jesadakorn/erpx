@@ -9,9 +9,9 @@ import { PeriodControls } from "@/components/modules/ledger-controls";
 import { StatusBadge } from "@/components/ui/primitives";
 import { hasPermission } from "@/lib/permissions";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { closeWorkspace } from "@/server/finance-workspace";
-import { fxRevaluationWorkspace } from "@/server/finance";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { closeWorkspace } from "@/server/modules/finance/public/finance-workspace";
+import { fxRevaluationWorkspace } from "@/server/modules/finance/public/finance";
 import { Card } from "@/components/ui/foundation";
 
 export const dynamic = "force-dynamic";

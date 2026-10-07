@@ -87,7 +87,7 @@ it('returns an unposted AP draft atomically and accepts a corrected bill without
 it('allows exactly one winner when AP posting races an independent draft correction',async()=>{
  const r=await receipt(),body=input(r),bill=await captureSupplierBill(f.owner,body,key()),id=String(bill.id);await decideSupplierBill(f.manager,id,{action:'approve',expectedVersion:1,reason:'Supplier price difference independently accepted',varianceAccountId:f.accounts.expense},key());const invoice=await invoiceFulfillment(f.owner,r.fulfillmentId,{expectedVersion:2,date:body.invoiceDate,dueDate:body.dueDate,matchId:id,matchVersion:2},key());await assign('invoice',String(invoice.invoiceId),'draft',f.manager.userId);
  const results=await Promise.allSettled([postInvoice(f.manager,String(invoice.invoiceId),{expectedVersion:1,periodId:f.period,entryDate:body.invoiceDate},key()),decideSupplierBill(f.manager,id,{action:'return',expectedVersion:3,reason:'Supplier corrected the invoice before AP posting'},key())]);expect(results.filter(x=>x.status==='fulfilled')).toHaveLength(1);
- const status=await db.prepare('SELECT status FROM finance_invoices WHERE id=?').bind(invoice.invoiceId).first('status'),matching=await getSupplierBill(f.owner,id),receiptLink=await db.prepare('SELECT invoice_id FROM commerce_fulfillments WHERE id=?').bind(r.fulfillmentId).first('invoice_id'),journals=await db.prepare("SELECT count(*) n FROM finance_journals WHERE source_type='invoice' AND source_id=?").bind(invoice.invoiceId).first('n');
+ const status=await db.prepare('SELECT status FROM finance_invoices WHERE id=?').bind(invoice.invoiceId).first<string>('status'),matching=await getSupplierBill(f.owner,id),receiptLink=await db.prepare('SELECT invoice_id FROM commerce_fulfillments WHERE id=?').bind(r.fulfillmentId).first('invoice_id'),journals=await db.prepare("SELECT count(*) n FROM finance_journals WHERE source_type='invoice' AND source_id=?").bind(invoice.invoiceId).first('n');
  expect(['posted','voided']).toContain(status);expect(matching.status).toBe(status==='posted'?'posted':'returned');expect(receiptLink).toBe(status==='posted'?invoice.invoiceId:null);expect(journals).toBe(status==='posted'?1:0);
 });
 it('links one AP invoice to two receipts and atomically releases both for correction',async()=>{
@@ -132,4 +132,20 @@ it('enforces the versioned company matching policy and preserves its immutable c
  expect(await db.prepare('SELECT invoice_id FROM commerce_fulfillments WHERE id=?').bind(r.fulfillmentId).first('invoice_id')).toBe(invoice.invoiceId);
  expect((await db.prepare('SELECT previous_mode,matching_mode,reason FROM procurement_invoice_policy_events WHERE company_id=? ORDER BY version').bind(f.company).all()).results).toEqual([{previous_mode:'optional',matching_mode:'required',reason:required.reason},{previous_mode:'required',matching_mode:'optional',reason:optional.reason}]);
  await expect(db.prepare("UPDATE procurement_invoice_policy_events SET reason='erase' WHERE company_id=?").bind(f.company).run()).rejects.toThrow('PROCUREMENT_POLICY_HISTORY_IMMUTABLE');
+});
+it('rolls back AP, every receipt link and match evidence after a late handoff failure, then retries and replays once',async()=>{
+ const r=await receipt(),body=input(r),bill=await captureSupplierBill(f.owner,body,key()),id=String(bill.id);await decideSupplierBill(f.manager,id,{action:'approve',expectedVersion:1,reason:'Independent receipt and supplier amount review',varianceAccountId:f.accounts.expense},key());
+ const command=key(),payload={expectedVersion:2,date:body.invoiceDate,dueDate:body.dueDate,matchId:id,matchVersion:2},fault=`bill_handoff_failure_${crypto.randomUUID().replaceAll('-','').slice(0,12)}`;
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'BILL_FINAL_EVENT_FAILURE' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} BEFORE INSERT ON procurement_bill_match_events FOR EACH ROW WHEN(NEW.match_id='${id.replaceAll("'","''")}' AND NEW.action='invoice-created') EXECUTE FUNCTION ${fault}();`);
+ try{
+  await expect(invoiceFulfillment(f.owner,r.fulfillmentId,payload,command)).rejects.toMatchObject({code:'23514'});
+  expect(await getSupplierBill(f.owner,id)).toMatchObject({status:'approved',version:2,invoice_id:null});
+  expect(await db.prepare('SELECT invoice_id,version FROM commerce_fulfillments WHERE id=?').bind(r.fulfillmentId).first()).toEqual({invoice_id:null,version:2});
+  expect(await db.prepare("SELECT count(*) n FROM finance_invoices WHERE company_id=? AND source_type='commerce_fulfillment' AND source_id=?").bind(f.company,r.fulfillmentId).first('n')).toBe(0);
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n')).toBe(0);
+ }finally{await db.exec(`DROP TRIGGER ${fault} ON procurement_bill_match_events;DROP FUNCTION ${fault}();`);}
+ const draft=await invoiceFulfillment(f.owner,r.fulfillmentId,payload,command);expect(await invoiceFulfillment(f.owner,r.fulfillmentId,payload,command)).toEqual(draft);
+ expect(await getSupplierBill(f.owner,id)).toMatchObject({status:'invoiced',version:3,invoice_id:draft.invoiceId});
+ expect(await db.prepare('SELECT invoice_id,version FROM commerce_fulfillments WHERE id=?').bind(r.fulfillmentId).first()).toEqual({invoice_id:draft.invoiceId,version:3});
+ for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n')).toBe(1);
 });

@@ -1,10 +1,10 @@
-import { requireWorkContext } from "@/server/authorization";
-import { expenseOptions } from "@/server/expenses";
-import { leaveSummary } from "@/server/leave-self-service";
-import { requestPageOptions } from "@/server/request-page";
-import { holdingResources } from "@/server/runtime";
-import { getWorkCapabilities } from "@/server/work-capabilities";
-import { ApiError, errorResponse } from "@/server/http";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { expenseOptions } from "@/server/modules/people_payroll/public/expenses";
+import { leaveSummary } from "@/server/modules/people_payroll/public/leave-self-service";
+import { requestPageOptions } from "@/server/modules/records/public/request-page";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { getWorkCapabilities } from "@/server/modules/work_projection/public/work-capabilities";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 export async function GET(request:Request,context:{params:Promise<{holdingSlug:string}>}) {
  try {
   const actor=await requireWorkContext((await context.params).holdingSlug),{write}=await holdingResources(actor.holdingId),kind=new URL(request.url).searchParams.get("kind");

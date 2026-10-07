@@ -64,7 +64,7 @@ it.each(["POST", "PUT", "PATCH", "DELETE"])("blocks a pending %s command before 
 });
 
 it("lets the intentional Platform selector run while retaining rendered Holding and Platform authority", async () => {
-  const fetcher = vi.fn<typeof fetch>(async () => Response.json({ data: { selected: true } }));
+  const fetcher = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async () => Response.json({ data: { selected: true } }));
   vi.stubGlobal("fetch", fetcher);
   setContextSwitching(true);
   const response = await workFetch("/api/v1/platform/assignments/active", {
@@ -83,7 +83,7 @@ it("lets the intentional Platform selector run while retaining rendered Holding 
 });
 
 it.each(["/api/v1/holdings/acme/push", "/api/v1/holdings/acme/push/session", "/api/v1/front/acme/company/pms/push"])("allows Push cleanup during a pending switch at %s", async path => {
-  const fetcher = vi.fn<typeof fetch>(async () => new Response(null, { status: 204 }));
+  const fetcher = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async () => new Response(null, { status: 204 }));
   vi.stubGlobal("fetch", fetcher);
   setContextSwitching(true);
   expect((await workFetch(path, { method: "DELETE" })).status).toBe(204);
@@ -95,7 +95,7 @@ it.each(["/api/v1/holdings/acme/push", "/api/v1/holdings/acme/push/session", "/a
 });
 
 it("keeps an intentional Holding selector's caller headers and revision during a switch", async () => {
-  const fetcher = vi.fn<typeof fetch>(async () => Response.json({ data: {} }));
+  const fetcher = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async () => Response.json({ data: {} }));
   vi.stubGlobal("fetch", fetcher);
   setContextSwitching(true);
   const init = { method: "POST", headers: { "x-erpx-context-company": "company-a" }, body: JSON.stringify({ assignmentId: "assignment-b", revision: 7 }) };

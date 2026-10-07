@@ -5,7 +5,7 @@ import { expenseDb as db, expenseFixture, key } from "./helpers/expense-fixture"
 import { createExternalConnection, findExecutiveToken, listExternalConnections, resolveExecutivePrincipal, revokeExternalConnection } from "../src/server/executive/connections";
 import { boundedExecutiveResult, handleExecutiveMcp, metricProjection } from "../src/server/executive/mcp";
 import { createReport, reportData, saveReport, saveSchema, saveShare, revokeShare } from "../src/server/executive/reports";
-import * as metrics from "../src/server/executive/metrics";
+import * as metrics from "../src/server/modules/runtime/public/executive/metrics";
 import { defaultFilters, emptyDefinition, type Breakdown, type Filters, type MetricData, type MetricId } from "../src/lib/executive/canvas";
 import { loadIamAuthority } from "../src/server/iam-store";
 import type { WorkContext } from "../src/server/authorization";
@@ -181,4 +181,12 @@ it("serves multiple users concurrently without mixing principals or scopes",asyn
   const [owner,executive]=await Promise.all([a.callTool({name:"list_metrics",arguments:{}}),b.callTool({name:"list_metrics",arguments:{}})]);
   const allowed=(r:typeof owner)=>(data(r).metrics as {id:string;available:boolean}[]).find(m=>m.id==="headcount")?.available;
   expect(allowed(owner)).toBe(true);expect(allowed(executive)).toBe(false);
+});
+it("rolls back a connection and its final control audit together, then retries once without replaying its secret",async()=>{
+ const requestKey=key(),input={name:"Atomic control connection",scopeId:f.company},fault=`executive_connection_final_audit_${key().replaceAll("-","")}`;
+ const snapshot=async()=>({tokens:(await env.CONTROL_DB.prepare("SELECT * FROM executive_external_tokens WHERE company_id=? ORDER BY id").bind(f.company).all()).results,audit:(await env.CONTROL_DB.prepare("SELECT * FROM executive_mcp_audit WHERE company_id=? ORDER BY id").bind(f.company).all()).results});
+ const before=await snapshot();await env.CONTROL_DB.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'EXECUTIVE_CONNECTION_FINAL_AUDIT' USING ERRCODE='P0001';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON executive_mcp_audit FOR EACH ROW WHEN(NEW.token_id='${requestKey}' AND NEW.action='connection.create') EXECUTE FUNCTION ${fault}();`);
+ try{await expect(createExternalConnection(env.CONTROL_DB,db,f.owner,input,requestKey)).rejects.toThrow("EXECUTIVE_CONNECTION_FINAL_AUDIT");expect(await snapshot()).toEqual(before);}finally{await env.CONTROL_DB.exec(`DROP TRIGGER ${fault} ON executive_mcp_audit;DROP FUNCTION ${fault}();`);}
+ const issued=await createExternalConnection(env.CONTROL_DB,db,f.owner,input,requestKey);expect(issued.id).toBe(requestKey);await expect(createExternalConnection(env.CONTROL_DB,db,f.owner,input,requestKey)).rejects.toMatchObject({code:"CONNECTION_ALREADY_CREATED"});
+ expect(await env.CONTROL_DB.prepare("SELECT count(*)::integer count FROM executive_external_tokens WHERE id=?").bind(requestKey).first("count")).toBe(1);expect(await env.CONTROL_DB.prepare("SELECT count(*)::integer count FROM executive_mcp_audit WHERE token_id=? AND action='connection.create'").bind(requestKey).first("count")).toBe(1);
 });

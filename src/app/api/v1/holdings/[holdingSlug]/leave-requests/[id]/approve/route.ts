@@ -1,7 +1,7 @@
-import { requestPublicOrigin } from "@/server/public-origin";
-import { requireWorkContext } from "@/server/authorization";
-import { approveLeave, leaveDecisionSchema } from "@/server/leave";
-import { ApiError, errorResponse } from "@/server/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { approveLeave, leaveDecisionSchema } from "@/server/modules/people_payroll/public/leave";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 
 export async function POST(request: Request, context: RouteContext<"/api/v1/holdings/[holdingSlug]/leave-requests/[id]/approve">) {
   try {

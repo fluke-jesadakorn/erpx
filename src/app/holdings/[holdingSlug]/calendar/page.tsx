@@ -1,7 +1,8 @@
+import { workProjectionPresentationQueries } from "@/server/modules/work_projection/public/presentation-queries";
 import { CalendarWorkspace } from "@/components/calendar/calendar-workspace";
-import { requireWorkContext, publicScope } from "@/server/authorization";
-import { holdingResources } from "@/server/runtime";
-import { calendarData, calendarHierarchy } from "@/server/calendar";
+import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
+
+
 import { workspaceBase } from "@/lib/workspace";
 export const dynamic = "force-dynamic";
 export default async function CalendarPage({
@@ -12,7 +13,7 @@ export default async function CalendarPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const actor = await requireWorkContext((await params).holdingSlug),
-    { write } = await holdingResources(actor.holdingId),
+    presentation = await workProjectionPresentationQueries(actor.holdingId),
     query = await searchParams;
   const pageQuery = {
     ...query,
@@ -24,8 +25,8 @@ export default async function CalendarPage({
       : { layers: "roster,leave" }),
   };
   const [calendar, hierarchy] = await Promise.all([
-    calendarData(write, actor, pageQuery),
-    calendarHierarchy(write, actor),
+    presentation.calendarData(actor, pageQuery),
+    presentation.calendarHierarchy(actor),
   ]);
   return (
     <div className="content" data-source="live">

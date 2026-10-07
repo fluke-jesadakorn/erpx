@@ -5,15 +5,15 @@ import { FlowPanel } from "@/components/workplace/flow-panel";
 import { MoneyAmount } from "@/components/money/currency-provider";
 import { ExpensePostingPreview } from "./expense-posting-preview";
 import styles from "./expense.module.css";
-import { canManagePeople } from "@/server/people-directory";
-import { administrationAccess } from "@/server/administration";
+import { canManagePeople } from "@/server/modules/people_payroll/public/people-directory";
+import { administrationAccess } from "@/server/modules/runtime/public/administration";
 import { RecordLink as Link } from "@/components/records/record-link";
-import type { WorkContext } from "@/server/authorization";
+import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import {
   canEditExpense,
   type expenseDetail,
   type expenseOptions,
-} from "@/server/expenses";
+} from "@/server/modules/people_payroll/expense";
 import { expenseStageLabels, type ExpenseStage } from "@/lib/expense-workflow";
 import { ExpenseEditor, ExpenseReceipts } from "./expense-controls";
 import {

@@ -23,10 +23,10 @@ import { HandoverAcknowledgement } from "@/components/today/handover-acknowledge
 import { useMoneyFormatter } from "@/components/money/currency-provider";
 import { betaFetch } from "@/lib/beta-client";
 import { bangkokToday } from "@/lib/handover";
-import type { Mention } from "@/lib/social-text";
+import type { Mention } from "@/server/modules/collaboration/public/rules/social-text";
 import type { RichNode } from "@/lib/home-rich-content";
-import type { HomePost } from "@/server/social-home";
-import type { PmsHome, PmsHomeTask, PmsHomeView } from "@/server/pms/home";
+import type { HomePost } from "@/server/modules/collaboration/public/social-home";
+import type { PmsHome, PmsHomeTask, PmsHomeView } from "@/server/modules/pms/public/pms/home";
 import { scheduleWorkRefresh } from "@/lib/work-refresh";
 import styles from "./home.module.css";
 

@@ -7,7 +7,7 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
-import type { benefitDetail, benefitsWorkspace } from "@/server/benefits";
+import type { benefitDetail, benefitsWorkspace } from "@/server/modules/benefits/public/benefits";
 import {
   AttachmentPanel,
   type AttachmentPanelChange,

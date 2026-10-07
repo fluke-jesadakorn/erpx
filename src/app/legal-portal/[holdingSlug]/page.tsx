@@ -1,8 +1,9 @@
-import { portalContext, portalList } from "@/server/legal/portal";
+import { legalPortalPresentationQueries } from "@/server/modules/legal/public/presentation-context-queries";
+
 import { LegalPortal } from "@/components/legal/legal-portal";
-import { legalPortalQuickAccess } from "@/server/portal-quick-access";
-import { readQuickAccessPreferences } from "@/server/quick-access-preferences";
-import { holdingBindingBySlug } from "@/server/runtime";
+import { legalPortalQuickAccess } from "@/server/modules/work_projection/public/portal-quick-access";
+import { readQuickAccessPreferences } from "@/server/modules/work_projection/public/quick-access-preferences";
+import { holdingBindingBySlug } from "@/server/modules/runtime/public/runtime";
 import { redirect } from "next/navigation";
 export const dynamic = "force-dynamic";
 export default async function Page({
@@ -13,7 +14,7 @@ export default async function Page({
   searchParams: Promise<{ share?: string | string[] }>;
 }) {
   const { holdingSlug } = await params,
-    { write, actor } = await portalContext(holdingSlug).catch((error) => {
+    { queries, actor } = await legalPortalPresentationQueries(holdingSlug).catch((error) => {
       if (error instanceof Error && error.message === "UNAUTHENTICATED")
         redirect(
           `/login?next=${encodeURIComponent(`/legal-portal/${holdingSlug}`)}`,
@@ -22,7 +23,7 @@ export default async function Page({
     });
   const [binding, initial] = await Promise.all([
     holdingBindingBySlug(holdingSlug),
-    portalList(write, actor),
+    queries.portalList(actor),
   ]);
   const items = legalPortalQuickAccess(holdingSlug, initial);
   const preferences = await readQuickAccessPreferences(actor.userId, "legal_portal", binding.id);

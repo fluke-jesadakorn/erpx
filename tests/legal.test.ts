@@ -1180,6 +1180,19 @@ it("hands counsel spending into Finance once and replays the complete command", 
   const r=await create({kind:"counsel",data:{firm:"Fixture firm",conflicts:"Reviewed",budget:10000}});
   const body={id:r.id,expectedVersion:(await access(db,f.manager,r.id)).version,summary:"Fictional legal research",estimatedCost:"10.00"};
   const k=key();
+  const fault=`legal_purchase_late_${crypto.randomUUID().replaceAll("-","")}`;
+  await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'LEGAL_PURCHASE_LATE_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.event_type='legal.finance.prepare') EXECUTE FUNCTION ${fault}();`);
+  try {
+    await expect(prepareCounselPurchase(db,f.manager,body,k)).rejects.toMatchObject({code:"23514"});
+    expect(await db.prepare("SELECT id FROM employee_requests WHERE id=?").bind(`request-${k}:purchase`).first()).toBeNull();
+    expect((await access(db,f.manager,r.id))).toMatchObject({version:body.expectedVersion});
+    expect((await access(db,f.manager,r.id)).data.financeReference).toBeUndefined();
+    for(const commandId of [k,`${k}:purchase`,`${k}:link`]){
+      expect(await db.prepare("SELECT command_id FROM command_receipts WHERE command_id=?").bind(commandId).first()).toBeNull();
+      expect(await db.prepare("SELECT id FROM audit_events WHERE command_id=?").bind(commandId).first()).toBeNull();
+      expect(await db.prepare("SELECT id FROM outbox_events WHERE command_id=?").bind(commandId).first()).toBeNull();
+    }
+  } finally {await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
   const result=await prepareCounselPurchase(db,f.manager,body,k);
   expect(await prepareCounselPurchase(db,f.manager,body,k)).toEqual(result);
   expect((await access(db,f.manager,r.id)).data.financeReference).toBe(result.requestId);

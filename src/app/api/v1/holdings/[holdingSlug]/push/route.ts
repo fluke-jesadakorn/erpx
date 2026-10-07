@@ -1,11 +1,11 @@
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { ApiError, errorResponse } from "@/server/http";
-import { requestPublicOrigin } from "@/server/public-origin";
-import { holdingResources } from "@/server/runtime";
-import { pushSettings, registerPush, removePushDevice, savePushPreferences } from "@/server/web-push";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { pushSettings, registerPush, removePushDevice, savePushPreferences } from "@/server/modules/collaboration/public/web-push";
 import { workspaceBase } from "@/lib/workspace";
 import { frontAppForHost, frontPushLandingPath } from "@/lib/front-host";
-import { frontCompanyBrand } from "@/server/front-app";
+import { frontCompanyBrand } from "@/server/modules/work_projection/public/front-app";
 
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug:string }> };

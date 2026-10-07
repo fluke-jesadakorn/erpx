@@ -1,11 +1,11 @@
-import { pmsCommand, pmsWorkspace } from "@/server/pms";
-import { requireWorkContext } from "@/server/authorization";
-import { ApiError, errorResponse } from "@/server/http";
-import { holdingResources } from "@/server/runtime";
-import { isTransactionalSqlDatabase } from "@/server/runtime/types";
-import { requestPublicOrigin } from "@/server/public-origin";
-import { pmsReadSelectionFromSearch } from "@/lib/pms-read-selection";
-import { measureReadRequest } from "@/server/runtime/read-request";
+import { pmsCommand, pmsWorkspace } from "@/server/modules/pms/public/pms";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { isTransactionalSqlDatabase } from "@/server/modules/runtime/public/runtime/types";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { pmsReadSelectionFromSearch } from "@/server/modules/pms/public/rules/pms-read-selection";
+import { measureReadRequest } from "@/server/modules/runtime/public/runtime/read-request";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string }> };
 export async function GET(request: Request, { params }: Context) {

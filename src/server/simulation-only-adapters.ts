@@ -1,4 +1,4 @@
-import type { AiEndpoint, AiMessage } from "./ai-transport";
+import type { AiEndpoint, AiMessage } from "@/server/modules/agent/public/ai-transport";
 import { calculatePayrollAmounts, type PayrollComponentInput } from "@/lib/payroll-math";
 import { decimalToMinor } from "@/lib/finance-money";
 

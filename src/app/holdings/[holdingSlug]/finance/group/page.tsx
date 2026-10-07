@@ -1,11 +1,11 @@
 import { FeaturePage } from "@/components/features/feature-page";
 import { FinanceWorkspace, financeStyles as styles } from "@/components/finance/finance-workspace";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { groupFinanceWorkspace } from "@/server/finance-workspace";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { groupFinanceWorkspace } from "@/server/modules/finance/public/finance-workspace";
 import { IntercompanyConsole } from "@/components/finance/intercompany-console";
 import { ConsolidationRunConsole } from "@/components/finance/consolidation-run-console";
-import { pageError } from "@/server/page-error";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { Card } from "@/components/ui/foundation";
 import {RecordLink} from "@/components/records/record-link";
 

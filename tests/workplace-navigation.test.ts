@@ -92,6 +92,41 @@ describe("Side menu destination coverage", () => {
     expect(housekeeper.search.some(item => item.id === "pms-front")).toBe(true);
   });
 
+  it("exposes Operations through its scoped sidebar and launcher using existing manager permissions", async () => {
+    const { navigationLauncher } = await import("../src/lib/navigation-catalog");
+    const { builtInPermissions } = await import("../src/lib/permissions");
+    const permissions = builtInPermissions("operations_manager");
+    expect(permissions).toContain("records.read");
+    expect(permissions).toContain("module.operations.read");
+    for (const [workspaceBase, scopeKind] of [[base, "holding"], ["/holdings/erpx", "holding"], [`${base}/branches/bangkok`, "branch"]] as const) {
+      const model = workplaceNavigation({ workspaceBase, scopeKind, role: "operations_manager", permissions, moduleIds: ["operations"], availableAppIds: ["operations"] });
+      const category = model.categories.find(entry => entry.id === "projects-routines");
+      expect(category?.apps.map(entry => [entry.id, entry.label, entry.href, entry.ownerModuleId])).toEqual([["operations", "Operations", `${workspaceBase}/operations`, "operations"]]);
+      expect(model.apps.find(entry => entry.id === "operations")?.items.map(entry => entry.href)).toEqual([`${workspaceBase}/operations`]);
+      expect(navigationLauncher(model, "Operations").results.map(result => [result.item.label, result.item.href, result.categoryId])).toEqual([["Operations", `${workspaceBase}/operations`, "projects-routines"]]);
+      expect(navigationLauncher(model, "").categories.find(entry => entry.id === "projects-routines")?.apps.map(entry => entry.label)).toEqual(["Operations"]);
+      expect(model.search.some(entry => entry.href === `${workspaceBase}/operations`)).toBe(true);
+      expect(model.apps.some(entry => entry.id === "finance")).toBe(false);
+      expect(model.search.some(entry => entry.label === "Finance")).toBe(false);
+    }
+  });
+
+  it("keeps Operations hidden without its module read permission or rollout and does not expose Projects", () => {
+    const allowed = { workspaceBase: base, role: "operations_manager", permissions: ["records.read"], moduleIds: ["operations"], availableAppIds: ["operations"] };
+    for (const context of [{ ...allowed, moduleIds: [] }, { ...allowed, moduleIds: ["inventory"] }, { ...allowed, permissions: [] }, { ...allowed, availableAppIds: [] }, { ...allowed, availableAppIds: ["projects"] }, { ...allowed, beta: true }]) {
+      const model = workplaceNavigation(context);
+      expect(model.apps.some(entry => entry.id === "operations")).toBe(false);
+      expect(model.search.some(entry => entry.href === `${base}/operations`)).toBe(false);
+    }
+    const model = workplaceNavigation(allowed);
+    expect(model.apps.some(entry => entry.id === "operations")).toBe(true);
+    expect(model.apps.some(entry => entry.id === "projects")).toBe(false);
+    expect(model.search.some(entry => ["projects-list", "projects-tasks", "projects-routines"].includes(entry.id))).toBe(false);
+    const withoutRolloutList = workplaceNavigation({ ...allowed, availableAppIds: undefined });
+    expect(withoutRolloutList.apps.some(entry => entry.id === "operations")).toBe(true);
+    expect(withoutRolloutList.apps.find(entry => entry.id === "projects")?.items.map(entry => entry.id)).toEqual(["projects-list", "projects-tasks", "projects-routines"]);
+  });
+
   it("keeps aliases, detail pages and query tabs under their current feature", () => {
     for (const [path, id, groupId] of [
       ["people/settings?section=connections", "technology-connections", "technology"],
@@ -361,7 +396,7 @@ describe("Workplace discovery", () => {
     ).toEqual(["Finance", "Receivables", "Invoice"]);
   });
   it("does not expose generic workspace records as a Work type", () => {
-    expect(workTypes.some(([id]) => id === "record")).toBe(false);
+    expect(workTypes.map(([id])=>id)).not.toContain("record");
   });
 });
 it("filters mixed work without treating another queue as actionable", () => {

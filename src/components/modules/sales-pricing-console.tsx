@@ -11,7 +11,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
 import { minorToDecimal } from "@/lib/finance-money";
-import type { pricingWorkspace } from "@/server/sales-pricing";
+import type { pricingWorkspace } from "@/server/modules/sales/public/sales-pricing";
 import { FormGrid, Stack, Card, FormLayout } from "@/components/ui/foundation";
 
 type Data = Awaited<ReturnType<typeof pricingWorkspace>>;

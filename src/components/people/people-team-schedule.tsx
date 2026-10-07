@@ -12,7 +12,7 @@ import type {
   peopleMoveWorkImpact,
   peoplePositionWorkingTimeData,
   peopleWorkingTimeData,
-} from "@/server/people-hr-settings";
+} from "@/server/modules/people_payroll/public/people-hr-settings";
 import { RosterWorkspace } from "./roster-workspace";
 import { usePeopleIntegrationCommand, usePeopleIntegrationData } from "./people-integration-data";
 import styles from "./people-hr-settings.module.css";

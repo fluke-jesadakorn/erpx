@@ -1,10 +1,9 @@
 /* eslint-disable @next/next/no-img-element -- Private brand assets use authenticated routes and must print without optimizer indirection. */
-import type { DocumentBrand } from "@/server/branding";
+import type { DocumentBrand } from "@/server/modules/brand/public/branding";
 import { PrintControls } from "./print-controls";
 import styles from "./business-document.module.css";
-import type { WorkContext } from "@/server/authorization";
-import { holdingResources } from "@/server/runtime";
-import { recordBranchId, resolveDocumentBrand } from "@/server/branding";
+import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
+import { businessDocumentBrand } from "@/server/modules/brand/public/business-document";
 
 function Mark({ brand }: { brand: DocumentBrand["holding"] }) {
   return <div className={styles.identity}>{brand.primaryUrl ? <img src={brand.primaryUrl} alt="" /> : <span aria-hidden="true">{brand.initials}</span>}<strong>{brand.label}</strong></div>;
@@ -44,8 +43,6 @@ export async function BusinessDocumentBranding({
   reference?: string;
   printing: boolean;
 }) {
-  const { write } = await holdingResources(actor.holdingId);
-  const resolvedBranch = kind && recordId ? await recordBranchId(write, actor, kind, recordId) : branchId ?? null;
-  const brand = await resolveDocumentBrand(write, actor, { branchId: resolvedBranch, requestedMode });
+  const brand = await businessDocumentBrand(actor, { kind, recordId, branchId, requestedMode });
   return <BusinessDocumentHeader brand={brand} title={title} reference={reference} printing={printing} />;
 }

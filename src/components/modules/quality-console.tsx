@@ -6,8 +6,8 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
-import type { qualityDetail, qualityWorkspace } from "@/server/quality";
-import type { qualityAlerts } from "@/server/quality-alerts";
+import type { qualityDetail, qualityWorkspace } from "@/server/modules/quality/public/quality";
+import type { qualityAlerts } from "@/server/modules/quality/public/quality-alerts";
 import styles from "./quality-console.module.css";
 import {
   AttachmentPanel,

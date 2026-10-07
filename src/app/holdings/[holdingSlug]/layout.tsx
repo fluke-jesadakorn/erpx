@@ -1,15 +1,17 @@
+import { workProjectionPresentationQueries } from "@/server/modules/work_projection/public/presentation-queries";
+
 import { RecordScopeProvider } from "@/components/records/record-context";
 import { MainContent } from "@/components/ui/main";
 import { Button } from "@/components/ui/foundation";
-import { measureReadPhase } from "@/server/runtime/read-metrics";
-import { financeWorkspaceV2Enabled } from "@/server/finance-presentation";
+import { measureReadPhase } from "@/server/modules/runtime/public/runtime/read-metrics";
+import { financeWorkspaceV2Enabled } from "@/server/modules/finance/public/finance-presentation";
 import { ProductBrand } from "@/components/brand/product-brand";
 import { appearancePreference } from "@/lib/appearance-preference";
 import { WorkspaceBrandMark } from "@/components/brand/workspace-brand";
 import { FeatureEnvironment } from "@/components/features/feature-page";
 import { NavigationCountsProvider } from "@/components/workplace/navigation-counts";
-import { getWorkCapabilities } from "@/server/work-capabilities";
-import { buildWorkCards, buildDestinationCards } from "@/server/work-cards";
+
+import { buildWorkCards, buildDestinationCards } from "@/server/modules/work_projection/public/work-cards";
 import { localShortcutKey } from "@/lib/local-shortcuts";
 import { CurrencyProvider } from "@/components/money/currency-provider";
 import { RememberWorkspace } from "@/components/workplace/remember-workspace";
@@ -25,22 +27,22 @@ import {
 import { WorkspaceMenu } from "@/components/workplace/workspace-menu";
 import { hasPermission } from "@/lib/permissions";
 import { workspaceBase } from "@/lib/workspace";
-import { administrationAccess } from "@/server/administration";
+import { administrationAccess } from "@/server/modules/runtime/public/administration";
 import {
   listWorkspaceCompanies,
   publicScope,
   requireWorkContext,
   canEnterManageErpx,
   requirePlatformContext,
-} from "@/server/authorization";
-import { resolveWorkspaceBrand } from "@/server/branding";
-import { executiveVisible } from "@/server/executive/access";
-import { pageError } from "@/server/page-error";
-import { holdingResources } from "@/server/runtime";
-import { moneyContext } from "@/server/company-money";
-import { companyFeatureCatalogue } from "@/server/hospitality-rollout";
+} from "@/server/modules/identity_access/public/authorization";
+
+
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+
+import { moneyContext } from "@/server/modules/finance/public/company-money";
+import { companyFeatureCatalogue } from "@/server/modules/pms/public/hospitality-rollout";
 import { availableNavigationAppIds } from "@/lib/workplace-catalogue";
-import { workspaceChoices } from "@/server/workspace-choices";
+import { workspaceChoices } from "@/server/modules/organization/public/workspace-choices";
 import { Building2 } from "lucide-react";
 import { cookies } from "next/headers";
 import Link from "next/link";
@@ -77,14 +79,9 @@ export default async function WorkplaceLayout({
       : context.scope.kind === "branch"
         ? context.scope.branchName
         : "Holding";
-  const { write } = await holdingResources(context.holdingId);
+  const presentation = await workProjectionPresentationQueries(context.holdingId);
   const companySlug = (
-    await write
-      .prepare(
-        "SELECT slug FROM organization_nodes WHERE id=? AND kind='company' AND status='active'",
-      )
-      .bind(context.companyId)
-      .first<{ slug: string }>()
+    await presentation.activeCompanySlug(context.companyId)
   )?.slug;
   const frontLocation =
     context.scope.kind === "holding"
@@ -101,12 +98,12 @@ export default async function WorkplaceLayout({
     frontBase ? `${frontBase}/${app}/${frontLocation}/` : undefined;
   const [workspaceBrand, companies, admin, shortcutCapabilities] = await measureReadPhase("layout", () =>
     Promise.all([
-      resolveWorkspaceBrand(write, context),
+      presentation.resolveWorkspaceBrand(context),
       context.scope.kind === "holding"
         ? listWorkspaceCompanies(context.holdingId)
         : Promise.resolve([]),
       administrationAccess(context),
-      getWorkCapabilities(write, context),
+      presentation.getWorkCapabilities(context),
     ]),
   );
   const money = await moneyContext(context);
@@ -121,7 +118,7 @@ export default async function WorkplaceLayout({
       (await requirePlatformContext()
         .then((platform) => platform.userId === context.userId)
         .catch(() => false)),
-    executiveVisible: await executiveVisible(write, context),
+    executiveVisible: await presentation.executiveVisible(context),
     workspaceBase: base,
     frontPosHref: frontHref("pos"),
     frontPmsHref: frontHref("pms"),
@@ -141,12 +138,7 @@ export default async function WorkplaceLayout({
   const companyName =
     companies.find((company) => company.id === context.companyId)?.name ??
     (
-      await write
-        .prepare(
-          "SELECT display_name FROM organization_nodes WHERE id=? AND kind='company' AND status='active'",
-        )
-        .bind(context.companyId)
-        .first<{ display_name: string }>()
+      await presentation.activeCompanyName(context.companyId)
     )?.display_name ??
     "Company unavailable";
   const workspaceLabel =

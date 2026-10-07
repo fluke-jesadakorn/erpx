@@ -4,8 +4,8 @@ import { Button, Field, Select, Table, TableFrame, TextInput } from "@/component
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { HospitalitySetup } from "@/server/hospitality-setup";
-import { records as pmsRecords, type Kind } from "@/lib/pms-model";
+import type { HospitalitySetup } from "@/server/modules/pms/public/hospitality-setup";
+import { records as pmsRecords, type Kind } from "@/server/modules/pms/public/rules/pms-model";
 import { workFetch } from "@/lib/work-fetch";
 import {
   expandRoomNumbers,

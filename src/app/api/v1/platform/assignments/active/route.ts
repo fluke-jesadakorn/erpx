@@ -1,9 +1,9 @@
-import { rememberPlatformRole } from "@/server/workspace-preferences";
-import { runtimeEnv } from "@/server/runtime";
+import { rememberPlatformRole } from "@/server/modules/work_projection/public/workspace-preferences";
+import { runtimeEnv } from "@/server/modules/runtime/public/runtime";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireManageErpxContext, requirePlatformContext } from "@/server/authorization";
-import { ApiError, errorResponse } from "@/server/http";
+import { requireManageErpxContext, requirePlatformContext } from "@/server/modules/identity_access/public/authorization";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 
 const schema = z.object({ assignmentId: z.string().min(1).max(128) });
 

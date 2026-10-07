@@ -110,11 +110,24 @@ it("recovers a dead-letter job with a reviewed, idempotent command", async () =>
     .bind("PROJECTOR_TIMEOUT", now - 1_000, id).run();
   const input = { eventId: id, expectedAttempts: 6, expectedLastError: "PROJECTOR_TIMEOUT", reason: "Provider is healthy and the projection is safe to replay." };
   const actor = { userId: "platform-operator", assignmentId: "platform-assignment", role: "platform_admin" } as const;
+  await env.H001_DB.prepare("CREATE FUNCTION platform_recovery_audit_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'late recovery journal failure'; END $$").run();
+  await env.H001_DB.prepare("CREATE CONSTRAINT TRIGGER platform_recovery_audit_fault AFTER INSERT ON audit_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.command_id='platform-job-recovery-test-1') EXECUTE FUNCTION platform_recovery_audit_fault()").run();
+  try {
+    await expect(recoverDeadLetterJob(actor, env.H001_DB, "h001", input, "platform-job-recovery-test-1", now)).rejects.toThrow("late recovery journal failure");
+    expect(await env.H001_DB.prepare("SELECT attempts,last_error,dead_letter_at FROM outbox_events WHERE id=?").bind(id).first()).toEqual({ attempts: 6, last_error: "PROJECTOR_TIMEOUT", dead_letter_at: now - 1_000 });
+    expect(await env.H001_DB.prepare("SELECT count(*) count FROM command_receipts WHERE command_id=?").bind("platform-job-recovery-test-1").first()).toEqual({ count: 0 });
+    expect(await env.H001_DB.prepare("SELECT count(*) count FROM audit_events WHERE command_id=?").bind("platform-job-recovery-test-1").first()).toEqual({ count: 0 });
+  } finally {
+    await env.H001_DB.prepare("DROP TRIGGER platform_recovery_audit_fault ON audit_events").run();
+    await env.H001_DB.prepare("DROP FUNCTION platform_recovery_audit_fault()").run();
+  }
   const first = await recoverDeadLetterJob(actor, env.H001_DB, "h001", input, "platform-job-recovery-test-1", now);
   expect(first).toMatchObject({ eventId: id, status: "queued", previousAttempts: 6 });
   expect(await env.H001_DB.prepare("SELECT attempts,last_error,dead_letter_at,next_attempt_at FROM outbox_events WHERE id=?").bind(id).first()).toEqual({ attempts: 0, last_error: null, dead_letter_at: null, next_attempt_at: now });
   expect(await env.H001_DB.prepare("SELECT action,purpose FROM audit_events WHERE command_id=?").bind("platform-job-recovery-test-1").first()).toEqual({ action: "platform.job.retry", purpose: input.reason });
   expect(await recoverDeadLetterJob(actor, env.H001_DB, "h001", input, "platform-job-recovery-test-1", now + 1)).toEqual(first);
+  expect(await env.H001_DB.prepare("SELECT count(*) count FROM command_receipts WHERE command_id=?").bind("platform-job-recovery-test-1").first()).toEqual({ count: 1 });
+  expect(await env.H001_DB.prepare("SELECT count(*) count FROM audit_events WHERE command_id=?").bind("platform-job-recovery-test-1").first()).toEqual({ count: 1 });
 });
 
 it("does not allow auditors or stale failed-job snapshots to recover work", async () => {

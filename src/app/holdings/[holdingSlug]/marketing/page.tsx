@@ -1,16 +1,16 @@
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Table } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { requireWorkContext, publicScope } from "@/server/authorization";
+import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
-import { pageError } from "@/server/page-error";
-import { marketingWorkspace } from "@/server/marketing";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+import { marketingWorkspace } from "@/server/modules/marketing/public/marketing";
 import { MarketingConsole } from "@/components/modules/marketing-console";
 import {
   marketingAnalytics,
   analyticsOptions,
   defaultAnalyticsRange,
-} from "@/server/crm-marketing-report";
+} from "@/server/modules/crm/public/crm-marketing-report";
 import { AnalyticsReport } from "@/components/modules/analytics-report";
 import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
 import { MediaPublicationPanel } from "@/components/attachments/media-publication-panel";

@@ -1,6 +1,6 @@
-import { errorResponse } from "@/server/http";
-import { requestPublicOrigin } from "@/server/public-origin";
-import { createAuth } from "@/server/auth";
+import { errorResponse } from "@/server/modules/runtime/public/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { createAuth } from "@/server/modules/identity_access/public/auth";
 import { frontAppForHost, safeFrontReturnPath } from "@/lib/front-host";
 
 export const dynamic = "force-dynamic";

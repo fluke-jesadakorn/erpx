@@ -53,7 +53,7 @@ vi.mock("../src/server/runtime", () => ({
   holdingResources: async () => ({ write: raw, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));
-vi.mock("../src/server/iam-mfa", () => ({ requireFreshMfa: async () => {} }));
+vi.mock("../src/server/modules/identity_access/public/iam-mfa", () => ({ requireFreshMfa: async () => {} }));
 const db = iamDb(raw);
 beforeAll(async () => {
   await applyMigrations(raw, env.STAFF_TEST_MIGRATIONS);
@@ -1510,4 +1510,40 @@ it("keeps cutoffs effective after HR returns an employee and requires new IT acc
  expect(data.applications.find(a=>a.id.startsWith(first.id))?.active).toBe(false);
  expect(data.applications.find(a=>a.id.startsWith(restored.id))?.active).toBe(true);
  expect((await db.pool.query('SELECT iam_assignment_active($1,$2) ok',[f.claimant.assignmentId,Date.now()])).rows[0].ok).toBe(false);
+});
+
+it("rolls back position binding, preparation, outbox and IAM receipt after a late audit failure, then retries and replays once", async () => {
+  const f = await fixture(), input = packageInput.parse({ expectedVersion: 0, reason: "Reviewed shared access package", definition: { name: "Atomic position package", account: "local", groupIds: [], grants: [], tasks: [] } });
+  const preview = await previewPackage(raw, f.it, input), pkg = await savePackage(raw, f.it, input, key(), true, preview.token);
+  const binding = { positionId: f.position, packageId: pkg.id, revision: pkg.revision, expectedVersion: 1 };
+  const snapshot = await bindPositionPackage(raw, f.it, binding, key(), true), command = key(), payload = { ...binding, previewToken: snapshot.token };
+  const fault = `people_position_fault_${command.replaceAll('-', '_')}`;
+  await raw.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'PEOPLE_POSITION_FINAL_AUDIT_FAILURE' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} BEFORE INSERT ON iam_audit FOR EACH ROW WHEN(NEW.target_id='${command}') EXECUTE FUNCTION ${fault}();`);
+  try {
+    await expect(bindPositionPackage(raw, f.it, payload, command)).rejects.toThrow('PEOPLE_POSITION_FINAL_AUDIT_FAILURE');
+    expect(await raw.prepare('SELECT version FROM organization_positions WHERE id=?').bind(f.position).first('version')).toBe(1);
+    expect(await raw.prepare('SELECT count(*) n FROM people_position_packages WHERE company_id=? AND position_id=?').bind(f.company, f.position).first('n')).toBe(0);
+    expect(await raw.prepare("SELECT status FROM people_preparation_tasks WHERE position_id=? AND kind='position'").bind(f.position).first('status')).toBe('pending');
+    expect(await raw.prepare('SELECT count(*) n FROM outbox_events WHERE command_id=?').bind(command).first('n')).toBe(0);
+    expect(await raw.prepare('SELECT count(*) n FROM iam_receipts WHERE id=?').bind(command).first('n')).toBe(0);
+    expect(await raw.prepare('SELECT count(*) n FROM iam_audit WHERE target_id=?').bind(command).first('n')).toBe(0);
+  } finally { await raw.exec(`DROP TRIGGER ${fault} ON iam_audit;DROP FUNCTION ${fault}();`); }
+  const result = await bindPositionPackage(raw, f.it, payload, command);
+  expect(await bindPositionPackage(raw, f.it, payload, command)).toEqual(result);
+  expect(await raw.prepare('SELECT version FROM organization_positions WHERE id=?').bind(f.position).first('version')).toBe(2);
+  expect(await raw.prepare('SELECT count(*) n FROM people_position_packages WHERE company_id=? AND position_id=?').bind(f.company, f.position).first('n')).toBe(1);
+  expect(await raw.prepare("SELECT status FROM people_preparation_tasks WHERE position_id=? AND kind='position'").bind(f.position).first('status')).toBe('completed');
+  for (const sql of ['SELECT count(*) n FROM outbox_events WHERE command_id=?', 'SELECT count(*) n FROM iam_receipts WHERE id=?', 'SELECT count(*) n FROM iam_audit WHERE target_id=?']) expect(await raw.prepare(sql).bind(command).first('n')).toBe(1);
+});
+
+it("preserves atomic provisioning apply and worker rollback followed by the separate durable retry journal",async()=>{
+ const {previewProvisioning,applyProvisioning,drainProvisioning,retryProvisioning}=await import('../src/server/technology');const {provisioningInput}=await import('../src/lib/technology');const f=await fixture();await prepare(f);await db.pool.query('UPDATE hr_engagements SET position_id=$2 WHERE id=$1',[f.engagement,f.position]);const actor=iamActorFromWork(f.it),input=provisioningInput.parse({engagementIds:[f.engagement],validUntil:Date.now()+3600000,exclude:['role:employee'],reason:'Atomic Technology journal proof'}),preview=await previewProvisioning(db,actor,input),command=key(),fault=`technology_apply_fault_${command.replaceAll('-','_')}`;
+ const tables=['people_provision_operations','people_applied_packages','people_provision_grants','people_preparation_tasks','people_directory_operations','people_directory_membership_sources','assignments','iam_reviews','iam_receipts','iam_audit','outbox_events'];async function state(table:string){return (await db.pool.query(`SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb) state FROM ${table} t`)).rows[0].state;}
+ const before=await Promise.all(tables.map(state));await raw.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'TECHNOLOGY_FINAL_APPLY_AUDIT_FAILURE' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON iam_audit FOR EACH ROW WHEN(NEW.target_id='${command}') EXECUTE FUNCTION ${fault}();`);
+ try{await expect(applyProvisioning(db,actor,input,preview.token,command)).rejects.toThrow('TECHNOLOGY_FINAL_APPLY_AUDIT_FAILURE');expect(await Promise.all(tables.map(state))).toEqual(before);}finally{await raw.exec(`DROP TRIGGER ${fault} ON iam_audit;DROP FUNCTION ${fault}();`);}
+ const applied=await applyProvisioning(db,actor,input,preview.token,command);expect(await applyProvisioning(db,actor,input,preview.token,command)).toEqual(applied);expect((await db.pool.query('SELECT count(*)::int n FROM iam_receipts WHERE id=$1',[command])).rows[0].n).toBe(1);
+ const workerTables=tables.filter(t=>t!=='people_provision_operations'),workerBefore=await Promise.all(workerTables.map(state)),workerFault=`technology_worker_fault_${command.replaceAll('-','_')}`;
+ await raw.exec(`CREATE FUNCTION ${workerFault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'TECHNOLOGY_FINAL_WORKER_OUTBOX_FAILURE' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${workerFault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN(NEW.command_id='provision:${applied.id}') EXECUTE FUNCTION ${workerFault}();`);
+ try{await drainProvisioning(db);expect(await Promise.all(workerTables.map(state))).toEqual(workerBefore);expect((await db.pool.query('SELECT status,last_error,version FROM people_provision_operations WHERE id=$1',[applied.id])).rows[0]).toEqual({status:'blocked',last_error:'PROVISIONING_RETRY_REQUIRED',version:2});}finally{await raw.exec(`DROP TRIGGER ${workerFault} ON outbox_events;DROP FUNCTION ${workerFault}();`);}
+ const retryKey=key(),retried=await retryProvisioning(db,actor,applied.id,2,retryKey);expect(await retryProvisioning(db,actor,applied.id,2,retryKey)).toEqual(retried);await drainProvisioning(db);await drainProvisioning(db);expect((await db.pool.query('SELECT status,last_error,version FROM people_provision_operations WHERE id=$1',[applied.id])).rows[0]).toEqual({status:'completed',last_error:null,version:4});expect((await db.pool.query('SELECT count(*)::int n FROM outbox_events WHERE command_id=$1',['provision:'+applied.id])).rows[0].n).toBe(1);expect((await db.pool.query("SELECT count(*)::int n FROM iam_audit WHERE action='people.provision.applied' AND target_id=$1",[applied.id])).rows[0].n).toBe(1);
 });

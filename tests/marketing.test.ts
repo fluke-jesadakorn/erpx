@@ -14,6 +14,15 @@ import {
 } from "../src/server/marketing";
 import { getCRMLead } from "../src/server/crm";
 import type { WorkContext } from "../src/server/authorization";
+const handoffFailure=vi.hoisted(()=>({enabled:false}));
+vi.mock("../src/server/modules/crm/public/lead-handoff",async(importOriginal)=>{
+  const actual=await importOriginal<typeof import("../src/server/modules/crm/public/lead-handoff")>();
+  return {createCRMLeadInTransaction:async(...args:Parameters<typeof actual.createCRMLeadInTransaction>)=>{
+    const result=await actual.createCRMLeadInTransaction(...args);
+    if(handoffFailure.enabled)await args[0].exec("SELECT 1/0");
+    return result;
+  }};
+});
 vi.mock("../src/server/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
@@ -288,4 +297,25 @@ it("rejects stale or inactive form sources", async () => {
       key(),
     ),
   ).rejects.toMatchObject({ code: "CONFLICT" });
+});
+it("rolls back CRM, Marketing, touch, notification and command evidence after a late handoff failure",async()=>{
+ const form=await activeForm(),candidate=await createMarketingCandidate(creator,{formId:form.id,formVersion:2,branchId:f.branch,contactName:"Atomic handoff",contactDetail:"atomic@example.test",consentEvidence:"Explicit employee approved form consent",attribution:{source:"newsletter"},brief:"Needs an approved proposal"},key()),command=key(),leadId=`lead-${command}-crm`;
+ handoffFailure.enabled=true;
+ try{await expect(changeMarketing(reviewer,"candidate",String(candidate.id),{action:"handoff",expectedVersion:1,reason:"Independently review consent before handoff",dueDate:"2026-10-10"},command)).rejects.toThrow();}
+ finally{handoffFailure.enabled=false;}
+ expect(await db.prepare("SELECT status,version,crm_lead_id FROM marketing_lead_candidates WHERE id=?").bind(candidate.id).first()).toEqual({status:"pending",version:1,crm_lead_id:null});
+ for(const table of ["crm_leads","crm_accounts","crm_contacts"])expect(await db.prepare(`SELECT count(*) count FROM ${table} WHERE id=?`).bind(table==="crm_leads"?leadId:table==="crm_accounts"?`account-${command}-crm`:`contact-${command}-crm`).first("count")).toBe(0);
+ expect(await db.prepare("SELECT count(*) count FROM marketing_touches WHERE lead_id=?").bind(leadId).first("count")).toBe(0);
+ expect(await db.prepare("SELECT count(*) count FROM staff_notifications WHERE record_id=?").bind(leadId).first("count")).toBe(0);
+ for(const table of ["command_receipts","audit_events","outbox_events"])expect(await db.prepare(`SELECT count(*) count FROM ${table} WHERE command_id IN (?,?)`).bind(command,`${command}-crm`).first("count")).toBe(0);
+});
+it("serializes concurrent candidate handoffs and replays the committed response without a second CRM record",async()=>{
+ const form=await activeForm(),candidate=await createMarketingCandidate(creator,{formId:form.id,formVersion:2,branchId:f.branch,contactName:"Concurrent handoff",contactDetail:"concurrent@example.test",consentEvidence:"Explicit prospect consent captured",attribution:{source:"newsletter"},brief:"Discuss service proposal"},key()),body={action:"handoff",expectedVersion:1,reason:"Independently review current candidate",dueDate:"2026-10-10"},commands=[key(),key()];
+ const outcomes=await Promise.allSettled(commands.map(command=>changeMarketing(reviewer,"candidate",String(candidate.id),body,command)));
+ expect(outcomes.filter(outcome=>outcome.status==="fulfilled")).toHaveLength(1);
+ const index=outcomes.findIndex(outcome=>outcome.status==="fulfilled"),completed=outcomes[index];
+ if(completed.status!=="fulfilled")throw new Error("Expected one committed handoff");
+ expect(await changeMarketing(reviewer,"candidate",String(candidate.id),body,commands[index])).toEqual(completed.value);
+ expect(await db.prepare("SELECT count(*) count FROM marketing_touches WHERE source_kind='form' AND source_id=?").bind(candidate.id).first("count")).toBe(1);
+ expect(await db.prepare("SELECT status,version FROM marketing_lead_candidates WHERE id=?").bind(candidate.id).first()).toEqual({status:"handed_off",version:2});
 });

@@ -22,7 +22,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Dialog } from "@/components/ui/dialog";
 import { useHydrated } from "@/components/ui/use-hydrated";
-import type { AiConnectionView, AiProviderOverview } from "@/server/ai-providers";
+import type { AiConnectionView, AiProviderOverview } from "@/server/modules/agent/public/ai-providers";
 
 export function AiProviders({
   base,

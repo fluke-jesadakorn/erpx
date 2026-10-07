@@ -3,11 +3,11 @@ import { Button, Field, Select, Table, TableFrame, TextInput } from "@/component
 
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { businessDate, formatPosMoney } from "@/lib/pos";
+import { businessDate, formatPosMoney } from "@/server/modules/pos/public/rules/pos";
 import { workFetch } from "@/lib/work-fetch";
 import { useFrontLanguage } from "@/components/front/front-language";
-import type { PosWorkspace } from "@/server/pos";
-import type { posDayReport } from "@/server/pos-daily";
+import type { PosWorkspace } from "@/server/modules/pos/public/pos";
+import type { posDayReport } from "@/server/modules/pos/public/pos-daily";
 import type { PosSend } from "./pos-sales";
 import styles from "./pos.module.css";
 type Report = Awaited<ReturnType<typeof posDayReport>>;

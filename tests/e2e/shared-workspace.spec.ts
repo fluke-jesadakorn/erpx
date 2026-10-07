@@ -1,11 +1,13 @@
+import { captureCaseScreenshot } from "../helpers/case-screenshot";
 import {
   test,
   expect as baseExpect,
   type BrowserContext,
   type Page,
 } from "@playwright/test";
-import { readFileSync, existsSync, mkdirSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { selectFixtureAssignment } from "./helpers/select-fixture-assignment";
 const path = process.env.ERPX_SERVICES_FIXTURE ?? ".scratch/shared-workspace/fixture.json";
 type Fixture = {
   beta?: boolean;
@@ -35,18 +37,7 @@ async function login(context: BrowserContext, who: string) {
     data: { email: fixture.actors[who].email, password: fixture.password },
   });
   expect(response.ok(), await response.text()).toBeTruthy();
-  await context.addCookies([
-    {
-      name: "erpx_company_h001",
-      value: fixture.company,
-      url: process.env.ERPX_E2E_BASE_URL ?? "http://localhost:8787",
-    },
-    {
-      name: "erpx_assignment_h001",
-      value: fixture.actors[who].assignmentId,
-      url: process.env.ERPX_E2E_BASE_URL ?? "http://localhost:8787",
-    },
-  ]);
+  await selectFixtureAssignment(context, fixture.company, fixture.actors[who].assignmentId);
 }
 async function post(
   context: BrowserContext,
@@ -57,7 +48,7 @@ async function post(
   const response = await context.request.post(`${api}/${route}`, {
     headers: {
       "Idempotency-Key": key,
-      Origin: process.env.ERPX_E2E_BASE_URL ?? "http://localhost:8787",
+      Origin: process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3100",
     },
     data,
   });
@@ -120,21 +111,38 @@ async function saveUi(page: Page) {
   await page.reload();
   return String(id);
 }
-async function createUi(page: Page, kind: string, title: string) {
-  await page.goto(`${base}/work?queue=all&responsibility=requested`);
+async function openNewRequest(page: Page, kind: string) {
   await page.getByRole("button", { name: "New", exact: true }).click();
   await page
-    .getByRole("dialog")
+    .getByRole("dialog", { name: "New work", exact: true })
     .getByRole("link", { name: `${kind} request`, exact: true })
     .click();
+  await expect(page.getByLabel("Title", { exact: true })).toBeVisible();
+}
+async function submitUi(page: Page) {
+  await page.getByRole("button", { name: "Review & submit", exact: true }).click();
+  const confirm = page.getByRole("button", { name: "Confirm & submit", exact: true });
+  await expect(confirm).toBeVisible();
+  const pending = page.waitForResponse(
+    response => response.url().includes("/requests/") && response.url().endsWith("/actions") && response.request().method() === "POST",
+  );
+  await confirm.click();
+  const response = await pending;
+  expect(response.ok(), await response.text()).toBeTruthy();
+  await page.reload();
+}
+async function createUi(page: Page, kind: string, title: string) {
+  await page.goto(`${base}/work?queue=all&responsibility=requested`);
+  await openNewRequest(page, kind);
   await page.getByLabel("Title", { exact: true }).fill(title);
   await page
     .getByLabel(
-      kind === "Service" ? "Describe the issue" : "Purpose and details",
+      kind === "Service" ? "Describe the issue" : "Why is it needed?",
     )
     .fill(
       "Office printer and equipment required for the customer support team.",
     );
+  await page.locator("summary").filter({ hasText: "Change branch or department (if needed)" }).click();
   await page
     .getByRole("combobox", { name: "Branch", exact: true })
     .selectOption(fixture.branch);
@@ -155,7 +163,7 @@ test("owner configures coverage through Organization and members retain drafts w
   browser,
 }) => {
   await login(context, "owner");
-  await page.goto(`${base}/settings?section=organization`);
+  await page.goto(`${base}/settings?section=approvals&tab=templates#service-teams`);
   await expect(
     page.getByRole("heading", { name: "Service teams", exact: true }),
   ).toBeVisible();
@@ -174,11 +182,7 @@ test("owner configures coverage through Organization and members retain drafts w
   await memberPage.goto(
     `${base}/work?queue=all&responsibility=requested&type=service_request&q=Draft`,
   );
-  await memberPage.getByRole("button", { name: "New", exact: true }).click();
-  await memberPage
-    .getByRole("dialog")
-    .getByRole("link", { name: "Service request", exact: true })
-    .click();
+  await openNewRequest(memberPage, "Service");
   await memberPage
     .getByLabel("Title", { exact: true })
     .fill(`Draft recovery ${randomUUID()}`);
@@ -186,6 +190,7 @@ test("owner configures coverage through Organization and members retain drafts w
     .getByLabel("Title", { exact: true })
     .inputValue();
   await memberPage.reload();
+  await openNewRequest(memberPage, "Service");
   await expect(memberPage.getByLabel("Title", { exact: true })).toHaveValue(
     title,
   );
@@ -239,6 +244,7 @@ test("service request moves through a shared team, questions, evidence, reopenin
       r.url().endsWith("/content") &&
       r.request().method() === "PUT",
   );
+  await page.getByRole("tab", { name: "Evidence", exact: true }).click();
   await page
     .getByLabel("Attach photo or document")
     .setInputFiles({
@@ -257,20 +263,13 @@ test("service request moves through a shared team, questions, evidence, reopenin
   );
   expect(inaccessible.status()).toBe(404);
   await stranger.close();
+  await page.getByRole("tab", { name: "Overview", exact: true }).click();
+  await page.locator("summary").filter({ hasText: "Ask AI about this request" }).click();
   await page.getByText("AI preparation", { exact: true }).click();
   await expect(
     page.getByText(/unavailable|not configured|set up|configure/i).first(),
   ).toBeVisible();
-  const submit = page.waitForResponse(
-    (r) =>
-      r.url().endsWith(`/requests/${id}/actions`) &&
-      r.request().method() === "POST",
-  );
-  await page
-    .getByRole("button", { name: "Submit request", exact: true })
-    .click();
-  expect((await submit).ok()).toBeTruthy();
-  await page.reload();
+  await submitUi(page);
   expect((await read(context, id)).request.state).toBe("queued");
   const handler = await browser.newContext(),
     hp = await handler.newPage();
@@ -327,9 +326,7 @@ test("equipment requires independent approval then records a handover without a 
     "Equipment",
     `Equipment journey ${randomUUID()}`,
   );
-  await page
-    .getByRole("button", { name: "Submit request", exact: true })
-    .click();
+  await submitUi(page);
   await expect
     .poll(async () => (await read(context, id)).request.state)
     .toBe("awaiting_approval");
@@ -343,13 +340,11 @@ test("equipment requires independent approval then records a handover without a 
     "Specify the device for the support desk.",
   );
   await page.reload();
-  await expect(page.getByLabel("Purpose and details")).toHaveValue(
+  await expect(page.getByLabel("Why is it needed?")).toHaveValue(
     /customer support/,
   );
   await saveUi(page);
-  await page
-    .getByRole("button", { name: "Submit request", exact: true })
-    .click();
+  await submitUi(page);
   await expect
     .poll(async () => (await read(context, id)).request.state)
     .toBe("awaiting_approval");
@@ -562,7 +557,7 @@ test("shared workspace supports keyboard access and 390, 768 and 1440px light an
   context,
 }, info) => {
   await login(context, "owner");
-  mkdirSync(".scratch/shared-workspace/screenshots", { recursive: true });
+
   for (const width of [390, 768, 1440])
     for (const theme of ["light", "dark"]) {
       await page.setViewportSize({ width, height: 900 });
@@ -574,7 +569,7 @@ test("shared workspace supports keyboard access and 390, 768 and 1440px light an
         ["work", `${base}/work?queue=all`],
         ["new", `${base}/work?new=equipment_request`],
         ["home", `${base}/home`],
-        ["teams", `${base}/settings?section=organization`],
+        ["teams", `${base}/settings?section=approvals&tab=templates#service-teams`],
         ["handbook", `${base}/handbook`],
       ]) {
         await page.goto(route);
@@ -611,10 +606,7 @@ test("shared workspace supports keyboard access and 390, 768 and 1440px light an
           );
         if (width === 390)
           expect(small, `${label} mobile controls`).toEqual([]);
-        await page.screenshot({
-          path: `.scratch/shared-workspace/screenshots/${info.project.name}-${label}-${width}-${theme}.png`,
-          fullPage: true,
-        });
+        await captureCaseScreenshot(page, `${info.project.name}-${label}-${width}-${theme}.png`, { fullPage: true });
       }
     }
   await page.goto(`${base}/work`);

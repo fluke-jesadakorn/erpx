@@ -14,6 +14,7 @@ import { executiveCoverage } from "../src/lib/executive/coverage";
 import { readExecutiveEvidence, readFinanceEvidence, searchExecutiveEvidence, searchFinanceEvidence } from "../src/server/executive/evidence";
 import { saveMaster } from "../src/server/commerce";
 import { formatMetric } from "../src/lib/executive/numbers";
+import {defaultConfig} from "../src/lib/pms-model";
 import { dailyRoomReport } from "../src/lib/pms-read";
 import { listInventoryReorderPolicies, saveInventoryReorderPolicy, transitionInventoryReorderPolicy } from "../src/server/inventory-reorder-policies";
 vi.mock("../src/server/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
@@ -106,7 +107,7 @@ it("reconciles Operations overdue tasks, overdue resolution time and current-ver
   const second=await searchExecutiveEvidence(db,operationsActor,{metric:"open-operations-exceptions",filters,query:"Executive Operations",limit:1,cursor:first.nextCursor!});
   expect(first.provider).toBe("operations-staff-tasks");expect(first.items).toHaveLength(1);expect(second.items).toHaveLength(1);expect(first.items[0].id).not.toBe(second.items[0].id);
   const detail=await readExecutiveEvidence(db,operationsActor,"open-operations-exceptions",first.items[0].id,filters);
-  expect(detail.record.version).toBeGreaterThan(0);expect(detail.record.href).toMatch(/^\/staff-tasks\/[A-Za-z0-9_-]+$/);
+  expect(requiredField(detail.record,'version')).toBeGreaterThan(0);expect(detail.record.href).toMatch(/^\/staff-tasks\/[A-Za-z0-9_-]+$/);
   expect(detail.fields).toEqual(["title","state","due_at","created_at","updated_at","version","branch_id","department_id"]);
   expect(detail.record).not.toHaveProperty("description");expect(detail.record).not.toHaveProperty("completion_note");
   const resolutionEvidence=await searchExecutiveEvidence(db,operationsActor,{metric:"exception-resolution-time",filters,query:"Executive Operations resolved fixture",limit:1});
@@ -237,7 +238,7 @@ it("counts active Support incidents by current scope and opens bounded, audited 
   await saveReport(db,f.owner,id,saveSchema.parse({expectedVersion:1,definition,filters:defaultFilters()}),key());
   await expect(saveShare(db,f.owner,id,shareSchema.parse({recipientId:f.claimant.userId,mode:"distribution",widgetIds:["incidents"],expiresAt:null,filters:defaultFilters()}),key()))
     .rejects.toMatchObject({code:"RECIPIENT_SOURCE_REQUIRED"});
-  expect((await db.prepare("SELECT count(*) n FROM executive_report_shares WHERE report_id=?").bind(id).first<{n:number}>())?.n).toBe(0);
+  expect(required((await db.prepare("SELECT count(*) n FROM executive_report_shares WHERE report_id=?").bind(id).first<{n:number}>()))?.n).toBe(0);
 });
 it("reconciles current Support ticket and overdue SLA metrics with bounded metadata-only evidence",async()=>{
   const now=Date.now(),warehouse=key(),customer=key(),order=key(),policy=key();
@@ -558,9 +559,9 @@ it("reconciles inventory shortages to independently approved, versioned reorder 
 
   const first=await propose(stockedProduct,"3");
   expect(first).toMatchObject({status:"pending",version:1});
-  await expect(decide({id:first.id,version:1},"approve",actor)).rejects.toMatchObject({code:"INDEPENDENT_APPROVER_REQUIRED"});
+  await expect(decide({id:stringField(first,'id'),version:1},"approve",actor)).rejects.toMatchObject({code:"INDEPENDENT_APPROVER_REQUIRED"});
   expect((await queryMetric(db,actor,"inventory-shortages",filters)).status).toBe("empty");
-  const approved=await decide({id:first.id,version:1},"approve");
+  const approved=await decide({id:stringField(first,'id'),version:1},"approve");
   expect(approved).toMatchObject({status:"approved",version:2});
   let metric=await queryMetric(db,actor,"inventory-shortages",filters);
   expect(metric).toMatchObject({total:"1",unit:"count",status:"ready",scopeBoundary:{level:"company"}});
@@ -575,17 +576,17 @@ it("reconciles inventory shortages to independently approved, versioned reorder 
   const pendingChange=await propose(stockedProduct,"2",2);
   expect(pendingChange.version).toBe(3);
   expect((await queryMetric(db,actor,"inventory-shortages",filters)).total).toBe("1");
-  const rejected=await decide({id:first.id,version:3},"reject");
+  const rejected=await decide({id:stringField(first,'id'),version:3},"reject");
   expect(rejected).toMatchObject({status:"approved",version:4});
   expect((await queryMetric(db,actor,"inventory-shortages",filters)).total).toBe("1");
   const replacement=await propose(stockedProduct,"2",4);
-  await decide({id:first.id,version:5},"approve");
+  await decide({id:stringField(first,'id'),version:5},"approve");
   metric=await queryMetric(db,actor,"inventory-shortages",filters);
   expect(metric).toMatchObject({total:"0",status:"ready"});
   expect(metric.rows).toEqual([{label:"Inventory shortages",value:"0"}]);
 
   const missingStock=await propose(emptyProduct,"1");
-  await decide({id:missingStock.id,version:1},"approve");
+  await decide({id:stringField(missingStock,'id'),version:1},"approve");
   metric=await queryMetric(db,actor,"inventory-shortages",filters);
   expect(metric.total).toBe("1");
   const missingEvidence=await searchExecutiveEvidence(db,actor,{metric:"inventory-shortages",filters,query:"EX-REORDER-EMPTY",limit:10});
@@ -656,12 +657,12 @@ it("transfers ownership to an active Executive and atomically revokes the existi
   expect(preview.shares).toEqual([savedShare]);
   await saveShare(db,f.owner,id,shareSchema.parse({recipientId:f.head.userId,mode:"distribution",widgetIds:["people"],expiresAt:null,filters:defaultFilters()}),key());
   await expect(transferReportOwnership(db,f.owner,id,transferOwnershipSchema.parse({ownerId:f.claimant.userId,assignmentId,expectedVersion:version,expectedShares:preview.shares}),key())).rejects.toMatchObject({code:"TRANSFER_SHARES_CHANGED"});
-  expect((await db.prepare("SELECT owner_id FROM executive_reports WHERE id=?").bind(id).first<{owner_id:string}>()).owner_id).toBe(f.owner.userId);
+  expect(required((await db.prepare("SELECT owner_id FROM executive_reports WHERE id=?").bind(id).first<{owner_id:string}>())).owner_id).toBe(f.owner.userId);
   const currentPreview=await ownershipCandidates(db,f.owner,id),transferKey=key(),result=await transferReportOwnership(db,f.owner,id,transferOwnershipSchema.parse({ownerId:f.claimant.userId,assignmentId,expectedVersion:version,expectedShares:currentPreview.shares}),transferKey);
   expect(result).toMatchObject({id,ownerId:f.claimant.userId,version:version+1,revokedShares:2});
   expect(await db.prepare("SELECT owner_id,version FROM executive_reports WHERE id=?").bind(id).first()).toEqual({owner_id:f.claimant.userId,version:version+1});
-  expect((await db.prepare("SELECT count(*)::int count FROM executive_report_shares WHERE report_id=? AND revoked_at IS NOT NULL").bind(id).first<{count:number}>()).count).toBe(2);
-  expect((await db.prepare("SELECT state FROM executive_generation_jobs WHERE id=?").bind(job.id).first<{state:string}>()).state).toBe("cancelled");
+  expect(required((await db.prepare("SELECT count(*)::int count FROM executive_report_shares WHERE report_id=? AND revoked_at IS NOT NULL").bind(id).first<{count:number}>())).count).toBe(2);
+  expect(required((await db.prepare("SELECT state FROM executive_generation_jobs WHERE id=?").bind(job.id).first<{state:string}>())).state).toBe("cancelled");
   await expect(reportView(db,f.owner,id)).rejects.toMatchObject({code:"REPORT_NOT_FOUND"});
   const audit=await db.prepare("SELECT action,record_version FROM audit_events WHERE command_id=?").bind(transferKey).first<{action:string;record_version:number}>();
   expect(audit).toMatchObject({action:"executive.report.transfer",record_version:version+1});
@@ -936,7 +937,7 @@ it("reconciles PMS ADR and RevPAR to completed Night Audits and linked room reve
     const property=await db.prepare("SELECT id,company_id,branch_id,name,business_date FROM pms_properties WHERE id=?").bind(propertyId).first<{id:string;company_id:string;branch_id:string;name:string;business_date:string}>();
     if(!property)throw new Error("PMS test property missing");
     const rows=(await db.prepare("SELECT id,kind,data_json,version,updated_at FROM pms_records WHERE property_id=? AND kind IN ('night','entry') ORDER BY id").bind(propertyId).all<{id:string;kind:"night"|"entry";data_json:string;version:number;updated_at:number}>()).results;
-    const snapshot={property:{id:property.id,companyId:property.company_id,branchId:property.branch_id,name:property.name,businessDate:property.business_date},records:rows.map(row=>({id:row.id,kind:row.kind,data:JSON.parse(row.data_json) as never,version:Number(row.version),updatedAt:Number(row.updated_at)}))} as Parameters<typeof dailyRoomReport>[0];
+    const snapshot={property:{id:property.id,companyId:property.company_id,branchId:property.branch_id,name:property.name,businessDate:property.business_date,state:"open" as const,version:1,config:defaultConfig},records:rows.map(row=>({id:row.id,kind:row.kind,data:JSON.parse(row.data_json) as never,version:Number(row.version),updatedAt:Number(row.updated_at)}))} as Parameters<typeof dailyRoomReport>[0];
     return {night1:dailyRoomReport(snapshot,"2026-04-01").roomRevenue,night2:dailyRoomReport(snapshot,"2026-04-02").roomRevenue};
   };
   expect(await nightlyRevenue(east)).toEqual({night1:1200,night2:500});
@@ -1148,6 +1149,17 @@ it("drills through finance metrics with current permission checks and metadata-o
   await db.prepare(`INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,status,created_by,created_at,updated_at)
     VALUES(?,?,?,'receivable','EVIDENCE-INV-01','2026-03-05','2026-04-04','THB',10000,700,10700,10700,?,?, 'posted',?,?,?)`)
     .bind(invoice,f.company,party,f.accounts.cash,f.accounts.revenue,f.owner.userId,now,now).run();
+  // An audit write is the final gate for source release. A deferred failure must
+  // roll back the whole event statement, then permit the same read to retry.
+  await db.prepare("CREATE FUNCTION fail_executive_evidence_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'EXECUTIVE_EVIDENCE_LATE_FAILURE'; END $$").run();
+  await db.prepare("CREATE CONSTRAINT TRIGGER fail_executive_evidence_audit AFTER INSERT ON executive_evidence_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fail_executive_evidence_audit()").run();
+  try {
+    await expect(searchFinanceEvidence(db,f.owner,{metric:"invoiced-sales",filters,query:"EVIDENCE-INV",limit:10})).rejects.toThrow('EXECUTIVE_EVIDENCE_LATE_FAILURE');
+    expect(await db.prepare("SELECT count(*)::integer count FROM executive_evidence_access_events WHERE company_id=? AND record_id=?").bind(f.company,invoice).first<{count:number}>()).toEqual({count:0});
+  } finally {
+    await db.prepare("DROP TRIGGER fail_executive_evidence_audit ON executive_evidence_access_events").run();
+    await db.prepare("DROP FUNCTION fail_executive_evidence_audit()").run();
+  }
   const result=await searchFinanceEvidence(db,f.owner,{metric:"invoiced-sales",filters,query:"EVIDENCE-INV",limit:10});
   expect(result.items).toHaveLength(1);
   expect(result.items[0]).toMatchObject({id:invoice,invoice_number:"EVIDENCE-INV-01",version:1,href:`/finance/invoices/${invoice}`});
@@ -1230,7 +1242,7 @@ it("reconciles active Brand profile metrics with bounded, authorized profile evi
   const updates=await queryMetric(db,actor,"brand-profile-updates",filters);
   expect(updates).toMatchObject({total:"2",unit:"count",status:"ready"});
   expect((await queryMetric(db,actor,"brand-profile-updates",filters,"month")).rows).toEqual([{label:"2026-09",value:"2"}]);
-  expect((await metricCatalog(db,{...actor,branchId:f.branch})).find(metric=>metric.id==="brand-profiles")?.available).toBe(false);
+  expect((await await metricCatalogFor(db,{...actor,branchId:f.branch})).find(metric=>metric.id==="brand-profiles")?.available).toBe(false);
 
   const first=await searchExecutiveEvidence(db,actor,{metric:"brand-profiles",filters,limit:1});
   const second=await searchExecutiveEvidence(db,actor,{metric:"brand-profiles",filters,limit:5,cursor:first.nextCursor!});
@@ -1242,7 +1254,7 @@ it("reconciles active Brand profile metrics with bounded, authorized profile evi
   const updated=await searchExecutiveEvidence(db,actor,{metric:"brand-profile-updates",filters,query:"Executive Brand current",limit:10});
   expect(updated.items).toHaveLength(1);expect(updated.items[0].id).toBe(currentBranch);
   const updatedDetail=await readExecutiveEvidence(db,actor,"brand-profile-updates",updated.items[0].id,filters);
-  expect(updatedDetail.record.branch_name).toBe("Executive Brand current branch");
+  expect(requiredField(updatedDetail.record,'branch_name')).toBe("Executive Brand current branch");
   await db.prepare("UPDATE organization_brand_profiles SET updated_at=? WHERE scope_kind='branch' AND scope_id=?").bind(august,currentBranch).run();
   await expect(readExecutiveEvidence(db,actor,"brand-profile-updates",currentBranch,filters)).rejects.toMatchObject({status:404,code:"EVIDENCE_NOT_FOUND"});
   await expect(readExecutiveEvidence(db,actor,"brand-profiles",suspendedBranch,filters)).rejects.toMatchObject({status:404,code:"EVIDENCE_NOT_FOUND"});
@@ -1384,7 +1396,7 @@ it("reconciles Talent requisitions and application stages without candidate evid
   await expect(readExecutiveEvidence(db,actor,"open-requisitions",requisitions[3],filters)).rejects.toMatchObject({status:404,code:"EVIDENCE_NOT_FOUND"});
 
   const nonReviewer={...f.claimant,modules:["talent"]};
-  expect((await metricCatalog(db,nonReviewer)).find(metric=>metric.id==="application-stage-counts")?.available).toBe(false);
+  expect((await await metricCatalogFor(db,nonReviewer)).find(metric=>metric.id==="application-stage-counts")?.available).toBe(false);
   await expect(searchExecutiveEvidence(db,nonReviewer,{metric:"application-stage-counts",filters,limit:10})).rejects.toMatchObject({code:"EVIDENCE_FORBIDDEN"});
   const audit=(await db.prepare(`SELECT provider_id,metric_id,action,record_id,record_version,field_ids::text fields,query_hash
     FROM executive_evidence_access_events WHERE company_id=? AND actor_id=? AND provider_id='talent-recruiting-records' ORDER BY created_at,id`)
@@ -1596,7 +1608,7 @@ it("reconciles exact quality inspection rates and scopes evidence to current Qua
   expect(byBranch.total).toBe("6667");
   expect(openHolds.total).toBe("1");
   expect(releases.total).toBe("1");
-  expect(formatMetric(annual.total,annual)).toBe("66.67%");
+  expect(formatMetric(required(annual.total),annual)).toBe("66.67%");
   expect((await queryMetric(db,actor,"inspection-pass-rate",{...filters,from:"2026-05-01",to:"2026-05-31"})).status).toBe("empty");
 
   const found=await searchExecutiveEvidence(db,actor,{metric:"inspection-pass-rate",filters,query:"Executive quality test product",limit:1});
@@ -1668,14 +1680,14 @@ it("reconciles net POS sales and payment mix against completed source transactio
 
   const netEvidence=await searchExecutiveEvidence(db,posActor,{metric:"net-pos-sales",filters,limit:25});
   expect(netEvidence.items.map(item=>item.id)).toContain(`refund:${refund}`);
-  expect(netEvidence.items.reduce((sum,item)=>sum+BigInt(item.amount??"0"),0n)).toBe(14000n);
+  expect(netEvidence.items.reduce((sum,item)=>sum+BigInt(stringField(item,'amount')??"0"),0n)).toBe(14000n);
   const refundDetail=await readExecutiveEvidence(db,posActor,"net-pos-sales",`refund:${refund}`,filters);
   expect(refundDetail.record).toMatchObject({source_type:"refund",receipt_number:"EX-POS-001",accounting_date:"2026-03-20",amount_minor:"1700",contribution_minor:"-1700",href:`/pos?tab=history&sale=${first}`});
   expect(refundDetail.record).not.toHaveProperty("reason");expect(refundDetail.record).not.toHaveProperty("lines_json");
   expect((await searchExecutiveEvidence(db,posActor,{metric:"net-pos-sales",filters:{...filters,from:"2026-03-21"},limit:25})).items).toEqual([]);
 
   const paymentEvidence=await searchExecutiveEvidence(db,posActor,{metric:"pos-payment-mix",filters,limit:25});
-  expect(paymentEvidence.items.reduce((sum,item)=>sum+BigInt(item.amount??"0"),0n)).toBe(14000n);
+  expect(paymentEvidence.items.reduce((sum,item)=>sum+BigInt(stringField(item,'amount')??"0"),0n)).toBe(14000n);
   expect((await searchExecutiveEvidence(db,posActor,{metric:"pos-payment-mix",filters,query:"edc",limit:25})).items.map(item=>item.id)).toEqual([`payment:${card}`]);
   const paymentDetail=await readExecutiveEvidence(db,posActor,"pos-payment-mix",`payment:${card}`,filters);
   expect(paymentDetail.record).toMatchObject({source_type:"payment",receipt_number:"EX-POS-001",method:"edc",amount_minor:"4700",refunded_minor:"1700",contribution_minor:"3000"});
@@ -1825,9 +1837,9 @@ it("reconciles terminal sales cancellations and scopes evidence to the reader's 
   expect(count.total).toBe("3");expect(scopedCount.total).toBe("2");expect(scopedCount.rows).toEqual([{label:"Cancelled sales orders",value:"2"}]);
   expect(value.total).toBe("10700");expect(valueByMonth.rows).toEqual([{label:"2026-03",value:"10700"}]);
   const found=await searchExecutiveEvidence(db,scoped,{metric:"sales-cancellations",filters,limit:1});
-  expect(found.provider).toBe("commerce-sales-orders");expect(found.items.map(item=>item.id)).toEqual([draft]);expect(found.items[0].amount).toBeUndefined();expect(found.hasMore).toBe(true);expect(found.nextCursor).toBeTruthy();
+  expect(found.provider).toBe("commerce-sales-orders");expect(found.items.map(item=>item.id)).toEqual([draft]);expect(found.items[0]).not.toHaveProperty("amount");expect(found.hasMore).toBe(true);expect(found.nextCursor).toBeTruthy();
   const next=await searchExecutiveEvidence(db,scoped,{metric:"sales-cancellations",filters,limit:1,cursor:found.nextCursor!});expect(next.items.map(item=>item.id)).toEqual([approved]);expect(next.hasMore).toBe(false);
-  const valueEvidence=await searchExecutiveEvidence(db,scoped,{metric:"sales-cancellation-value",filters,limit:25});expect(valueEvidence.items.map(item=>item.id)).toEqual([approved]);expect(valueEvidence.items[0].amount).toBe("10700");
+  const valueEvidence=await searchExecutiveEvidence(db,scoped,{metric:"sales-cancellation-value",filters,limit:25});expect(valueEvidence.items.map(item=>item.id)).toEqual([approved]);expect(valueEvidence.items[0]).toMatchObject({amount:"10700"});
   const draftDetail=await readExecutiveEvidence(db,scoped,"sales-cancellations",draft,filters);
   expect(draftDetail.provider).toBe("commerce-sales-orders");expect(draftDetail.record).toMatchObject({status:"cancelled",prior_approval:false,subtotal_minor:"90000"});
   await expect(readExecutiveEvidence(db,scoped,"sales-cancellation-value",draft,filters)).rejects.toMatchObject({status:404,code:"EVIDENCE_NOT_FOUND"});
@@ -1890,7 +1902,7 @@ it("reconciles fully fulfilled sales orders by order cohort and scopes bounded e
   const salesOrders=await searchExecutiveEvidence(db,actor,{metric:"sales-orders",filters,limit:2});
   expect(salesOrders.provider).toBe("commerce-sales-orders");
   expect(salesOrders.items.map(item=>item.id)).toEqual([withoutLines,fulfilledCompany]);
-  expect(salesOrders.items.every(item=>item.amount==="10700"&&item.summary.includes("Sales order"))).toBe(true);
+  expect(salesOrders.items.every(item=>stringField(item,'amount')==="10700"&&item.summary.includes("Sales order"))).toBe(true);
   expect(salesOrders.items[0]).not.toHaveProperty("due_date");
   expect(salesOrders.items[0]).not.toHaveProperty("outstanding_minor");
   expect(salesOrders.hasMore).toBe(true);
@@ -1937,8 +1949,8 @@ it("does not let a distribution recipient expand filters or retain an expired gr
 it("discards a provider result if access is revoked during generation",async()=>{
   const id=await report(),k=key();await queueGeneration(db,f.owner,aiEnv,id,generateSchema.parse({question:"Prepare this report"}),k);
   await drainExecutiveGeneration(db,aiEnv,async()=>{await db.prepare("UPDATE assignments SET revoked_at=? WHERE id=?").bind(Date.now(),f.owner.assignmentId).run();return {result:{message:"Review the design.",definition:emptyDefinition(),followUps:[]},inputTokens:1,outputTokens:1};});
-  expect((await db.prepare("SELECT state FROM executive_generation_jobs WHERE id=?").bind(k).first<{state:string}>())?.state).toBe("failed");
-  expect((await db.prepare("SELECT version FROM executive_reports WHERE id=?").bind(id).first<{version:number}>())?.version).toBe(2);
+  expect(required((await db.prepare("SELECT state FROM executive_generation_jobs WHERE id=?").bind(k).first<{state:string}>()))?.state).toBe("failed");
+  expect(required((await db.prepare("SELECT version FROM executive_reports WHERE id=?").bind(id).first<{version:number}>()))?.version).toBe(2);
 });
 it("fails an interrupted lease without silently issuing another paid inference",async()=>{
   const id=await report(),k=key();await queueGeneration(db,f.owner,aiEnv,id,generateSchema.parse({question:"Prepare this report"}),k);
@@ -2004,7 +2016,7 @@ it("uses a single effective engagement per person for additive organization char
   const before=await queryMetric(db,f.owner,"headcount",defaultFilters(),"branch");
   await db.prepare("INSERT INTO hr_engagements(id,person_id,company_id,branch_id,department_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at,level_id) SELECT ?,person_id,company_id,branch_id,department_id,worker_type,employment_type,status,'2026-01-01',job_title,currency,created_by,created_at,updated_at,level_id FROM hr_engagements WHERE person_id=? LIMIT 1").bind(key(),`person-${f.claimant.userId}`).run();
   const after=await queryMetric(db,f.owner,"headcount",defaultFilters(),"branch");
-  expect(after.total).toBe(before.total);expect(after.rows.reduce((n,r)=>n+BigInt(r.value),BigInt(0))).toBe(BigInt(after.total));
+  expect(after.total).toBe(before.total);expect(after.rows.reduce((n,r)=>n+BigInt(r.value),BigInt(0))).toBe(BigInt(required(after.total)));
   await expect(queryMetric(db,f.owner,"headcount",defaultFilters(),"month")).rejects.toMatchObject({code:"BREAKDOWN_UNAVAILABLE"});
 });
 it("persists custom HTML/CSS and dimensions and binds it to authorized live values",async()=>{
@@ -2012,22 +2024,22 @@ it("persists custom HTML/CSS and dimensions and binds it to authorized live valu
   const definition=definitionSchema.parse({...r.definition,widgets:[{...r.definition.widgets[0],kind:"html",breakdown:"branch",columns:9,height:480,html:"<section><h1>{{title}}</h1><strong>{{total}}</strong>{{chart:donut}}</section>",css:"section { background: #123; border-radius: 22px; }"}]});
   await saveReport(db,f.owner,id,saveSchema.parse({expectedVersion:r.version,definition,filters:r.filters}),key());
   const saved=await reportView(db,f.owner,id);expect(saved.definition.widgets[0]).toMatchObject({columns:9,height:480,kind:"html"});
-  const d=await reportData(db,f.owner,id);expect(BigInt(d.metrics["headcount:branch"].total)).toBeGreaterThan(BigInt(0));expect(d.documents.people).toContain("<svg");expect(d.documents.people).not.toContain("{{total}}");expect(d.documents.people).toContain("border-radius: 22px");
+  const d=await reportData(db,f.owner,id);expect(BigInt(required(d.metrics["headcount:branch"].total))).toBeGreaterThan(BigInt(0));expect(d.documents.people).toContain("<svg");expect(d.documents.people).not.toContain("{{total}}");expect(d.documents.people).toContain("border-radius: 22px");
 });
 it("isolates generated markup and blocks script, navigation and external fetches",async()=>{
   const {htmlWidgetDocument}=await import("../src/server/executive/html-widget");
   const widget=definitionSchema.parse({...emptyDefinition(),widgets:[{id:"x",title:"Test",metric:"headcount",kind:"html",html:'<script>alert(1)</script><img src="https://evil.test" onerror="alert(1)"><a href="https://evil.test">Go</a><iframe src="https://evil.test"></iframe><meta http-equiv="refresh" content="0;url=https://evil.test"><div>{{rows}}</div>',css:'body{color:red}</style><script>alert(2)</script>'}]}).widgets[0];
-  const doc=htmlWidgetDocument(widget,{metric:"headcount",total:1,unit:"count",currency:null,rows:[{label:'<img src=x onerror=alert(3)>',value:1}],definition:"Test",scope:"Company",revision:"x",updatedAt:0});
+  const doc=htmlWidgetDocument(widget,htmlMetric({rows:[{label:'<img src=x onerror=alert(3)>',value:'1'}],definition:"Test",scope:"Company",revision:"x",updatedAt:0}));
   expect(doc).not.toMatch(/<script|<iframe|<img|<[^>]+(?:href|onerror)=/i);
   expect(doc).toContain("default-src 'none'");expect(doc).toContain("connect-src 'none'");expect(doc).toContain("&lt;img");
 });
 it("keeps custom iframe content stable on heartbeat but updates changed data and clears denied reads",async()=>{
   const {htmlWidgetDocument}=await import("../src/server/executive/html-widget");
   const widget=definitionSchema.parse({...emptyDefinition(),widgets:[{id:"stable",title:"Live",metric:"headcount",kind:"html",html:"<h2>{{total}}</h2><time>{{updatedAt}}</time>"}]}).widgets[0];
-  const data={metric:"headcount" as const,total:1,unit:"count" as const,currency:null,rows:[{label:"People",value:1}],definition:"Current people",scope:"Test company",revision:key(),updatedAt:1000};
+  const data=htmlMetric({definition:"Current people",scope:"Test company",revision:key(),updatedAt:1000});
   const first=htmlWidgetDocument(widget,data);
   expect(htmlWidgetDocument(widget,{...data,updatedAt:2000})).toBe(first);
-  expect(htmlWidgetDocument(widget,{...data,total:2,rows:[{label:"People",value:2}],revision:key(),updatedAt:3000})).toContain("<h2>2</h2>");
+  expect(htmlWidgetDocument(widget,{...data,total:"2",rows:[{label:"People",value:"2"}],revision:key(),updatedAt:3000})).toContain("<h2>2</h2>");
   expect(htmlWidgetDocument(widget,{...data,error:"Access revoked"})).toBe("");
   const blue=htmlWidgetDocument(widget,data,"blue");
   expect(blue).not.toBe(first);
@@ -2130,7 +2142,7 @@ it("unions recorded Maintenance downtime per asset and audits bounded scoped wor
   expect(byAsset.rows).toEqual([{label:"EX-DOWNTIME-A · Executive downtime asset A",value:"18000000"},{label:"EX-DOWNTIME-B · Executive downtime asset B",value:"1800000"}]);
   expect((await queryMetric(db,actor,"asset-downtime",{...filters,to:"2026-01-31"})).total).toBe("3600000");
   expect((await queryMetric(db,{...actor,branchId:"outside-current-scope"},"asset-downtime",filters)).total).toBe("0");
-  expect(formatMetric(total.total,total)).toBe("5.50 h");expect(formatMetric("1800000",total)).toBe("30.00 min");
+  expect(formatMetric(required(total.total),total)).toBe("5.50 h");expect(formatMetric("1800000",total)).toBe("30.00 min");
 
   const firstPage=await searchExecutiveEvidence(db,actor,{metric:"asset-downtime",filters,query:"Executive downtime",limit:1});
   expect(firstPage.provider).toBe("maintenance-downtime-work-orders");expect(firstPage.items).toHaveLength(1);expect(firstPage.hasMore).toBe(true);
@@ -2185,7 +2197,7 @@ it("counts customer identity change events and opens audited metadata without id
   const first=await searchExecutiveEvidence(db,f.owner,{metric:"identity-change-events",filters,query:"Executive identity customer",limit:1});
   const second=await searchExecutiveEvidence(db,f.owner,{metric:"identity-change-events",filters,query:"Executive identity customer",limit:1,cursor:first.nextCursor!});
   expect(first.provider).toBe("customer-identity-events");expect(first.items).toHaveLength(1);expect(second.items).toHaveLength(1);
-  expect(first.items[0].href).toBe(`/customer-identity/${changes[0].id}`);expect(first.items[0].status).toBe("reject");
+  expect(first.items[0].href).toBe(`/customer-identity/${changes[0].id}`);expect(stringField(first.items[0],'status')).toBe("reject");
   const detail=await readExecutiveEvidence(db,f.owner,"identity-change-events",first.items[0].id,filters);
   expect(detail.record).toMatchObject({change_id:changes[0].id,action:"reject",customer_version:1,version:2,change_status:"rejected",change_version:2,customer_name:customers[0].name,customer_code:customers[0].code,href:`/customer-identity/${changes[0].id}`});
   expect(detail.fields).toEqual(["action","created_at","version","customer_version","customer.name","customer.code","change.status","change.version"]);
@@ -2223,20 +2235,20 @@ it("reconciles active organization nodes and exposes submitted change metadata t
   ]);
 
   const nodes=await queryMetric(db,actor,"active-organization-nodes",filters);
-  expect(BigInt(nodes.total)-BigInt(baselineNodes.total)).toBe(2n);
+  expect(BigInt(required(nodes.total))-BigInt(required(baselineNodes.total))).toBe(2n);
   expect((await queryMetric(db,{...actor,branchId:branch},"active-organization-nodes",filters)).total).toBe("2");
   expect((await queryMetric(db,{...actor,branchId:branch,departmentId:department},"active-organization-nodes",filters)).total).toBe("1");
   const first=await searchExecutiveEvidence(db,actor,{metric:"active-organization-nodes",filters,query:"Executive evidence",limit:1});
   const second=await searchExecutiveEvidence(db,actor,{metric:"active-organization-nodes",filters,query:"Executive evidence",limit:1,cursor:first.nextCursor!});
   expect(first.provider).toBe("organization-records");expect(first.items).toHaveLength(1);expect(second.items).toHaveLength(1);
   const nodeDetail=await readExecutiveEvidence(db,actor,"active-organization-nodes",first.items[0].id,filters);
-  expect([nodeDetail.record.display_name,nodeDetail.record.kind]).toEqual(["Executive evidence branch","branch"]);
+  expect([requiredField(nodeDetail.record,'display_name'),requiredField(nodeDetail.record,'kind')]).toEqual(["Executive evidence branch","branch"]);
   expect(nodeDetail.fields).toEqual(["kind","slug","display_name","status","branch.name","parent.name","hierarchy_revision"]);
-  expect(nodeDetail.record.slug).toBe(`ex-${branch.slice(0,8)}`);expect(nodeDetail.record).not.toHaveProperty("id",branch);
+  expect(requiredField(nodeDetail.record,'slug')).toBe(`ex-${branch.slice(0,8)}`);expect(nodeDetail.record).not.toHaveProperty("id",branch);
   await expect(readExecutiveEvidence(db,{...actor,branchId:f.branch},"active-organization-nodes",first.items[0].id,filters)).rejects.toMatchObject({status:404,code:"EVIDENCE_NOT_FOUND"});
 
   const changes=await queryMetric(db,actor,"pending-structure-changes",filters);
-  expect(BigInt(changes.total)-BigInt(baselineChanges.total)).toBe(1n);
+  expect(BigInt(required(changes.total))-BigInt(required(baselineChanges.total))).toBe(1n);
   const changePage=await searchExecutiveEvidence(db,actor,{metric:"pending-structure-changes",filters,query:"Executive pending department",limit:10});
   expect(changePage.items).toHaveLength(1);expect(changePage.items[0].href).toContain(encodeURIComponent(change));
   const changeDetail=await readExecutiveEvidence(db,actor,"pending-structure-changes",changePage.items[0].id,filters);
@@ -2277,10 +2289,10 @@ it("reconciles effective IAM assignments and audits pending access review eviden
       assignment.id,assignment.user,"employee",f.company,f.branch,now-86400000,assignment.validUntil,assignment.revokedAt,"department",assignment.scope,
     )));
   const activeAssignments=await queryMetric(db,actor,"active-assignments",filters);
-  expect(BigInt(activeAssignments.total)-BigInt(baselineCompanyAssignments.total)).toBe(2n);
-  expect(BigInt((await queryMetric(db,{...actor,branchId:f.branch},"active-assignments",filters)).total)-BigInt(baselineBranchAssignments.total)).toBe(2n);
-  expect(BigInt((await queryMetric(db,{...actor,branchId:f.branch,departmentId:f.department},"active-assignments",filters)).total)-BigInt(baselineDepartmentAssignments.total)).toBe(1n);
-  expect(BigInt((await queryMetric(db,{...actor,branchId:f.branch,departmentId:f.accountsDepartment},"active-assignments",filters)).total)-BigInt(baselineOtherDepartmentAssignments.total)).toBe(1n);
+  expect(BigInt(required(activeAssignments.total))-BigInt(required(baselineCompanyAssignments.total))).toBe(2n);
+  expect(BigInt(required((await queryMetric(db,{...actor,branchId:f.branch},"active-assignments",filters)).total))-BigInt(required(baselineBranchAssignments.total))).toBe(2n);
+  expect(BigInt(required((await queryMetric(db,{...actor,branchId:f.branch,departmentId:f.department},"active-assignments",filters)).total))-BigInt(required(baselineDepartmentAssignments.total))).toBe(1n);
+  expect(BigInt(required((await queryMetric(db,{...actor,branchId:f.branch,departmentId:f.accountsDepartment},"active-assignments",filters)).total))-BigInt(required(baselineOtherDepartmentAssignments.total))).toBe(1n);
   const assignmentFirst=await searchExecutiveEvidence(db,actor,{metric:"active-assignments",filters,query:"executive-iam-assignee-",limit:1});
   const assignmentSecond=await searchExecutiveEvidence(db,actor,{metric:"active-assignments",filters,query:"executive-iam-assignee-",limit:1,cursor:assignmentFirst.nextCursor!});
   expect(assignmentFirst.provider).toBe("identity-access-assignments");expect(assignmentFirst.items).toHaveLength(1);expect(assignmentSecond.items).toHaveLength(1);
@@ -2311,10 +2323,10 @@ it("reconciles effective IAM assignments and audits pending access review eviden
       item.id,item.campaign,f.company,item.assignment,item.assignmentVersion,item.user,item.role,item.scopeKind,item.scopeNode,item.source,item.validUntil,item.decision,item.decisionReason,item.decidedAt,
     )));
   const companyReviews=await queryMetric(db,actor,"pending-access-reviews",filters);
-  expect(BigInt(companyReviews.total)-BigInt(baselineCompanyReviews.total)).toBe(3n);
-  expect(BigInt((await queryMetric(db,{...actor,branchId:f.branch},"pending-access-reviews",filters)).total)-BigInt(baselineBranchReviews.total)).toBe(3n);
-  expect(BigInt((await queryMetric(db,{...actor,branchId:f.branch,departmentId:f.department},"pending-access-reviews",filters)).total)-BigInt(baselineDepartmentReviews.total)).toBe(2n);
-  expect(BigInt((await queryMetric(db,{...actor,branchId:f.branch,departmentId:f.accountsDepartment},"pending-access-reviews",filters)).total)-BigInt(baselineOtherDepartmentReviews.total)).toBe(2n);
+  expect(BigInt(required(companyReviews.total))-BigInt(required(baselineCompanyReviews.total))).toBe(3n);
+  expect(BigInt(required((await queryMetric(db,{...actor,branchId:f.branch},"pending-access-reviews",filters)).total))-BigInt(required(baselineBranchReviews.total))).toBe(3n);
+  expect(BigInt(required((await queryMetric(db,{...actor,branchId:f.branch,departmentId:f.department},"pending-access-reviews",filters)).total))-BigInt(required(baselineDepartmentReviews.total))).toBe(2n);
+  expect(BigInt(required((await queryMetric(db,{...actor,branchId:f.branch,departmentId:f.accountsDepartment},"pending-access-reviews",filters)).total))-BigInt(required(baselineOtherDepartmentReviews.total))).toBe(2n);
   const reviewFirst=await searchExecutiveEvidence(db,actor,{metric:"pending-access-reviews",filters,query:"Executive IAM review campaign",limit:1});
   const reviewSecond=await searchExecutiveEvidence(db,actor,{metric:"pending-access-reviews",filters,query:"Executive IAM review campaign",limit:1,cursor:reviewFirst.nextCursor!});
   expect(reviewFirst.provider).toBe("identity-access-reviews");expect(reviewFirst.items).toHaveLength(1);expect(reviewSecond.items).toHaveLength(1);
@@ -2497,3 +2509,8 @@ it("reconciles Agent governance metrics with bounded, permission-checked evidenc
   expect(audit.every(row=>JSON.parse(row.fields).every((field:string)=>!/(prompt|question|source|error|user|provider)/i.test(field)))).toBe(true);
   expect(JSON.stringify(audit)).not.toMatch(/private-question|private-source|Private model error|turn-executive-evidence/);
 });
+
+function required<Value>(value:Value|null|undefined):Value{if(value==null)throw Error('Required fixture fact is missing');return value;}
+function requiredField(value:object,name:string):unknown{if(!(name in value))throw Error('Required evidence field is missing: '+name);return Reflect.get(value,name);}
+function stringField(value:object,name:string):string{const field=requiredField(value,name);if(typeof field!=='string')throw Error('Required evidence field is not a string: '+name);return field;}
+function htmlMetric(overrides:Partial<MetricData>={}):MetricData{return {schemaVersion:2,metric:'headcount',total:'1',unit:'count',currency:null,valueScale:0,rows:[{label:'People',value:'1'}],formula:'count',definition:'Current people',scope:'Company',scopeBoundary:{level:'company',revision:'company-scope'},referenceAt:0,updatedAt:0,sourceRevision:'source',queryDefinitionRevision:'query',revision:'fixture',status:'ready',sourceReferences:[],...overrides};}

@@ -1,9 +1,9 @@
 import { forbidden } from "next/navigation";
-import { publicScope, requireWorkContext } from "@/server/authorization";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
-import { pageError } from "@/server/page-error";
-import { queryValue, type HubQuery, type SalesView } from "@/lib/sales-customers";
-import { salesCustomersAccess } from "@/server/sales-customers";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+import { queryValue, type HubQuery, type SalesView } from "@/server/modules/sales/public/rules/navigation";
+import { salesCustomersAccess } from "@/server/modules/sales/public/sales-customers";
 import { HubShell } from "@/components/sales-customers/hub-shell";
 import { SalesDocumentsView, SalesPipelineView, SalesPricingView, SalesReportsView, SalesTodayView } from "@/components/sales-customers/sales-views";
 export const dynamic = "force-dynamic";

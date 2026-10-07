@@ -22,7 +22,7 @@ type DeviceSession = {
 
 type Props = {
   appearance?: UiAppearance;
-  assignments?: import("@/server/authorization").WorkAssignment[];
+  assignments?: import("@/server/modules/identity_access/public/authorization").WorkAssignment[];
   preferredAssignmentId?: string | null;
   contextRevision?: number;
   companyId?: string;

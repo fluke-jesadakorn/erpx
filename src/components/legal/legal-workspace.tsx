@@ -44,7 +44,7 @@ import {
   type LegalData,
   type LegalDetail,
   type ItemInput,
-} from "@/lib/legal/model";
+} from "@/server/modules/legal/public/rules/model";
 import s from "./legal.module.css";
 import { TableFrame } from "@/components/ui/foundation";
 const button = `${s.button}`,

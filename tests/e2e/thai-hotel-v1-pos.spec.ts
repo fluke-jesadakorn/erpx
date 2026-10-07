@@ -295,6 +295,7 @@ test("H002 restaurant posts a cash sale, records waste, reviews a refund and clo
     const createCashSale = await createCashSaleRequest;
     expect(createCashSale.postDataJSON()).toBeTruthy();
     const saleCreateResponse = await createCashSale.response();
+    if (!saleCreateResponse) throw new Error("CASH_SALE_RESPONSE_REQUIRED");
     expect(saleCreateResponse.ok()).toBe(true);
     await cashierPage.getByRole("button", { name: /Bottled water/ }).click();
     const addCashLine = cashierPage.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/pos/sale/add"));
@@ -316,6 +317,7 @@ test("H002 restaurant posts a cash sale, records waste, reviews a refund and clo
     await cashierPage.getByRole("button", { name: "Record payment", exact: true }).click();
     const paymentCommand = await paymentRequest;
     const paymentResponse = await paymentCommand.response();
+    if (!paymentResponse) throw new Error("CASH_PAYMENT_RESPONSE_REQUIRED");
     expect(paymentResponse.ok()).toBe(true);
     const paymentHeaders = await paymentCommand.allHeaders();
     const replayHeaders = Object.fromEntries(Object.entries(paymentHeaders).filter(([name]) => name === "idempotency-key" || name.startsWith("x-erpx-context-")));

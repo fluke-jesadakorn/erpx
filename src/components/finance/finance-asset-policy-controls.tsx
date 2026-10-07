@@ -20,7 +20,7 @@ import { FinancePrepareOn, financeDraftCommand } from "./finance-prepare-on";
 import {
   monthlyDate,
   type DepreciationPolicy,
-} from "@/lib/finance-instrument-policy";
+} from "@/server/modules/finance/public/rules/finance-instrument-policy";
 import { minorToDecimal } from "@/lib/finance-money";
 import { RecordLink } from "@/components/records/record-link";
 type Row = Record<string, string | number | null>;

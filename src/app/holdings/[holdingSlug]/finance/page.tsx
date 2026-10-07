@@ -4,13 +4,13 @@ import { FeaturePage } from "@/components/features/feature-page";
 import { FinanceWorkspace, financeStyles as styles } from "@/components/finance/finance-workspace";
 import { formatMoneyUnits } from "@/lib/company-money";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { financeWorkbench } from "@/server/finance-workspace";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { financeWorkbench } from "@/server/modules/finance/public/finance-workspace";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { pageError } from "@/server/page-error";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { FinanceToday } from "@/components/finance/finance-today";
-import { financeWorkspaceV2Enabled } from "@/server/finance-presentation";
-import { workSnapshot } from "@/server/work-items";
+import { financeWorkspaceV2Enabled } from "@/server/modules/finance/public/finance-presentation";
+import { workSnapshot } from "@/server/modules/work_projection/public/work-items";
 
 export const dynamic = "force-dynamic";
 

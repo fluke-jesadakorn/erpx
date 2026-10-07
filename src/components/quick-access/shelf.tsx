@@ -38,7 +38,7 @@ import {
   Utensils,
   Wrench,
 } from "lucide-react";
-import { useId, useMemo, useRef, useState } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   visibleQuickAccessItems,
   type QuickAccessItem,
@@ -103,10 +103,11 @@ type Props = {
   error?: string;
   onRetry?: () => void;
   onSaved?: (preference: QuickAccessPreference) => void;
+  onNavigate?: () => void;
   embedded?: boolean;
   showAllMode?: boolean;
   locale?: "en" | "th";
-  placement?: "inline" | "rail" | "sidebar";
+  placement?: "inline" | "rail" | "sidebar" | "panel";
 };
 
 const copy = {
@@ -208,6 +209,7 @@ function QuickAccessShelfState({ appearance = "legacy",
   error = "",
   onRetry,
   onSaved,
+  onNavigate,
   embedded = false,
   showAllMode = true,
   locale = "en",
@@ -230,6 +232,8 @@ function QuickAccessShelfState({ appearance = "legacy",
   const [conflict, setConflict] = useState<QuickAccessPreference | null>(null);
   const [reviewed, setReviewed] = useState(false);
   const saveAttempt = useRef<{ body: string; key: string } | null>(null);
+  const reorderControls = useRef(new Map<string, { up: HTMLButtonElement | null; down: HTMLButtonElement | null }>());
+  const reorderFocus = useRef<{ id: string; direction: "up" | "down" } | null>(null);
   const availableIds = useMemo(() => new Set(items.map((item) => item.id)), [items]);
   const availableById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
   const chosen = selectedIds(
@@ -241,7 +245,25 @@ function QuickAccessShelfState({ appearance = "legacy",
   const visible = visibleQuickAccessItems(items, preference, defaultIds).slice(0, 6);
   const selected = new Set(chosen);
 
+  useLayoutEffect(() => {
+    const pending = reorderFocus.current;
+    reorderFocus.current = null;
+    if (!editorOpen || !pending) return;
+    const row = reorderControls.current.get(pending.id);
+    const preferred = row?.[pending.direction];
+    const alternative = row?.[pending.direction === "up" ? "down" : "up"];
+    const target = preferred?.isConnected && !preferred.disabled ? preferred : alternative;
+    if (target?.isConnected && !target.disabled) target.focus();
+  }, [draft, editorOpen]);
+
+  function reorderControl(id: string, direction: "up" | "down", node: HTMLButtonElement | null) {
+    const row = reorderControls.current.get(id) ?? { up: null, down: null };
+    row[direction] = node;
+    if (row.up || row.down) reorderControls.current.set(id, row);
+    else reorderControls.current.delete(id);
+  }
   function openEditor() {
+    reorderFocus.current = null;
     setDraft(preference.pinnedIds);
     setDraftVersion(preference.version);
     setConflict(null);
@@ -253,11 +275,13 @@ function QuickAccessShelfState({ appearance = "legacy",
     setDraft(ids);
     setEditorError("");
   }
-  function shift(id: string, offset: number) {
+  function shift(id: string, offset: number, control: HTMLButtonElement) {
     const next = [...chosen];
     const old = next.indexOf(id),
       target = old + offset;
     if (old < 0 || target < 0 || target >= next.length) return;
+    reorderFocus.current = control.ownerDocument.activeElement === control
+      ? { id, direction: offset < 0 ? "up" : "down" } : null;
     [next[old], next[target]] = [next[target], next[old]];
     updateDraft(next);
   }
@@ -320,7 +344,7 @@ function QuickAccessShelfState({ appearance = "legacy",
 
   return (
     <section data-ui-appearance={appearance}
-      className={`${styles.shelf} ${embedded ? styles.embedded : ""} ${placement === "rail" ? styles.rail : ""} ${placement === "sidebar" ? styles.sidebar : ""} ${placement === "rail" && !railExpanded ? styles.railCollapsed : ""}`}
+      className={`${styles.shelf} ${embedded ? styles.embedded : ""} ${placement === "rail" ? styles.rail : ""} ${placement === "sidebar" ? styles.sidebar : ""} ${placement === "panel" ? styles.panel : ""} ${placement === "rail" && !railExpanded ? styles.railCollapsed : ""}`}
       aria-label={title}
       data-quick-access-shelf
       data-print-hide
@@ -400,7 +424,7 @@ function QuickAccessShelfState({ appearance = "legacy",
                     data-quick-access-id={item.id}
                     key={item.id}
                   >
-                    <Link href={item.href} className={styles.tileLink}>
+                    <Link href={item.href} className={styles.tileLink} onClick={onNavigate}>
                       <span data-ui-appearance={appearance} className={styles.icon}>
                         <Icon size={19} strokeWidth={2.1} aria-hidden="true" />
                       </span>
@@ -418,6 +442,7 @@ function QuickAccessShelfState({ appearance = "legacy",
                         className={styles.secondary}
                         href={item.secondary.href}
                         aria-label={`${item.secondary.label} in ${item.title}`}
+                        onClick={onNavigate}
                       >
                         <Plus size={16} aria-hidden="true" />
                         {item.secondary.label}
@@ -491,7 +516,8 @@ function QuickAccessShelfState({ appearance = "legacy",
                         <Button appearance={appearance}
                           variant="ghost"
                           size="compact"
-                          onClick={() => shift(id, -1)}
+                          ref={(node) => reorderControl(id, "up", node)}
+                          onClick={(event) => shift(id, -1, event.currentTarget)}
                           disabled={index === 0}
                           aria-label={`${t.moveUp}: ${label}`}
                         >
@@ -500,7 +526,8 @@ function QuickAccessShelfState({ appearance = "legacy",
                         <Button appearance={appearance}
                           variant="ghost"
                           size="compact"
-                          onClick={() => shift(id, 1)}
+                          ref={(node) => reorderControl(id, "down", node)}
+                          onClick={(event) => shift(id, 1, event.currentTarget)}
                           disabled={index === chosen.length - 1}
                           aria-label={`${t.moveDown}: ${label}`}
                         >
@@ -573,7 +600,7 @@ function QuickAccessShelfState({ appearance = "legacy",
             const Icon = iconFor(item.icon ?? item.id);
             return (
               <div data-ui-appearance={appearance} className={styles.allActionRow} key={item.id} data-tone={item.tone}>
-                <Link href={item.href} onClick={() => setAllOpen(false)}>
+                <Link href={item.href} onClick={() => { setAllOpen(false); onNavigate?.(); }}>
                   <span data-ui-appearance={appearance} className={styles.icon}>
                     <Icon size={19} aria-hidden="true" />
                   </span>
@@ -585,7 +612,7 @@ function QuickAccessShelfState({ appearance = "legacy",
                 {item.secondary && (
                   <Link
                     href={item.secondary.href}
-                    onClick={() => setAllOpen(false)}
+                    onClick={() => { setAllOpen(false); onNavigate?.(); }}
                     aria-label={`${item.secondary.label} in ${item.title}`}
                   >
                     <Plus size={16} aria-hidden="true" />

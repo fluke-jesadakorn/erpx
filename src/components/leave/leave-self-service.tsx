@@ -11,7 +11,7 @@ import { today } from "@/lib/calendar-date";
 import { workFetch } from "@/lib/work-fetch";
 import { MonthGrid } from "@/components/calendar/month-grid";
 import { MonthNavigation } from "@/components/calendar/month-navigation";
-import type { leaveCalendarMonth, leaveSummary } from "@/server/leave-self-service";
+import type { leaveCalendarMonth, leaveSummary } from "@/server/modules/people_payroll/public/leave-self-service";
 import styles from "./leave-self-service.module.css";
 
 type Summary = Awaited<ReturnType<typeof leaveSummary>>;

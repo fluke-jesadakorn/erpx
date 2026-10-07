@@ -20,7 +20,7 @@ import {
   Users,
 } from "lucide-react";
 import styles from "./organization-explorer.module.css";
-import type { HoldingPeopleDirectory } from "@/server/holding-people-directory";
+import type { HoldingPeopleDirectory } from "@/server/modules/organization/public/holding-people-directory";
 
 /** Only public work contact fields belong in this client-side directory. */
 type ExplorerViewData = {

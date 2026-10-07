@@ -1,3 +1,5 @@
+import { captureCaseScreenshot } from "../helpers/case-screenshot";
+import { browserProjects } from "../../scripts/testing/browser-results";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { emptyDraft } from "../../src/lib/organization-draft";
 import { organizationSession, readOrganization } from "../helpers/organization-access-browser";
@@ -48,9 +50,9 @@ async function chooseMove(page: Page, source: Locator, destinationId: string) {
   await expect(chooser).toBeHidden();
 }
 
-test("People has one structure, expandable details and no page overflow at supported widths", async ({ page, context }, info) => {
+test("People has one structure, expandable details and no page overflow at supported widths", browserProjects(["desktop"], "This case explicitly verifies the desktop organization rail before sweeping five mobile-to-desktop widths; device-specific detail cases remain required."), async ({ page, context }) => {
   test.setTimeout(180_000);
-  test.skip(info.project.name !== "desktop");
+
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
@@ -81,7 +83,7 @@ test("People has one structure, expandable details and no page overflow at suppo
     await page.setViewportSize({ width, height: 1000 });
     await fitsViewport(page);
     await expect(detail(page)).toBeVisible();
-    await page.screenshot({ path: `.scratch/dev/people-single-structure-${width}.png`, fullPage: true });
+    await captureCaseScreenshot(page, `people-single-structure-${width}.png`, { fullPage: true });
     if (width < 650) {
       await detail(page).getByRole("button", { name: "Close details", exact: true }).click();
       await expect(page.getByRole("button", { name: /^Choose unit/ })).toBeVisible();
@@ -93,27 +95,27 @@ test("People has one structure, expandable details and no page overflow at suppo
   await page.getByRole("group", { name: "Appearance", exact: true }).getByRole("button", { name: "Dark", exact: true }).click();
   await page.keyboard.press("Escape");
   await page.getByRole("searchbox", { name: searchName }).fill("");
-  await page.screenshot({ path: ".scratch/dev/people-structure-dark-final.png" });
+  await captureCaseScreenshot(page, "people-structure-dark-final.png");
   await page.getByRole("button", { name: "+ Add", exact: true }).click();
   await page.getByRole("button", { name: "Add person", exact: true }).click();
   await expect(detail(page).getByRole("heading", { name: "Add person", exact: true })).toBeVisible();
   await expect(detail(page).getByLabel("Legal name", { exact: true })).toBeVisible();
-  await page.screenshot({ path: ".scratch/dev/people-add-person-dark-final.png" });
+  await captureCaseScreenshot(page, "people-add-person-dark-final.png");
   await detail(page).getByRole("button", { name: "Close details", exact: true }).click();
   await page.getByRole("searchbox", { name: searchName }).fill(person.legal_name);
   await row(page, "person", person.engagement_id).locator('[draggable="true"]').focus();
   await page.keyboard.press("Enter");
   const chooser = page.getByTestId("people-move-chooser"), target = organization.positions.find(position => position.active && !position.is_ceo && position.id !== person.position_id)!;
   await chooser.getByRole("combobox", { name: "Move destination", exact: true }).selectOption(`position:${target.id}`);
-  await page.screenshot({ path: ".scratch/dev/people-move-dark-final.png" });
+  await captureCaseScreenshot(page, "people-move-dark-final.png");
   await chooser.getByRole("button", { name: "Cancel", exact: true }).click();
   expect(drafts.writes).toEqual([]);
   expect(errors).toEqual([]);
 });
 
-test("three kinds of drag and keyboard moves share a saved private draft, Undo and review", async ({ page, context }, info) => {
+test("three kinds of drag and keyboard moves share a saved private draft, Undo and review", browserProjects(["desktop"], "The case requires a mouse pointer drag between desktop structure rows; keyboard moves, recovery and confirmation remain required on mobile."), async ({ page, context }) => {
   test.setTimeout(180_000);
-  test.skip(info.project.name !== "desktop");
+
   const base = await organizationSession(context, "hr_admin"), organization = await readOrganization(context, base);
   const drafts = await mockPeopleDraft(page, organization);
   const sourcePosition = organization.positions.find(position => position.active && !position.is_ceo && position.department_id && organization.people.some(person => person.status === "active" && person.position_id === position.id) && organization.positions.some(other => other.active && other.id !== position.id && other.title === position.title))!;
@@ -191,7 +193,7 @@ test("three kinds of drag and keyboard moves share a saved private draft, Undo a
 
 test("saved items with no destination survive refresh and save failures keep the local change", async ({ page, context }, info) => {
   test.setTimeout(120_000);
-  test.skip(info.project.name !== "desktop");
+
   const base = await organizationSession(context, "hr_admin"), organization = await readOrganization(context, base);
   const person = organization.people.find(person => person.status === "active" && person.position_id)!;
   const target = organization.positions.find(position => position.active && !position.is_ceo && position.id !== person.position_id)!;
@@ -212,9 +214,9 @@ test("saved items with no destination survive refresh and save failures keep the
         return button.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
       })).toBe(true);
     }
-    await page.screenshot({ path: `.scratch/dev/people-pending-bar-${width}-final.png` });
+    await captureCaseScreenshot(page, `people-pending-bar-${width}-final.png`);
   }
-  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.setViewportSize({ width: info.project.name === "desktop" ? 1440 : 390, height: 1000 });
   await expect(page.getByRole("button", { name: /Review changes · 1/ })).toBeDisabled();
   await page.reload();
   await expect(page.getByTestId("people-pending-changes")).toContainText(person.legal_name);
@@ -237,8 +239,8 @@ test("saved items with no destination survive refresh and save failures keep the
   expect(drafts.writes.some(write => write.action === "submit")).toBe(false);
 });
 
-test("an old move link keeps its destination chooser open when the first private draft autosaves", async ({ page, context }, info) => {
-  test.setTimeout(120_000); test.skip(info.project.name !== "desktop");
+test("an old move link keeps its destination chooser open when the first private draft autosaves", async ({ page, context }) => {
+  test.setTimeout(120_000);
   const base = await organizationSession(context, "hr_admin"), organization = await readOrganization(context, base);
   const person = organization.people.find(person => person.status === "active" && person.position_id)!;
   const target = organization.positions.find(position => position.active && !position.is_ceo && position.id !== person.position_id)!;
@@ -257,9 +259,9 @@ test("an old move link keeps its destination chooser open when the first private
   expect(drafts.writes.some(write => write.action === "submit")).toBe(false);
 });
 
-test("review waits for schedule and policy impact, and a failed read must succeed before confirmation", async ({ page, context }, info) => {
+test("review waits for schedule and policy impact, and a failed read must succeed before confirmation", async ({ page, context }) => {
   test.setTimeout(120_000);
-  test.skip(info.project.name !== "desktop");
+
   const base = await organizationSession(context, "hr_admin"), organization = await readOrganization(context, base);
   const person = organization.people.find(person => person.status === "active" && person.position_id)!;
   const position = organization.positions.find(position => position.active && !position.is_ceo && position.id !== person.position_id)!;
@@ -304,9 +306,9 @@ test("review waits for schedule and policy impact, and a failed read must succee
   } finally { release(); releaseAgain(); }
 });
 
-test("a touch handle moves a position to a department whose id contains colons", async ({ page, context }, info) => {
+test("a touch handle moves a position to a department whose id contains colons", browserProjects(["desktop"], "The case tests touch input on the wide structure where source and destination rows are visible together; the mobile destination chooser is covered separately."), async ({ page, context }) => {
   test.setTimeout(120_000);
-  test.skip(info.project.name !== "desktop");
+
   const base = await organizationSession(context, "hr_admin"), organization = await readOrganization(context, base);
   const candidates = organization.positions.filter(position => position.active && !position.is_ceo && position.department_id);
   const position = candidates.find(position => candidates.some(other => other.title === position.title && other.department_id !== position.department_id && organization.nodes.some(node => node.id === other.department_id && node.status === "active" && node.id.includes(":"))))!;
@@ -372,7 +374,7 @@ test("People ignores superseded detail reads and an employee only sees public HR
 
 test("working time, roster requirements and effective compensation use their existing workflows", async ({ page, context }, info) => {
   test.setTimeout(150_000);
-  test.skip(info.project.name !== "desktop");
+
   const base = await organizationSession(context, "hr_admin"), organization = await readOrganization(context, base);
   await mockPeopleDraft(page, organization);
   await page.route("**/people/hr-settings?engagement=**", async route => {
@@ -388,29 +390,36 @@ test("working time, roster requirements and effective compensation use their exi
     posted.push({ path: new URL(route.request().url()).pathname, body: route.request().postDataJSON() });
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { id: "browser-hr-command", version: 1 } }) });
   });
-  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.setViewportSize({ width: info.project.name === "desktop" ? 1440 : 390, height: 1000 });
   await page.goto(`${base}/people`);
   await page.getByRole("searchbox", { name: searchName }).fill(person.legal_name);
   await row(page, "person", person.engagement_id).getByRole("button").first().click();
   const panel = detail(page);
   await panel.locator("summary").filter({ hasText: /^Working time/ }).click();
   await panel.locator("summary").filter({ hasText: /^Assign work policy & holiday calendar/ }).click();
-  await panel.getByRole("combobox", { name: "Work policy", exact: true }).selectOption({ index: 1 });
-  await panel.getByRole("combobox", { name: "Holiday calendar", exact: true }).selectOption("browser-holiday-calendar");
-  await panel.getByLabel("Effective from", { exact: true }).fill("2027-01-01");
-  await panel.getByRole("button", { name: "Assign working time", exact: true }).click();
+  const workingTime = page.getByRole("dialog", { name: "Assign work policy & holiday calendar", exact: true });
+  await expect(workingTime).toBeVisible();
+  await workingTime.getByRole("combobox", { name: "Work policy", exact: true }).selectOption({ index: 1 });
+  await workingTime.getByRole("combobox", { name: "Holiday calendar", exact: true }).selectOption("browser-holiday-calendar");
+  await workingTime.getByLabel("Effective from", { exact: true }).fill("2027-01-01");
+  await workingTime.getByRole("button", { name: "Assign working time", exact: true }).click();
   await expect.poll(() => posted.length).toBe(1);
   expect(posted[0]).toMatchObject({ path: `/api/v1${base}/leave/admin`, body: { resource: "assignment", engagementId: person.engagement_id, effectiveFrom: "2027-01-01", effectiveTo: null } });
   expect(posted[0].body.policyVersionId).toBeTruthy(); expect(posted[0].body.calendarId).toBeTruthy();
+  await workingTime.getByRole("button", { name: "Close dialog", exact: true }).click();
+  await expect(workingTime).toHaveCount(0);
   await panel.locator("summary").filter({ hasText: /^Working time/ }).click();
   await panel.locator("summary").filter({ hasText: /^Compensation/ }).click();
   await panel.getByRole("button", { name: "New compensation revision", exact: true }).click();
-  await panel.getByLabel("Effective from", { exact: true }).fill("2027-01-01");
-  await panel.getByLabel(/^Base pay/).fill("35000");
-  await panel.getByLabel("Expected hours", { exact: true }).fill("160");
-  await panel.getByRole("button", { name: "Save compensation draft", exact: true }).click();
+  const compensation = page.getByRole("dialog", { name: "New compensation revision", exact: true });
+  await expect(compensation).toBeVisible();
+  await compensation.getByLabel("Effective from", { exact: true }).fill("2027-01-01");
+  await compensation.getByLabel(/^Base pay/).fill("35000");
+  await compensation.getByLabel("Expected hours", { exact: true }).fill("160");
+  await compensation.getByRole("button", { name: "Save compensation draft", exact: true }).click();
   await expect.poll(() => posted.length).toBe(2);
   expect(posted[1]).toMatchObject({ path: `/api/v1${base}/people/compensation`, body: { engagementId: person.engagement_id, effectiveFrom: "2027-01-01", baseAmount: "35000", expectedHours: 160 } });
+  await expect(compensation).toHaveCount(0);
   await panel.getByRole("button", { name: "Close details", exact: true }).click();
   await page.getByRole("searchbox", { name: searchName }).fill(position.title);
   await row(page, "position", position.id).getByRole("button").first().click();

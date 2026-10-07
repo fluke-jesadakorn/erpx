@@ -20,7 +20,7 @@ import {
   trayKindsForParents,
   type ExplorerPath,
 } from "@/lib/people-explorer";
-import type { peopleExplorerDetail } from "@/server/people-explorer-detail";
+import type { peopleExplorerDetail } from "@/server/modules/people_payroll/public/people-explorer-detail";
 import {
   OrganizationExplorer,
   type OrganizationSelection,

@@ -3,6 +3,8 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { execFileSync } from "node:child_process";
+import { pinnedBunBinary } from "../../scripts/testing/runtime-tooling";
+import { browserChildEnvironment } from "../../scripts/testing/runner-environment";
 import { Pool } from "pg";
 import { frontOrigin, frontWorkspacePath, signInFrontRole, type SimulatedFrontCredentials } from "../helpers/front-simulation-session";
 
@@ -447,7 +449,8 @@ test("front desk and cashier settle checkout and recover Night Audit",async({bro
   const administratorPage=await administrator.newPage();
   let jobsPaused=false;
   const workerControl=(action:'pause-jobs'|'resume-jobs')=>{
-    const result=JSON.parse(execFileSync('bun',['scripts/local/run-server-script.ts','scripts/local/browser-simulation.ts',action,run!],{cwd:resolve('.'),timeout:30_000,env:{...process.env,ERPX_BROWSER_SIMULATION_PORT:'3104',ERPX_BROWSER_SIMULATION_ATTACHMENTS:'local',ERPX_BROWSER_SIMULATION_JOBS:'1',ERPX_BROWSER_SIMULATION_LEGAL:'1'}}).toString());
+    const port=new URL(process.env.ERPX_E2E_BASE_URL??'http://127.0.0.1:3102').port;
+    const result=JSON.parse(execFileSync(pinnedBunBinary(resolve('.')),['--env-file=/dev/null','scripts/local/run-server-script.ts','scripts/local/browser-simulation.ts',action,run!],{cwd:resolve('.'),timeout:30_000,env:browserChildEnvironment(process.env,{ERPX_BROWSER_SIMULATION_PORT:port,ERPX_BROWSER_SIMULATION_ATTACHMENTS:'local',ERPX_BROWSER_SIMULATION_JOBS:'1'})}).toString());
     expect(result.run).toBe(run);expect(result.jobsPaused).toBe(action==='pause-jobs');jobsPaused=action==='pause-jobs';return result;
   };
   try {
@@ -550,24 +553,17 @@ test("front desk and cashier settle checkout and recover Night Audit",async({bro
     const startDayClose=auditPage.locator('#workspace-content, #front-content').locator("summary:visible").filter({hasText:"Start day close"}).first();
     await expect(startDayClose).toBeVisible();
     await startDayClose.click();
-    // Stop only this compiled cohort worker before queueing the fault case,
+    // Stop only this owned cohort worker before queueing the fault case,
     // so the real worker cannot complete the close before access is revoked.
-    if(state.release)workerControl('pause-jobs');
+    expect(state.jobsPid,'the real isolated jobs worker is required for Night Audit recovery').toBeGreaterThan(0);
+    workerControl('pause-jobs');
     await submitPms(auditPage,"Start day close");
     const closing=(await(await auditor.request.get(pmsApi)).json()).data;
     expect(closing.snapshot.property.state).toBe("closing");
     expect(closing.snapshot.records.some((row:{kind:string;data:{state?:string}})=>row.kind==="night"&&row.data.state==="pending")).toBe(true);
-    const runLegacyWorker=()=>JSON.parse(execFileSync("bun",[
-      "--conditions=react-server",
-      resolve("scripts/fixtures/hospitality-drain-demo-job.ts"),
-      run!,
-    ],{cwd:resolve("."),timeout:30_000}).toString()) as {
-      job:{state:string;error_code:string|null};property:{state:string;business_date:string};
-    };
     const recoveryDb=new Pool({connectionString:databaseUrl.href,max:1});
     try {
       const runWorker=async(expected:'blocked'|'completed')=>{
-        if(!state.release)return runLegacyWorker();
         if(jobsPaused)workerControl('resume-jobs');
         const latestJob=async()=>(await recoveryDb.query('SELECT state,error_code FROM pms_jobs WHERE property_id=$1 ORDER BY updated_at DESC LIMIT 1',[propertyId])).rows[0];
         await expect.poll(async()=> (await latestJob())?.state,{timeout:30_000,intervals:[250,500,1000]}).toBe(expected);

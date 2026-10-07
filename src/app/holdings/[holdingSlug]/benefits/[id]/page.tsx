@@ -2,9 +2,9 @@ import { RecordLink as Link } from "@/components/records/record-link";
 import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
 import { BenefitsConsole } from "@/components/modules/benefits-console";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { benefitDetail } from "@/server/benefits";
-import { pageError } from "@/server/page-error";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { benefitDetail } from "@/server/modules/benefits/public/benefits";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { PageContent, Card } from "@/components/ui/foundation";
 
 export const dynamic = "force-dynamic";

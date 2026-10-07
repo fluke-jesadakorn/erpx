@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { handoverSuggestion } from "@/lib/handover";
 import { workFetch } from "@/lib/work-fetch";
-import type { HandoverView } from "@/server/handover";
+import type { HandoverView } from "@/server/modules/operations/public/handover";
 import styles from "./handover-composer.module.css";
 
 async function responseData<T>(response: Response): Promise<T> {

@@ -1,3 +1,5 @@
+import { seedLocalFinanceJournal } from "../scripts/fixtures/local-seed-journals";
+import type { FinanceRow } from "../src/server/modules/finance/public/finance";
 import {beforeAll,beforeEach,describe,expect,it,vi} from "vitest";
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
@@ -66,7 +68,7 @@ describe("NPAEs statement and fiscal closing lifecycle",()=>{
   const journal=await db.prepare("SELECT status,source_type FROM finance_journals WHERE id=?").bind(posted.journalId).first();expect(journal).toEqual({status:"posted",source_type:"fiscal_close"});
   const ledger=await trialBalance(f.manager,undefined,f.chart,{endDate:"2026-12-31"});expect(ledger.filter(row=>[f.accounts.revenue,f.accounts.expense].includes(String(row.id))).map(row=>row.balance)).toEqual(["0.00","0.00"]);expect(ledger.find(row=>row.id===retained)?.balance).toBe("-160.00");expect(ledger.reduce((sum,row)=>sum+Number(row.balance),0)).toBe(0);
   const report=await statements(f.manager,undefined,f.chart,{startDate:"2026-01-01",endDate:"2026-12-31"});expect(report.profitAndLoss).toMatchObject({revenue:"175.00",expenses:"65.00",netProfit:"110.00"});expect(report.balanceSheet).toMatchObject({assets:"675.00",liabilities:"15.00",equity:"660.00",unclosedProfit:"0.00"});
-  const finalPeriod=await db.prepare("SELECT * FROM finance_periods WHERE id=?").bind(f.period).first(),reconciliation=await calculateCloseReconciliations(db,f.manager,finalPeriod!);expect(reconciliation.ready).toBe(true);expect(reconciliation.rows).toHaveLength(2);expect(reconciliation.rows.map(row=>[row.kind,row.ledgerMinor,row.sourceMinor,row.differenceMinor])).toEqual(expect.arrayContaining([["receivable",2000,2000,0],["payable",1500,1500,0]]));
+  const finalPeriod=await db.prepare("SELECT * FROM finance_periods WHERE id=?").bind(f.period).first<FinanceRow>(),reconciliation=await calculateCloseReconciliations(db,f.manager,finalPeriod!);expect(reconciliation.ready).toBe(true);expect(reconciliation.rows).toHaveLength(2);expect(reconciliation.rows.map(row=>[row.kind,row.ledgerMinor,row.sourceMinor,row.differenceMinor])).toEqual(expect.arrayContaining([["receivable",2000,2000,0],["payable",1500,1500,0]]));
   const closure=await close(f.period);await expect(prepareYearClosing(f.reviewer,closingInput,key())).rejects.toMatchObject({code:"FISCAL_CLOSING_EXISTS"});
   await expect(reopenPeriod(f.manager,f.period,{expectedVersion:Number(closure.version),proof:"Same closing approver cannot reopen own decision."},key())).rejects.toMatchObject({code:"CLOSE_APPROVAL_SEPARATION"});
   f.tie.role="finance_approver";f.tie.branchId=null;f.tie.departmentId=null;f.tie.assignmentId=await f.grant(f.tie,"finance_approver");const reopened=await reopenPeriod(f.tie,f.period,{expectedVersion:Number(closure.version),proof:"Another Finance approver authorizes reopening for a reviewed readiness inspection."},key());expect(reopened).toMatchObject({state:"open"});
@@ -104,4 +106,44 @@ it("drills retained statement lines into their exact current and comparative acc
  await expect(statementSourceAccounts({...f.reviewer,companyId:key()},id,{period:'current'})).rejects.toMatchObject({status:404});
  await post(f.period,'2026-05-02',f.accounts.expense,f.accounts.cash,'3');
  await expect(statementSourceAccounts(f.reviewer,id,{period:'current',line:'cash_equivalents'})).rejects.toMatchObject({code:'STATEMENT_SOURCES_CHANGED'});
+});
+it("rolls back fiscal transfer journal money source revision and retained closing after final outbox failure, then retries once",async()=>{
+ await post(f.period,'2026-10-31',f.accounts.cash,f.accounts.revenue,'100');
+ const statement=await prepareStatementPackage(f.reviewer,input(),key());await decideStatementPackage(f.manager,String(statement.id),'issue',review,key());const retainedExport=await statementPackageExport(f.manager,String(statement.id));
+ const prepared=await prepareYearClosing(f.reviewer,{chartId:f.chart,startDate:'2026-01-01',endDate:'2026-12-31',periodId:f.period,retainedEarningsAccountId:retained,reason:'Reviewed fiscal transfer from dated posted transactions'},key()),id=String(prepared.id),command=key(),fault=`fiscal_close_fault_${crypto.randomUUID().replaceAll('-','')}`;
+ const sourceRevision=await db.prepare('SELECT revision FROM finance_reporting_revisions WHERE chart_id=?').bind(f.chart).first('revision'),old=await db.prepare('SELECT * FROM finance_year_closings WHERE id=?').bind(id).first(),events=(await db.prepare('SELECT * FROM finance_year_closing_events WHERE closing_id=? ORDER BY closing_version').bind(id).all()).results;
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'FISCAL_CLOSE_LATE_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.event_type='finance.year-close.post') EXECUTE FUNCTION ${fault}();`);
+ try{
+  await expect(decideYearClosing(f.manager,id,'post',review,command)).rejects.toThrow();
+  expect(await db.prepare('SELECT * FROM finance_year_closings WHERE id=?').bind(id).first()).toEqual(old);
+  expect((await db.prepare('SELECT * FROM finance_year_closing_events WHERE closing_id=? ORDER BY closing_version').bind(id).all()).results).toEqual(events);
+  expect(await db.prepare('SELECT revision FROM finance_reporting_revisions WHERE chart_id=?').bind(f.chart).first('revision')).toEqual(sourceRevision);
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n'))).toBe(0);
+  expect(Number(await db.prepare("SELECT count(*) n FROM finance_journals WHERE source_type='fiscal_close' AND source_id=?").bind(id).first('n'))).toBe(0);
+  expect(Number(await db.prepare("SELECT count(*) n FROM money_transaction_snapshots WHERE company_id=? AND source_type='finance_year_closing' AND source_id=?").bind(f.company,id).first('n'))).toBe(0);
+  expect((await trialBalance(f.manager,undefined,f.chart)).find(a=>a.id===f.accounts.revenue)?.balance).toBe('-100.00');
+ }finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
+ const posted=await decideYearClosing(f.manager,id,'post',review,command);expect(await decideYearClosing(f.manager,id,'post',review,command)).toEqual(posted);
+ expect(posted).toMatchObject({status:'posted',version:2,profitMinor:10000});
+ for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n'))).toBe(1);
+ expect(Number(await db.prepare("SELECT count(*) n FROM finance_journals WHERE source_type='fiscal_close' AND source_id=?").bind(id).first('n'))).toBe(1);
+ expect(Number(await db.prepare("SELECT count(*) n FROM money_transaction_snapshots WHERE company_id=? AND source_type='finance_year_closing' AND source_id=?").bind(f.company,id).first('n'))).toBe(1);
+ expect((await trialBalance(f.manager,undefined,f.chart)).find(a=>a.id===f.accounts.revenue)?.balance).toBe('0.00');expect(await statementPackageExport(f.manager,String(statement.id))).toEqual(retainedExport);
+});
+
+
+it("seeds complete immutable journal evidence atomically and preserves prepared posted records on repeat",async()=>{
+ const id=`seed-journal-${key()}`,input={id,companyId:f.company,chartId:f.chart,periodId:f.period,number:key(),date:"2026-09-15",currency:"THB",fxRateMicros:1_000_000,memo:"Declared local browser journal",debitAccountId:f.accounts.expense,creditAccountId:f.accounts.cash,amountMinor:12500,branchId:f.branch,status:"posted" as const,actorId:f.reviewer.userId,reviewerId:f.manager.userId,now:Date.now()};
+ expect(await seedLocalFinanceJournal(db,input)).toBe(true);
+ const evidence=await db.prepare("SELECT evidence_json FROM finance_financial_events WHERE journal_id=?").bind(id).first<{evidence_json:string}>();
+ expect(JSON.parse(evidence!.evidence_json).lines).toHaveLength(2);
+ const snapshot=async()=>Promise.all([db.prepare("SELECT * FROM finance_journals WHERE id=?").bind(id).first(),db.prepare("SELECT * FROM finance_journal_lines WHERE journal_id=? ORDER BY ordinal").bind(id).all().then(rows=>rows.results),db.prepare("SELECT * FROM finance_financial_events WHERE journal_id=?").bind(id).first()]),before=await snapshot();
+ expect(await seedLocalFinanceJournal(db,{...input,memo:"Never overwrite a prepared journal",amountMinor:1,now:input.now+1})).toBe(false);
+ expect(await snapshot()).toEqual(before);
+ await expect(db.prepare("UPDATE finance_journal_lines SET debit_minor=1 WHERE journal_id=? AND ordinal=0").bind(id).run()).rejects.toThrow("POSTED_JOURNAL_LINES_IMMUTABLE");
+ const failed=`seed-journal-${key()}`;
+ await expect(seedLocalFinanceJournal(db,{...input,id:failed,number:key(),creditAccountId:`missing-${key()}`})).rejects.toThrow();
+ expect(await db.prepare("SELECT 1 FROM finance_journals WHERE id=?").bind(failed).first()).toBeNull();
+ expect(await db.prepare("SELECT 1 FROM finance_journal_lines WHERE journal_id=?").bind(failed).first()).toBeNull();
+ expect(await db.prepare("SELECT 1 FROM audit_events WHERE record_id=?").bind(failed).first()).toBeNull();
 });

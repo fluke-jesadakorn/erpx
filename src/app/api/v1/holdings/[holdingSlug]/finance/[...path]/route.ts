@@ -1,24 +1,25 @@
-import {editManualDraft,manualDraftEditSchema} from "@/server/finance-manual-drafts";
-import {prepareBillingCorrection,decideBillingCorrection,billingCorrectionSchema,billingCorrectionDecisionSchema} from "@/server/finance-billing-corrections";
-import {instrumentWorkspace,prepareInstrument,decideInstrument,prepareInstrumentRun,decideInstrumentRun,reverseInstrumentRun,instrumentEditionSchema,instrumentDecisionSchema,instrumentRunSchema,instrumentReversalSchema} from "@/server/finance-instruments";
-import {assetPolicyWorkspace,prepareAssetPolicy,decideAssetPolicy,prepareAssetPolicyRun,decideAssetPolicyRun,reverseAssetPolicyRun,assetPolicySchema,assetPolicyDecisionSchema,assetPolicyRunSchema,assetPolicyReversalSchema} from "@/server/finance-asset-policies";
-import { financeAiWorkspace, saveFinanceAiPolicy, queueFinanceAi, dismissFinanceAi, applyFinanceAiDraft } from "@/server/finance-ai";
+import {editManualDraft,manualDraftEditSchema} from "@/server/modules/finance/public/finance-manual-drafts";
+import {financeEntrypointQueries} from "@/server/modules/finance/public/entrypoint-queries";
+import {prepareBillingCorrection,decideBillingCorrection,billingCorrectionSchema,billingCorrectionDecisionSchema} from "@/server/modules/finance/public/finance-billing-corrections";
+import {instrumentWorkspace,prepareInstrument,decideInstrument,prepareInstrumentRun,decideInstrumentRun,reverseInstrumentRun,instrumentEditionSchema,instrumentDecisionSchema,instrumentRunSchema,instrumentReversalSchema} from "@/server/modules/finance/public/finance-instruments";
+import {assetPolicyWorkspace,prepareAssetPolicy,decideAssetPolicy,prepareAssetPolicyRun,decideAssetPolicyRun,reverseAssetPolicyRun,assetPolicySchema,assetPolicyDecisionSchema,assetPolicyRunSchema,assetPolicyReversalSchema} from "@/server/modules/finance/public/finance-asset-policies";
+import { financeAiWorkspace, saveFinanceAiPolicy, queueFinanceAi, dismissFinanceAi, applyFinanceAiDraft } from "@/server/modules/finance/public/finance-ai";
 import { financeAiDecisionSchema } from "@/lib/finance-ai";
-import { holdingResources, runtimeEnv } from "@/server/runtime";
-import { accountingProfiles,prepareAccountingProfile,decideAccountingProfile,accountingProfileSchema,accountingProfileDecisionSchema,financialEvents } from "@/server/accounting-profiles";
-import { vatWorkspace,vatPackageDetail,vatPackageExport,prepareVatEntry,reviewVatEntry,prepareVatCorrection,reviewVatCorrection,vatCorrectionDetail,taxEntryDetail,vatCorrectionSchema,prepareVatPackage,approveVatPackage,exportVatWorkpaper,recordVatFiling,supersedeVatPackage,vatEntrySchema,taxReviewSchema,vatPackageSchema,vatFilingSchema } from "@/server/finance-tax-register";
-import {listSupplierBatches,supplierBatchWorkspace,createSupplierBatch,decideSupplierBatch,exportSupplierBatch,recoverSupplierExport,recordSupplierResult,confirmSupplierInstruction,supplierBatchSchema,supplierDecisionSchema,supplierExportSchema,supplierResultSchema,supplierConfirmSchema} from "@/server/supplier-payments";
-import {recoverRefundExport,listRefunds,refundWorkspace,approveRefund,prepareRefundInstruction,exportRefundInstructions,confirmRefundInstruction,recordRefundException,refundApprovalSchema,refundInstructionSchema,refundExportSchema,refundConfirmationSchema,refundExceptionSchema} from "@/server/refunds";
-import { requirePermission } from "@/server/iam-permissions";
-import {prepareGroupReportEdition,decideGroupReportEdition,groupReportEditionExport,groupExpansionWorkspace,groupReportEditionSchema,groupReportDecisionSchema} from "@/server/finance-group-editions";
-import {prepareOwnershipEdition,decideOwnershipEdition,prepareAcquisitionEdition,decideAcquisitionEdition,ownershipEditionSchema,acquisitionEditionSchema,groupEvidenceDecisionSchema} from "@/server/finance-group-ownership";
-import {prepareIntercompanyPair,decideIntercompanyPair,intercompanyPairSchema,intercompanyPairDecisionSchema} from "@/server/finance-intercompany-pairs";
-import {bookAdjustmentWorkspace,prepareBookAdjustment,decideBookAdjustment,reverseBookAdjustment,bookAdjustmentSchema,bookAdjustmentReversalSchema} from "@/server/finance-book-adjustments";
-import { businessContractWorkspace,prepareBusinessContract,decideBusinessContract,prepareBusinessBilling,prepareRecognitionRun,decideRecognitionRun,reverseRecognitionRun,businessContractSchema,businessBillingSchema,businessDecisionSchema,recognitionRunSchema,recognitionReversalSchema } from "@/server/finance-business-contracts";
-import { requestPublicOrigin } from "@/server/public-origin";
-import { requireWorkContext } from "@/server/authorization";
-import { ApiError, errorResponse } from "@/server/http";
-import {createFinanceStarter,financeStarterSchema} from "@/server/finance-starter";
+import { holdingResources, runtimeEnv } from "@/server/modules/runtime/public/runtime";
+import { accountingProfiles,prepareAccountingProfile,decideAccountingProfile,accountingProfileSchema,accountingProfileDecisionSchema,financialEvents } from "@/server/modules/finance/public/accounting-profiles";
+import { vatWorkspace,vatPackageDetail,vatPackageExport,prepareVatEntry,reviewVatEntry,prepareVatCorrection,reviewVatCorrection,vatCorrectionDetail,taxEntryDetail,vatCorrectionSchema,prepareVatPackage,approveVatPackage,exportVatWorkpaper,recordVatFiling,supersedeVatPackage,vatEntrySchema,taxReviewSchema,vatPackageSchema,vatFilingSchema } from "@/server/modules/finance/public/finance-tax-register";
+import {listSupplierBatches,supplierBatchWorkspace,createSupplierBatch,decideSupplierBatch,exportSupplierBatch,recoverSupplierExport,recordSupplierResult,confirmSupplierInstruction,supplierBatchSchema,supplierDecisionSchema,supplierExportSchema,supplierResultSchema,supplierConfirmSchema} from "@/server/modules/procurement/public/supplier-payments";
+import {recoverRefundExport,listRefunds,refundWorkspace,approveRefund,prepareRefundInstruction,exportRefundInstructions,confirmRefundInstruction,recordRefundException,refundApprovalSchema,refundInstructionSchema,refundExportSchema,refundConfirmationSchema,refundExceptionSchema} from "@/server/modules/finance/public/refunds";
+import { requirePermission } from "@/server/modules/identity_access/public/iam-permissions";
+import {prepareGroupReportEdition,decideGroupReportEdition,groupReportEditionExport,groupExpansionWorkspace,groupReportEditionSchema,groupReportDecisionSchema} from "@/server/modules/finance/public/finance-group-editions";
+import {prepareOwnershipEdition,decideOwnershipEdition,prepareAcquisitionEdition,decideAcquisitionEdition,ownershipEditionSchema,acquisitionEditionSchema,groupEvidenceDecisionSchema} from "@/server/modules/finance/public/finance-group-ownership";
+import {prepareIntercompanyPair,decideIntercompanyPair,intercompanyPairSchema,intercompanyPairDecisionSchema} from "@/server/modules/finance/public/finance-intercompany-pairs";
+import {bookAdjustmentWorkspace,prepareBookAdjustment,decideBookAdjustment,reverseBookAdjustment,bookAdjustmentSchema,bookAdjustmentReversalSchema} from "@/server/modules/finance/public/finance-book-adjustments";
+import { businessContractWorkspace,prepareBusinessContract,decideBusinessContract,prepareBusinessBilling,prepareRecognitionRun,decideRecognitionRun,reverseRecognitionRun,businessContractSchema,businessBillingSchema,businessDecisionSchema,recognitionRunSchema,recognitionReversalSchema } from "@/server/modules/finance/public/finance-business-contracts";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import {createFinanceStarter,financeStarterSchema} from "@/server/modules/finance/public/finance-starter";
 import {
   aging,
   beginClose,
@@ -91,26 +92,26 @@ import {
   prepareFxRevaluationSchema,
   decideFxRevaluation,
   decideFxRevaluationSchema,
-} from "@/server/finance";
+} from "@/server/modules/finance/public/finance";
 import { z } from "zod";
-import {financeDueWorkspace,scheduleFinanceDraft,decideFinanceDueDraft,financeDueDraftSchema,financeDueDecisionSchema} from "@/server/finance-due-drafts";
-import {decideNoChargeBilling,prepareBusinessBillingRevision,billingRevisionSchema} from "@/server/finance-business-contracts";
-import { bookRuleSchema,dimensionSchema,financeReviewSchema,financeBookWorkspace,createFinanceDimension,prepareBookRule,decideBookRule } from "@/server/finance-books";
-import { budgetEditionSchema,forecastEditionSchema,financialReportSchema,prepareBudgetEdition,importBudgetCsv,prepareForecastEdition,prepareFinancialReport,decideFinancePlan,financePlanningWorkspace,budgetActuals,snapshotFinancialReport,exportFinancialReport } from "@/server/finance-planning";
-import { financeCompanyTools,financeToolSchema,setFinanceCompanyTool } from "@/server/finance-company-tools";
-import { bankCsvMappingSchema,bankCsvImportSchema,bankMatchGroupSchema,createBankCsvMapping,importMappedBankCsv,proposeBankMatchGroup,decideBankMatchGroup,bankAutomationWorkspace } from "@/server/finance-bank-automation";
-import { collectionCaseSchema,reviseCollectionCaseSchema,reviseCollectionCase,prepareCollectionCase,decideCollectionCase,collectionWorkspace,cashDueForecast } from "@/server/finance-collections";
-import { activateAsset,assetActivationSchema,assetDecisionSchema,assetDepreciationSchema,assetDetail,assetDisposalSchema,assetEditSchema,assetPage,cancelDraftAsset,decideAssetDisposal,editAsset,prepareAssetDisposal } from "@/server/finance-assets";
-import { calculationDecisionSchema, calculationRunDetail, calculationRunSchema, createCalculationRun, decideCalculationRun, financeEngineWorkspace, snapshotCloseChecks } from "@/server/finance-engines";
-import { consolidationDecisionSchema, consolidationEliminationDecisionSchema, consolidationEliminationSchema, consolidationRunSchema, consolidationRunWorkspace, createConsolidationElimination, createConsolidationRun, decideConsolidationElimination, decideConsolidationRun } from "@/server/finance-consolidation";
-import { accrualRunPostSchema, accrualScheduleDecisionSchema, accrualSchedulePage, accrualScheduleSchema, createAccrualSchedule, decideAccrualSchedule, postAccrualRun, prepareAccrualRun } from "@/server/finance-accruals";
-import { createGroupEntity, createIntercompany, decideIntercompany, groupEntitySchema, intercompanyDecisionSchema, intercompanyTransactionSchema, intercompanyWorkspace } from "@/server/finance-intercompany";
-import { createProjectCostAllocation, decideProjectCostAllocation, listProjectCostAllocations, listProjectCostSources, projectCostAllocationDecisionSchema, projectCostAllocationSchema } from "@/server/project-actuals";
-import { decideStatementPackage, decideYearClosing, prepareStatementPackage, prepareYearClosing, reportingDecisionSchema, reportingWorkspace, statementPackageDetail, statementPackageExport, statementPackageSchema, yearClosingSchema } from "@/server/finance-reporting";
-import {decideTaxIdentity,prepareTaxIdentity,taxIdentityDecisionSchema,taxIdentitySchema,taxIdentityWorkspace} from "@/server/finance-tax-identities";
-import {decideWithholdingPackage,prepareWithholdingPackage,remitWithholdingPackage,reverseWithholdingRemittance,withholdingMonthlyWorkspace,withholdingPackageExport,withholdingPackageSchema,withholdingPackageDecisionSchema,withholdingRemittanceSchema,withholdingRemittanceReversalSchema} from "@/server/finance-withholding-remittance";
-import {decideWithholdingAssessment,prepareWithholdingAssessment,withholdingAssessmentSchema,withholdingDecisionSchema,withholdingWorkspace} from "@/server/finance-withholding";
-import {decideThaiDocumentChange,issueThaiTaxInvoice,prepareThaiDocumentChange,thaiDocumentChangeSchema,thaiDocumentDecisionSchema,thaiDocumentDetail,thaiDocumentExport,thaiInvoiceIssueSchema} from "@/server/finance-thai-documents";
+import {financeDueWorkspace,scheduleFinanceDraft,decideFinanceDueDraft,financeDueDraftSchema,financeDueDecisionSchema} from "@/server/modules/finance/public/finance-due-drafts";
+import {decideNoChargeBilling,prepareBusinessBillingRevision,billingRevisionSchema} from "@/server/modules/finance/public/finance-business-contracts";
+import { bookRuleSchema,dimensionSchema,financeReviewSchema,financeBookWorkspace,createFinanceDimension,prepareBookRule,decideBookRule } from "@/server/modules/finance/public/finance-books";
+import { budgetEditionSchema,forecastEditionSchema,financialReportSchema,prepareBudgetEdition,importBudgetCsv,prepareForecastEdition,prepareFinancialReport,decideFinancePlan,financePlanningWorkspace,budgetActuals,snapshotFinancialReport,exportFinancialReport } from "@/server/modules/finance/public/finance-planning";
+import { financeCompanyTools,financeToolSchema,setFinanceCompanyTool } from "@/server/modules/finance/public/finance-company-tools";
+import { bankCsvMappingSchema,bankCsvImportSchema,bankMatchGroupSchema,createBankCsvMapping,importMappedBankCsv,proposeBankMatchGroup,decideBankMatchGroup,bankAutomationWorkspace } from "@/server/modules/finance/public/finance-bank-automation";
+import { collectionCaseSchema,reviseCollectionCaseSchema,reviseCollectionCase,prepareCollectionCase,decideCollectionCase,collectionWorkspace,cashDueForecast } from "@/server/modules/finance/public/finance-collections";
+import { activateAsset,assetActivationSchema,assetDecisionSchema,assetDepreciationSchema,assetDetail,assetDisposalSchema,assetEditSchema,assetPage,cancelDraftAsset,decideAssetDisposal,editAsset,prepareAssetDisposal } from "@/server/modules/finance/public/finance-assets";
+import { calculationDecisionSchema, calculationRunDetail, calculationRunSchema, createCalculationRun, decideCalculationRun, financeEngineWorkspace, snapshotCloseChecks } from "@/server/modules/finance/public/finance-engines";
+import { consolidationDecisionSchema, consolidationEliminationDecisionSchema, consolidationEliminationSchema, consolidationRunSchema, consolidationRunWorkspace, createConsolidationElimination, createConsolidationRun, decideConsolidationElimination, decideConsolidationRun } from "@/server/modules/finance/public/finance-consolidation";
+import { accrualRunPostSchema, accrualScheduleDecisionSchema, accrualSchedulePage, accrualScheduleSchema, createAccrualSchedule, decideAccrualSchedule, postAccrualRun, prepareAccrualRun } from "@/server/modules/finance/public/finance-accruals";
+import { createGroupEntity, createIntercompany, decideIntercompany, groupEntitySchema, intercompanyDecisionSchema, intercompanyTransactionSchema, intercompanyWorkspace } from "@/server/modules/finance/public/finance-intercompany";
+import { createProjectCostAllocation, decideProjectCostAllocation, listProjectCostAllocations, listProjectCostSources, projectCostAllocationDecisionSchema, projectCostAllocationSchema } from "@/server/modules/projects/public/project-actuals";
+import { decideStatementPackage, decideYearClosing, prepareStatementPackage, prepareYearClosing, reportingDecisionSchema, reportingWorkspace, statementPackageDetail, statementPackageExport, statementPackageSchema, yearClosingSchema } from "@/server/modules/finance/public/finance-reporting";
+import {decideTaxIdentity,prepareTaxIdentity,taxIdentityDecisionSchema,taxIdentitySchema,taxIdentityWorkspace} from "@/server/modules/finance/public/finance-tax-identities";
+import {decideWithholdingPackage,prepareWithholdingPackage,remitWithholdingPackage,reverseWithholdingRemittance,withholdingMonthlyWorkspace,withholdingPackageExport,withholdingPackageSchema,withholdingPackageDecisionSchema,withholdingRemittanceSchema,withholdingRemittanceReversalSchema} from "@/server/modules/finance/public/finance-withholding-remittance";
+import {decideWithholdingAssessment,prepareWithholdingAssessment,withholdingAssessmentSchema,withholdingDecisionSchema,withholdingWorkspace} from "@/server/modules/finance/public/finance-withholding";
+import {decideThaiDocumentChange,issueThaiTaxInvoice,prepareThaiDocumentChange,thaiDocumentChangeSchema,thaiDocumentDecisionSchema,thaiDocumentDetail,thaiDocumentExport,thaiInvoiceIssueSchema} from "@/server/modules/finance/public/finance-thai-documents";
 
 function command(request: Request) {
   return request.headers.get("Idempotency-Key");
@@ -405,8 +406,8 @@ export async function POST(request: Request, context: FinanceRouteContext) {
   } catch (error) { return errorResponse(error); }
 }
 
-async function listPeriods(actor: import("@/server/authorization").WorkContext) {
-  const { holdingResources } = await import("@/server/runtime");
+async function listPeriods(actor: import("@/server/modules/identity_access/public/authorization").WorkContext) {
+  const { holdingResources } = await import("@/server/modules/runtime/public/runtime");
   const { write } = await holdingResources(actor.holdingId);
-  return (await write.prepare("SELECT * FROM finance_periods WHERE company_id=? ORDER BY start_date DESC").bind(actor.companyId).all()).results;
+  return financeEntrypointQueries(write).allPeriods(actor.companyId);
 }

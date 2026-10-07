@@ -112,3 +112,53 @@ it('serves the shared Thai font assets and read-only signed-in time preference o
   expect(request(host,'/fonts/private.woff2').status).toBe(404);
  }
 });
+
+it('returns an early 404 for retired UI destinations across Platform and every Holding scope without redirects or rewrites',()=>{
+ vi.stubEnv('__NEXT_NO_MIDDLEWARE_URL_NORMALIZE','true');
+ const scopes=['/platform','/holdings/acme','/holdings/acme/branches/bangkok','/holdings/acme/departments/finance','/holdings/acme/branches/bangkok/departments/finance'];
+ const destinations=['modules','modules/finance/ledger','records/finance/new','records/finance/record-1','preview/records/finance/sample-record'];
+ for(const method of ['GET','HEAD'])for(const scope of scopes)for(const destination of destinations)for(const suffix of ['','/','?q=review&_rsc=stream']){
+  const path=`${scope}/${destination}${suffix}`;
+  const response=proxy(new NextRequest('http://127.0.0.1:3102'+path,{method}));
+  expect(response.status,`${method} ${path}`).toBe(404);
+  expect(response.headers.get('location')).toBeNull();
+  expect(response.headers.get('x-middleware-rewrite')).toBeNull();
+  expect(response.headers.get('x-middleware-next')).toBeNull();
+  expect(response.cookies.get('erpx_last_workspace')).toBeUndefined();
+ }
+});
+it('preserves live routes, prefix lookalikes and records APIs while rejecting only retired UI destination segments',()=>{
+ vi.stubEnv('__NEXT_NO_MIDDLEWARE_URL_NORMALIZE','true');
+ const destinations=['home','finance','projects','modules-extra','records-extra','preview/requests','preview/records-extra'];
+ const scopes=[{base:'/holdings/acme',kind:'holding'},{base:'/holdings/acme/branches/bangkok',kind:'branch'},{base:'/holdings/acme/departments/finance',kind:'department'},{base:'/holdings/acme/branches/bangkok/departments/finance',kind:'department'}];
+ for(const method of ['GET','HEAD']){
+  for(const destination of destinations){
+   const platform=proxy(new NextRequest(`http://127.0.0.1:3102/platform/${destination}?q=review`,{method}));
+   expect(platform.status).toBe(200);
+   expect(platform.headers.get('location')).toBeNull();
+   expect(platform.headers.get('x-middleware-next')).toBe('1');
+   expect(platform.headers.get('x-middleware-request-x-erpx-page-path')).toBe(`/platform/${destination}?q=review`);
+   expect(platform.cookies.get('erpx_last_workspace')?.value).toBe(method==='GET'?`/platform/${destination}`:undefined);
+  }
+  for(const scope of scopes)for(const api of [false,true])for(const destination of api?['records/finance/new','modules/finance/ledger','preview/records/finance/sample-record']:destinations){
+   const path=`${api?'/api/v1':''}${scope.base}/${destination}`;
+   const response=proxy(new NextRequest(`http://127.0.0.1:3102${path}?q=review`,{method,headers:{'x-erpx-workspace-kind':'forged','x-erpx-department-slug':'forged'}}));
+   expect(response.status,`${method} ${path}`).toBe(200);
+   expect(response.headers.get('location')).toBeNull();
+   expect(response.headers.get('x-middleware-request-x-erpx-workspace-kind')).toBe(scope.kind);
+   expect(response.headers.get('x-middleware-request-x-erpx-api')).toBe(String(api));
+   expect(response.headers.get('x-middleware-request-x-erpx-method')).toBe(method);
+   expect(response.headers.get('x-middleware-request-x-erpx-destination')).toBe(destination);
+   expect(response.headers.get('x-middleware-request-x-erpx-page-path')).toBe(`${path}?q=review`);
+   expect(response.headers.get('x-middleware-request-x-erpx-branch-slug')).toBe(scope.base.includes('/branches/')?'bangkok':null);
+   expect(response.headers.get('x-middleware-request-x-erpx-department-slug')).toBe(scope.kind==='department'?'finance':null);
+   expect(response.headers.get('x-middleware-rewrite')).toBe(scope.kind==='holding'?null:`http://127.0.0.1:3102${api?'/api/v1':''}/holdings/acme/${destination}?q=review`);
+   expect(response.headers.get('x-middleware-next')).toBe(scope.kind==='holding'?'1':null);
+   expect(response.cookies.get('erpx_last_workspace')?.value).toBe(!api&&method==='GET'?path:undefined);
+  }
+  const platformApi=proxy(new NextRequest('http://127.0.0.1:3102/api/v1/platform/records/finance/new',{method}));
+  expect(platformApi.status).toBe(200);
+  expect(platformApi.headers.get('x-middleware-next')).toBe('1');
+  expect(platformApi.headers.get('x-middleware-request-x-erpx-method')).toBe(method);
+ }
+});

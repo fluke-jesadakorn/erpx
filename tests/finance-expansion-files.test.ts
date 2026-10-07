@@ -171,7 +171,7 @@ it("binds actually scanned File Sources before independent review, preserves exa
     }>();
   expect(proof?.target_version).toBe(2);
   expect(JSON.parse(proof!.manifest_json)).toMatchObject([
-    { sourceId: uploaded.sourceId, checksumSha256: await sha256(png) },
+    { sourceId: uploaded.sourceId, checksumSha256: await sha256(new Uint8Array(png).buffer) },
   ]);
   expect(proof?.manifest_sha256).toBe(await sha256(proof!.manifest_json));
   await expect(
@@ -423,7 +423,6 @@ it.each(["book", "contract", "lease"] as const)(
           filename: "synthetic-original.png",
           mediaType: "image/png",
           bytes: png.byteLength,
-          checksumSha256: await sha256(png),
         },
         key(),
       ),
@@ -464,7 +463,7 @@ it.each(["book", "contract", "lease"] as const)(
       }>();
     expect(proof).toMatchObject({ target_type: targetType, target_version: 2 });
     expect(JSON.parse(proof!.manifest_json)).toMatchObject([
-      { sourceId: uploaded.sourceId, checksumSha256: await sha256(png) },
+      { sourceId: uploaded.sourceId, checksumSha256: await sha256(new Uint8Array(png).buffer) },
     ]);
     expect(proof!.manifest_sha256).toBe(await sha256(proof!.manifest_json));
     await expect(

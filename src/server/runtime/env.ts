@@ -5,9 +5,9 @@ import { PostgresDatabase } from './postgres';
 import { LocalFileStore } from './filesystem';
 import { MinioFileStore } from './minio';
 import type { SqlDatabase, FileStore } from './types';
-import type { BetaEnvironment } from '../beta-config';
+import type { BetaEnvironment } from "@/server/modules/manage_erpx/public/beta-config";
 import type { ResourceSlot } from '../../lib/holding-registry';
-import { engineeringVerificationContext,isEngineeringVerificationOrigin } from '../engineering-verification';
+import { engineeringVerificationContext,isEngineeringVerificationOrigin } from "@/server/modules/platform_administration/public/engineering-verification";
 
 export type DatabaseManifest = { version: 1; databases: Record<string, string>; slots: ResourceSlot[] };
 export type RuntimeEnv = BetaEnvironment & {

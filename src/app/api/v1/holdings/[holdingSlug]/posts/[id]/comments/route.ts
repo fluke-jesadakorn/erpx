@@ -1,8 +1,8 @@
-import { holdingResources } from "@/server/runtime";
-import { postComments } from "@/server/social-home";
-import { requireWorkContext } from "@/server/authorization";
-import { ApiError, errorResponse } from "@/server/http";
-import { createComment, createCommentSchema } from "@/server/social";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { postComments } from "@/server/modules/collaboration/public/social-home";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { createComment, createCommentSchema } from "@/server/modules/collaboration/public/social";
 
 export async function POST(request: Request, context: RouteContext<"/api/v1/holdings/[holdingSlug]/posts/[id]/comments">) {
   try {

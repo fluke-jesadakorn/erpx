@@ -4,7 +4,7 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { Button, Field, Select } from "@/components/ui/foundation";
 
 import { useState } from "react";
-import { thailandPackVersion, thailandReviewPack, thailandTemplates } from "@/lib/legal/thailand";
+import { thailandPackVersion, thailandReviewPack, thailandTemplates } from "@/server/modules/legal/public/rules/thailand";
 import s from "./legal.module.css";
 export function LegalThailand({
   people,

@@ -5,7 +5,7 @@ import { Button, Field, TextInput } from "@/components/ui/foundation";
 
 import { useState } from "react";
 import s from "./legal.module.css";
-import type { LegalEvidenceSource } from "@/server/legal/knowledge";
+import type { LegalEvidenceSource } from "@/server/modules/legal/public/legal/knowledge";
 export function LegalKnowledge({
   call,
   open,

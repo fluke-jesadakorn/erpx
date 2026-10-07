@@ -1,3 +1,4 @@
+import { platformExecutiveForPresentation } from "@/server/modules/platform_administration/public/presentation-queries";
 import {PlatformExecutiveSources} from "@/components/records/platform-executive-sources";
 import {CollectionRecordLink} from "@/components/records/record-collection";
 import { PageContent } from "@/components/ui/patterns";
@@ -5,17 +6,16 @@ import { Table } from "@/components/ui/foundation";
 import { TimeText } from "@/components/time/time-preference-context";
 import { FeaturePage, FeatureWidget, WidgetGrid } from "@/components/features/feature-page";
 import { LiveBanner, Metric, PageHeader, StatusBadge } from "@/components/ui/primitives";
-import { requireManageErpxContext } from "@/server/authorization";
-import { runtimeEnv } from "@/server/runtime";
-import { platformExecutiveSnapshot, requirePlatformExecutive } from "@/server/platform-executive";
+import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
+
+import { requirePlatformExecutive } from "@/server/modules/platform_administration/public/platform-executive";
 import { TableFrame } from "@/components/ui/foundation";
 
 export const dynamic = "force-dynamic";
 
 export default async function PlatformExecutivePage() {
   const actor = requirePlatformExecutive((await requireManageErpxContext()).platform);
-  const env = await runtimeEnv();
-  const snapshot = await platformExecutiveSnapshot(actor, env.CONTROL_DB, env.CONTROL_READ_DB);
+  const snapshot = await platformExecutiveForPresentation(actor);
   return (
     <PageContent as={FeaturePage} data-source="live">
       <PageHeader appearance="standard"

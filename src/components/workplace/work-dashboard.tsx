@@ -12,7 +12,7 @@ import { lastWorkChange, scheduleWorkRefresh } from "@/lib/work-refresh";
 import { PageHeader } from "@/components/ui/primitives";
 import { workFetch } from "@/lib/work-fetch";
 import { workResponsibilities, workTypes, workViews } from "@/lib/work-item";
-import type { WorkPageSummary } from "@/server/work-summary";
+import type { WorkPageSummary } from "@/server/modules/work_projection/public/work-summary";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigationCounts } from "./navigation-counts";

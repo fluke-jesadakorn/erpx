@@ -9,7 +9,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { hubResultHref } from "@/lib/hub-result";
 import { workFetch } from "@/lib/work-fetch";
-import type { supportDetail, supportWorkspace } from "@/server/support";
+import type { supportDetail, supportWorkspace } from "@/server/modules/support/public/support";
 import { FormLayout } from "@/components/ui/foundation";
 function SupportDecisionForm({
   label,

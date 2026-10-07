@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { hubHref, salesCustomerAccess, salesCustomerLegacyDestination } from "../src/lib/sales-customers";
+import { hubHref, salesCustomerAccess, salesCustomerLegacyDestination } from "../src/server/modules/sales/public/rules/navigation";
 import { hubResultHref } from "../src/lib/hub-result";
 import { workplaceNavigation, navigationTrail, resolveNavigation } from "../src/lib/workplace-navigation";
 import { navigationLauncher } from "../src/lib/navigation-catalog";
@@ -40,7 +40,7 @@ it("shows two workspaces and keeps every auxiliary task searchable", () => {
   expect(navigationTrail(model, base, `${base}/sales`, new URLSearchParams("view=pipeline&detailKind=crm_lead&detailId=lead-1")).map(item => item.label)).toEqual(["Sales", "Pipeline", "CRM case"]);
 });
 it("allows Support-only entry without registry or sales permission", () => {
-  const actor = { permissions: ["support.read"] }, access = salesCustomerAccess(actor, ["support"]);
+  const actor = { role: "employee", permissions: ["support.read"] }, access = salesCustomerAccess(actor, ["support"]);
   expect(access).toMatchObject({ support: true, directory: false, contacts: false, today: false, documents: false, reviews: false });
   const model = workplaceNavigation({ workspaceBase: base, permissions: ["support.read"], availableAppIds: ["support"] });
   expect(model.categories.find(category => category.id === "customers-sales")?.apps).toMatchObject([{ id: "customers-hub", href: `${base}/customers?view=support` }]);
@@ -51,5 +51,5 @@ it("checks each production view against its source rollout", () => {
   expect(productionPageCut(`${base}/customers`, base, new URLSearchParams(), catalogue)).toBeNull();
   expect(productionPageCut(`${base}/customers`, base, new URLSearchParams("view=support"), catalogue)).toBeNull();
   expect(productionPageCut(`${base}/sales`, base, new URLSearchParams("view=pipeline"), catalogue)).toMatchObject({ id: "crm" });
-  expect(salesCustomerAccess({ permissions: ["commerce.read", "commerce.sales"], branchId: "branch" }).pricing).toBe(false);
+  expect(salesCustomerAccess({ role: "employee", permissions: ["commerce.read", "commerce.sales"], branchId: "branch" }).pricing).toBe(false);
 });

@@ -1,5 +1,5 @@
 import type { CurrentWorkspaceChoice, WorkspaceChoice } from "./workspace-choice";
-import type { WorkAssignment } from "@/server/authorization";
+import type { WorkAssignment } from "@/server/modules/identity_access/domain/authorization";
 
 /** Serializable recovery evidence for the page that remains open after a switch. */
 export type AccountWorkContext = {

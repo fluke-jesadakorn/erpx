@@ -1,9 +1,9 @@
 import {recordCanonicalHref} from "@/lib/record-drawer";
 import { InlineNotice } from "@/components/ui/foundation";
 import { Table } from "@/components/ui/foundation";
-import type { WorkContext } from "@/server/authorization";
-import type { ExpenseRow } from "@/server/expenses";
-import { holdingResources } from "@/server/runtime";
+import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
+import type { ExpenseRow } from "@/server/modules/people_payroll/expense";
+import { expensePostingPreview } from "@/server/modules/people_payroll/expense";
 import { minorToDecimal } from "@/lib/finance-money";
 import { ExpensePosting } from "./expense-posting";
 import { RecordLink as Link } from "@/components/records/record-link";
@@ -17,16 +17,9 @@ export async function ExpensePostingPreview({
   expense: ExpenseRow;
   base: string;
 }) {
-  const { write } = await holdingResources(actor.holdingId);
-  if (expense.journal_id) {
-    const posted = (
-      await write
-        .prepare(
-          "SELECT a.id,a.code,a.name,l.debit_minor,l.credit_minor FROM finance_journals j JOIN finance_journal_lines l ON l.journal_id=j.id JOIN finance_accounts a ON a.id=l.account_id WHERE j.company_id=? AND j.id=? ORDER BY l.ordinal",
-        )
-        .bind(actor.companyId, expense.journal_id)
-        .all<ExpenseRow>()
-    ).results;
+  const preview = await expensePostingPreview(actor, expense);
+  if (preview.kind === "posted") {
+    const { posted } = preview;
     return (
       <Card as="section" appearance="standard" className="ui-panel">
         <h2>Posted GL · Debit / Credit</h2>
@@ -54,48 +47,13 @@ export async function ExpensePostingPreview({
       </Card>
     );
   }
-  const config = await write
-    .prepare("SELECT * FROM commerce_settings WHERE company_id=?")
-    .bind(actor.companyId)
-    .first<ExpenseRow>();
-  const accounting = JSON.parse(String(expense.accounting_json ?? "{}")) as {
-    periodId?: string;
-    entryDate?: string;
-  };
-  if (!config)
+  if (preview.kind === "unconfigured")
     return (
       <p className="notice">
         Configure the company’s expense, tax and payable accounts before posting GL.
       </p>
     );
-  const mappings = [
-    { id: expense.category_account_id, debit: Number(expense.amount_minor), credit: 0 },
-    { id: config.input_tax_account_id, debit: Number(expense.tax_minor), credit: 0 },
-    {
-      id: config.payable_account_id,
-      debit: 0,
-      credit: Number(expense.amount_minor) + Number(expense.tax_minor),
-    },
-  ].filter((l) => l.debit || l.credit);
-  const accounts = (
-    await write
-      .prepare(
-        "SELECT id,code,name,status,chart_id,currency FROM finance_accounts WHERE company_id=?",
-      )
-      .bind(actor.companyId)
-      .all<ExpenseRow>()
-  ).results;
-  const invalid = mappings.some(
-    (l) =>
-      !accounts.some(
-        (a) =>
-          a.id === l.id &&
-          a.status === "active" &&
-          a.chart_id === config.chart_id &&
-          a.currency === expense.currency,
-      ),
-  );
-  const total = Number(expense.amount_minor) + Number(expense.tax_minor);
+  const { accounting, mappings, accounts, invalid, total } = preview;
   return (
     <Card as="section" appearance="standard" className="ui-panel">
       <h2>GL · Debit / Credit</h2>

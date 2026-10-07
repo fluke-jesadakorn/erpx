@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { flowKinds } from "@/lib/flow";
-import { requireWorkContext } from "@/server/authorization";
-import { requireFlowAccess } from "@/server/flow-access";
-import { assignFlowPrimary, resolveFlow } from "@/server/flow-routing";
-import { ApiError, errorResponse } from "@/server/http";
-import { requestPublicOrigin } from "@/server/public-origin";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { requireFlowAccess } from "@/server/modules/workflow/public/flow-access";
+import { assignFlowPrimary, resolveFlow } from "@/server/modules/workflow/public/flow-routing";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 
 type Context = {params:Promise<{holdingSlug:string;kind:string;id:string}>};
 const schema = z.object({stepKey:z.string().min(1).max(100),userId:z.string().min(1).max(180),expectedVersion:z.number().int().nonnegative(),recordVersion:z.number().int().positive(),reason:z.string().trim().min(3).max(2000),saveDefault:z.boolean().default(false)});

@@ -1,21 +1,19 @@
-import { requestPublicOrigin } from "@/server/public-origin";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import { z } from "zod";
-import { requireWorkContext } from "@/server/authorization";
-import { ApiError, errorResponse } from "@/server/http";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import {
   expenseAccountingSchema,
   saveExpenseAccounting,
-} from "@/server/expense-workflow";
+} from "@/server/modules/people_payroll/expense";
 import {
   createExpensePayment,
   confirmExpensePayment,
   saveExpensePayment,
   revokePaymentSlip,
   expensePaymentSchema,
-} from "@/server/expense-payments";
-import { expenseAiStatus, queueExpenseAi } from "@/server/expense-ai";
-import { getExpense } from "@/server/expenses";
-import { runtimeEnv, holdingResources } from "@/server/runtime";
+} from "@/server/modules/people_payroll/expense";
+import { readExpenseAiStatus, requestExpenseAi } from "@/server/modules/people_payroll/expense";
 import {
   reverseExpense,
   expenseReversalSchema,
@@ -31,26 +29,16 @@ import {
   expenseVersionSchema,
   expenseDecisionSchema,
   expensePostSchema,
-} from "@/server/expenses";
+} from "@/server/modules/people_payroll/expense";
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
 export async function GET(_request: Request, context: Context) {
   try {
     const { holdingSlug, path: p = [] } = await context.params;
     const actor = await requireWorkContext(holdingSlug);
     if (p.length === 2 && p[1] === "ai") {
-      await getExpense(actor, p[0]);
-      const { write } = await holdingResources(actor.holdingId);
-      const env = await runtimeEnv();
-      const health = await env.CONTROL_DB.prepare("SELECT heartbeat_at FROM runtime_health WHERE service='jobs'").first<{ heartbeat_at: number }>();
       return Response.json(
         {
-          data: { ...await expenseAiStatus(
-            write,
-            actor,
-            env,
-            p[0],
-            new URL(_request.url).searchParams.get("payment"),
-          ), workerReady: !!health && Date.now() - Number(health.heartbeat_at) < 45000 },
+          data: await readExpenseAiStatus(actor, p[0], new URL(_request.url).searchParams.get("payment")),
         },
         { headers: { "Cache-Control": "private, no-store" } },
       );
@@ -101,13 +89,8 @@ export async function POST(request: Request, context: Context) {
         key,
       );
     else if (p.length === 2 && p[1] === "ai") {
-      await getExpense(actor, p[0]);
-      const { write } = await holdingResources(actor.holdingId),
-        env = await runtimeEnv();
-      data = await queueExpenseAi(
-        write,
+      data = await requestExpenseAi(
         actor,
-        env,
         p[0],
         z
           .object({

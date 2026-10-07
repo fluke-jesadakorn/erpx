@@ -135,6 +135,51 @@ async function approved(content = input()) {
   );
   return String(prepared.id);
 }
+it("rolls back installment posting and reversal after final outbox faults, then retries and replays each once", async () => {
+  const id = await approved(), cash = await bankRow("2026-09-30", -10000);
+  const prepared = await prepareInstrumentRun(f.owner, id, {
+    expectedVersion: 2, periodId: f.period, entryDate: "2026-09-30",
+    bankTransactionId: cash, bankVersion: 1, reason: "Retained installment and bank source",
+  }, key()), runId = String(prepared.id);
+  const state = async () => ({
+    agreement: await db.prepare("SELECT * FROM finance_instrument_editions WHERE id=?").bind(id).first(),
+    run: await db.prepare("SELECT * FROM finance_instrument_runs WHERE id=?").bind(runId).first(),
+    bank: await db.prepare("SELECT * FROM finance_bank_transactions WHERE id=?").bind(cash).first(),
+    journals: (await db.prepare("SELECT * FROM finance_journals WHERE source_type='instrument_payment' AND source_id=? ORDER BY id").bind(runId).all()).results,
+    lines: (await db.prepare("SELECT l.* FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.source_type='instrument_payment' AND j.source_id=? ORDER BY l.id").bind(runId).all()).results,
+  });
+  const receipts = async (command: string, count: number) => {
+    for (const table of ["command_receipts", "audit_events", "outbox_events"])
+      expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first("n"))).toBe(count);
+  };
+  const fail = async (operation: string, run: () => Promise<unknown>) => {
+    const fault = `instrument_fault_${crypto.randomUUID().replaceAll("-", "")}`;
+    await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'INSTRUMENT_LATE_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.event_type='${operation}') EXECUTE FUNCTION ${fault}();`);
+    try { await run(); } finally { await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`); }
+  };
+  const postKey = key(), postInput = { expectedVersion: 1, reason: "Independent retained bank and schedule review" }, beforePost = await state();
+  await fail("finance.instrument-run.post", async () => {
+    await expect(decideInstrumentRun(f.manager, runId, postInput, "post", postKey)).rejects.toThrow();
+    expect(await state()).toEqual(beforePost); await receipts(postKey, 0);
+  });
+  const posted = await decideInstrumentRun(f.manager, runId, postInput, "post", postKey);
+  expect(await decideInstrumentRun(f.manager, runId, postInput, "post", postKey)).toEqual(posted);
+  await receipts(postKey, 1);
+  expect((await state()).bank).toMatchObject({ match_status: "matched", matched_id: posted.journalId, version: 2 });
+  expect((await state()).agreement).toMatchObject({ status: "active", version: 3 });
+  const reverseKey = key(), reverseInput = { expectedVersion: 2, periodId: f.period, entryDate: "2026-09-30", reason: "Independent correction of bank association" }, beforeReverse = await state();
+  await fail("finance.instrument-run.reverse", async () => {
+    await expect(reverseInstrumentRun(f.manager, runId, reverseInput, reverseKey)).rejects.toThrow();
+    expect(await state()).toEqual(beforeReverse); await receipts(reverseKey, 0);
+  });
+  const reversed = await reverseInstrumentRun(f.manager, runId, reverseInput, reverseKey);
+  expect(await reverseInstrumentRun(f.manager, runId, reverseInput, reverseKey)).toEqual(reversed);
+  await receipts(reverseKey, 1);
+  expect((await state()).bank).toMatchObject({ match_status: "unmatched", matched_id: null, version: 3 });
+  expect((await state()).run).toMatchObject({ status: "reversed", version: 3, reversal_journal_id: reversed.reversalJournalId });
+  expect((await state()).agreement).toMatchObject({ status: "active", version: 4 });
+  expect(Number(await db.prepare("SELECT count(*) n FROM finance_journals WHERE id=?").bind(reversed.reversalJournalId).first("n"))).toBe(1);
+});
 it("prepares due financing only from the retained actual bank debit and leaves it unmatched until independent posting",async()=>{
  const id=await approved(),bankId=await bankRow("2026-09-30",-10000),j=await scheduleFinanceDraft(f.owner,{kind:"instrument_payment",sourceId:id,runOn:"2026-09-30",input:{expectedVersion:2,periodId:f.period,entryDate:"2026-09-30",bankTransactionId:bankId,bankVersion:1,reason:"Prepare first retained actual lease installment"},reason:"Due draft with imported bank evidence"},key());await drainFinanceDueDrafts(db,f.owner.holdingId,new Date("2026-09-30T12:00:00Z"));const row=await db.prepare("SELECT status,result_json FROM finance_due_drafts WHERE id=?").bind(j.id).first<{status:string;result_json:string}>();expect(row?.status).toBe("prepared");const r=JSON.parse(row!.result_json);expect(r).toMatchObject({status:"draft",result:{interest:"2.94",principal:"97.06",closing:"197.04"}});expect(await db.prepare("SELECT match_status FROM finance_bank_transactions WHERE id=?").bind(bankId).first("match_status")).toBe("unmatched");await decideInstrumentRun(f.manager,String(r.id),{expectedVersion:1,reason:"Independent installment and bank source review"},"post",key());expect(await db.prepare("SELECT match_status FROM finance_bank_transactions WHERE id=?").bind(bankId).first("match_status")).toBe("matched");
 });

@@ -70,30 +70,30 @@ test("isolated demo sends reviewed overtime from employee to payroll preview", a
     await employeePage.goto("/holdings/simulation/overtime/new", {
       waitUntil: "domcontentloaded",
     });
-    await employeePage.locator('#workspace-content').getByLabel("Request path").selectOption("retrospective");
-    await employeePage.locator('#workspace-content').getByLabel("Actual start").fill("2026-09-10T22:00");
-    await employeePage.locator('#workspace-content').getByLabel("Actual end").fill("2026-09-11T02:00");
-    await employeePage.locator('#workspace-content').getByLabel("Unpaid break (minutes)").fill("30");
-    await employeePage.locator('#workspace-content').getByLabel("Reason", { exact: true }).fill(
+    await employeePage.locator('#workspace-content:visible').getByLabel("Request path").selectOption("retrospective");
+    await employeePage.locator('#workspace-content:visible').getByLabel("Actual start").fill("2026-09-10T22:00");
+    await employeePage.locator('#workspace-content:visible').getByLabel("Actual end").fill("2026-09-11T02:00");
+    await employeePage.locator('#workspace-content:visible').getByLabel("Unpaid break (minutes)").fill("30");
+    await employeePage.locator('#workspace-content:visible').getByLabel("Reason", { exact: true }).fill(
       "Fictional Demo support escalation coverage.",
     );
-    await employeePage.locator('#workspace-content').getByLabel("Late-submission explanation").fill(
+    await employeePage.locator('#workspace-content:visible').getByLabel("Late-submission explanation").fill(
       "This acceptance scenario records a retrospective claim after the work date.",
     );
     await employeePage.getByRole("button", { name: "Review calculated hours" }).click();
-    await expect(employeePage.locator('#workspace-content').getByText("3.5 hours", { exact: true })).toBeVisible();
+    await expect(employeePage.locator('#workspace-content:visible').getByText("3.5 hours", { exact: true })).toBeVisible();
     await employeePage.getByRole("button", { name: "Save draft to continue" }).click();
     await expect(employeePage).toHaveURL(/\/overtime\/ot-/);
     const overtimeUrl = employeePage.url();
     const overtimeId = new URL(overtimeUrl).pathname.split("/").pop();
     expect(overtimeId).toBeTruthy();
     await employeePage.reload({ waitUntil: "domcontentloaded" });
-    await expect(employeePage.locator('#workspace-content').getByLabel("Actual start")).toHaveValue("2026-09-10T22:00");
-    await expect(employeePage.locator('#workspace-content').getByLabel("Actual end")).toHaveValue("2026-09-11T02:00");
-    await expect(employeePage.locator('#workspace-content').getByLabel("Unpaid break (minutes)")).toHaveValue("30");
+    await expect(employeePage.locator('#workspace-content:visible').getByLabel("Actual start")).toHaveValue("2026-09-10T22:00");
+    await expect(employeePage.locator('#workspace-content:visible').getByLabel("Actual end")).toHaveValue("2026-09-11T02:00");
+    await expect(employeePage.locator('#workspace-content:visible').getByLabel("Unpaid break (minutes)")).toHaveValue("30");
 
     await employeePage.getByRole("button", { name: "Review calculated hours" }).click();
-    await expect(employeePage.locator('#workspace-content').getByText("3.5 hours", { exact: true })).toBeVisible();
+    await expect(employeePage.locator('#workspace-content:visible').getByText("3.5 hours", { exact: true })).toBeVisible();
     const submitResponse = employeePage.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
@@ -156,7 +156,10 @@ test("isolated demo sends reviewed overtime from employee to payroll preview", a
       waitUntil: "domcontentloaded",
     });
     await payrollPage.getByRole("button", { name: "Create payroll run", exact: true }).click();
-    const createForm = payrollPage.locator('#workspace-content').locator("form").filter({ hasText: "Select pay group" });
+    const createDrawer = payrollPage.getByRole("dialog", { name: "Create payroll run", exact: true });
+    await expect(createDrawer).toBeVisible();
+    const createForm = createDrawer.locator("form");
+    await expect(createForm).toHaveCount(1);
     await createForm
       .locator('select[name="payGroupId"]')
       .selectOption({ label: "Demo monthly payroll · THB" });
@@ -180,7 +183,7 @@ test("isolated demo sends reviewed overtime from employee to payroll preview", a
     );
     await payrollPage.getByRole("button", { name: "Calculate payroll preview", exact: true }).click();
     expect((await calculateResponse).status()).toBe(200);
-    await expect(payrollPage.locator('#workspace-content').getByText("THB 1,052.50").first()).toBeVisible();
+    await expect(payrollPage.locator('#workspace-content:visible').getByText("THB 1,052.50").first()).toBeVisible();
 
     const payrollResponse = await payrollContext.request.get(
       `/api/v1/holdings/simulation/people/payroll/runs/${runId}`,

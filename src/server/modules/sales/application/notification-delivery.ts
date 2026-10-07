@@ -1,0 +1,8 @@
+import {customerNotificationInvalid,customerNotificationRetryAt,type CustomerMail,type NotificationRow} from '../domain/notifications';
+export interface CustomerDeliveryRepository {lease(id:string,now:number,leaseUntil:number):Promise<CustomerMail|null>;current(mail:CustomerMail,leaseUntil:number):Promise<NotificationRow|null>;cancel(mail:CustomerMail,leaseUntil:number,code:string,now:number):Promise<void>;sent(mail:CustomerMail,leaseUntil:number,providerId:string,now:number):Promise<void>;failed(mail:CustomerMail,leaseUntil:number,retryAt:number,code:string,now:number):Promise<void>;next(now:number):Promise<string|null>;}
+export function createCustomerDeliveryApplication(ports:{repository:CustomerDeliveryRepository;send(mail:CustomerMail):Promise<string>}){
+ async function deliver(id:string,now:number){const leaseUntil=now+90000,mail=await ports.repository.lease(id,now,leaseUntil);if(!mail)return;const invalid=customerNotificationInvalid(mail,await ports.repository.current(mail,leaseUntil));if(invalid){await ports.repository.cancel(mail,leaseUntil,invalid,now);return;}
+  try{const providerId=mail.adapter==='sandbox'?`sandbox-${mail.id}`:await ports.send(mail);await ports.repository.sent(mail,leaseUntil,providerId,now);}catch(error){const code=error instanceof Error?error.message:'CUSTOMER_EMAIL_DELIVERY_FAILED';await ports.repository.failed(mail,leaseUntil,customerNotificationRetryAt(now,mail.attempts),code.slice(0,100),now);throw error;}
+ }
+ return {deliver,async drain(now:number){for(let index=0;index<10;index++){const id=await ports.repository.next(now);if(!id)break;try{await deliver(id,now);}catch{}}}};
+}

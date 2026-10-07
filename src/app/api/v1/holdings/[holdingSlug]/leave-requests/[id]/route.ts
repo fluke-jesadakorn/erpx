@@ -1,8 +1,8 @@
-import { requireWorkContext } from "@/server/authorization";
-import { getLeave, leaveDraftSchema } from "@/server/leave";
-import { editSelfServiceLeave, leaveEditSchema, normalizeLegacyLeave } from "@/server/leave-self-service";
-import { requestPublicOrigin } from "@/server/public-origin";
-import { ApiError, errorResponse } from "@/server/http";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { getLeave, leaveDraftSchema } from "@/server/modules/people_payroll/public/leave";
+import { editSelfServiceLeave, leaveEditSchema, normalizeLegacyLeave } from "@/server/modules/people_payroll/public/leave-self-service";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 
 export const dynamic = "force-dynamic";
 

@@ -1,9 +1,9 @@
 import { Table, TableFrame } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { publicScope, requireWorkContext } from "@/server/authorization";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
-import { pmsFinanceOverview } from "@/server/pms/finance";
-import { pageError } from "@/server/page-error";
+import { pmsFinanceOverview } from "@/server/modules/pms/public/pms/finance";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { FinanceWorkspace, financeStyles as styles } from "@/components/finance/finance-workspace";
 import { MoneyAmount } from "@/components/money/currency-provider";
 

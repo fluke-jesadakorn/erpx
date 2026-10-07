@@ -1,8 +1,8 @@
 import { Table, TableFrame } from "@/components/ui/table";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { publicScope,requireWorkContext } from "@/server/authorization";
+import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
-import { workReports } from "@/server/work-reports";
+import { workReports } from "@/server/modules/work_projection/public/work-reports";
 import { PageContent } from "@/components/ui/patterns";
 import { PageHeader } from "@/components/ui/primitives";
 import { minorToDecimal } from "@/lib/finance-money";

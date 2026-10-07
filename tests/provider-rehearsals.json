@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "rehearsals": [
+    {
+      "id": "pms.stripe-sandbox.rehearsal",
+      "owner": "pms",
+      "modules": ["pms", "pos", "finance"],
+      "source": "tests/pms-stripe-sandbox-rehearsal.ts",
+      "packageScript": "test:pms:stripe:sandbox",
+      "command": "bun --conditions=react-server tests/pms-stripe-sandbox-rehearsal.ts",
+      "target": "disposable-postgres",
+      "prerequisites": {
+        "requiredEnvironment": ["ERPX_TEST_ADMIN_URL", "POS_STRIPE_TEST_SECRET_KEY"],
+        "conditions": [
+          "Pinned Bun 1.2.17; guarded local PostgreSQL administrator creates disposable databases and cleans them in finally.",
+          "POS_STRIPE_TEST_SECRET_KEY must be sk_test_; the reviewed sandbox Connect account must have charges enabled. ERPX_PMS_SANDBOX_ACCOUNT optionally selects that account.",
+          "An operator completes actual hosted Checkout using sandbox payment methods. --cases selects supported rehearsal cases.",
+          "ERPX_PMS_SANDBOX_EMAIL must explicitly identify a controlled recipient before PromptPay refund instructions are requested; no mail delivery is attempted.",
+          "Provider polling, hosted Checkout interaction, signed webhooks and local fault-injection evidence remain distinct; this rehearsal alone does not attest to browser return-page or signed-webhook E2E."
+        ]
+      },
+      "interaction": {
+        "manual": true,
+        "steps": ["Review selected sandbox account and cases.", "Open the private saved Checkout links and complete the supported sandbox interactions within the polling window.", "Review the retained verification.json provider results and separate browser/webhook evidence."]
+      }
+    },
+    {
+      "id": "pos.stripe-sandbox.rehearsal",
+      "owner": "pos",
+      "modules": ["pos", "finance"],
+      "source": "scripts/verify-pos-stripe-sandbox.ts",
+      "packageScript": "test:pos:stripe:sandbox",
+      "command": "bun --conditions=react-server scripts/verify-pos-stripe-sandbox.ts",
+      "target": "guarded-development",
+      "prerequisites": {
+        "requiredEnvironment": ["ERPX_DATABASE_MANIFEST", "POS_STRIPE_TEST_SECRET_KEY"],
+        "conditions": [
+          "Pinned Bun 1.2.17; the existing application/jobs manifests must pass the hospitality development-target guard and contain the prepared POS demonstration company. The guard rejects ERPX_ENVIRONMENT=production or staging, beta slots, non-loopback/non-5432 targets, and databases outside erpx_dev_*.",
+          "POS_STRIPE_TEST_SECRET_KEY must be sk_test_; the existing command operates the reviewed development sandbox Connect connection, not an isolated internal regression fixture.",
+          "The operator completes actual hosted merchant onboarding and retains authentic Stripe account.updated delivery; missing onboarding or webhook evidence remains awaiting acceptance.",
+          "Card, PromptPay, refund, payment/refund webhook replay and recovery remain explicitly not run by this script."
+        ]
+      },
+      "interaction": {
+        "manual": true,
+        "steps": ["Review the guarded development manifests and sandbox account.", "Complete the actual hosted onboarding link saved privately when required.", "Review provider delivery, worker processing and the explicit unverified acceptance fields in verification.json."]
+      }
+    }
+  ]
+}

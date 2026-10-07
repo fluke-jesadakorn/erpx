@@ -48,6 +48,10 @@ it('rolls back child requests, receipts, audit and outbox if parent receipt fail
  expect((await getOrganizationDraft(db,f.hr,draft.id)).draft!.state).toBe('draft');expect((await getOrganizationDraft(db,f.hr,draft.id)).requests).toHaveLength(0);
  for(const table of ['command_receipts','audit_events','outbox_events'])expect((await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first())?.n).toBe(0);
  expect((await db.prepare('SELECT count(*) n FROM organization_draft_reservations WHERE company_id=?').bind(f.company).first())?.n).toBe(0);
+ const retried=await submitOrganizationDraft(db,f.hr,draft.id,draft.version,p.token,command);
+ expect(await submitOrganizationDraft(db,f.hr,draft.id,draft.version,p.token,command)).toEqual(retried);
+ expect((await getOrganizationDraft(db,f.hr,draft.id)).requests).toHaveLength(1);
+ for(const table of ['command_receipts','audit_events','outbox_events'])expect((await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first())?.n).toBe(1);
 });
 it('stops a stale group without partially applying it and releases reservations',async()=>{
  const f=await fixture(),draft=await f.draft([{kind:'position',id:f.position,parked:false,departmentId:f.accountsDepartment}]);const p=await previewOrganizationDraft(db,f.hr,draft.id,draft.version);expect(p.ready,p.blockers.join()).toBe(true);await submitOrganizationDraft(db,f.hr,draft.id,draft.version,p.token,key());

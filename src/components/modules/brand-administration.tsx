@@ -3,7 +3,7 @@ import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
 import { useState } from "react";
 import Image from "next/image";
-import type { DocumentBrandMode, StorefrontAppBrand, WorkspaceBrand } from "@/server/branding";
+import type { DocumentBrandMode, StorefrontAppBrand, WorkspaceBrand } from "@/server/modules/brand/public/branding";
 import { workFetch } from "@/lib/work-fetch";
 import { WorkspaceBrandMark } from "@/components/brand/workspace-brand";
 import { MediaPublicationPanel } from "@/components/attachments/media-publication-panel";

@@ -60,7 +60,7 @@ async function signInRole(
 }
 
 async function submitAction(page: Page, heading: string, button: string, reason: string) {
-  const form = page.locator("#workspace-content form").filter({ has: page.getByRole("heading", { name: heading, exact: true }) });
+  const form = page.locator("#workspace-content:visible form").filter({ has: page.getByRole("heading", { name: heading, exact: true }) });
   await expect(form).toBeVisible();
   await form.getByLabel("Evidence and reason", { exact: true }).fill(reason);
   const response = page.waitForResponse(
@@ -71,7 +71,7 @@ async function submitAction(page: Page, heading: string, button: string, reason:
   await form.getByRole("button", { name: button, exact: true }).click();
   const result = await response;
   expect(result.status(), await result.text()).toBe(200);
-  await expect(page.locator("#workspace-content").getByText(`Version ${(await result.json()).data.version} ·`, { exact: false })).toBeVisible();
+  await expect(page.locator("#workspace-content:visible").getByText(`Version ${(await result.json()).data.version} ·`, { exact: false })).toBeVisible();
 }
 
 test("isolated demo completes a source-linked support case with independent confirmation", async ({
@@ -102,7 +102,8 @@ test("isolated demo completes a source-linked support case with independent conf
     const ownerPage = await ownerContext.newPage();
     await signInRole(ownerContext, ownerPage, credentials, "holding_owner", `/holdings/simulation/support?orderId=${quoteId}`);
     const title = `Customer equipment replacement request ${Date.now()}`;
-    const create = ownerPage.locator("#workspace-content form").filter({
+    const createDrawer = ownerPage.getByRole("dialog", { name: "New service case", exact: true });
+    const create = createDrawer.locator("form").filter({
       has: ownerPage.getByRole("heading", { name: "Record customer issue from order", exact: true }),
     });
     await create.locator('input[name="title"]').fill(title);
@@ -113,10 +114,17 @@ test("isolated demo completes a source-linked support case with independent conf
       (item) => item.request().method() === "POST" && item.url().endsWith("/api/v1/holdings/simulation/support"),
     );
     await create.getByRole("button", { name: "Create linked support case", exact: true }).click();
-    expect((await createResponse).status()).toBe(200);
-    await expect(ownerPage.getByRole("heading", { name: title, exact: true })).toBeVisible();
-    const ticketId = new URL(ownerPage.url()).pathname.split("/").at(-1);
+    const createdResponse = await createResponse;
+    expect(createdResponse.status()).toBe(200);
+    const ticketId = (await createdResponse.json()).data.id as string;
     expect(ticketId).toBeTruthy();
+    await expect(createDrawer).not.toBeVisible();
+    const fullPage = ownerPage.getByRole("link", { name: "Open full page ↗", exact: true });
+    await expect(fullPage).toHaveAttribute("href", `/holdings/simulation/support/${ticketId}`);
+    await fullPage.click();
+    await expect(ownerPage).toHaveURL(new RegExp(`/holdings/simulation/support/${ticketId}$`));
+    expect(new URL(ownerPage.url()).pathname.split("/").at(-1)).toBe(ticketId);
+    await expect(ownerPage.locator("#workspace-content:visible").getByRole("heading", { name: title, exact: true })).toBeVisible();
 
     const supportPage = await supportContext.newPage();
     const ticketPath = `/holdings/simulation/support/${ticketId}`;
@@ -124,10 +132,10 @@ test("isolated demo completes a source-linked support case with independent conf
     await submitAction(supportPage, "Accept case", "Accept case", "Support has accepted ownership and will inspect the reported equipment.");
     await submitAction(supportPage, "Request customer information", "Request customer information", "Waiting for the equipment serial number and error code.");
     await supportPage.reload();
-    await expect(supportPage.locator("#workspace-content").getByText("Waiting: Waiting for the equipment serial number and error code.", { exact: true })).toBeVisible();
+    await expect(supportPage.locator("#workspace-content:visible").getByText("Waiting: Waiting for the equipment serial number and error code.", { exact: true })).toBeVisible();
     await submitAction(supportPage, "Resume after customer reply", "Resume after customer reply", "Customer supplied the serial number and error code by phone.");
     await submitAction(supportPage, "Record proposed resolution", "Record proposed resolution", "Reserve a replacement unit and confirm delivery with the customer.");
-    await expect(supportPage.locator("#workspace-content").getByText(/^resolved ·/)).toBeVisible();
+    await expect(supportPage.locator("#workspace-content:visible").getByText(/^resolved ·/)).toBeVisible();
 
     const managerPage = await managerContext.newPage();
     await signInRole(managerContext, managerPage, credentials, "support_manager", ticketPath);
@@ -142,8 +150,8 @@ test("isolated demo completes a source-linked support case with independent conf
     const salesPage = await salesContext.newPage();
     await salesPage.goto(`/holdings/simulation/commerce/orders/${quoteId}/notes`, { waitUntil: "domcontentloaded" });
     const noteBody = `Customer confirmed the replacement delivery window for ${title}.`;
-    await expect(salesPage.locator("#workspace-content").getByRole("heading", { name: "Customer contact notes", exact: true })).toBeVisible();
-    const noteForm = salesPage.locator("#workspace-content form").filter({ has: salesPage.getByRole("button", { name: "Save internal note", exact: true }) });
+    await expect(salesPage.locator("#workspace-content:visible").getByRole("heading", { name: "Customer contact notes", exact: true })).toBeVisible();
+    const noteForm = salesPage.locator("#workspace-content:visible form").filter({ has: salesPage.getByRole("button", { name: "Save internal note", exact: true }) });
     await expect.poll(() => Math.floor(Date.now() / 1000) * 1000).toBeGreaterThan(resolutionObservedAt);
     const contactTime = await salesPage.evaluate(() => {
       const date = new Date();
@@ -159,12 +167,12 @@ test("isolated demo completes a source-linked support case with independent conf
     const savedNote = await noteResponse;
     expect(savedNote.status(), await savedNote.text()).toBe(200);
     const noteId = (await savedNote.json()).data.id as string;
-    await expect(salesPage.locator("#workspace-content section.card > p").filter({ hasText: noteBody })).toBeVisible();
+    await expect(salesPage.locator("#workspace-content:visible section.ui-panel:visible > p").filter({ hasText: noteBody })).toBeVisible();
     await salesPage.reload();
-    await expect(salesPage.locator("#workspace-content section.card > p").filter({ hasText: noteBody })).toBeVisible();
+    await expect(salesPage.locator("#workspace-content:visible section.ui-panel:visible > p").filter({ hasText: noteBody })).toBeVisible();
 
     await managerPage.reload();
-    const confirmation = managerPage.locator("#workspace-content form").filter({ hasText: "Record customer confirmation" });
+    const confirmation = managerPage.locator("#workspace-content:visible form").filter({ hasText: "Record customer confirmation" });
     await expect(confirmation).toBeVisible();
     await confirmation.locator('select[name="note"]').selectOption(noteId);
     await confirmation.getByLabel("Evidence and reason", { exact: true }).fill("Independently reviewed the customer confirmation and the proposed resolution.");
@@ -174,16 +182,16 @@ test("isolated demo completes a source-linked support case with independent conf
     await confirmation.getByRole("button", { name: "Confirm customer outcome and close", exact: true }).click();
     const confirmed = await confirmResponse;
     expect(confirmed.status(), await confirmed.text()).toBe(200);
-    await expect(managerPage.locator("#workspace-content").getByText(/Version 8 · confirm/)).toBeVisible();
+    await expect(managerPage.locator("#workspace-content:visible").getByText(/Version 8 · confirm/)).toBeVisible();
     await managerPage.reload();
-    await expect(managerPage.locator("#workspace-content").getByText(/^closed ·/)).toBeVisible();
+    await expect(managerPage.locator("#workspace-content:visible").getByText(/^closed ·/)).toBeVisible();
     await supportPage.reload();
-    await expect(supportPage.locator("#workspace-content").getByText(/^closed ·/)).toBeVisible();
+    await expect(supportPage.locator("#workspace-content:visible").getByText(/^closed ·/)).toBeVisible();
     await submitAction(managerPage, "Reopen customer dispute", "Reopen customer dispute", "Customer asked to review the replacement date again.");
     await submitAction(managerPage, "Cancel case with reason", "Cancel case with reason", "Customer withdrew the replacement request after further contact.");
     await managerPage.reload();
-    await expect(managerPage.locator("#workspace-content").getByText(/^cancelled ·/)).toBeVisible();
-    await expect(managerPage.locator("#workspace-content").getByText(/Version 10 · cancel/)).toBeVisible();
+    await expect(managerPage.locator("#workspace-content:visible").getByText(/^cancelled ·/)).toBeVisible();
+    await expect(managerPage.locator("#workspace-content:visible").getByText(/Version 10 · cancel/)).toBeVisible();
     await testInfo.attach("support-lifecycle-result", {
       contentType: "application/json",
       body: JSON.stringify({ run, ticketId, quoteId, noteId, agentId: support!.userId, managerId: manager!.userId, confirmedVersion: 8, finalVersion: 10, finalStatus: "cancelled" }, null, 2),

@@ -1,13 +1,13 @@
 import { z } from "zod";
 
-import { requireWorkContext } from "@/server/authorization";
-import { ApiError, errorResponse } from "@/server/http";
-import { requestPublicOrigin } from "@/server/public-origin";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import {
   saveSupplierInvoicePolicy,
   supplierInvoicePolicy,
   supplierInvoicePolicySchema,
-} from "@/server/supplier-bill-matching";
+} from "@/server/modules/procurement/public/supplier-bill-matching";
 
 type Context = { params: Promise<{ holdingSlug: string }> };
 

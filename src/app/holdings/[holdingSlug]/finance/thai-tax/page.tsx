@@ -3,11 +3,11 @@ import {FinanceWorkspace} from "@/components/finance/finance-workspace";
 import {TaxIdentityConsole,ThaiMonthlyWithholdingConsole} from "@/components/finance/finance-thai-tax-console";
 import {hasPermission} from "@/lib/permissions";
 import {workspaceBase} from "@/lib/workspace";
-import {publicScope,requireWorkContext} from "@/server/authorization";
-import {taxIdentityWorkspace} from "@/server/finance-tax-identities";
-import {withholdingWorkspace} from "@/server/finance-withholding";
-import {withholdingMonthlyWorkspace} from "@/server/finance-withholding-remittance";
-import {pageError} from "@/server/page-error";
+import {publicScope,requireWorkContext} from "@/server/modules/identity_access/public/authorization";
+import {taxIdentityWorkspace} from "@/server/modules/finance/public/finance-tax-identities";
+import {withholdingWorkspace} from "@/server/modules/finance/public/finance-withholding";
+import {withholdingMonthlyWorkspace} from "@/server/modules/finance/public/finance-withholding-remittance";
+import {pageError} from "@/server/modules/work_projection/public/page-error";
 import { Card } from "@/components/ui/foundation";
 export const dynamic="force-dynamic";
 export default async function Page({params}:{params:Promise<{holdingSlug:string}>}){

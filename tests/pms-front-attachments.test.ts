@@ -7,7 +7,7 @@ import {scanAttachmentNow} from '../src/server/attachments/service';
 import {attachmentApiBase} from '../src/lib/attachment-client';
 vi.mock('../src/server/runtime',async()=>{const {env}=await import('./runtime-env');return {holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES})};});
 // This adapter/security test uses a scanner double; real ClamAV has separate acceptance.
-vi.mock('../src/server/attachments/scanner',()=>({attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:'Scanner double',definitionUpdatedAt:Date.now(),error:null}),scanAttachmentBytes:async()=>({clean:true,signature:null,engine:'Scanner double',definitionUpdatedAt:Date.now()})}));
+vi.mock('../src/server/modules/files/public/attachments/scanner',()=>({attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:'Scanner double',definitionUpdatedAt:Date.now(),error:null}),scanAttachmentBytes:async()=>({clean:true,signature:null,engine:'Scanner double',definitionUpdatedAt:Date.now()})}));
 const db=env.H001_DB;
 let fixture:Awaited<ReturnType<typeof seedExpenseCompany>>,propertyId:string,taskId:string;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);process.env.ERPX_ATTACHMENTS_V2='true';});

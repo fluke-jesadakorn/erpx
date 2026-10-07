@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/foundation";
 import { useNavigationCounts } from "@/components/workplace/navigation-counts";
 import { workFetch } from "@/lib/work-fetch";
 import { lastWorkChange, scheduleWorkRefresh } from "@/lib/work-refresh";
-import type { SelfServiceSeed, SelfServiceSummary } from "@/server/self-service";
+import type { SelfServiceSeed, SelfServiceSummary } from "@/server/modules/records/public/self-service";
 import { ArrowUpRight, CircleAlert, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { Suspense, use, useCallback, useEffect, useRef, useState, type ReactNode } from "react";

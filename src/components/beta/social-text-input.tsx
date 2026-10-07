@@ -4,7 +4,7 @@ import { Button, TextArea } from "@/components/ui/foundation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { JSONContent } from "@tiptap/core";
-import { activeToken, editMentions, type Mention, type Suggestion } from "@/lib/social-text";
+import { activeToken, editMentions, type Mention, type Suggestion } from "@/server/modules/collaboration/public/rules/social-text";
 import { betaFetch } from "@/lib/beta-client";
 import { SocialSuggestionMenu, textareaSuggestionAnchor } from "./social-suggestion-menu";
 import styles from "./social-text.module.css";

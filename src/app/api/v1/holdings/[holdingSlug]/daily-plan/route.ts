@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { requireWorkContext } from "@/server/authorization";
-import { readDailyPlan, saveDailyPlan } from "@/server/daily-plan";
-import { ApiError, errorResponse } from "@/server/http";
-import { requestPublicOrigin } from "@/server/public-origin";
-import { holdingResources } from "@/server/runtime";
-import { workSnapshot } from "@/server/work-items";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { readDailyPlan, saveDailyPlan } from "@/server/modules/work_projection/public/daily-plan";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { workSnapshot } from "@/server/modules/work_projection/public/work-items";
 
 type Context = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };

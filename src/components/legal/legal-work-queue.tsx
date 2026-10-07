@@ -4,7 +4,7 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { Button } from "@/components/ui/foundation";
 
 import { useEffect, useState } from "react";
-import { labels, type LegalKind } from "@/lib/legal/model";
+import { labels, type LegalKind } from "@/server/modules/legal/public/rules/model";
 import s from "./legal.module.css";
 
 type QueueItem = {

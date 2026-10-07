@@ -12,7 +12,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
 import { minorToDecimal } from "@/lib/finance-money";
-import type { supplierBatchWorkspace } from "@/server/supplier-payments";
+import type { supplierBatchWorkspace } from "@/server/modules/procurement/public/supplier-payments";
 import {
   AttachmentPanel,
   type AttachmentPanelChange,

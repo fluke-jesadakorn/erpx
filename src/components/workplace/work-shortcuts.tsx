@@ -1,7 +1,7 @@
 "use client";
 
 import { QuickAccessShelf } from "@/components/quick-access/shelf";
-import { defaultWorkCardIds, newWorkHref, type WorkActionCard } from "@/lib/work-cards";
+import { defaultWorkCardIds, newWorkHref, workCardIds, type WorkActionCard, type WorkCardId } from "@/lib/work-cards";
 import { workCardTone } from "@/lib/work-category-tone";
 import type { QuickAccessItem } from "@/lib/quick-access";
 import { selfServiceActions } from "@/lib/self-service";
@@ -19,9 +19,11 @@ function cardMeta(card: WorkActionCard) {
   return counts.length ? counts.join(" · ") : "No pending work";
 }
 
-/** Device-local pins; the authorized catalogue is available with the shell. */
-export function WorkShortcuts({ base, role }: { base: string; role?: string }) {
-  const { quickAccess, shortcutStorageKey } = useNavigationCounts();
+/** Shared versioned pins over the current authorized action catalogue. */
+export function WorkShortcuts({ base, role, placement = "sidebar", onNavigate }: {
+  base: string; role?: string; placement?: "sidebar" | "panel"; onNavigate?: () => void;
+}) {
+  const { quickAccess, quickAccessLoading, quickAccessError, refresh, saveQuickAccess } = useNavigationCounts();
   const pathname = usePathname();
   const search = useSearchParams();
   const current = pathname === `${base}/work` ? search.toString() : "";
@@ -46,10 +48,19 @@ export function WorkShortcuts({ base, role }: { base: string; role?: string }) {
     initialPreferences={quickAccess?.preferences ?? { pinnedIds: null, version: 0 }}
     defaultIds={defaultWorkCardIds(cards, role)}
     endpoint={`/api/v1${base}/work/card-preferences`}
-    localStorageKey={shortcutStorageKey}
     title="My shortcuts"
-    placement="sidebar"
+    placement={placement}
     embedded
     requestMode="work"
+    loading={!quickAccess || quickAccessLoading}
+    error={quickAccessError || (quickAccess?.preferencesUnavailable ? "Your saved shortcuts could not refresh." : "")}
+    onRetry={() => void refresh()}
+    onSaved={preference => {
+      const pinnedIds = preference.pinnedIds?.filter((id): id is WorkCardId => workCardIds.some(known => known === id)) ?? null;
+      if (preference.pinnedIds === null || pinnedIds?.length === preference.pinnedIds.length)
+        saveQuickAccess({ ...preference, pinnedIds });
+      else void refresh();
+    }}
+    onNavigate={onNavigate}
   />;
 }

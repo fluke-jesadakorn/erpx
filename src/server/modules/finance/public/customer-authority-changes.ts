@@ -1,0 +1,1 @@
+export { prepareCustomerAuthorityFinanceReferences,prepareCustomerAuthorityMergedParty,prepareCustomerAuthorityIdentityChange,customerAuthorityIdentitySource,customerAuthorityMergeParties,customerAuthorityPartyCurrency,customerAuthorityCandidates } from "../adapters/customer-authority-changes";

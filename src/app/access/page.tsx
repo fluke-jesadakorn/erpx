@@ -1,5 +1,5 @@
 import { AccessState } from "@/components/workplace/access-state";
-import { accessDiagnosis } from "@/server/access-diagnosis";
+import { accessDiagnosis } from "@/server/modules/identity_access/public/access-diagnosis";
 import { isAccessProblem, safeReturnPath } from "@/lib/access-problem";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Workspace access · ERPX", robots: { index: false, follow: false } };

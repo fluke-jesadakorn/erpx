@@ -2,17 +2,17 @@ import { Button, Field, Select, Table, TableFrame, TextInput } from "@/component
 import { FeaturePage } from "@/components/features/feature-page";
 import { FinanceWorkspace, financeStyles as styles } from "@/components/finance/finance-workspace";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { reportDateSchema } from "@/server/finance";
-import { ledgerWorkspace } from "@/server/ledger";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { reportDateSchema } from "@/server/modules/finance/public/finance";
+import { ledgerWorkspace } from "@/server/modules/finance/public/ledger";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { FinanceReportingConsole } from "@/components/modules/finance-reporting-console";
-import { reportingWorkspace } from "@/server/finance-reporting";
+import { reportingWorkspace } from "@/server/modules/finance/public/finance-reporting";
 import { hasPermission } from "@/lib/permissions";
 import { FormLayout } from "@/components/ui/foundation";
-import { financePlanningWorkspace } from "@/server/finance-planning";
+import { financePlanningWorkspace } from "@/server/modules/finance/public/finance-planning";
 import { FinancePlanningControls } from "@/components/finance/finance-planning-controls";
-import { financeCompanyTools } from "@/server/finance-company-tools";
+import { financeCompanyTools } from "@/server/modules/finance/public/finance-company-tools";
 
 export const dynamic = "force-dynamic";
 export default async function ReportsPage({

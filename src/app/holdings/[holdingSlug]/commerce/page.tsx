@@ -1,3 +1,6 @@
+import { commercePresentationQueries } from "@/server/modules/commerce/public/presentation-queries";
+
+
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Button, Field, Table, TableFrame, TextInput } from "@/components/ui/foundation";
 import {
@@ -14,23 +17,23 @@ import { minorToDecimal } from "@/lib/finance-money";
 import { hasPermission } from "@/lib/permissions";
 import { commerceNavigationViews } from "@/lib/workplace-navigation";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { commercePage, commercePermissions } from "@/server/commerce";
-import { employeeRequestDetail } from "@/server/employee-requests";
-import { canApproveCounts, canPrepareCounts, canReadCounts } from "@/server/inventory-counts";
-import { listInventoryReorderPolicies } from "@/server/inventory-reorder-policies";
-import { pageError } from "@/server/page-error";
-import { holdingResources } from "@/server/runtime";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { commercePage, commercePermissions } from "@/server/modules/commerce/public/commerce";
+
+import { canApproveCounts, canPrepareCounts, canReadCounts } from "@/server/modules/inventory/public/inventory-counts";
+import { listInventoryReorderPolicies } from "@/server/modules/inventory/public/inventory-reorder-policies";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+
 import { RecordLink as Link } from "@/components/records/record-link";
 import { redirect } from "next/navigation";
-import { salesCustomerLegacyDestination } from "@/lib/sales-customers";
+import { salesCustomerLegacyDestination } from "@/server/modules/sales/public/rules/navigation";
 import { SalesPricingConsole } from "@/components/modules/sales-pricing-console";
-import { pricingWorkspace } from "@/server/sales-pricing";
+import { pricingWorkspace } from "@/server/modules/sales/public/sales-pricing";
 import { CustomerNotificationSettingsForm } from "@/components/modules/commerce-controls";
 import { InventoryReorderConsole } from "@/components/modules/inventory-reorder-console";
-import { customerNotificationSettings } from "@/server/sales-customer-notifications";
-import type { WorkContext } from "@/server/authorization";
-import { frontWorkspaceHref } from "@/server/front-app";
+import { customerNotificationSettings } from "@/server/modules/sales/public/sales-customer-notifications";
+import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
+import { frontWorkspaceHref } from "@/server/modules/work_projection/public/front-app";
 import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
 import { MediaPublicationPanel } from "@/components/attachments/media-publication-panel";
 import { AttachmentFeatureSurface } from "@/components/attachments/attachment-feature-context";
@@ -75,13 +78,8 @@ export default async function CommercePage({
   let partyKind: "customer" | "supplier" = search.kind === "supplier" ? "supplier" : "customer";
   if (view === "parties") {
     if (search.edit) {
-      const { write } = await holdingResources(actor.holdingId);
-      const edited = await write
-        .prepare(
-          "SELECT kind FROM finance_parties WHERE id=? AND company_id=? AND person_id IS NULL",
-        )
-        .bind(search.edit, actor.companyId)
-        .first<{ kind: string }>();
+      const presentation = await commercePresentationQueries(actor.holdingId);
+      const edited = await presentation.commerceEntrypointFinanceFacts().editedPartyKind(search.edit,actor.companyId);
       if (edited?.kind === "customer" || edited?.kind === "supplier") partyKind = edited.kind;
     }
     if (search.kind !== partyKind) {
@@ -100,11 +98,7 @@ export default async function CommercePage({
     pageError(error, holdingSlug),
   );
   const requestData = search.request
-    ? await employeeRequestDetail(
-        (await holdingResources(actor.holdingId)).write,
-        actor,
-        search.request,
-      ).catch((error) => pageError(error, holdingSlug))
+    ? await (await commercePresentationQueries(actor.holdingId)).employeeRequestDetail(actor, search.request).catch((error) => pageError(error, holdingSlug))
     : null;
   const notificationSettings =
     view === "parties" && partyKind === "customer"
@@ -168,16 +162,7 @@ export default async function CommercePage({
       : null;
   const lotRecords =
     view === "stock" && hasPermission(actor, "inventory.read")
-      ? (
-          await (
-            await holdingResources(actor.holdingId)
-          ).write
-            .prepare(
-              "SELECT DISTINCT l.id,l.version,l.lot_code,l.serial_number,l.status,p.sku,p.name FROM inventory_lots l JOIN inventory_lot_balances b ON b.lot_id=l.id JOIN commerce_warehouses w ON w.id=b.warehouse_id JOIN commerce_products p ON p.id=l.product_id WHERE l.company_id=? AND (?::text IS NULL OR w.branch_id=?) ORDER BY p.sku,l.lot_code NULLS LAST,l.serial_number NULLS LAST,l.id LIMIT 250",
-            )
-            .bind(actor.companyId, actor.branchId, actor.branchId)
-            .all<Record<string, unknown>>()
-        ).results
+      ? (await (await commercePresentationQueries(actor.holdingId)).commerceEntrypointInventoryFacts().lotRecords(actor.companyId,actor.branchId??null)).results
       : [];
   const selectedLot = search.lotFiles
     ? lotRecords.find((row) => String(row.id) === search.lotFiles)

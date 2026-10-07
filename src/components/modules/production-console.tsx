@@ -7,7 +7,7 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
-import type { productionDetail, productionWorkspace } from "@/server/production";
+import type { productionDetail, productionWorkspace } from "@/server/modules/manufacturing/public/production";
 import {
   AttachmentPanel,
   type AttachmentPanelChange,

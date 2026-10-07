@@ -11,6 +11,8 @@ import { changeAppointment } from "../src/server/department-authority";
 import { iamActorFromWork, type IamActor } from "../src/server/iam-context";
 import { selectWorkRole } from "../src/server/work-role-store";
 import { loadIamAuthority } from "../src/server/iam-store";
+import { prepareLocalBrowserDirectoryInventory } from "../scripts/fixtures/local-browser-roster-directory";
+import { previewGpoRule } from "../src/server/modules/identity_access/public/gpo-rules";
 import type { WorkContext } from "../src/server/authorization";
 import { decideIamReview } from "../src/server/iam-service";
 import {
@@ -58,7 +60,7 @@ vi.mock("../src/server/runtime", () => ({
   holdingResources: async () => ({ write: raw, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));
-vi.mock("../src/server/iam-mfa", () => ({ requireFreshMfa: async () => {} }));
+vi.mock("../src/server/modules/identity_access/public/iam-mfa", () => ({ requireFreshMfa: async () => {} }));
 const db = iamDb(raw);
 beforeAll(async () => {
   await applyMigrations(raw, env.STAFF_TEST_MIGRATIONS);
@@ -126,7 +128,7 @@ beforeEach(() => {
     version: "verified",
   });
 });
-async function authorize(a: WorkContext) {
+async function authorizeWork(a: WorkContext):Promise<WorkContext> {
   const sessionId = key();
   await selectWorkRole(raw, {
     sessionId,
@@ -137,24 +139,42 @@ async function authorize(a: WorkContext) {
     revision: 0,
     expiresAt: Date.now() + 86400000,
   });
-  return iamActorFromWork({
+  return {
     ...a,
     authority: {
       sessionId,
       revision: 1,
       assignmentVersion: 1,
-      expiresAt: Date.now() + 86400000,
     },
     iam: await loadIamAuthority(db, a.companyId, a.userId, a.role),
-  } as WorkContext);
+  };
 }
+async function authorize(a:WorkContext){return iamActorFromWork(await authorizeWork(a));}
+function requiredReviewId(job:{reviewId:string|null}){if(!job.reviewId)throw new Error("Expected a proposed directory review");return job.reviewId;}
+it("shows declared browser Directory inventory without enabling provider writes or making provider calls", async () => {
+  const f = await expenseFixture(), it = await authorizeWork(f.it);
+  const saved = await prepareLocalBrowserDirectoryInventory(raw, f.company, it.userId);
+  const count = await raw.prepare("SELECT count(*)::int n FROM iam_connections WHERE id=?").bind(saved.connectionId).first<{ n: number }>();
+  expect(await prepareLocalBrowserDirectoryInventory(raw, f.company, it.userId)).toEqual(saved);
+  expect(await raw.prepare("SELECT count(*)::int n FROM iam_connections WHERE id=?").bind(saved.connectionId).first<{ n: number }>()).toEqual(count);
+  provider.read.mockClear(); provider.apply.mockClear();
+  const data = await directoryAutomationData(db, iamActorFromWork(it));
+  const connection = data.connections.find(item => item.id === saved.connectionId)!;
+  expect(connection).toMatchObject({ writeEnabled: false, testedVersion: 1 });
+  expect(connection.inventory?.objects.map(object => object.kind).sort()).toEqual(["gpo", "group", "ou"]);
+  const position = (await raw.prepare("SELECT position_id FROM hr_engagements WHERE person_id=? AND company_id=?").bind(`person-${f.claimant.userId}`, f.company).first<{ position_id: string }>())!.position_id;
+  await expect(previewGpoRule(raw, it, { target: { kind: "position", id: position }, expectedVersion: 0, connectionId: saved.connectionId, gpoId: saved.gpoId, userFilterGroupId: saved.groupId, computerTargetOuId: saved.ouId, reason: "Read-only browser preview prerequisite" })).rejects.toMatchObject({ code: "DIRECTORY_WRITE_NOT_READY" });
+  expect(provider.read).not.toHaveBeenCalled(); expect(provider.apply).not.toHaveBeenCalled();
+  expect((await raw.prepare("SELECT count(*)::int n FROM people_directory_operations WHERE connection_id=?").bind(saved.connectionId).first<{ n: number }>())?.n).toBe(0);
+});
 async function fixture() {
   const f = await expenseFixture(false),
     it = await authorize(f.it),
-    owner = await authorize(f.owner),
+    ownerWork = await authorizeWork(f.owner),
+    owner = iamActorFromWork(ownerWork),
     hrMember = await f.member("HR", "hr_admin"),
     connectionId = key();
-  await changeAppointment(raw, owner, {kind:"hr",departmentId:null,positionId:null,personId:`person-${hrMember.userId}`,expectedVersion:0,reason:"Appoint fixture HR reviewer"}, key());
+  await changeAppointment(raw, ownerWork, {kind:"hr",departmentId:null,positionId:null,personId:`person-${hrMember.userId}`,expectedVersion:0,reason:"Appoint fixture HR reviewer"}, key());
   const hr = await authorize(hrMember);
   await db.pool.query(
     "INSERT INTO iam_connections(id,company_id,name,provider,config,status,version,created_by,created_at) VALUES($1,$2,'Test UCS','univention',$3,'active',1,$4,$5)",
@@ -229,10 +249,10 @@ it("requires tested write-back and independent review, preserves request idempot
   ).toEqual(job);
   await drainDirectoryOperations(db);
   expect(provider.apply).not.toHaveBeenCalled();
-  await expect(approve(f.it, job.reviewId)).rejects.toMatchObject({
+  await expect(approve(f.it, requiredReviewId(job))).rejects.toMatchObject({
     code: "PERMISSION_REQUIRED",
   });
-  await approve(f.owner, job.reviewId);
+  await approve(f.owner, requiredReviewId(job));
   await drainDirectoryOperations(db);
   await drainDirectoryOperations(db);
   expect(provider.apply, JSON.stringify((await directoryAutomationData(db,f.it)).jobs)).toHaveBeenCalledTimes(1);
@@ -270,7 +290,7 @@ it("stops queued work when the authorizing assignment or write-back setting is w
   const f = await fixture();
   await enable(f);
   const job = await propose(f);
-  await approve(f.owner, job.reviewId);
+  await approve(f.owner, requiredReviewId(job));
   await db.pool.query(
     "UPDATE assignments SET revoked_at=$1,version=version+1 WHERE id=$2",
     [Date.now(), f.it.assignmentId],
@@ -294,7 +314,7 @@ it("cancels queued work and keeps completed or possibly applied work out of canc
   await drainDirectoryOperations(db);
   expect(provider.apply).not.toHaveBeenCalled();
   const second = await propose(f);
-  await approve(f.owner, second.reviewId);
+  await approve(f.owner, requiredReviewId(second));
   await drainDirectoryOperations(db);
   await expect(
     cancelDirectoryOperation(db, f.it, second.id, 4, key()),

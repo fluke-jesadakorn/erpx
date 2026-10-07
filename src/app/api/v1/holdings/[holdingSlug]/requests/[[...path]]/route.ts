@@ -3,13 +3,13 @@ import {
   queueRequestAi,
   runRequestAi,
   requestAiInput,
-} from "@/server/request-ai";
-import { isThaiHotelAiMockEnabled } from "@/server/simulation-only-adapters";
-import { runtimeEnv } from "@/server/runtime";
-import { requireWorkContext } from "@/server/authorization";
-import { holdingResources } from "@/server/runtime";
-import { ApiError, errorResponse } from "@/server/http";
-import { serviceCommandBody } from "@/server/service-http";
+} from "@/server/modules/records/public/request-ai";
+import { isThaiHotelAiMockEnabled } from "@/server/modules/runtime/public/simulation-only-adapters";
+import { runtimeEnv } from "@/server/modules/runtime/public/runtime";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { serviceCommandBody } from "@/server/modules/support/public/service-http";
 import {
   employeeRequestDetail,
   listEmployeeRequests,
@@ -17,7 +17,7 @@ import {
   actOnEmployeeRequest,
   employeeRequestSchema,
   requestActionSchema,
-} from "@/server/employee-requests";
+} from "@/server/modules/records/public/employee-requests";
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
 export async function GET(_request: Request, context: Context) {
   try {

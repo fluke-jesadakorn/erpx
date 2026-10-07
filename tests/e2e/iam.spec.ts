@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Route } from "@playwright/test";
+import { openAccountMenu, searchRoleOptions } from "../helpers/context-switching-browser";
 const base = "/holdings/acme/iam";
 test("user management previews, persistence, drag alternatives and responsive layouts", async ({
   page,
@@ -9,8 +10,10 @@ test("user management previews, persistence, drag alternatives and responsive la
   page.on("pageerror", (e) => errors.push(e.message));
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/holdings/acme/people/access");
-  const nav = page.getByRole("navigation", { name: "User management views" });
-  await nav.getByRole("button", { name: "Groups", exact: true }).click();
+  await expect(page).toHaveURL("/holdings/acme/technology?view=resources");
+  await expect(page.getByRole("heading", { name: "Resources", exact: true, level: 1 })).toBeVisible();
+  const nav = page.getByRole("navigation", { name: "Resource sections", exact: true });
+  await nav.getByRole("link", { name: "Groups", exact: true }).click();
   // Recover only this suite's empty, unattached rehearsal groups after interrupted runs.
   const leftovers = page
     .getByRole("region", { name: "Management results" })
@@ -60,7 +63,7 @@ test("user management previews, persistence, drag alternatives and responsive la
   await expect(
     results.getByRole("button", { name: new RegExp(name) }),
   ).toBeVisible();
-  await nav.getByRole("button", { name: "People", exact: true }).click();
+  await nav.getByRole("link", { name: "Accounts", exact: true }).click();
   await results
     .getByRole("textbox", { name: "Search people" })
     .fill("Uri Suwan");
@@ -101,8 +104,14 @@ test("user management previews, persistence, drag alternatives and responsive la
     .click();
   // A drag prepares the same membership editor; it never writes access.
   const target = page
-    .getByRole("complementary", { name: "Management hierarchy" })
-    .getByRole("button", { name: new RegExp(name) });
+    .getByRole("region", { name: "Group membership preparation", exact: true })
+    .getByRole("button", { name, exact: true });
+  const membershipWrites: string[] = [];
+  const observeMembershipWrite = (request: import("@playwright/test").Request) => {
+    if (!["GET", "HEAD", "OPTIONS"].includes(request.method()) &&
+      new URL(request.url()).pathname.startsWith("/api/v1/holdings/acme/")) membershipWrites.push(request.url());
+  };
+  page.on("request", observeMembershipWrite);
   await target.scrollIntoViewIfNeeded();
   await results
     .getByRole("button", { name: "Uri Suwan Linked account" })
@@ -117,13 +126,43 @@ test("user management previews, persistence, drag alternatives and responsive la
     .getByRole("dialog", { name: "Set up membership" })
     .getByRole("button", { name: "Close dialog" })
     .click();
+  page.off("request", observeMembershipWrite);
+  expect(membershipWrites, "Drag and closing the membership editor never commit access or membership").toEqual([]);
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.getByRole("navigation", { name: "Management navigation", exact: true })
+    .getByRole("button", { name: "Back to list", exact: true }).click();
+  await expect(results).toBeVisible();
+  await expect(results.getByRole("checkbox", { name: "Select Uri Suwan", exact: true })).toBeChecked();
+  await expect(results.getByRole("button", { name: "Groups (1)", exact: true })).toBeEnabled();
+  await expect(target).toBeVisible();
+  page.on("request", observeMembershipWrite);
+  await target.focus();
+  await expect(target).toBeFocused();
+  await target.press("Enter");
+  dialog = page.getByRole("dialog", { name: "Set up membership", exact: true });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("1 selected people", { exact: true })).toBeVisible();
+  const manualGroup = dialog.getByRole("combobox", { name: "Manual group", exact: true });
+  const preparedGroupId = await manualGroup.getByRole("option", { name, exact: true, includeHidden: true }).getAttribute("value");
+  expect(preparedGroupId, "The keyboard target is the actual rehearsal group").toBeTruthy();
+  await expect(manualGroup).toHaveValue(preparedGroupId!);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await page.screenshot({ path: info.outputPath("membership-preparation-390.png"), fullPage: true });
+  await dialog.getByRole("button", { name: "Close dialog", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(target).toBeFocused();
+  page.off("request", observeMembershipWrite);
+  expect(membershipWrites, "Drag, narrow-screen keyboard preparation and closing never commit access or membership").toEqual([]);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await nav.getByRole("link", { name: "Groups", exact: true }).click();
+  await expect(results.getByRole("button", { name: new RegExp(name) })).toContainText("0 members · Manual group");
   for (const width of [390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     for (const theme of ["light", "dark"]) {
       await page.evaluate((theme) => {
         document.documentElement.dataset.theme = theme;
       }, theme);
-      await nav.getByRole("button", { name: "Groups", exact: true }).click();
+      await nav.getByRole("link", { name: "Groups", exact: true }).click();
       await results.getByRole("button", { name: new RegExp(name) }).click();
       await expect(
         page
@@ -139,6 +178,11 @@ test("user management previews, persistence, drag alternatives and responsive la
         path: info.outputPath("management-" + width + "-" + theme + ".png"),
         fullPage: true,
       });
+      if (width <= 760) {
+        await page.getByRole("navigation", { name: "Management navigation", exact: true })
+          .getByRole("button", { name: "Back to list", exact: true }).click();
+        await expect(results).toBeVisible();
+      }
     }
   }
   await page.getByRole("button", { name: "Edit group & parent" }).click();
@@ -156,9 +200,11 @@ test("user management previews, persistence, drag alternatives and responsive la
   await expect(
     results.getByRole("button", { name: new RegExp(name + " Archived") }),
   ).toBeVisible();
-  await nav
-    .getByRole("button", { name: "Custom attributes", exact: true })
+  await page.getByRole("navigation", { name: "Primary", exact: true }).filter({ visible: true })
+    .getByRole("link", { name: "Custom attributes", exact: true })
     .click();
+  await expect(page).toHaveURL("/holdings/acme/technology?view=attributes");
+  await expect(page.getByRole("heading", { name: "Custom attributes", exact: true, level: 1 })).toBeVisible();
   await page.getByRole("button", { name: "New attribute" }).click();
   dialog = page.getByRole("dialog", { name: "Set up attribute" });
   await dialog.getByLabel("Label", { exact: true }).fill("Preview skill");
@@ -180,7 +226,9 @@ test("People inline ERPX grant submits revision, scope and idempotency to review
 }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/holdings/acme/people/access");
-  await page.getByText("Advanced", { exact: true }).click();
+  await page.getByRole("navigation", { name: "Resource sections", exact: true })
+    .getByRole("link", { name: "Accounts", exact: true }).click();
+  await page.locator("summary").filter({ hasText: /^Directory explorer$/ }).click();
   await page
     .getByRole("button", {
       name: "Accounts & connected directories",
@@ -241,7 +289,9 @@ test("People explorer search, pagination, one-context comparison, responsive pan
   test.setTimeout(180000);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/holdings/acme/people/access");
-  await page.getByText("Advanced", { exact: true }).click();
+  await page.getByRole("navigation", { name: "Resource sections", exact: true })
+    .getByRole("link", { name: "Accounts", exact: true }).click();
+  await page.locator("summary").filter({ hasText: /^Directory explorer$/ }).click();
   await page
     .getByRole("button", {
       name: "Accounts & connected directories",
@@ -341,34 +391,77 @@ test.beforeEach(async ({ page, baseURL }) => {
     .getByLabel("Work email")
     .fill(process.env.ERPX_IAM_E2E_EMAIL ?? "jesadakorn.kirtnu@gmail.com");
   await page
-    .getByLabel("Password", { exact: true })
+    .getByLabel(/^Password(?:\s*\*)?$/)
     .fill(process.env.ERPX_IAM_E2E_PASSWORD ?? "12345678");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/(work-role\?|holdings\/|platform\/)/);
-  await page.goto("/holdings/acme/home");
-  if (!page.url().includes("/work-role")) {
-    await page.getByRole("button", { name: /Account menu for/ }).click();
-  }
-  await page
-    .getByRole("combobox", { name: "Role for actions & approvals" })
-    .fill("holding owner");
-  await Promise.all([
+  // Branch lineage supplies Company before this multi-Company account has a
+  // Holding preference. Select its existing role through the recovery menu.
+  await page.goto("/holdings/acme/branches/bangkok/home");
+  await openAccountMenu(page);
+  const roles = await searchRoleOptions(page, "holding owner");
+  const [selected] = await Promise.all([
     page.waitForResponse(
       (response) =>
         response.url().endsWith("/assignments/active") &&
         response.request().method() === "POST",
-    ),
-    page
-      .getByRole("listbox")
+    ).then(async response => ({ ok: response.ok(), status: response.status(), body: await response.text() })),
+    roles
       .getByRole("option")
       .filter({ hasText: "Acme Corporation" })
       .click(),
   ]);
+  expect(selected.ok, selected.body).toBe(true);
+  expect(selected.status, selected.body).toBe(200);
+  const selection = JSON.parse(selected.body).data as { companyId: string; assignmentId: string };
+  expect(selection.companyId).toBe("acme-co");
+  const ready = page.locator("[data-work-assignment]");
+  await expect(ready).toHaveAttribute("data-work-company", "acme-co");
+  await expect(ready).toHaveAttribute("data-work-assignment", selection.assignmentId);
+  await expect(page.getByRole("dialog", { name: "Account switcher", exact: true })).toBeHidden();
+  await page.getByRole("button", { name: "Switch workspace", exact: true }).click();
+  const workspaces = page.getByRole("dialog", { name: "Switch workspace", exact: true });
+  await expect(workspaces).toBeVisible();
+  const companyUrl = "**/api/v1/holdings/acme/companies/active";
+  type CompanyResponse = { ok: boolean; status: number; body: string };
+  let resolveCompany!: (response: CompanyResponse) => void;
+  let rejectCompany!: (error: unknown) => void;
+  const companyResponse = new Promise<CompanyResponse>((resolve, reject) => {
+    resolveCompany = resolve;
+    rejectCompany = reject;
+  });
+  const retainCompanyResponse = async (route: Route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    try {
+      // Send the original UI request to the real server. Retain its bytes before
+      // forwarding the unchanged response that triggers the full navigation.
+      const response = await route.fetch();
+      const body = await response.body();
+      await route.fulfill({ response, body });
+      resolveCompany({ ok: response.ok(), status: response.status(), body: body.toString("utf8") });
+    } catch (error) {
+      rejectCompany(error);
+      await route.abort().catch(() => undefined);
+    }
+  };
+  // Playwright removes this one-use handler before invoking it, so no extra
+  // interception update needs to race the resulting full navigation.
+  await page.route(companyUrl, retainCompanyResponse, { times: 1 });
+  const [company] = await Promise.all([
+    companyResponse,
+    workspaces.getByRole("button", { name: "Acme Corporation", exact: true }).click(),
+  ]);
+  expect(company.ok, company.body).toBe(true);
+  expect(company.status, company.body).toBe(200);
+  expect(JSON.parse(company.body).data.companyId).toBe("acme-co");
   await expect(page).toHaveURL(/\/holdings\/acme\/home/);
   await page.goto(base);
+  await expect(page).toHaveURL("/holdings/acme/people");
   await expect(
-    page.getByRole("heading", { name: "Identity & access", exact: true }),
+    page.getByRole("heading", { name: "People", exact: true, level: 1 }),
   ).toBeVisible();
+  await expect(ready).toHaveAttribute("data-work-company", "acme-co");
+  await expect(ready).toHaveAttribute("data-work-assignment", selection.assignmentId);
 });
 test("IAM pages, provider selection, matrix explanation and keyboard navigation", async ({
   page,
@@ -377,16 +470,23 @@ test("IAM pages, provider selection, matrix explanation and keyboard navigation"
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/holdings/acme/people");
-  await page
-    .getByRole("main")
-    .getByRole("link", { name: "Directory & access", exact: true })
-    .click();
-  await expect(page).toHaveURL("/holdings/acme/people/access");
+  await page.getByRole("navigation", { name: /^(Primary|Mobile navigation)$/ }).filter({ visible: true })
+    .getByRole("button", { name: "App launcher", exact: true }).click();
+  const launcher = page.getByRole("dialog", { name: "App launcher", exact: true });
+  await launcher.getByRole("searchbox", { name: "Search apps and pages", exact: true }).fill("Resources");
+  const resources = launcher.getByRole("link", { name: /^Resources(?:\s|$)/ });
+  await expect(resources).toHaveAttribute("href", "/holdings/acme/technology?view=resources");
+  await resources.click();
+  await expect(page).toHaveURL("/holdings/acme/technology?view=resources");
   await expect(
-    page.getByRole("heading", { name: "Directory & access", exact: true }),
+    page.getByRole("heading", { name: "Resources", exact: true, level: 1 }),
   ).toBeVisible();
-  await page.getByText("Advanced", { exact: true }).click();
-  await page.getByRole("link", { name: "Access matrix", exact: true }).click();
+  await page.getByRole("navigation", { name: "Resource sections", exact: true })
+    .getByRole("link", { name: "Accounts", exact: true }).click();
+  await page.locator("summary").filter({ hasText: /^Directory explorer$/ }).click();
+  await page.getByRole("button", { name: "Accounts & connected directories", exact: true }).click();
+  await page.getByRole("link", { name: "Advanced IAM console ↗", exact: true }).click();
+  await expect(page).toHaveURL("/holdings/acme/iam/matrix");
   for (const [section, heading] of [
     ["users", "Users"],
     ["roles", "Roles & permissions"],

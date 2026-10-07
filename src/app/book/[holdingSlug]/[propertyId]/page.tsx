@@ -1,5 +1,6 @@
+import { bookingPresentationQueries } from "@/server/modules/pms/public/presentation-context-queries";
 import { notFound } from "next/navigation";
-import { bookingCatalog, bookingDatabase } from "@/server/pms-booking";
+
 import { BookingFlow } from "@/components/pms/booking-flow";
 import { BookingGallery } from "@/components/pms/booking-gallery";
 import { BookingCopy } from "@/components/pms/booking-copy";
@@ -12,11 +13,11 @@ export default async function HotelPage({
 }) {
   if (process.env.PMS_STRIPE_BOOKING_ENABLED === 'false') notFound();
   const { holdingSlug, propertyId } = await params;
-  const db = await bookingDatabase(holdingSlug).catch((e) => {
+  const queries = await bookingPresentationQueries(holdingSlug).catch((e) => {
     if (e instanceof Error && e.message === "HOLDING_NOT_FOUND") notFound();
     throw e;
   });
-  const hotel = (await bookingCatalog(db)).find((h) => h.id === propertyId);
+  const hotel = (await queries.bookingCatalog()).find((h) => h.id === propertyId);
   if (!hotel) notFound();
   return (
     <main className={styles.wrap}>

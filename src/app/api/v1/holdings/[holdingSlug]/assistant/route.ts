@@ -1,13 +1,13 @@
 import { assistantAskSchema, assistantPageSchema } from "@/lib/ai/workspace-assistant";
-import { requireWorkContext } from "@/server/authorization";
-import { holdingResources, runtimeEnv } from "@/server/runtime";
-import { ApiError, errorResponse } from "@/server/http";
-import { requestPublicOrigin } from "@/server/public-origin";
-import { askAssistant, assistantView } from "@/server/workspace-assistant";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { holdingResources, runtimeEnv } from "@/server/modules/runtime/public/runtime";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { askAssistant, assistantView } from "@/server/modules/agent/public/workspace-assistant";
 import {
   generateThaiHotelMockAi,
   isThaiHotelAiMockEnabled,
-} from "@/server/simulation-only-adapters";
+} from "@/server/modules/runtime/public/simulation-only-adapters";
 type Context={params:Promise<{holdingSlug:string}>};
 export async function GET(request:Request,context:Context) {
   try {

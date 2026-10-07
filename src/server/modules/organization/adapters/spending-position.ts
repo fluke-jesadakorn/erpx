@@ -1,0 +1,1 @@
+import 'server-only';import type {SqlDatabase} from '../../runtime/public/runtime/types';export async function activeSpendingPosition(db:SqlDatabase,companyId:string,id:string){return !!await db.prepare('SELECT 1 FROM organization_positions WHERE id=? AND company_id=? AND active=1').bind(id,companyId).first();}

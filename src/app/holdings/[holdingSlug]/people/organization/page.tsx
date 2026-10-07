@@ -1,9 +1,10 @@
+import { organizationPresentationQueries } from "@/server/modules/organization/public/presentation-queries";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { PageHeader } from "@/components/ui/primitives";
-import { requireWorkContext, publicScope } from "@/server/authorization";
-import { holdingResources } from "@/server/runtime";
-import { organizationRoster } from "@/server/organization";
-import { appointmentOverview } from "@/server/department-authority";
+import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
+
+
+
 import { DepartmentAuthorityWorkspace } from "@/components/modules/department-authority-workspace";
 import { hasPermission } from "@/lib/permissions";
 import { workspaceBase } from "@/lib/workspace";
@@ -20,9 +21,9 @@ export default async function OrganizationPage({
 }) {
   const actor = await requireWorkContext((await params).holdingSlug),
     base = workspaceBase(publicScope(actor));
-  const { write } = await holdingResources(actor.holdingId),
+  const presentation = await organizationPresentationQueries(actor.holdingId),
     query = await searchParams;
-  const authority = await appointmentOverview(write, actor);
+  const authority = await presentation.appointmentOverview(actor);
   const canReadOrganization = ["people.read", "people.manage", "iam.read", "organization.manage"].some(
       (permission) => hasPermission(actor, permission),
     );
@@ -30,7 +31,7 @@ export default async function OrganizationPage({
     // Appointed department heads still use their existing focused approval tool.
     // The main People panel cannot replace this workflow until authority-specific
     // access has been moved there.
-    const roster = await organizationRoster(write, actor.companyId);
+    const roster = await presentation.organizationRoster(actor.companyId);
     return (
       <FeaturePage className="ui-page-content" data-source="live">
         <Link href={`${base}/work`}>← Work</Link>

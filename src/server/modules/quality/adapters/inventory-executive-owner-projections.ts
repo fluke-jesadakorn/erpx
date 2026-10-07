@@ -1,0 +1,5 @@
+import "server-only";
+/** Closed native projections for Inventory, Planning, Manufacturing and Project snapshots. Callers retain their original scope/authority filters and execute the composed statement in their supplied transaction. No SQL or relation name is accepted from a caller. */
+export const inventoryExecutiveOwnerProjections = Object.freeze({
+  inventory_quality_holds: "SELECT \"id\",\"company_id\",\"branch_id\",\"warehouse_id\",\"product_id\",\"reason\",\"due_date\",\"status\",\"created_by\",\"last_inspector\",\"last_result\",\"released_by\",\"release_reason\",\"released_at\",\"version\",\"created_at\",\"updated_at\",\"cancel_requested_by\",\"cancel_reason\",\"cancelled_by\",\"cancelled_at\",\"lot_id\",\"held_quantity_milli\",\"source_type\",\"source_id\",\"disposition_kind\",\"disposition_reason\",\"disposition_requested_by\",\"disposition_count_id\",\"disposed_by\",\"disposed_at\",\"spec_id\",\"spec_version\",\"quantity_scope\",\"disposition_quantity_milli\" FROM inventory_quality_holds",
+} as const);

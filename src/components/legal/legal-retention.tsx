@@ -6,7 +6,7 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 
 import { TimeText } from "@/components/time/time-preference-context";
 import { useEffect, useState } from "react";
-import type { LegalDetail } from "@/lib/legal/model";
+import type { LegalDetail } from "@/server/modules/legal/public/rules/model";
 import s from "./legal.module.css";
 type Policy = {
   id: string;

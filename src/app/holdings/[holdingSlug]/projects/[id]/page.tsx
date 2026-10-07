@@ -1,3 +1,5 @@
+import { staffPresentationQueries } from "@/server/modules/work_projection/public/presentation-context-queries";
+
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
@@ -5,13 +7,13 @@ import { ProjectEditor } from "@/components/modules/staff-work-controls";
 import { ProjectMilestoneConsole } from "@/components/modules/project-milestones";
 import { ProjectActualsConsole } from "@/components/modules/project-actuals";
 import { ProjectStructureConsole } from "@/components/modules/project-structure-console";
-import {projectGraph,projectHandoffs} from '@/server/project-structure';
-import { pageError } from "@/server/page-error";
-import { staffPage } from "@/server/staff-page";
-import { getProject,listTasks } from "@/server/staff-tasks";
+import {projectGraph,projectHandoffs} from "@/server/modules/projects/public/project-structure";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+
+
 import { samePerson } from "@/lib/iam";
-import { listProjectMilestones } from "@/server/project-milestones";
-import { listProjectCostAllocations, listProjectCostSources, listProjectWorkLogs } from "@/server/project-actuals";
+
+import { listProjectCostAllocations, listProjectCostSources } from "@/server/modules/projects/public/project-actuals";
 import { hasPermission } from "@/lib/permissions";
 import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
 import { RecordLink as Link } from "@/components/records/record-link";
@@ -22,18 +24,15 @@ export default async function Project({
   params: Promise<{ holdingSlug: string; id: string }>;
 }) {
   const { holdingSlug, id } = await params,
-    { actor, write, base, options } = await staffPage(holdingSlug),
-    project = await getProject(write, actor, id).catch((e) => {
+    { actor, queries, base, options } = await staffPresentationQueries(holdingSlug),
+    project = await queries.getProject(actor, id).catch((e) => {
       return pageError(e, holdingSlug);
     }),
-    tasks = await listTasks(write, actor, id),
-    milestones = await listProjectMilestones(write, actor, id),
-    workLogs = await listProjectWorkLogs(write, actor, id),
+    tasks = await queries.listTasks(actor, id),
+    milestones = await queries.listProjectMilestones(actor, id),
+    workLogs = await queries.listProjectWorkLogs(actor, id),
     members = (
-      await write
-        .prepare("SELECT user_id FROM staff_project_members WHERE project_id=?")
-        .bind(id)
-        .all<{ user_id: string }>()
+      await queries.projectMemberIds(id)
     ).results;
   const isProjectOwner = samePerson(actor, project.owner_user_id);
   const active=project.lifecycle_status==='active',graph=await projectGraph(actor,id),handoffs=await projectHandoffs(actor,id);

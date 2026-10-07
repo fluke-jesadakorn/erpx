@@ -1,7 +1,8 @@
+import { bookingPresentationQueries } from "@/server/modules/pms/public/presentation-context-queries";
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { bookingCatalog, bookingDatabase } from "@/server/pms-booking";
+
 import { BookingFlow } from "@/components/pms/booking-flow";
 import { BookingGallery } from "@/components/pms/booking-gallery";
 import { BookingCopy } from "@/components/pms/booking-copy";
@@ -17,11 +18,11 @@ export default async function BookingPage({
   )
     notFound();
   const { holdingSlug } = await params;
-  const db = await bookingDatabase(holdingSlug).catch((e) => {
+  const queries = await bookingPresentationQueries(holdingSlug).catch((e) => {
     if (e instanceof Error && e.message === "HOLDING_NOT_FOUND") notFound();
     throw e;
   });
-  const hotels = await bookingCatalog(db);
+  const hotels = await queries.bookingCatalog();
   return (
     <main className={styles.wrap}>
       <header className={styles.hero}>

@@ -1,0 +1,264 @@
+import { createDirectories, createDirectoryJobDrain, createConnectionLookup, createRunDirectoryJob, requireDirectoryRoute, type DirectoryTransaction } from '../application/directories';
+const clients = new WeakMap<DirectoryTransaction, PoolClient>();
+import { iamDb } from "@/server/modules/identity_access/public/iam-db";
+import "server-only";
+import { z } from "zod";
+import type { PoolClient } from "pg";
+import { iamCommand } from "@/server/modules/identity_access/public/iam-transactions";
+import { assertCompanyScope, type IamActor } from "@/server/modules/identity_access/public/iam-context";
+import { requireFreshMfa } from "@/server/modules/identity_access/public/iam-mfa";
+import { proposeIamReview, insertIamGrant, validateIamGrant } from "@/server/modules/identity_access/public/iam-service";
+import { readDirectory, testDirectory, type ProviderSnapshot } from "@/server/modules/identity_access/public/iam-providers";
+import { ApiError } from "@/server/modules/runtime/public/http";
+import { holdingResources, runtimeEnv } from "@/server/modules/runtime/public/runtime";
+import { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
+export { connectionInput } from '../domain/directories';
+import { connectionInput, type ConnectionRow } from '../domain/directories';
+export type { ConnectionRow } from '../domain/directories';
+export async function connectionById(db: PostgresDatabase, companyId: string, id: string) { db = iamDb(db); return createConnectionLookup({ error: (...args) => new ApiError(...args), lookup: async (companyId, id) => db.prepare('SELECT * FROM iam_connections WHERE company_id=? AND id=?').bind(companyId, id).first<ConnectionRow>() })(companyId, id); }
+export async function routedConnection(id: string) {
+    const env = await runtimeEnv();
+    const route = requireDirectoryRoute(await env.CONTROL_DB.prepare("SELECT * FROM iam_connection_routes WHERE connection_id=?")
+        .bind(id)
+        .first<{
+        holding_id: string | null;
+        company_id: string;
+    }>(),(...args)=>new ApiError(...args));
+    const db = (route.holding_id
+        ? (await holdingResources(route.holding_id)).write
+        : env.CONTROL_DB) as PostgresDatabase;
+    return {
+        db,
+        holdingId: route.holding_id,
+        connection: await connectionById(db, route.company_id, id),
+    };
+}
+export async function saveConnection(db: PostgresDatabase, actor: IamActor, input: z.infer<typeof connectionInput>, key: string) { return directoryService(db).saveConnection(actor, input, key); }
+export async function testConnection(db: PostgresDatabase, actor: IamActor, id: string, version: number, key: string) { return directoryService(db).testConnection(actor, id, version, key); }
+export async function proposeConnectionActivation(db: PostgresDatabase, actor: IamActor, id: string, version: number, key: string) { return directoryService(db).proposeConnectionActivation(actor, id, version, key); }
+export async function disableConnection(db: PostgresDatabase, actor: IamActor, id: string, version: number, key: string) { return directoryService(db).disableConnection(actor, id, version, key); }
+/** Only complete snapshots replace membership; credentials never enter the snapshot. */
+export async function applyDirectorySnapshot(db: PostgresDatabase, connection: ConnectionRow, snapshot: ProviderSnapshot, observedAt = Date.now()) { return directoryService(db).applyDirectorySnapshot(connection, snapshot, observedAt); }
+export async function synchronizeConnection(db: PostgresDatabase, connection: ConnectionRow) { return directoryService(db).synchronizeConnection(connection); }
+export { mappingInput } from '../domain/directories';
+import { mappingInput } from '../domain/directories';
+export async function proposeMapping(db: PostgresDatabase, actor: IamActor, input: z.infer<typeof mappingInput>, key: string) { return directoryService(db).proposeMapping(actor, input, key); }
+export async function applyDirectoryReview(c: PoolClient, actor: IamActor, kind: string, p: Record<string, unknown>) { return directoryService().applyDirectoryReview(directoryTx(c, actor), actor, kind, p); }
+async function drainOneDirectoryJob(raw:PostgresDatabase){const db=iamDb(raw);return createRunDirectoryJob({now:Date.now,token:()=>crypto.randomUUID(),claim:async(now,token,leaseUntil)=>await db
+        .prepare(`UPDATE iam_sync_jobs SET lease_until=?,lease_token=?,attempts=attempts+1 WHERE connection_id=(SELECT j.connection_id FROM iam_sync_jobs j JOIN iam_connections c ON c.id=j.connection_id WHERE c.status='active' AND j.next_run_at<=? AND (j.lease_until IS NULL OR j.lease_until<?) ORDER BY j.next_run_at FOR UPDATE OF j SKIP LOCKED LIMIT 1) RETURNING connection_id`)
+        .bind(leaseUntil, token, now, now)
+        .first<{
+        connection_id: string;
+    }>(),connection:async(id)=>await db
+        .prepare("SELECT * FROM iam_connections WHERE id=?")
+        .bind(id)
+        .first<ConnectionRow>(),renewing:async(connection,token,run)=>{    const renewal = setInterval(() => {
+        void db
+            .prepare("UPDATE iam_sync_jobs SET lease_until=? WHERE connection_id=? AND lease_token=?")
+            .bind(Date.now() + 120000, connection.id, token)
+            .run()
+            .catch(() => { });
+    }, 30000);
+try{await run();}finally{clearInterval(renewal);}},synchronize:(connection)=>synchronizeConnection(db,connection),complete:async(connectionId,token,nextRun)=>{await db
+            .prepare("UPDATE iam_sync_jobs SET next_run_at=?,lease_until=NULL,lease_token=NULL WHERE connection_id=? AND lease_token=?")
+            .bind(nextRun, connectionId, token)
+            .run();}})();}
+export async function drainDirectoryJobs(db: PostgresDatabase) { return createDirectoryJobDrain({ one: () => drainOneDirectoryJob(db) })(); }
+export { refreshDirectoryMember } from "@/server/modules/identity_access/public/iam-directory-refresh";
+function directoryTx(c: PoolClient, actor?: IamActor): DirectoryTransaction {
+    const tx: DirectoryTransaction = { lockTrustConnection: async (facts) => {
+            if (!actor)
+                throw new Error("IAM actor required for command transaction");
+            const { id } = facts;
+            return (await c.query("SELECT * FROM iam_connections WHERE id=$1 AND company_id=$2 FOR UPDATE", [id, actor.companyId])).rows[0] ?? null;
+        },
+        replaceTrustConnection: async (facts) => {
+            const { input, id } = facts;
+            return void await c.query("UPDATE iam_connections SET name=$1,config=$2,status='draft',version=version+1,tested_version=NULL,health='untested',last_error=NULL WHERE id=$3", [input.name, JSON.stringify(input.config), id]);
+        },
+        insertTrustConnection: async (facts) => {
+            if (!actor)
+                throw new Error("IAM actor required for command transaction");
+            const { id, input, observedNow } = facts;
+            return void await c.query("INSERT INTO iam_connections(id,company_id,name,provider,config,created_by,created_at) VALUES($1,$2,$3,$4,$5,$6,$7)", [
+                id,
+                actor.companyId,
+                input.name,
+                input.provider,
+                JSON.stringify(input.config),
+                actor.userId,
+                observedNow,
+            ]);
+        },
+        recordTestedConnection: async (facts) => {
+            if (!actor)
+                throw new Error("IAM actor required for command transaction");
+            const { id, version } = facts;
+            return { changed: !!(await c.query("UPDATE iam_connections SET tested_version=version,status=CASE WHEN status='active' THEN status ELSE 'tested' END,health='ready',last_error=NULL WHERE id=$1 AND company_id=$2 AND version=$3 RETURNING id", [id, actor.companyId, version])).rowCount };
+        },
+        storeTestPreview: async (facts) => {
+            const { id, version, result, observedNow } = facts;
+            return void await c.query("INSERT INTO iam_connection_previews VALUES($1,$2,$3,$4) ON CONFLICT(connection_id) DO UPDATE SET version=excluded.version,snapshot_json=excluded.snapshot_json,created_at=excluded.created_at", [id, version, JSON.stringify(result.snapshot), observedNow]);
+        },
+        activationEvidence: async (facts) => {
+            if (!actor)
+                throw new Error("IAM actor required for command transaction");
+            const { id } = facts;
+            return (await c.query("SELECT * FROM iam_connections WHERE id=$1 AND company_id=$2", [id, actor.companyId])).rows[0] ?? null;
+        },
+        disableTrustConnection: async (facts) => {
+            if (!actor)
+                throw new Error("IAM actor required for command transaction");
+            const { id, version } = facts;
+            return { changed: !!(await c.query("UPDATE iam_connections SET status='disabled',version=version+1,health='disabled' WHERE id=$1 AND company_id=$2 AND version=$3 RETURNING id", [id, actor.companyId, version])).rowCount };
+        },
+        invalidateConnectionMembers: async (facts) => {
+            if (!actor)
+                throw new Error("IAM actor required for command transaction");
+            const { id } = facts;
+            return void await c.query("UPDATE iam_members SET version=version+1 WHERE connection_id=$1 AND company_id=$2", [id, actor.companyId]);
+        },
+        clearConnectionSelections: async (facts) => {
+            if (!actor)
+                throw new Error("IAM actor required for command transaction");
+            const { id } = facts;
+            return void await c.query("UPDATE active_work_contexts SET assignment_id=NULL,assignment_version=NULL,revision=revision+1 WHERE company_id=$1 AND user_id IN (SELECT user_id FROM iam_members WHERE connection_id=$2)", [actor.companyId, id]);
+        },
+        lockSnapshotConnection: async (facts) => {
+            const { connection } = facts;
+            return (await c.query("SELECT * FROM iam_connections WHERE id=$1 FOR UPDATE", [
+                connection.id,
+            ])).rows[0] ?? null;
+        },
+        storeDirectoryHierarchy: async (facts) => { const { connection, hierarchy, now } = facts; return void await c.query("INSERT INTO iam_directory_hierarchies(connection_id,hierarchy_json,observed_at) VALUES($1,$2,$3) ON CONFLICT(connection_id) DO UPDATE SET hierarchy_json=excluded.hierarchy_json,observed_at=excluded.observed_at", [connection.id, JSON.stringify(hierarchy), now]); },
+        observeDirectoryGroup: async (facts) => {
+            const { connection, group, now } = facts;
+            return void await c.query("INSERT INTO iam_groups VALUES($1,$2,$3,$4) ON CONFLICT(connection_id,external_id) DO UPDATE SET name=excluded.name,observed_at=excluded.observed_at", [connection.id, group.externalId, group.name, now]);
+        },
+        observeDirectoryIdentity: async (facts) => {
+            const { identityId, connection, user, now } = facts;
+            return void await c.query("INSERT INTO iam_identities(id,company_id,connection_id,external_id,username,name,email,enabled,groups_json,observed_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(connection_id,external_id) DO UPDATE SET username=excluded.username,name=excluded.name,email=excluded.email,enabled=excluded.enabled,groups_json=excluded.groups_json,observed_at=excluded.observed_at", [
+                identityId,
+                connection.company_id,
+                connection.id,
+                user.externalId,
+                user.username,
+                user.name,
+                user.email,
+                user.enabled,
+                JSON.stringify(user.groupIds),
+                now,
+            ]);
+        },
+        disableMissingIdentities: async (facts) => {
+            const { now, connection, snapshot } = facts;
+            return void await c.query("UPDATE iam_identities SET enabled=false,groups_json='[]',observed_at=$1 WHERE connection_id=$2 AND NOT (external_id=ANY($3::text[]))", [now, connection.id, snapshot.users.map((u) => u.externalId)]);
+        },
+        removeMissingGroups: async (facts) => {
+            const { connection, snapshot } = facts;
+            return void await c.query("DELETE FROM iam_groups WHERE connection_id=$1 AND NOT (external_id=ANY($2::text[]))", [connection.id, snapshot.groups.map((g) => g.externalId)]);
+        },
+        revokeRemovedMemberships: async (facts) => {
+            const { connection, now } = facts;
+            return void await c.query(`UPDATE ${connection.company_id === "platform" ? "platform_assignments" : "assignments"} a SET revoked_at=$1,version=version+1 WHERE a.source='directory' AND a.revoked_at IS NULL AND a.source_id IN (SELECT id FROM iam_mappings WHERE connection_id=$2) AND NOT EXISTS(SELECT 1 FROM iam_mappings m JOIN iam_identities i ON i.connection_id=m.connection_id AND i.user_id=a.user_id WHERE m.id=a.source_id AND m.status='active' AND m.valid_until>$1 AND i.enabled AND i.groups_json @> jsonb_build_array(m.group_id) AND iam_assignment_active(m.parent_id,$1))`, [now, connection.id]);
+        },
+        mappingCandidates: async (facts) => {
+            const { connection, now } = facts;
+            return (await c.query("SELECT m.*,i.user_id,i.person_id FROM iam_mappings m JOIN iam_identities i ON i.connection_id=m.connection_id JOIN iam_members u ON u.identity_id=i.id AND u.company_id=m.company_id AND u.user_id=i.user_id WHERE m.connection_id=$1 AND m.status='active' AND m.valid_until>$2 AND i.enabled AND i.groups_json @> jsonb_build_array(m.group_id) AND u.status='active' AND u.login_policy='directory' AND iam_assignment_active(m.parent_id,$2)", [connection.id, now])).rows;
+        },
+        existingMappingGrant: async (facts) => {
+            const { connection, m } = facts;
+            return (await c.query(`SELECT 1 FROM ${connection.company_id === "platform" ? "platform_assignments" : "assignments"} WHERE user_id=$1 AND source='directory' AND source_id=$2`, [m.user_id, m.id])).rowCount;
+        },
+        mappingParent: async (facts) => { const { connection, m } = facts; return (await c.query(`SELECT * FROM ${connection.company_id === "platform" ? "platform_assignments" : "assignments"} WHERE id=$1`, [m.parent_id])).rows[0] ?? null; },
+        mappingParentPolicy: async (facts) => {
+            const { parent, connection } = facts;
+            return (await c.query("SELECT v.grantable_json FROM iam_roles r JOIN iam_role_revisions v ON v.company_id=r.company_id AND v.role_id=r.id AND v.revision=r.published_revision WHERE r.id=$1 AND r.company_id IN ('*',$2)", [parent.role, connection.company_id])).rows[0] ?? null;
+        },
+        recordHealthySync: async (facts) => {
+            const { now, connection } = facts;
+            return void await c.query("UPDATE iam_connections SET last_sync_at=$1,health='healthy',last_error=NULL WHERE id=$2", [now, connection.id]);
+        },
+        recordSyncAudit: async (facts) => {
+            const { identityId, connection, snapshot, now } = facts;
+            return void await c.query("INSERT INTO iam_audit VALUES($1,$2,$3,$4,$5,$6,$7,$8)", [
+                identityId,
+                connection.company_id,
+                "directory-sync",
+                "system",
+                "directory.synchronized",
+                connection.id,
+                JSON.stringify({
+                    users: snapshot.users.length,
+                    groups: snapshot.groups.length,
+                    version: connection.version,
+                }),
+                now,
+            ]);
+        },
+        knownMappingGroup: async (facts) => {
+            if (!actor)
+                throw new Error("IAM actor required for command transaction");
+            const { input } = facts;
+            return (await c.query("SELECT 1 FROM iam_groups g JOIN iam_connections c ON c.id=g.connection_id WHERE c.company_id=$1 AND c.id=$2 AND g.external_id=$3", [actor.companyId, input.connectionId, input.groupId])).rowCount;
+        },
+        mappingPreview: async (facts) => {
+            if (!actor)
+                throw new Error("IAM actor required for command transaction");
+            const { input } = facts;
+            return (await c.query("SELECT p.snapshot_json FROM iam_connection_previews p JOIN iam_connections c ON c.id=p.connection_id AND c.version=p.version WHERE c.id=$1 AND c.company_id=$2", [input.connectionId, actor.companyId])).rows[0] ?? null;
+        },
+        activateTestedConnection: async (facts) => {
+            if (!actor)
+                throw new Error("IAM actor required for command transaction");
+            const { p } = facts;
+            return { changed: !!(await c.query("UPDATE iam_connections SET status='active',health='awaiting_sync' WHERE id=$1 AND company_id=$2 AND version=$3 AND tested_version=version AND status='tested' RETURNING id", [p.id, actor.companyId, p.version])).rowCount };
+        },
+        scheduleConnectionSync: async (facts) => {
+            const { p } = facts;
+            return void await c.query("INSERT INTO iam_sync_jobs(connection_id,next_run_at) VALUES($1,0) ON CONFLICT(connection_id) DO UPDATE SET next_run_at=0", [p.id]);
+        },
+        reviewerBenefitsFromMapping: async (facts) => {
+            if (!actor)
+                throw new Error("IAM actor required for command transaction");
+            const { input } = facts;
+            return (await c.query("SELECT 1 FROM iam_identities WHERE company_id=$1 AND connection_id=$2 AND groups_json @> jsonb_build_array($3::text) AND user_id IS NOT NULL AND iam_same_person(user_id,$4,$1)", [actor.companyId, input.connectionId, input.groupId, actor.userId])).rowCount;
+        },
+        insertReviewedMapping: async (facts) => {
+            if (!actor)
+                throw new Error("IAM actor required for command transaction");
+            const { identityId, input, p } = facts;
+            return void await c.query("INSERT INTO iam_mappings(id,company_id,connection_id,group_id,role_id,scope_kind,scope_node_id,valid_until,parent_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)", [
+                identityId,
+                actor.companyId,
+                input.connectionId,
+                input.groupId,
+                input.roleId,
+                input.scopeKind,
+                input.scopeNodeId,
+                input.validUntil,
+                p.parentId,
+            ]);
+        } };
+    clients.set(tx, c);
+    return tx;
+}
+function directoryService(raw?: PostgresDatabase) {
+    const db = raw ? iamDb(raw) : undefined;
+    return createDirectories({ error: (...args) => new ApiError(...args), now: Date.now, id: () => crypto.randomUUID(), companyScope: assertCompanyScope, fresh: requireFreshMfa, apiError: (error): error is ApiError => error instanceof ApiError, connection: (companyId, id) => connectionById(db!, companyId, id), route: async (id, actor) => { await (await runtimeEnv()).CONTROL_DB.prepare('INSERT INTO iam_connection_routes VALUES(?,?,?) ON CONFLICT(connection_id) DO NOTHING').bind(id, actor.holdingId, actor.companyId).run(); }, test: testDirectory, read: readDirectory, testFailure: async (id, version, code) => { await db!.prepare("UPDATE iam_connections SET health='error',last_error=? WHERE id=? AND version=?").bind(code, id, version).run(); }, syncFailure: async (connection, startedAt, code, cutoff) => { await db!.prepare("UPDATE iam_connections SET health='error',last_error=? WHERE id=? AND version=? AND COALESCE(last_sync_at,0)<=?").bind(code, connection.id, connection.version, startedAt).run(); await db!.prepare("UPDATE iam_identities SET observed_at=LEAST(observed_at,?) WHERE connection_id=? AND EXISTS(SELECT 1 FROM iam_connections WHERE id=? AND version=? AND health='error' AND COALESCE(last_sync_at,0)<=?)").bind(cutoff, connection.id, connection.id, connection.version, startedAt).run(); }, command: async (actor, key, operation, payload, permission, run) => iamCommand(db!, actor, key, operation, payload, permission, async (c) => run(directoryTx(c, actor))), snapshotTransaction: async (connection, run) => {
+            const c = await db!.pool.connect();
+            try {
+                await c.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
+                const result = await run(directoryTx(c));
+                await c.query('COMMIT');
+                return result;
+            }
+            catch (error) {
+                await c.query('ROLLBACK');
+                throw error;
+            }
+            finally {
+                c.release();
+            }
+        }, validateGrant: (tx, actor, input, parentId) => validateIamGrant(clients.get(tx)!, actor, input, parentId), insertGrant: (tx, actor, input, parentId, source, sourceId) => insertIamGrant(clients.get(tx)!, actor, input, parentId, source, sourceId), review: (tx, actor, kind, payload, reason) => proposeIamReview(clients.get(tx)!, actor, kind, payload, reason) });
+}

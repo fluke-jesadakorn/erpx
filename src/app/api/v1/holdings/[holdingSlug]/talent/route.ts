@@ -1,6 +1,6 @@
-import { requireWorkContext } from "@/server/authorization";
-import { requestPublicOrigin } from "@/server/public-origin";
-import { ApiError, errorResponse } from "@/server/http";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import {
   changeTalentRecord,
   createTalentApplication,
@@ -10,8 +10,8 @@ import {
   createTalentRequisition,
   talentDetail,
   talentWorkspace,
-} from "@/server/talent";
-import { candidatePrivacySchema,changeCandidatePrivacy } from "@/server/people-handoffs";
+} from "@/server/modules/talent/public/talent";
+import { candidatePrivacySchema,changeCandidatePrivacy } from "@/server/modules/people_payroll/public/people-handoffs";
 type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
 export async function GET(r: Request, c: C) {

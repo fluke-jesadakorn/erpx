@@ -94,22 +94,14 @@ export class LocalFileStore implements FileStore {
     }
     if(!this.preservationDb)return operation();
     const guarded=async(tx:SqlDatabase)=>{
-      await tx.prepare("SELECT pg_advisory_xact_lock(hashtextextended('legal-files',0))").run();
-      if(await tx.prepare("SELECT to_regclass('attachment_orphan_preservations') present").first("present"))for(const key of keys)
-        if(await tx.prepare("SELECT 1 FROM attachment_orphan_preservations p WHERE p.object_key=? AND NOT EXISTS(SELECT 1 FROM attachment_orphan_preservation_events e WHERE e.preservation_id=p.id AND e.event_kind='restored')").bind(key).first())throw new Error('FILE_PRESERVED_PENDING_OWNER');
-      for(const key of keys)if(await tx.prepare(`SELECT 1 WHERE EXISTS(SELECT 1 FROM legal_file_preservations p JOIN legal_hold_targets target ON target.item_id=p.item_id JOIN legal_holds hold ON hold.id=target.hold_id WHERE hold.state<>'released' AND (p.object_key=? OR (p.source_type='attachment' AND EXISTS(SELECT 1 FROM attachment_storage_ledger storage WHERE storage.attachment_id=p.source_id AND storage.object_key=?))))
-        OR EXISTS(SELECT 1 FROM attachments source JOIN attachment_links link ON link.attachment_id=source.id JOIN attachment_sets owner ON owner.id=link.set_id JOIN legal_hold_targets target ON target.item_id=owner.target_id JOIN legal_holds hold ON hold.id=target.hold_id WHERE owner.target_type='legal_item' AND hold.state<>'released' AND (source.object_key=? OR source.preview_object_key=? OR EXISTS(SELECT 1 FROM attachment_storage_ledger storage WHERE storage.attachment_id=source.id AND storage.object_key=?)))`).bind(key,key,key,key,key).first())throw new Error('LEGAL_HOLD_BLOCKS_FILE_MUTATION');
+      await (await import("@/server/modules/legal/public/runtime-preservation-authority")).runtimePreservationAuthority(tx).assertMutation(keys);
       return operation();
     };
     return database?guarded(database):this.preservationDb.transaction(guarded);
   }
   async destroyPreserved(keys:string[],authorization:Parameters<NonNullable<FileStore['destroyPreserved']>>[1]){
     const tx=authorization.database;
-    const row=await tx.prepare("SELECT x.manifest,x.item_id,item.company_id FROM legal_destructions x JOIN legal_items item ON item.id=x.item_id WHERE x.id=? AND x.state='executing' AND x.approved_by IS NOT NULL AND NOT EXISTS(SELECT 1 FROM legal_hold_targets target JOIN legal_holds hold ON hold.id=target.hold_id WHERE target.item_id=x.item_id AND hold.state<>'released')").bind(authorization.destructionId).first<{manifest:string;item_id:string;company_id:string}>();
-    if(!row)throw new Error('LEGAL_DESTRUCTION_NOT_AUTHORIZED');
-    const manifest=(typeof row.manifest==='string'?JSON.parse(row.manifest):row.manifest) as import('../legal/destruction-sources').LegalDestructionManifest;
-    if(keys.some(key=>!manifest.keys.includes(key)))throw new Error('LEGAL_DESTRUCTION_SCOPE');
-    await (await import('../legal/destruction-sources')).validateLegalDestructionSources(tx,row.item_id,row.company_id,manifest);
+    await (await import("@/server/modules/legal/public/runtime-preservation-authority")).runtimePreservationAuthority(tx).assertDestruction(keys,authorization.destructionId);
     for(const key of keys)await rm(this.location(key),{recursive:true,force:true});
   }
   async list(options: { prefix?: string; cursor?: string; limit?: number } = {}) {

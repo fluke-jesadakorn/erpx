@@ -18,7 +18,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { minorToDecimal } from "@/lib/finance-money";
-import type { ExpenseRow as Row } from "@/server/expenses";
+import type { ExpenseRow as Row } from "@/server/modules/people_payroll/expense";
 import { useExpenseDraft } from "./use-expense-draft";
 import type { ExpenseAiSuggestionEvent } from "@/lib/expense-ai";
 import { clearGuidedIntakeHandoff, readGuidedIntakeHandoff } from "@/lib/ai/guided-intake";

@@ -11,7 +11,7 @@ import type {
   ProjectCostAllocationRow,
   ProjectCostSourceRow,
   ProjectWorkLogRow,
-} from "@/server/project-actuals";
+} from "@/server/modules/projects/public/project-actuals";
 import { Stack, Card, FormLayout } from "@/components/ui/foundation";
 
 export function ProjectActualsConsole({

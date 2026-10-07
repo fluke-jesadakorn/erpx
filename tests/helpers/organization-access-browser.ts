@@ -1,6 +1,7 @@
 import { expect, type BrowserContext, type Page, type Locator } from "@playwright/test";
 import type { OrganizationAccessData } from "../../src/lib/organization-access";
 import type { DirectoryAutomationData } from "../../src/lib/directory-operations";
+import { selectFixtureAssignment } from "../e2e/helpers/select-fixture-assignment";
 
 export async function organizationSession(context: BrowserContext, role: "hr_admin" | "it_admin") {
   const login = await context.request.post("/api/auth/sign-in/email", { headers: { Origin: process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3100" }, data: {
@@ -8,13 +9,17 @@ export async function organizationSession(context: BrowserContext, role: "hr_adm
     password: role === "hr_admin" ? process.env.ERPX_E2E_HR_PASSWORD ?? "12345678" : process.env.ERPX_E2E_ADMIN_PASSWORD ?? "12345678",
   } });
   expect(login.ok(), await login.text()).toBe(true);
+  const company = await context.request.post("/api/v1/holdings/acme/companies/active", {
+    headers: { Origin: process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3100" },
+    data: { companyId: "acme-co" },
+  });
+  expect(company.ok(), await company.text()).toBe(true);
   const response = await context.request.get("/api/v1/holdings/acme/assignments/active");
   expect(response.ok(), await response.text()).toBe(true);
   const state = (await response.json()).data as { companyId: string; revision: number; options: { id: string; role: string; href: string }[] };
   const assignment = state.options.find(option => option.role === role && !option.href.includes("/branches/"));
   expect(assignment, `Seeded account needs Company ${role} authority`).toBeTruthy();
-  const selection = await context.request.post("/api/v1/holdings/acme/assignments/active", { headers: { "x-erpx-context-company": state.companyId }, data: { assignmentId: assignment!.id, revision: state.revision } });
-  expect(selection.ok(), await selection.text()).toBe(true);
+  await selectFixtureAssignment(context, state.companyId, assignment!.id);
   return assignment!.href.replace(/\/home$/, "");
 }
 

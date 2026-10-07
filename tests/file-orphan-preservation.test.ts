@@ -8,7 +8,7 @@ import { reconcileAttachmentStorage } from "../src/server/attachments/migration"
 import { LocalFileStore } from "../src/server/runtime/filesystem";
 
 beforeAll(async()=>{await applyMigrations(env.H001_DB,env.STAFF_TEST_MIGRATIONS);});
-const environment={ERPX_ENVIRONMENT:"local",ERPX_ATTACHMENTS_V2:"false",ERPX_ATTACHMENT_UPLOAD_FREEZE:"true"};
+const environment:NodeJS.ProcessEnv={NODE_ENV:'test',ERPX_ENVIRONMENT:"local",ERPX_ATTACHMENTS_V2:"false",ERPX_ATTACHMENT_UPLOAD_FREEZE:"true"};
 const db=env.H001_DB,files=env.H001_FILES;
 it("preserves an orphan's complete version directory outside serving/quota with immutable replay evidence",async()=>{
   const objectKey=`unknown-owner/${crypto.randomUUID()}`,root=join(dirname(files.root),"preserved-orphans-h001"),bytes="Historical bytes; ownership deliberately unknown";

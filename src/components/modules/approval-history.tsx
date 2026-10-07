@@ -1,6 +1,6 @@
 import { InlineNotice } from "@/components/ui/foundation";
 import { TimeText } from "@/components/time/time-preference-context";
-import type { ApprovalView } from "@/server/approvals";
+import type { ApprovalView } from "@/server/modules/workflow/public/approvals";
 import { Card } from "@/components/ui/foundation";
 function source(snapshotText: string | null | undefined) {
   if (!snapshotText) return null;

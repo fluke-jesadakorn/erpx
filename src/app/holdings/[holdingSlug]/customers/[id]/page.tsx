@@ -6,12 +6,12 @@ import { StatusBadge } from "@/components/ui/primitives";
 import { CustomerNotes } from "@/components/modules/customer-notes";
 import { HubForm } from "@/components/sales-customers/hub-form";
 import styles from "@/components/sales-customers/hub.module.css";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { customerWorkspaceProfile } from "@/server/sales-customers";
-import { pageError } from "@/server/page-error";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { customerWorkspaceProfile } from "@/server/modules/sales/public/sales-customers";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { workspaceBase } from "@/lib/workspace";
 import { hasPermission } from "@/lib/permissions";
-import { queryValue, type HubQuery } from "@/lib/sales-customers";
+import { queryValue, type HubQuery } from "@/server/modules/sales/public/rules/navigation";
 export const dynamic = "force-dynamic";
 export default async function Page({ params, searchParams }: { params: Promise<{ holdingSlug: string; id: string }>; searchParams: Promise<HubQuery> }) {
   const { holdingSlug, id } = await params, actor = await requireWorkContext(holdingSlug), base = workspaceBase(publicScope(actor)), query = await searchParams;

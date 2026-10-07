@@ -1,0 +1,2 @@
+export type AlertResult={expiring:number;expired:number};export type ReservationAlertPhase='expiring'|'expired';
+export function reservationAlertMessage(phase:ReservationAlertPhase){return phase==='expiring'?'Stock reservation expires within 24 hours; use, release, or re-reserve it from the source work':'Stock reservation expired and no longer protects availability; re-reserve or correct the source work';}

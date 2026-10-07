@@ -1,0 +1,7 @@
+import {collaborationNotificationSnapshotSources as procurementSnapshotSources} from '../../procurement/public/collaboration-notification-snapshot-sources';
+import {collaborationNotificationSnapshotSources as identityaccessSnapshotSources} from '../../identity_access/public/collaboration-notification-snapshot-sources';
+const procurementSources=procurementSnapshotSources();
+const identityaccessSources=identityaccessSnapshotSources();
+import "server-only";
+import type {SqlDatabase} from "../../runtime/public/runtime/types";
+export function stageRfqNotifications(db:SqlDatabase,id:string,key:string){return db.prepare(`INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT DISTINCT ?||'-'||a.user_id,r.company_id,a.user_id,'procurement_rfq',r.id,r.version,'Supplier quotation review changed: review the next action',r.updated_at ${procurementSources.rfq_notifications_procurement_rfqs_r_from} ${identityaccessSources.rfq_notifications_assignments_a_join} ON a.company_id=r.company_id AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(a.role,a.company_id,'commerce.purchase') AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=r.branch_id) OR (a.scope_kind='department' AND a.scope_node_id=r.department_id)) WHERE r.id=? ON CONFLICT DO NOTHING`).bind(key,id);}

@@ -100,7 +100,7 @@ test("isolated demo calculates and independently approves a payroll preview", as
     const mappingDraftCard = mappingDraftPage.getByRole("region", { name: "Payroll account mapping", exact: true });
     await expect(mappingDraftCard).toBeVisible();
     await mappingDraftCard.getByLabel("Pay group").selectOption({ label: "Demo monthly payroll · THB" });
-    const mappingDraftForm = mappingDraftCard.locator("form.business-form");
+    const mappingDraftForm = mappingDraftCard.locator("form.ui-form-grid");
     await mappingDraftForm.locator('select[name="expenseAccountId"]').selectOption({ index: 1 });
     await mappingDraftForm.locator('select[name="netPayableAccountId"]').selectOption({ index: 1 });
     const mappingSaveResponse = mappingDraftPage.waitForResponse(
@@ -135,7 +135,10 @@ test("isolated demo calculates and independently approves a payroll preview", as
     await preparerPage
       .getByRole("button", { name: "Create payroll run", exact: true })
       .click();
-    const createForm = preparerPage.locator('#workspace-content').locator("form").filter({
+    const createDialog = preparerPage.getByRole("dialog", { name: "Create payroll run", exact: true });
+    await expect(createDialog).toHaveCount(1);
+    await expect(createDialog).toBeVisible();
+    const createForm = createDialog.locator("form").filter({
       hasText: "Select pay group",
     });
     await createForm
@@ -191,7 +194,10 @@ test("isolated demo calculates and independently approves a payroll preview", as
 
     await preparerPage.goto("/holdings/simulation/people/payroll/settings", { waitUntil: "commit" });
     await preparerPage.getByRole("button", { name: "Create payroll run", exact: true }).click();
-    const completedForm = preparerPage.locator('#workspace-content').locator("form").filter({ hasText: "Select pay group" });
+    const completedDialog = preparerPage.getByRole("dialog", { name: "Create payroll run", exact: true });
+    await expect(completedDialog).toHaveCount(1);
+    await expect(completedDialog).toBeVisible();
+    const completedForm = completedDialog.locator("form").filter({ hasText: "Select pay group" });
     await completedForm.locator('select[name="payGroupId"]').selectOption({ label: "Demo monthly payroll · THB" });
     // September OT retains its own preview. October 1–2 is completed as of the
     // declared engineering fixture clock and does not overlap that source.
@@ -304,7 +310,7 @@ test("isolated demo calculates and independently approves a payroll preview", as
     const postResult = await postResponse;
     expect(postResult.status(), await postResult.text()).toBe(200);
     const paymentPanel = financePage.getByRole("region", { name: "Payroll payment batch", exact: true });
-    const prepareForm = paymentPanel.locator("form.business-form:visible");
+    const prepareForm = paymentPanel.locator("form.ui-form-grid:visible");
     await expect(prepareForm).toBeVisible();
     await financePage.locator('#workspace-content').getByLabel("Finance bank account ID", { exact: true }).fill(state.fixture.closeBankAccountId);
     const prepareResponse = financePage.waitForResponse(
@@ -353,7 +359,7 @@ test("isolated demo calculates and independently approves a payroll preview", as
     expect((await exportPaymentResponse).status()).toBe(200);
     await expect(treasuryPaymentPanel.getByText(/1 payees · Exported/)).toBeVisible();
 
-    const confirmationForm = treasuryPaymentPanel.locator("form.business-form:visible").filter({ hasText: "Reconcile bank results" });
+    const confirmationForm = treasuryPaymentPanel.locator("form.ui-form-grid:visible").filter({ hasText: "Reconcile bank results" });
     await expect(confirmationForm).toBeVisible();
     const bankReferences = confirmationForm.locator('input[name^="ref:"]');
     const bankIds = confirmationForm.locator('input[name^="bankId:"]');
@@ -401,7 +407,7 @@ test("isolated demo calculates and independently approves a payroll preview", as
 
     await treasuryPage.reload({ waitUntil: "commit" });
     const refreshedPaymentPanel = treasuryPage.getByRole("region", { name: "Payroll payment batch", exact: true });
-    const refreshedConfirmationForm = refreshedPaymentPanel.locator("form.business-form:visible").filter({ hasText: "Reconcile bank results" });
+    const refreshedConfirmationForm = refreshedPaymentPanel.locator("form.ui-form-grid:visible").filter({ hasText: "Reconcile bank results" });
     await expect(refreshedConfirmationForm).toBeVisible();
     await refreshedConfirmationForm.locator(`input[name="ref:${paymentReference}"]`).fill(paymentReference!);
     await refreshedConfirmationForm.locator(`input[name="bankId:${paymentReference}"]`).fill(bankTransaction.id);

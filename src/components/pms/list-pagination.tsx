@@ -2,7 +2,7 @@
 import {FrontLocalizedTree} from '@/components/front/front-language';
 import {usePathname,useRouter,useSearchParams} from 'next/navigation';
 import {Button,Field,Select,TextInput} from '@/components/ui/foundation';
-import type {pmsWorkspace} from '@/server/pms';
+import type {pmsWorkspace} from "@/server/modules/pms/public/pms";
 type Meta=NonNullable<NonNullable<Awaited<ReturnType<typeof pmsWorkspace>>['snapshot']>['listMeta']>;
 export function PmsListPagination({meta}:{meta:Meta}){
  const router=useRouter(),pathname=usePathname(),params=useSearchParams();

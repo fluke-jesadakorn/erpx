@@ -1,7 +1,7 @@
-import { requireWorkContext } from '@/server/authorization';
-import { hospitalitySetup } from '@/server/hospitality-setup';
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { hospitalitySetup } from "@/server/modules/pms/public/hospitality-setup";
 import { HospitalitySetupGuide } from '@/components/hospitality/setup-guide';
-import { pageError } from '@/server/page-error';
+import { pageError } from "@/server/modules/work_projection/public/page-error";
 export const dynamic='force-dynamic';
 export default async function Page({params,searchParams}:{params:Promise<{holdingSlug:string}>;searchParams:Promise<{branch?:string;property?:string}>}) {
   const {holdingSlug}=await params,actor=await requireWorkContext(holdingSlug),query=await searchParams;

@@ -1,3 +1,4 @@
+import { collaborationPresentationQueries } from "@/server/modules/collaboration/public/presentation-queries";
 
 import { PageContent } from "@/components/ui/patterns";
 
@@ -8,19 +9,19 @@ import { ListPagination } from "@/components/ui/list-pagination";
 import { EmptyState,PageHeader } from "@/components/ui/primitives";
 import { pageGuides } from "@/lib/ai/workspace-assistant";
 import { workplaceNavigation } from "@/lib/workplace-navigation";
-import { navigationContext } from "@/server/navigation-context";
+import { navigationContext } from "@/server/modules/work_projection/public/navigation-context";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope,requireWorkContext } from "@/server/authorization";
-import { handbookList } from "@/server/handbook";
-import { holdingResources } from "@/server/runtime";
+import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+
+
 import { ArrowUpRight,BookOpen,Sparkles } from "lucide-react";
 import { RecordLink as Link } from "@/components/records/record-link";
 import styles from "./learn.module.css";
 
 export default async function LearnPage({params,searchParams}:{params:Promise<{holdingSlug:string}>;searchParams:Promise<{q?:string;cursor?:string}>}) {
   const actor=await requireWorkContext((await params).holdingSlug),base=workspaceBase(publicScope(actor)),query=await searchParams;
-  const {write}=await holdingResources(actor.holdingId);
-  const knowledge=await handbookList(write,actor,query.q??"",false,query.cursor);
+  const presentation=await collaborationPresentationQueries(actor.holdingId);
+  const knowledge=await presentation.handbookList(actor, query.q??"", false, query.cursor);
   const destinations=new Map<string,string>();
   for(const item of workplaceNavigation(await navigationContext(actor)).search) {
     const path=item.href.slice(base.length).split(/[?#]/)[0].split("/").filter(Boolean)[0];
@@ -31,6 +32,16 @@ export default async function LearnPage({params,searchParams}:{params:Promise<{h
     <PageHeader appearance="standard" eyebrow="Learn in the flow of work" title="Guides" description="Practical workflow guides and published company knowledge, close to the work you need to do." action={knowledge.access.editor?<UiActionLink appearance="standard" variant="secondary" href={`${base}/handbook?edit=1`}>Manage company knowledge</UiActionLink>:undefined}/><WidgetGrid pageKey="learn">
     <FeatureWidget appearance="standard" id="learn-open-the-work-ask-what-comes-next-" title="Open the work. Ask what comes next."><div className={styles.symbol}><Sparkles size={27}/></div><div><span className={styles.eyebrow}>YOUR ON-PAGE COACH</span><h2>Open the work. Ask what comes next.</h2><p>Choose a workflow below, then open <strong>Ask ERPX → Explain</strong> for its steps. Ask in any language and receive clear English guidance. AI uses the current page’s supported sources and your selected role.</p></div><UiActionLink appearance="standard" variant="primary" href={`${base}/work`}>Open my work <ArrowUpRight size={16}/></UiActionLink></FeatureWidget>
     <ListFilters appearance="standard" action={`${base}/learn`} query={query.q} placeholder="Search workflows and company knowledge"/>
+    <FeatureWidget appearance="standard" id="learn-captioned-lessons" title="Captioned lessons">
+      <h2>Captioned lessons</h2>
+      <h3>A welcoming conversation</h3>
+      <p>Practice a friendly welcome, listen carefully, and explain the next step.</p>
+      <video controls playsInline preload="none" aria-label="A welcoming conversation" style={{ width: "100%", height: "auto", aspectRatio: "16 / 9" }}>
+        <source src="/preview/lessons/welcome.mp4" type="video/mp4" />
+        <track src="/preview/lessons/welcome.vtt" kind="captions" srcLang="en" label="English" default />
+        Your browser does not support video playback. <a href="/preview/lessons/welcome.vtt">Read the English captions</a>.
+      </video>
+    </FeatureWidget>
     <FeatureWidget appearance="standard" id="learn-choose-your-workflow" title="Choose your workflow"><div className={styles.sectionHeading}><div><span className={styles.eyebrow}>GET SOMETHING DONE</span><h2 id="workflow-heading">Choose your workflow</h2></div><span className={styles.muted}>{guides.length} guides · Available without AI</span></div>
       {!guides.length&&<EmptyState title="No matching workflows" description="Try another topic or search your company handbook below."/>}
       <div className={styles.grid}>{guides.map(([path,guide])=><article key={path} className={styles.guide}><div className={styles.cardTop}><BookOpen size={20}/><span>{guide.steps.length} steps</span></div><h3>{guide.title}</h3><p>{guide.purpose}</p><ol>{guide.steps.map(step=><li key={step}>{step}</li>)}</ol><Link href={destinations.get(path)!}>Open {guide.title.toLowerCase()} <ArrowUpRight size={16}/></Link></article>)}</div>

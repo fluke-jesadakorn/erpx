@@ -1,6 +1,6 @@
-import { requireWorkContext } from "@/server/authorization";
-import { requestPublicOrigin } from "@/server/public-origin";
-import { ApiError, errorResponse } from "@/server/http";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import {
   changeAgreement,
   changeServiceOrder,
@@ -8,7 +8,7 @@ import {
   createServiceOrder,
   fieldServiceDetail,
   fieldServiceWorkspace,
-} from "@/server/field-service";
+} from "@/server/modules/field_service/public/field-service";
 type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
 export async function GET(r: Request, c: C) {

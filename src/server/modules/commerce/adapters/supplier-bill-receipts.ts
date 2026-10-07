@@ -1,0 +1,5 @@
+import { commerceFinalOwnerProjectionSources as procurementProjectionSources } from "../../procurement/public/commerce-final-owner-projection-sources";
+import "server-only";
+import type { SqlDatabase } from "../../runtime/public/runtime/types";
+export function stageSupplierBillReceiptVersion(db: SqlDatabase, id: string) { return db.prepare('UPDATE commerce_fulfillments SET version=version+1 WHERE id=?').bind(id); }
+export function stageSupplierBillReceiptLinks(db: SqlDatabase, matchId: string, invoiceId: string | null) { return invoiceId === null ? db.prepare(`UPDATE commerce_fulfillments SET invoice_id=NULL,version=version+1 WHERE id IN(SELECT fulfillment_id FROM (${procurementProjectionSources.procurement_bill_match_receipts}) procurement_bill_match_receipts WHERE match_id=?)`).bind(matchId) : db.prepare(`UPDATE commerce_fulfillments SET invoice_id=?,version=version+1 WHERE id IN(SELECT fulfillment_id FROM (${procurementProjectionSources.procurement_bill_match_receipts}) procurement_bill_match_receipts WHERE match_id=? AND active=TRUE)`).bind(invoiceId, matchId); }

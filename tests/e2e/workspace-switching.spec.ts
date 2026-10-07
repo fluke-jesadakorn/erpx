@@ -1,5 +1,6 @@
+import { captureCaseScreenshot } from "../helpers/case-screenshot";
 import { test, expect } from '@playwright/test';
-import {searchRoleOptions} from '../helpers/context-switching-browser';
+import {openAccountMenu,searchRoleOptions,selectRoleForSetup} from '../helpers/context-switching-browser';
 
 test.setTimeout(180_000);
 test.use({actionTimeout:30_000,navigationTimeout:60_000});
@@ -9,7 +10,8 @@ test('switches areas and preserves roles', async ({ page, context }) => {
     email: process.env.ERPX_E2E_ADMIN_EMAIL ?? 'jesadakorn.kirtnu@gmail.com',
     password: process.env.ERPX_E2E_ADMIN_PASSWORD ?? '12345678',
   } })).ok()).toBe(true);
-  await context.request.post('/api/v1/holdings/acme/companies/active',{data:{companyId:'acme-co'}});
+  expect((await context.request.post('/api/v1/holdings/acme/companies/active',{data:{companyId:'acme-co'}})).ok()).toBe(true);
+  await selectRoleForSetup(context,'holding_owner');
   await page.goto('/platform/home');
   await expect(page).toHaveURL(/\/holdings\/erpx\/manage-erpx$/);
   await expect(page.getByRole('heading', {name:'ERPX Management',exact:true})).toBeVisible();
@@ -32,11 +34,11 @@ test('switches areas and preserves roles', async ({ page, context }) => {
       dialog.getByRole('button',{name:companyName,exact:true}).click(),
     ]);
     await expect(page.locator('[data-work-company]')).toHaveAttribute('data-work-company',companyId);
-    await page.getByRole('button',{name:/Account menu for/}).click();
+    await openAccountMenu(page);
     const roleOptions=await searchRoleOptions(page,'');
     expect(await roleOptions.getByRole('option').count()).toBeGreaterThanOrEqual(17);
-    await page.getByRole('combobox',{name:'Search roles',exact:true}).fill('employee');
-    await roleOptions.getByRole('option').first().click();
+    const employeeOptions=await searchRoleOptions(page,'employee');
+    await employeeOptions.getByRole('option').first().click();
     await expect(page.getByRole('button',{name:/Account menu for/})).toContainText(/employee/i);
   }
   await switcher.click();
@@ -82,13 +84,16 @@ test('business-only staff sees its holding without Platform access',async({page,
   await page.getByRole('button',{name:'Switch workspace',exact:true}).click();
   const dialog=page.getByRole('dialog',{name:'Switch workspace'});
   await expect(dialog.locator('a[href="/holdings/acme/branches/bangkok/departments/operations/home"]')).toContainText('Operations');
-  await expect(dialog.getByRole('link',{name:/Platform administration/})).toHaveCount(0);
+  await expect(dialog.getByRole('link',{name:/^ERPX Management(?: Current area)?$/})).toHaveCount(0);
+  await expect(dialog.locator('a[href="/holdings/erpx/manage-erpx"]')).toHaveCount(0);
   await expect(dialog.getByRole('link',{name:/Northstar/})).toHaveCount(0);
+  await expect(dialog.getByRole('button',{name:'Northstar Supply',exact:true})).toHaveCount(0);
 });
 
 test('failed company selection leaves the active company usable, owner can open finance',async({page,context},testInfo)=>{
   expect((await context.request.post('/api/auth/sign-in/email',{data:{email:process.env.ERPX_E2E_ADMIN_EMAIL??'jesadakorn.kirtnu@gmail.com',password:process.env.ERPX_E2E_ADMIN_PASSWORD??'12345678'}})).ok()).toBe(true);
-  await context.request.post('/api/v1/holdings/acme/companies/active',{data:{companyId:'acme-co'}});
+  expect((await context.request.post('/api/v1/holdings/acme/companies/active',{data:{companyId:'acme-co'}})).ok()).toBe(true);
+  await selectRoleForSetup(context,'employee');
   await page.goto('/holdings/acme/home');
   await expect(page.getByRole('button',{name:'Switch workspace',exact:true})).toBeEnabled();
   await page.route('**/companies/active',route=>route.fulfill({status:403,contentType:'application/json',body:JSON.stringify({error:{message:'Unavailable'}})}));
@@ -100,12 +105,12 @@ test('failed company selection leaves the active company usable, owner can open 
   await expect(page.getByRole('button',{name:/Acme Corporation/})).toHaveAttribute('aria-current','location');
   await page.unroute('**/companies/active');
   await page.keyboard.press('Escape');
-  await page.getByRole('button',{name:/Account menu for/}).click();
+  await openAccountMenu(page);
   const roles=await searchRoleOptions(page,'holding owner');
   await roles.getByRole('option').click();
   await expect(page.locator('.active-work-role')).toContainText('holding owner',{timeout:30_000});
   await expect(page).toHaveURL(/\/holdings\/acme\/home$/);
-  await page.screenshot({path:`.scratch/dev/workspace-${testInfo.project.name}.png`});
+  await captureCaseScreenshot(page, `workspace-${testInfo.project.name}.png`);
   await page.goto('/holdings/acme/finance');
   await expect(page.locator('[data-work-revision]')).toBeVisible();
   expect((await context.request.get('/api/v1/holdings/acme/finance/charts')).status()).toBe(200);

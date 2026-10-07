@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/foundation";
 
 import { useState } from "react";
 import Link from "next/link";
-import { hashtags, type Mention } from "@/lib/social-text";
+import { hashtags, type Mention } from "@/server/modules/collaboration/public/rules/social-text";
 import { safeRichUrl, type RichNode } from "@/lib/home-rich-content";
 import { createElement, type ReactNode } from "react";
 import styles from "./social-text.module.css";

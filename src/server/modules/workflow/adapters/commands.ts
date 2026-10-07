@@ -1,0 +1,26 @@
+import type {SqlDatabase,SqlStatement} from '../../runtime/public/runtime/types';
+import {ApiError} from '../../runtime/public/http';
+import {iamMutationGuards} from '../../identity_access/public/iam-store';
+import {workflowWorkContextGuards,workflowAssignmentGuard,workflowAssignmentAuthorityProjection,workflowActiveContext,workflowActiveGrant} from '../../identity_access/public/workflow-command-authority';
+import {prepareOwnerCommandStatements} from '../public/command-policies';
+import {createCommandApplication,type CommandRepository} from '../application/commands';
+import {financialConstraintError as domainFinancialConstraintError,type CommandActor} from '../domain/commands';
+import {BusinessRuleError} from '../../shared';
+export function assertion(db:SqlDatabase,id:string,step:string,query:string,args:(string|number|null)[]=[]){return db.prepare(`INSERT INTO command_assertions(command_id,step,ok) VALUES(?,?,CASE WHEN (${query}) THEN 1 ELSE 0 END)`).bind(id,step,...args);}
+export function workContextGuards(db:SqlDatabase,actor:CommandActor,id:string):SqlStatement[]{return workflowWorkContextGuards(db,actor,id);}
+export function financialConstraintError(error:unknown){const failure=domainFinancialConstraintError(error);return failure?new ApiError(failure.status,failure.code,failure.message):null;}
+function application(db:SqlDatabase){
+ const repository:CommandRepository<SqlStatement>={
+  receipt:id=>db.prepare('SELECT request_hash,result_json FROM command_receipts WHERE command_id=?').bind(id).first<{request_hash:string;result_json:string}>(),
+  clearAssertions:id=>db.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(id),
+  insertReceipt:(actor,id,operation,digest,recordId,result,now)=>db.prepare('INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) VALUES(?,?,?,?,?,?,?,?)').bind(id,operation,actor.userId,digest,recordId,JSON.stringify(result),now,JSON.stringify({role:actor.role,assignmentId:actor.assignmentId,iam:actor.iam,...actor.authority,companyId:actor.companyId,branchId:actor.branchId,departmentId:actor.departmentId})),
+  captureAssignmentAuthority:(actor,id)=>db.prepare(`UPDATE command_receipts SET authority_json=(authority_json::jsonb || ${workflowAssignmentAuthorityProjection()})::text WHERE command_id=?`).bind(actor.assignmentId,id),
+  audit:(actor,id,operation,recordId,version,now,eventId)=>db.prepare('INSERT INTO audit_events(id,command_id,actor_id,assignment_id,action,record_type,record_id,record_version,purpose,created_at,authority_json) VALUES(?,?,?,?,?,?,?,?,?,?,(SELECT authority_json FROM command_receipts WHERE command_id=?))').bind(eventId,id,actor.userId,actor.assignmentId,operation,operation.split('.').slice(0,2).join('_'),recordId,version,operation,now,id),
+  outbox:(actor,id,operation,recordId,version,state,eventScope,now,eventId)=>db.prepare('INSERT INTO outbox_events(id,command_id,event_type,aggregate_type,aggregate_id,aggregate_version,payload_json,created_at) VALUES(?,?,?,?,?,?,?,?)').bind(eventId,id,operation,operation.split('.').slice(0,2).join('_'),recordId,version,JSON.stringify({authority:{role:actor.role,assignmentId:actor.assignmentId,iam:actor.iam,...actor.authority},id:recordId,...(typeof state==='string'?{state}:{}),companyId:eventScope.companyId,branchId:eventScope.branchId,departmentId:eventScope.departmentId,version}),now),
+ };
+ return createCommandApplication({repository,clock:{now:Date.now},identifiers:{next:()=>crypto.randomUUID()},digest:async value=>{const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(value)));return Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,'0')).join('');},workContextGuards:(actor,id)=>workflowWorkContextGuards(db,actor,id),iamMutationGuards:(actor,id)=>iamMutationGuards(db,actor,id),assignmentGuard:(actor,id)=>workflowAssignmentGuard(db,actor,id),prepareOwnerStatements:(...args)=>fromNative(()=>prepareOwnerCommandStatements(db,...args)),batch:effects=>db.batch(effects),activeContext:actor=>workflowActiveContext(db,actor),activeGrant:(actor,now)=>workflowActiveGrant(db,actor,now)});
+}
+async function fromNative<Result>(run:()=>Promise<Result>){try{return await run();}catch(error){if(error instanceof ApiError)throw new BusinessRuleError(error.status,error.code,error.message);throw error;}}
+async function invoke<Result>(run:()=>Promise<Result>){try{return await run();}catch(error){if(error instanceof BusinessRuleError){const native=new ApiError(error.status,error.code,error.message);native.cause=error.cause;throw native;}throw error;}}
+export function replayCommand<Result=Record<string,unknown>>(db:SqlDatabase,actor:CommandActor,id:string,operation:string,recordId:string,input:unknown):Promise<Result|null>{return invoke(()=>application(db).replayCommand<Result>(actor,id,operation,recordId,input));}
+export function executeCommand<Result>(db:SqlDatabase,actor:CommandActor,id:string,operation:string,input:unknown,recordId:string,version:number,result:Result,effects:SqlStatement[],eventScope:Pick<CommandActor,'companyId'|'branchId'|'departmentId'>=actor){return invoke(()=>application(db).executeCommand(actor,id,operation,input,recordId,version,result,effects,eventScope));}

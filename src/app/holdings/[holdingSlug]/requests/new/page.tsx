@@ -1,3 +1,4 @@
+import { recordsPresentationQueries } from "@/server/modules/records/public/presentation-queries";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { notFound } from "next/navigation";
 import { FeaturePage } from "@/components/features/feature-page";
@@ -5,10 +6,10 @@ import { PageHeader } from "@/components/ui/primitives";
 import { RequestEditor } from "@/components/workplace/request-controls";
 import { requestKinds, type RequestKind } from "@/lib/employee-services";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { getEmployeeRequest } from "@/server/employee-requests";
-import { requestPageOptions } from "@/server/request-page";
-import { holdingResources } from "@/server/runtime";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+
+
+
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +23,10 @@ export default async function NewRequest({
   const kind = typeof query.kind === "string" ? query.kind : "purchase";
   if (!requestKinds.some(([id]) => id === kind)) notFound();
   const parentRequestId = typeof query.from === "string" ? query.from : null;
-  const { write } = await holdingResources(actor.holdingId);
-  const options = await requestPageOptions(write, actor);
+  const presentation = await recordsPresentationQueries(actor.holdingId);
+  const options = await presentation.requestPageOptions(actor);
   if (parentRequestId) {
-    const parent = await getEmployeeRequest(write, actor, parentRequestId);
+    const parent = await presentation.getEmployeeRequest(actor, parentRequestId);
     if (parent.kind !== "service" || kind === "service") notFound();
     options.branchId = parent.branch_id;
     options.departmentId = parent.department_id;

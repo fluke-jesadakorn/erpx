@@ -53,7 +53,7 @@ beforeEach(async () => {
 });
 async function team(
   category = "it",
-  scopeKind = "holding",
+  scopeKind: WorkAssignment["scopeKind"] = "holding",
   scopeNodeId = f.company,
   lead = f.it,
 ) {
@@ -482,7 +482,7 @@ it("requires purchasing authority and an approved unchanged request for an atomi
 it("uses only the active responsibility even when other grants exist", async () => {
   const grant = (
     role: string,
-    scopeKind = "holding",
+    scopeKind: WorkAssignment["scopeKind"] = "holding",
     scopeNodeId: string | null = null,
     companyId = f.company,
   ) =>
@@ -492,8 +492,9 @@ it("uses only the active responsibility even when other grants exist", async () 
       scopeKind,
       scopeNodeId,
       companyId,
+      branchId:null,
       modules: [],
-    }) as WorkAssignment;
+    }) satisfies WorkAssignment;
   const actor = {
     ...f.it,
     assignments: [
@@ -767,4 +768,27 @@ it('splits one approved request across supplier awards and snapshots exact unit 
  expect(Number(await db.prepare('SELECT count(*) n FROM procurement_request_orders WHERE request_id=?').bind(r.id).first('n'))).toBe(2);
  expect((await getEmployeeRequest(db,purchaser,r.id)).purchase_order_id).toBe(orderIds[0]);
  const progress=await (await import('../src/server/purchase-request-progress')).purchaseRequestProgress(db,purchaser,r.id);expect(progress.steps.find(step=>step.id==='sourcing')?.state).toBe('complete');expect(progress.steps.find(step=>step.id==='order')?.detail).toContain('2 linked purchase orders');
+});
+
+it('rolls back request draft, event, receipt, audit and outbox after a late failure then replays one retry',async()=>{
+ const command=key(),id='request-'+command,input=employeeRequestSchema.parse({kind:'service',title:'Late atomic request',description:'Original issue facts',branchId:f.branch,departmentId:f.department}),suffix=command.replaceAll('-',''),fn='reject_request_'+suffix,trigger='reject_request_'+suffix;
+ await db.prepare(`CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='${command}' THEN RAISE EXCEPTION 'injected final request outbox failure' USING ERRCODE='23514'; END IF; RETURN NEW; END $$`).run();
+ await db.prepare(`CREATE TRIGGER ${trigger} BEFORE INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION ${fn}()`).run();
+ try {await expect(saveEmployeeRequest(db,f.claimant,null,input,command)).rejects.toMatchObject({code:'23514'});
+  expect(await db.prepare('SELECT 1 FROM employee_requests WHERE id=?').bind(id).first()).toBeNull();
+  expect(await db.prepare('SELECT 1 FROM employee_request_events WHERE request_id=?').bind(id).first()).toBeNull();
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first()).toBeNull();
+ } finally {await db.prepare(`DROP TRIGGER ${trigger} ON outbox_events`).run();await db.prepare(`DROP FUNCTION ${fn}()`).run();}
+ const retry=await saveEmployeeRequest(db,f.claimant,null,input,command),replay=await saveEmployeeRequest(db,f.claimant,null,input,command);expect(replay).toEqual(retry);expect(retry.id).toBe(id);
+ expect(await db.prepare('SELECT count(*) n FROM employee_request_events WHERE request_id=?').bind(id).first('n')).toBe(1);
+ for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n')).toBe(1);
+});
+
+it('rolls back handbook publication and canonical command journals then retries and replays once with live editor authority',async()=>{
+ const draft=await saveHandbookArticle(db,f.owner,null,handbookSchema.parse({title:'Atomic handbook guide',body:'Published only after the complete command commits.'}),key()),command=key(),input={action:'publish' as const,expectedVersion:draft.version},suffix=command.replaceAll('-',''),fn='reject_handbook_'+suffix,trigger=fn;
+ const before=await db.prepare('SELECT row_to_json(a) state FROM handbook_articles a WHERE id=?').bind(draft.id).first('state'),revisions=await db.prepare('SELECT jsonb_agg(to_jsonb(r) ORDER BY revision) state FROM handbook_revisions r WHERE article_id=?').bind(draft.id).first('state');
+ await db.prepare(`CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='${command}' THEN RAISE EXCEPTION 'injected final handbook publication failure' USING ERRCODE='23514'; END IF; RETURN NEW; END $$`).run();
+ await db.prepare(`CREATE TRIGGER ${trigger} AFTER INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION ${fn}()`).run();
+ try{await expect(actOnHandbook(db,f.owner,draft.id,input,command)).rejects.toMatchObject({code:'23514'});expect(await db.prepare('SELECT row_to_json(a) state FROM handbook_articles a WHERE id=?').bind(draft.id).first('state')).toEqual(before);expect(await db.prepare('SELECT jsonb_agg(to_jsonb(r) ORDER BY revision) state FROM handbook_revisions r WHERE article_id=?').bind(draft.id).first('state')).toEqual(revisions);for(const table of ['command_receipts','audit_events','outbox_events','command_assertions'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first()).toBeNull();}finally{await db.prepare(`DROP TRIGGER ${trigger} ON outbox_events`).run();await db.prepare(`DROP FUNCTION ${fn}()`).run();}
+ const retry=await actOnHandbook(db,f.owner,draft.id,input,command);expect(await actOnHandbook(db,f.owner,draft.id,input,command)).toEqual(retry);expect((await handbookArticle(db,f.claimant,draft.id)).revision).toMatchObject({revision:1,published_by:f.owner.userId});for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n')).toBe(1);
 });

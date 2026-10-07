@@ -5,13 +5,13 @@ import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
 import { workFetch } from "@/lib/work-fetch";
 import { useRef, useState } from "react";
-import type { Mention } from "@/lib/social-text";
+import type { Mention } from "@/server/modules/collaboration/public/rules/social-text";
 import type { JSONContent } from "@tiptap/core";
 import { plainRichContent } from "@/lib/home-rich-content";
 import { SocialTextInput } from "./social-text-input";
 import { SocialTextBody } from "./social-text-body";
 import { SocialAgentStatus } from "./social-agent-status";
-import type { HomePost } from "@/server/social-home";
+import type { HomePost } from "@/server/modules/collaboration/public/social-home";
 import { useSocialCommand } from "./social-command";
 import { ImagePlus, Link2, MoreHorizontal, Pencil, Send, Trash2, X } from "lucide-react";
 import Link from "next/link";

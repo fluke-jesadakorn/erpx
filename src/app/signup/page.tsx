@@ -1,9 +1,9 @@
 import { BetaAuthForm } from "@/components/beta/auth-form";
 import { AuthShell } from "@/components/workplace/auth-shell";
-import { runtimeEnv } from "@/server/runtime";
+import { publicBetaEnabled } from "@/server/modules/runtime/public/presentation-configuration";
 export const dynamic = "force-dynamic";
 export default async function Signup() {
-  const enabled = (await runtimeEnv()).ERPX_PUBLIC_BETA === "true";
+  const enabled = await publicBetaEnabled();
   return (
     <AuthShell eyebrow="EARLY ACCESS" title={enabled ? "Create your account." : "Registration is closed."} description={enabled ? "Join the early-access workspace. No card required." : "New accounts are not open at this time. If you already have access, sign in to continue."}>
       {enabled ? (

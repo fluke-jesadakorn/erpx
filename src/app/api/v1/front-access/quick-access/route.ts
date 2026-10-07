@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { frontAppForHost } from "@/lib/front-host";
-import { currentSession } from "@/server/authorization";
-import { frontCompanyChoices, frontCompanyItems } from "@/server/front-quick-access";
-import { ApiError, errorResponse } from "@/server/http";
-import { requestPublicOrigin } from "@/server/public-origin";
-import { readQuickAccessPreferences, saveQuickAccessPreferences } from "@/server/quick-access-preferences";
+import { currentSession } from "@/server/modules/identity_access/public/authorization";
+import { frontCompanyChoices, frontCompanyItems } from "@/server/modules/work_projection/public/front-quick-access";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { readQuickAccessPreferences, saveQuickAccessPreferences } from "@/server/modules/work_projection/public/quick-access-preferences";
 
 export const dynamic = "force-dynamic";
 

@@ -1,8 +1,8 @@
-import {requireManageErpxContext} from '@/server/authorization';
+import {requireManageErpxContext} from "@/server/modules/identity_access/public/authorization";
 
-import {holdingResources,runtimeEnv,activeHoldingBindings} from '@/server/runtime';
-import {summarizePlatformOperations} from '@/server/platform-operations';
-import {errorResponse} from '@/server/http';
+import {holdingResources,runtimeEnv,activeHoldingBindings} from "@/server/modules/runtime/public/runtime";
+import {summarizePlatformOperations} from "@/server/modules/platform_administration/public/platform-operations";
+import {errorResponse} from "@/server/modules/runtime/public/http";
 export const dynamic='force-dynamic';
 export async function GET(){try{
  const {platform:actor}=await requireManageErpxContext(),env=await runtimeEnv();

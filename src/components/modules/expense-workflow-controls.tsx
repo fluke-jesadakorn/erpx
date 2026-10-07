@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { minorToDecimal } from "@/lib/finance-money";
-import type { ExpenseRow as Row } from "@/server/expenses";
+import type { ExpenseRow as Row } from "@/server/modules/people_payroll/expense";
 import { ExpenseReceipts, useExpenseCommand } from "./expense-controls";
 import { ExpenseAiPanel } from "./expense-ai-panel";
 import { useExpenseDraft } from "./use-expense-draft";

@@ -1,5 +1,7 @@
+import { captureCaseScreenshot } from "../helpers/case-screenshot";
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { selectFixtureAssignment } from "./helpers/select-fixture-assignment";
 test.use({ actionTimeout: 10000 });
 const base = "/holdings/acme",
   local = `${base}/branches/bangkok`;
@@ -15,6 +17,8 @@ async function login(context: BrowserContext, who: string) {
     },
   });
   expect(response.ok()).toBeTruthy();
+  const assignments: Record<string, string> = { mali: "seed_usr_mali", nisa: "workflow_controller", ava: "seed_usr_ava", noah: "seed_usr_noah" };
+  await selectFixtureAssignment(context, "acme-co", assignments[who], "acme", ["ava", "noah"].includes(who) ? (who === "ava" ? "/branches/bangkok" : "/branches/new-york") : "");
 }
 async function fits(page: Page) {
   expect(
@@ -26,7 +30,7 @@ async function fits(page: Page) {
 test("staff project and task approvals work across roles, departments and viewports", async ({
   browser,
 }, testInfo) => {
-  test.setTimeout(120000);
+  test.setTimeout(240000);
   const creator = await browser.newContext(testInfo.project.use),
     assignee = await browser.newContext(testInfo.project.use),
     reviewer = await browser.newContext(testInfo.project.use),
@@ -53,14 +57,11 @@ test("staff project and task approvals work across roles, departments and viewpo
         .getByRole("link", { name: "Leave request", exact: true }),
     ).toBeVisible();
     await page.keyboard.press("Escape");
-    if (testInfo.project.name === "mobile")
-      await page
-        .getByRole("button", { name: "More navigation" })
-        .filter({ visible: true })
-        .click();
-    await page.getByRole("link", { name: "Projects", exact: true }).click();
+    const navigation = page.getByRole("navigation", { name: testInfo.project.name === "mobile" ? "Mobile navigation" : "Primary", exact: true });
+    await navigation.getByRole("button", { name: "App launcher", exact: true }).click();
+    await page.getByRole("dialog", { name: "App launcher", exact: true }).getByRole("link", { name: "Projects", exact: true }).click();
     await page.getByText("New project", { exact: true }).click();
-    await page.getByLabel("Project title", { exact: true }).fill(name);
+    await page.getByLabel(/^Project title(?:\s*\*)?$/).fill(name);
     await page
       .getByRole("combobox", { name: "Add company member", exact: true })
       .selectOption("usr_nisa");
@@ -75,11 +76,11 @@ test("staff project and task approvals work across roles, departments and viewpo
     await page
       .getByRole("link", { name: "Create a task", exact: true })
       .click();
-    await expect(page.getByLabel("Title", { exact: true })).toBeVisible({
+    await expect(page.getByRole("textbox", { name: "Title", exact: true })).toBeVisible({
       timeout: 20000,
     });
     await page
-      .getByLabel("Title", { exact: true })
+      .getByRole("textbox", { name: "Title", exact: true })
       .fill(`${name} delivery checks`);
     await page
       .getByLabel("Description", { exact: true })
@@ -91,7 +92,7 @@ test("staff project and task approvals work across roles, departments and viewpo
       .getByRole("combobox", { name: "Accountable assignee", exact: true })
       .selectOption("usr_nisa");
     await page
-      .getByRole("combobox", { name: "Approval timing", exact: true })
+      .getByRole("combobox", { name: "Review", exact: true })
       .selectOption("both");
     await page
       .getByRole("group", { name: "Start approval", exact: true })
@@ -103,10 +104,7 @@ test("staff project and task approvals work across roles, departments and viewpo
       .selectOption("usr_mali");
     await fits(page);
     await page.evaluate(() => window.scrollTo(0, 0));
-    await page.screenshot({
-      path: `.scratch/staff-work/task-form-${testInfo.project.name}.png`,
-      fullPage: true,
-    });
+    await captureCaseScreenshot(page, `task-form-${testInfo.project.name}.png`, { fullPage: true });
     await page
       .getByRole("button", { name: "Save task draft", exact: true })
       .click();
@@ -148,20 +146,23 @@ test("staff project and task approvals work across roles, departments and viewpo
     await expect(
       execute.getByRole("button", { name: "Submit completion", exact: true }),
     ).toBeVisible();
-    await execute
-      .getByLabel("Attach supporting file", { exact: true })
+    const evidence = execute.getByRole("heading", { name: "Task evidence", exact: true }).locator("xpath=ancestor::section[1]");
+    await evidence
+      .locator('input[type="file"]:not([capture])')
       .setInputFiles({
         name: "delivery-checks.png",
         mimeType: "image/png",
         buffer: evidencePng,
       });
-    await expect(
-      execute.getByRole("link", { name: /delivery-checks.png/ }),
-    ).toBeVisible();
-    const attachment = await execute
-      .getByRole("link", { name: /delivery-checks.png/ })
+    await expect(evidence.getByText("Ready to attach", { exact: true })).toBeVisible({ timeout: 120000 });
+    const download = evidence.getByRole("link", { name: "Download delivery-checks.png", exact: true });
+    await expect(download).toBeVisible();
+    const attachment = await download
       .getAttribute("href");
-    expect((await assignee.request.get(attachment!)).status()).toBe(200);
+    const original = await assignee.request.get(attachment!);
+    expect(original.status()).toBe(200);
+    expect(original.headers()["cache-control"]).toBe("private, no-store");
+    expect(original.headers()["content-disposition"]).toContain("attachment");
     expect([403, 404]).toContain(
       (await unrelated.request.get(attachment!)).status(),
     );
@@ -177,15 +178,26 @@ test("staff project and task approvals work across roles, departments and viewpo
         exact: true,
       })
       .fill("All delivery logs verified.");
+    const executing = await assignee.request.get(`/api/v1${base}/staff-tasks/${taskId}`);
+    expect(executing.ok(), await executing.text()).toBe(true);
+    const executingVersion = (await executing.json()).data.task.version as number;
+    const completion = execute.waitForResponse(response => new URL(response.url()).pathname === `/api/v1${base}/staff-tasks/${taskId}/transition` && response.request().method() === "POST");
     await execute
       .getByRole("button", { name: "Submit completion", exact: true })
       .click();
+    const completedSubmission = await completion;
+    expect(completedSubmission.ok(), await completedSubmission.text()).toBe(true);
+    expect(completedSubmission.request().postDataJSON()).toMatchObject({ action: "complete", expectedVersion: executingVersion });
+    expect(completedSubmission.request().postDataJSON().attachmentSetIds).toHaveLength(1);
+    const pendingCompletion = await assignee.request.get(`/api/v1${base}/staff-tasks/${taskId}`);
+    expect(pendingCompletion.ok(), await pendingCompletion.text()).toBe(true);
+    expect((await pendingCompletion.json()).data.task).toMatchObject({ state: "completion_approval", version: executingVersion + 1 });
     await expect(
       execute.getByText("Current approver: Mali Srisai", { exact: true }),
     ).toBeVisible();
     await page.reload();
     await expect(
-      page.getByRole("link", { name: /delivery-checks.png/ }),
+      page.getByRole("link", { name: "Download delivery-checks.png", exact: true }),
     ).toBeVisible();
     await page
       .getByRole("textbox", {
@@ -206,10 +218,7 @@ test("staff project and task approvals work across roles, departments and viewpo
     await expect(page.getByText("completed", { exact: true })).toBeVisible();
     await page.evaluate(() => window.scrollTo(0, 0));
     await fits(page);
-    await page.screenshot({
-      path: `.scratch/staff-work/task-complete-${testInfo.project.name}.png`,
-      fullPage: true,
-    });
+    await captureCaseScreenshot(page, `task-complete-${testInfo.project.name}.png`, { fullPage: true });
     const wrongCompany = await assignee.request.get(
       `/api/v1/holdings/northstar/staff-tasks/${taskId}`,
     );
@@ -234,7 +243,7 @@ test("staff can publish routines, pause and resume schedules, and run an indepen
     await page
       .getByRole("combobox", { name: "Create as", exact: true })
       .selectOption("routine");
-    await page.getByLabel("Title", { exact: true }).fill(title);
+    await page.getByRole("textbox", { name: "Title", exact: true }).fill(title);
     await page
       .getByRole("combobox", { name: "Accountable assignee", exact: true })
       .selectOption("usr_nisa");

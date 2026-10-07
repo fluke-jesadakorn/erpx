@@ -6,11 +6,11 @@ import { FeaturePage } from "@/components/features/feature-page";
 import { FinanceWorkspace, financeStyles as styles } from "@/components/finance/finance-workspace";
 import { minorToDecimal } from "@/lib/finance-money";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { paymentObligationsWorkspace, paymentRecordsWorkspace } from "@/server/finance-workspace";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { paymentObligationsWorkspace, paymentRecordsWorkspace } from "@/server/modules/finance/public/finance-workspace";
 import { ListPagination } from "@/components/ui/list-pagination";
 import { FilterBar } from "@/components/ui/foundation";
-import { financeCompanyTools } from "@/server/finance-company-tools";
+import { financeCompanyTools } from "@/server/modules/finance/public/finance-company-tools";
 
 export const dynamic = "force-dynamic";
 

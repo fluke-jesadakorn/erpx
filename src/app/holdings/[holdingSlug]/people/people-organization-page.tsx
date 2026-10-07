@@ -4,9 +4,9 @@ import { PeopleOrganizationWorkspace } from "@/components/people/people-organiza
 import { PageHeader } from "@/components/ui/primitives";
 import { hasPermission } from "@/lib/permissions";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, type WorkContext } from "@/server/authorization";
-import { pageError } from "@/server/page-error";
-import { peopleWorkspaceData } from "@/server/people-workspace";
+import { publicScope, type WorkContext } from "@/server/modules/identity_access/public/authorization";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+import { peopleWorkspaceData } from "@/server/modules/people_payroll/public/people-workspace";
 import styles from "./people-organization-page.module.css";
 import { RecordLink as Link } from "@/components/records/record-link";
 

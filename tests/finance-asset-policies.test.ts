@@ -1334,3 +1334,30 @@ it("dates a zero-usage inverse without inventing a journal and retains the earli
     units: 1,
   });
 });
+it("restores both books and asset carrying on final depreciation outbox failure, then retries and replays once",async()=>{
+ const b=await secondary(),assetId=await recognized(),policy=await prepareAssetPolicy(f.owner,{assetId,expectedVersion:2,books:[{chartId:f.chart,policy:{method:'straight_line'}},{chartId:b.chart,policy:{method:'declining_balance',annualRateBps:2000}}],reason:'Independent primary and secondary depreciation policies'},key());
+ await decideAssetPolicy(f.manager,String(policy.id),{expectedVersion:1,reason:'Review both original book policies independently'},'approve',key());
+ const draft=await prepareAssetPolicyRun(f.owner,String(policy.id),{expectedVersion:2,periodId:f.period,entryDate:'2026-09-30',reason:'Retained September asset and two-book carrying evidence'},key()),input={expectedVersion:1,reason:'Independent current source and carrying review'},command=key(),fault=`asset_policy_post_fault_${crypto.randomUUID().replaceAll('-','')}`;
+ const snapshots=async()=>Promise.all([
+  db.prepare('SELECT * FROM finance_assets WHERE id=?').bind(assetId).first(),
+  db.prepare('SELECT * FROM finance_asset_policy_editions WHERE asset_id=? ORDER BY id').bind(assetId).all().then(rows=>rows.results),
+  db.prepare('SELECT * FROM finance_asset_policy_runs WHERE asset_id=? ORDER BY id').bind(assetId).all().then(rows=>rows.results),
+  db.prepare('SELECT * FROM finance_asset_events WHERE asset_id=? ORDER BY id').bind(assetId).all().then(rows=>rows.results),
+  db.prepare('SELECT * FROM finance_journals WHERE company_id=? ORDER BY id').bind(f.company).all().then(rows=>rows.results),
+  db.prepare('SELECT * FROM finance_journal_lines WHERE journal_id IN(SELECT id FROM finance_journals WHERE company_id=?) ORDER BY id').bind(f.company).all().then(rows=>rows.results),
+  db.prepare('SELECT * FROM finance_book_postings WHERE primary_journal_id IN(SELECT id FROM finance_journals WHERE company_id=?) ORDER BY primary_journal_id,rule_id').bind(f.company).all().then(rows=>rows.results),
+  db.prepare('SELECT * FROM money_transaction_snapshots WHERE company_id=? ORDER BY source_type,source_id,amount_kind').bind(f.company).all().then(rows=>rows.results),
+ ]),before=await snapshots();
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'ASSET_POLICY_FINAL_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN(NEW.event_type='finance.asset-policy-run.post') EXECUTE FUNCTION ${fault}();`);
+ try{
+  await expect(decideAssetPolicyRun(f.manager,String(draft.id),input,'post',command)).rejects.toThrow('ASSET_POLICY_FINAL_OUTBOX');
+  expect(await snapshots()).toEqual(before);
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n'))).toBe(0);
+ }finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
+ const posted=await decideAssetPolicyRun(f.manager,String(draft.id),input,'post',command);
+ expect(await decideAssetPolicyRun(f.manager,String(draft.id),input,'post',command)).toEqual(posted);
+ expect(posted.journalIds).toHaveLength(2);
+ expect(await db.prepare('SELECT version,accumulated_depreciation_minor FROM finance_assets WHERE id=?').bind(assetId).first()).toEqual({version:3,accumulated_depreciation_minor:40000});
+ expect(await db.prepare('SELECT status,version FROM finance_asset_policy_runs WHERE id=?').bind(draft.id).first()).toEqual({status:'posted',version:2});
+ for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n'))).toBe(1);
+});

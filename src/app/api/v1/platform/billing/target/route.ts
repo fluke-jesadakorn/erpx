@@ -1,9 +1,11 @@
+import {appBillingFinanceProjection} from "@/server/modules/billing/public/app-finance-projection-source";
+import {customerHoldingBindingExists} from "@/server/modules/runtime/public/app-native-sources";
 import { billingMonth } from "@/lib/billing";
-import { requireManageErpxContext } from "@/server/authorization";
-import { readTargetBillingPeriod } from "@/server/billing-target";
-import { ApiError, errorResponse } from "@/server/http";
-import { runtimeEnv } from "@/server/runtime";
-import type { PostgresDatabase } from "@/server/runtime/postgres";
+import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
+import { readTargetBillingPeriod } from "@/server/modules/billing/public/billing-target";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { runtimeEnv } from "@/server/modules/runtime/public/runtime";
+import type { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
 
 export async function GET(request: Request) {
   try {
@@ -18,15 +20,10 @@ export async function GET(request: Request) {
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))
       throw new ApiError(422, "INVALID_MONTH", "Use a month in YYYY-MM format.");
     const db = (await runtimeEnv()).CONTROL_DB as PostgresDatabase;
-    const binding = await db.pool.query("SELECT 1 FROM holding_bindings WHERE holding_id=$1 AND holding_id<>'h003'", [holdingId]);
-    if (!binding.rowCount) throw new ApiError(404, "NOT_FOUND", "Customer Holding not found.");
+    const binding = await customerHoldingBindingExists(db,holdingId);
+    if (!binding) throw new ApiError(404, "NOT_FOUND", "Customer Holding not found.");
     const view = await readTargetBillingPeriod(db, holdingId, month);
-    const receipt = view.invoice ? (await db.pool.query<{
-      invoice_satang: string; receivable_satang: string; received_satang: string;
-      reversed_satang: string; credited_satang: string; stripe_status: string; synced_at: string;
-    }>(`SELECT invoice_satang,receivable_satang,received_satang,reversed_satang,
-        credited_satang,stripe_status,synced_at FROM billing_test_finance_projection
-        WHERE billing_invoice_id=$1 AND customer_holding_id=$2`, [view.invoice.id, holdingId])).rows[0] : null;
+    const receipt = view.invoice ? await appBillingFinanceProjection(db,view.invoice.id,holdingId) : null;
     const financeProjection = receipt ? {
       invoiceSatang: Number(receipt.invoice_satang), receivableSatang: Number(receipt.receivable_satang),
       receivedSatang: Number(receipt.received_satang), reversedSatang: Number(receipt.reversed_satang),

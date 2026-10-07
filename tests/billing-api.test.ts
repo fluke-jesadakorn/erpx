@@ -42,11 +42,11 @@ vi.mock("../src/server/authorization", () => ({
 vi.mock("../src/server/staff-policy", () => ({
   requireCompanyAuthority: async () => {},
 }));
-vi.mock("../src/server/attachments/scanner",()=>({
+vi.mock("../src/server/modules/files/public/attachments/scanner",()=>({
   attachmentScannerReadiness:async(environment:NodeJS.ProcessEnv=process.env)=>{session.scannerGate=environment.ERPX_ATTACHMENTS_V2??null;return {enabled:true,ready:session.scannerReady,engine:"ClamAV billing test",definitionUpdatedAt:Date.now(),error:session.scannerReady?null:"CLAMD_UNAVAILABLE"};},
   scanAttachmentBytes:async()=>({clean:true,signature:null,engine:"ClamAV billing test",definitionUpdatedAt:Date.now()}),
 }));
-vi.mock("../src/server/attachments/preview",()=>({
+vi.mock("../src/server/modules/files/public/attachments/preview",()=>({
   detectedAttachmentMediaType:(_bytes:Uint8Array,declared:string)=>declared,
 }));
 vi.mock("../src/server/runtime", () => ({

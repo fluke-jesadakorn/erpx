@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { frontCompanyBrand, type FrontAppKind } from "@/server/front-app";
+import { frontCompanyBrand, type FrontAppKind } from "@/server/modules/work_projection/public/front-app";
 
 export const dynamic = "force-dynamic";
 

@@ -1,12 +1,12 @@
-import { currentSession } from "@/server/authorization";
-import { accountQuickAccessItems, type AccountQuickAccessArea } from "@/server/account-quick-access";
-import { workRoleOptions } from "@/server/work-role-options";
-import { workspaceChoices } from "@/server/workspace-choices";
+import { currentSession } from "@/server/modules/identity_access/public/authorization";
+import { accountQuickAccessItems, type AccountQuickAccessArea } from "@/server/modules/identity_access/public/account-quick-access";
+import { workRoleOptions } from "@/server/modules/work_projection/public/work-role-options";
+import { workspaceChoices } from "@/server/modules/organization/public/workspace-choices";
 import { safeReturnPath } from "@/lib/access-problem";
 import { parseHoldingWorkspace, workspaceBase } from "@/lib/workspace";
-import { ApiError, errorResponse } from "@/server/http";
-import { quickAccessPreferenceSchema, readQuickAccessPreferences, saveQuickAccessPreferences } from "@/server/quick-access-preferences";
-import { serviceCommandBody } from "@/server/service-http";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { quickAccessPreferenceSchema, readQuickAccessPreferences, saveQuickAccessPreferences } from "@/server/modules/work_projection/public/quick-access-preferences";
+import { serviceCommandBody } from "@/server/modules/support/public/service-http";
 
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ area: string }> };

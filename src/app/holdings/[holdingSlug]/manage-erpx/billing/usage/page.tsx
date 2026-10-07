@@ -1,5 +1,5 @@
 import { UsageConsole } from "@/components/usage/usage-console";
-import { requireManageErpxContext } from "@/server/authorization";
+import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
 
 export const dynamic = "force-dynamic";
 

@@ -1,0 +1,2 @@
+import type {SqlDatabase} from '../../runtime/public/runtime/types';
+export function stageOrganizationDepartmentAssignment(db:SqlDatabase,companyId:string,sourceId:string|null,branchId:string|null,nodeId:string){return db.prepare("UPDATE assignments SET branch_id=?,scope_node_id=?,version=version+1 WHERE company_id=? AND scope_kind='department' AND scope_node_id=? AND revoked_at IS NULL").bind(branchId,nodeId,companyId,sourceId); }

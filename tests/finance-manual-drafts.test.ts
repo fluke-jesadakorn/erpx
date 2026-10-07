@@ -196,3 +196,19 @@ it("refuses cross-Company and unbalanced edits and accepts only one concurrent d
       .first("n"),
   ).toBe(2);
 });
+
+it("rolls back original and edited immutable editions with line replacement after final outbox failure, then retries once",async()=>{
+ const old=await createJournal(f.owner,createJournalSchema.parse(input()),key()),id=String(old.id),command=key(),request=manualDraftEditSchema.parse({...input(),expectedVersion:1,memo:"Reviewed corrected draft",reason:"Independent verification before posting",lines:[{accountId:f.accounts.expense,debit:"80.01",credit:"0"},{accountId:f.accounts.payable,debit:"0",credit:"80.01"}]}),before=await db.prepare("SELECT * FROM finance_journals WHERE id=?").bind(id).first(),lines=(await db.prepare("SELECT * FROM finance_journal_lines WHERE journal_id=? ORDER BY ordinal,id").bind(id).all()).results,fault=`manual_draft_fault_${crypto.randomUUID().replaceAll("-","")}`;
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'MANUAL_DRAFT_LATE_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.event_type='finance.manual-draft.edit') EXECUTE FUNCTION ${fault}();`);
+ try{
+  await expect(editManualDraft(f.owner,id,request,command)).rejects.toThrow();
+  expect(await db.prepare("SELECT * FROM finance_journals WHERE id=?").bind(id).first()).toEqual(before);
+  expect((await db.prepare("SELECT * FROM finance_journal_lines WHERE journal_id=? ORDER BY ordinal,id").bind(id).all()).results).toEqual(lines);
+  expect(Number(await db.prepare("SELECT count(*) n FROM finance_manual_draft_editions WHERE journal_id=?").bind(id).first("n"))).toBe(0);
+  for(const table of ["command_receipts","audit_events","outbox_events"])expect(Number(await db.prepare(`SELECT COUNT(*) n FROM ${table} WHERE command_id=?`).bind(command).first("n"))).toBe(0);
+ }finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
+ const result=await editManualDraft(f.owner,id,request,command);expect(await editManualDraft(f.owner,id,request,command)).toEqual(result);expect(result).toMatchObject({id,status:"draft",version:2});
+ expect(Number(await db.prepare("SELECT count(*) n FROM finance_manual_draft_editions WHERE journal_id=?").bind(id).first("n"))).toBe(2);
+ for(const table of ["command_receipts","audit_events","outbox_events"])expect(Number(await db.prepare(`SELECT COUNT(*) n FROM ${table} WHERE command_id=?`).bind(command).first("n"))).toBe(1);
+ expect(Number(await db.prepare("SELECT debit_minor FROM finance_journal_lines WHERE journal_id=? AND account_id=?").bind(id,f.accounts.expense).first("debit_minor"))).toBe(8001);
+});

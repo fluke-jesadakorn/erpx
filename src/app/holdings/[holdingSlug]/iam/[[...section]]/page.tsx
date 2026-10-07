@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { iamSections } from "@/lib/iam";
-import { publicScope, requireWorkContext } from "@/server/authorization";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { peopleIamDestination } from "@/lib/people-lifecycle";
 export default async function IamPage({

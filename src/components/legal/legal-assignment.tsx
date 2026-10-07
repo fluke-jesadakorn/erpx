@@ -3,7 +3,7 @@ import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea } from "@/components/ui/foundation";
 
-import type { LegalDetail } from "@/lib/legal/model";
+import type { LegalDetail } from "@/server/modules/legal/public/rules/model";
 import { useLegalPeople } from "./legal-person-select";
 import s from "./legal.module.css";
 export function LegalAssignment({

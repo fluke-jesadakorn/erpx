@@ -9,8 +9,8 @@ import { useRouter } from "next/navigation";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { workFetch } from "@/lib/work-fetch";
 import { minorToDecimal } from "@/lib/finance-money";
-import type { Row } from "@/server/commerce";
-import type { supplierBillDetail, supplierInvoicePolicy } from "@/server/supplier-bill-matching";
+import type { Row } from "@/server/modules/commerce/public/commerce";
+import type { supplierBillDetail, supplierInvoicePolicy } from "@/server/modules/procurement/public/supplier-bill-matching";
 import { Card, FormGrid, TableFrame } from "@/components/ui/foundation";
 function useCommand(base: string) {
   const router = useRouter(),

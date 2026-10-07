@@ -4,8 +4,8 @@ import {useRef,useState} from 'react';
 import {Button,Field,Select,TextInput} from '@/components/ui/foundation';
 import {Dialog} from '@/components/ui/dialog';
 import {workFetch} from '@/lib/work-fetch';
-import {money,records,type Snapshot,type PmsRecord} from '@/lib/pms-model';
-import type {publicChangeQuote} from '@/server/pms-booking-changes';
+import {money,records,type Snapshot,type PmsRecord} from "@/server/modules/pms/public/rules/pms-model";
+import type {publicChangeQuote} from "@/server/modules/pms/public/pms-booking-changes";
 type Proposal=Awaited<ReturnType<typeof publicChangeQuote>>;
 export function StaffBookingChange({base,snapshot,stay,canOverride,onSaved}:{base:string;slug?:string;snapshot:Snapshot;stay:PmsRecord<'stay'>;canOverride:boolean;onSaved:()=>void}){
  const [open,setOpen]=useState(false),[kind,setKind]=useState<'change'|'cancel'>('change'),[arrival,setArrival]=useState(stay.data.arrival),[departure,setDeparture]=useState(stay.data.departure),[rateId,setRateId]=useState(stay.data.rateId),[reason,setReason]=useState(''),[override,setOverride]=useState(false),[proposal,setProposal]=useState<Proposal|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[checkout,setCheckout]=useState('');

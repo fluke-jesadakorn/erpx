@@ -5,7 +5,7 @@ import type {
   marketingAnalytics,
   analyticsOptions,
   AnalyticsFilters,
-} from "@/server/crm-marketing-report";
+} from "@/server/modules/crm/public/crm-marketing-report";
 import styles from "./analytics-report.module.css";
 import { Card, FilterBar, TableFrame } from "@/components/ui/foundation";
 

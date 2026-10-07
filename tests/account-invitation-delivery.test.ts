@@ -6,6 +6,8 @@ import {
   promoteAccountInvitationDeliveries,
 } from "../src/server/account-invitation-delivery";
 import { sendBetaEmail } from "../src/server/beta-email";
+import { accountInvitationList } from "../src/server/modules/identity_access/public/account-invitation-list";
+import { seedExpenseCompany } from "../fixtures/expenses/company";
 
 const control = env.CONTROL_DB;
 const holding = env.H001_DB;
@@ -72,6 +74,40 @@ async function review(invitationId: string, status: "approved" | "rejected") {
     )
     .run();
 }
+
+it("keeps the activation panel scoped to its owner, Holding, Company and Branch without mutating expired invitations", async () => {
+  const f = await seedExpenseCompany(holding, env.H001_FILES);
+  const valid = await invitation("sent", Date.now() + 86400000);
+  const expired = await invitation("failed", Date.now() - 1000);
+  const accepted = await invitation("sent", Date.now() - 1000);
+  const legacy = await invitation("queued", Date.now() + 86400000);
+  const otherBranch = await invitation("queued", Date.now() + 86400000);
+  const otherCompany = await invitation("queued", Date.now() + 86400000);
+  const otherHolding = await invitation("queued", Date.now() + 86400000);
+  const items = [valid, expired, accepted, legacy, otherBranch, otherCompany, otherHolding];
+  try {
+    for (const item of [valid, expired, accepted, legacy, otherBranch, otherHolding])
+      await control.prepare("UPDATE account_invitations SET company_id=?,branch_id=? WHERE id=?").bind(f.company, item === otherBranch ? "another-branch" : f.branch, item.invitationId).run();
+    await control.prepare("UPDATE account_invitations SET status='accepted' WHERE id=?").bind(accepted.invitationId).run();
+    await control.prepare("UPDATE account_invitations SET holding_id='h002' WHERE id=?").bind(otherHolding.invitationId).run();
+    await control.prepare("DELETE FROM account_invitation_delivery_jobs WHERE id=?").bind(legacy.jobId).run();
+    expect(await accountInvitationList(f.claimant, control)).toBeNull();
+    const rows = await accountInvitationList({ ...f.owner, branchId: f.branch }, control);
+    expect(rows?.map(row => row.id).sort()).toEqual([valid, expired, accepted, legacy].map(item => item.invitationId).sort());
+    expect(rows?.find(row => row.id === expired.invitationId)).toMatchObject({ status: "expired", delivery_state: "failed" });
+    expect(rows?.find(row => row.id === accepted.invitationId)).toMatchObject({ status: "accepted" });
+    expect(rows?.find(row => row.id === legacy.invitationId)).toMatchObject({ delivery_state: null, attempts: null, error: null, sent_at: null });
+    expect((await accountInvitationList({ ...f.owner, branchId: null }, control))?.map(row => row.id).sort()).toEqual([valid, expired, accepted, legacy, otherBranch].map(item => item.invitationId).sort());
+    expect(await control.prepare("SELECT status FROM account_invitations WHERE id=?").bind(expired.invitationId).first("status")).toBe("pending");
+    expect(rows?.some(row => row.id === otherCompany.invitationId || row.id === otherHolding.invitationId)).toBe(false);
+  } finally {
+    // This read-only panel proof must not leave jobs for a later delivery case.
+    for (const item of items) {
+      await control.prepare("DELETE FROM account_invitation_delivery_jobs WHERE invitation_id=?").bind(item.invitationId).run();
+      await control.prepare("DELETE FROM account_invitations WHERE id=?").bind(item.invitationId).run();
+    }
+  }
+});
 
 it("waits for independent approval and sends the reproducible activation token once", async () => {
   const item = await invitation();

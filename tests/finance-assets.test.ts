@@ -53,4 +53,25 @@ describe("atomic Finance fixed asset lifecycle",()=>{
     await expect(depreciateAsset(f.reviewer,assetId,{expectedVersion:2,periodId:f.period,entryDate:"2026-09-30"},key())).rejects.toMatchObject({code:"PERIOD_CLOSED"});
     expect((await assetDetail(f.owner,assetId)).asset).toMatchObject({version:2,accumulated_depreciation_minor:0,status:"in_service"});expect(await db.prepare("SELECT COUNT(*) n FROM finance_asset_depreciations WHERE asset_id=?").bind(assetId).first("n")).toBe(0);
   });
+  it("rolls back disposal journals carrying events and receipts after final outbox failure, then retries and replays once",async()=>{
+    const a=await recognized(),assetId=String(a.id),prepared=await prepareAssetDisposal(f.reviewer,assetId,assetDisposalSchema.parse({expectedVersion:2,periodId:f.period,entryDate:"2026-09-30",proceeds:"500",proceedsAccountId:f.accounts.cash,gainAccountId:mapped.gain,lossAccountId:mapped.loss,evidenceRef:"Retained disposal sale evidence"}),key()),disposalId=String(prepared.id),command=key(),decision={expectedVersion:1,reason:"Independent disposal carrying and actual proceeds review"},fault=`asset_disposal_fault_${crypto.randomUUID().replaceAll("-","")}`;
+    const retained=await assetDetail(f.owner,assetId);
+    await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'ASSET_DISPOSAL_LATE_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.event_type='finance.asset.disposal.post') EXECUTE FUNCTION ${fault}();`);
+    try{
+      await expect(decideAssetDisposal(f.manager,disposalId,"post",decision,command)).rejects.toThrow();
+      expect(await assetDetail(f.owner,assetId)).toEqual(retained);
+      for(const table of ["command_receipts","audit_events","outbox_events","decision_evidence"])expect(Number(await db.prepare(`SELECT COUNT(*) n FROM ${table} WHERE command_id=?`).bind(command).first("n"))).toBe(0);
+      expect(Number(await db.prepare("SELECT COUNT(*) n FROM finance_journals WHERE source_type='asset_disposal' AND source_id=?").bind(disposalId).first("n"))).toBe(0);
+      expect(Number(await db.prepare("SELECT COUNT(*) n FROM money_transaction_snapshots WHERE company_id=? AND source_type='asset_disposal' AND source_id=?").bind(f.company,disposalId).first("n"))).toBe(0);
+      expect(Number(await db.prepare("SELECT SUM(debit_minor-credit_minor) n FROM finance_journal_lines WHERE account_id=?").bind(mapped.cost).first("n"))).toBe(120001);
+    }finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
+    const posted=await decideAssetDisposal(f.manager,disposalId,"post",decision,command);expect(await decideAssetDisposal(f.manager,disposalId,"post",decision,command)).toEqual(posted);
+    expect(posted).toMatchObject({status:"posted",version:2,assetVersion:3});
+    for(const table of ["command_receipts","audit_events","outbox_events","decision_evidence"])expect(Number(await db.prepare(`SELECT COUNT(*) n FROM ${table} WHERE command_id=?`).bind(command).first("n"))).toBe(1);
+    expect(Number(await db.prepare("SELECT COUNT(*) n FROM finance_journals WHERE source_type='asset_disposal' AND source_id=?").bind(disposalId).first("n"))).toBe(1);
+    expect(Number(await db.prepare("SELECT COUNT(*) n FROM money_transaction_snapshots WHERE company_id=? AND source_type='asset_disposal' AND source_id=?").bind(f.company,disposalId).first("n"))).toBe(1);
+    expect(Number(await db.prepare("SELECT SUM(debit_minor-credit_minor) n FROM finance_journal_lines WHERE account_id=?").bind(mapped.cost).first("n"))).toBe(0);
+    expect((await assetDetail(f.owner,assetId)).events.filter(e=>e.command_id===command)).toHaveLength(1);
+  });
+
 });

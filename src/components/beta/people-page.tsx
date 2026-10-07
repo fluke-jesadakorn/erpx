@@ -2,11 +2,11 @@
 import { PageContent } from "@/components/ui/patterns";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { publicScope } from "@/server/authorization";
+import { publicScope } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { MemberProfile } from "@/components/modules/member-profile";
-import { companyMembers } from "@/server/member-directory";
-import type { WorkContext } from "@/server/authorization";
+import { companyMembers } from "@/server/modules/organization/public/member-directory";
+import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { Card } from "@/components/ui/foundation";
 export async function BetaPeople({
   actor,

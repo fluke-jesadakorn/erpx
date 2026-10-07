@@ -1,8 +1,8 @@
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
-import { currentSession } from "@/server/authorization";
-import { workspaceChoices } from "@/server/workspace-choices";
-import { accountQuickAccessItems } from "@/server/account-quick-access";
-import { readQuickAccessPreferences } from "@/server/quick-access-preferences";
+import { currentSession } from "@/server/modules/identity_access/public/authorization";
+import { workspaceChoices } from "@/server/modules/organization/public/workspace-choices";
+import { accountQuickAccessItems } from "@/server/modules/identity_access/public/account-quick-access";
+import { readQuickAccessPreferences } from "@/server/modules/work_projection/public/quick-access-preferences";
 import { QuickAccessShelf } from "@/components/quick-access/shelf";
 import rail from "@/components/quick-access/area-rail.module.css";
 import Link from "next/link";

@@ -1,3 +1,4 @@
+import {loadIamAuthority} from "../src/server/modules/identity_access/public/iam-store";
 import { beforeAll,expect,it,vi } from "vitest";
 import { env,applyMigrations } from "./runtime-env";
 import { expenseFixture,expenseDb as db,key } from "./helpers/expense-fixture";
@@ -245,9 +246,9 @@ it("unmaps one Position without removing a shared GPO target, then allows a new 
   await db.prepare("UPDATE hr_people SET legal_name='Renamed after review' WHERE id=?").bind(s.headPerson).run();
   await expect(unmapPositionGpo(db,s.itActor,{...request,previewToken:preview.token},key())).rejects.toMatchObject({code:"GPO_PREVIEW_CHANGED"});
   await unmapPositionGpo(db,s.itActor,{...request,previewToken:(await previewUnmapPositionGpo(db,s.itActor,request)).token},key());
-  const position=(await positionGpoOverview(db,s.itActor)).positions.find((p:{id:string})=>p.id===s.headPosition) as {mapped:boolean;mapping_status:string|null};
-  expect(position.mapped).toBe(false);
-  expect(position.mapping_status).toBeNull();
+  const position=(await positionGpoOverview(db,s.itActor)).positions.find(p=>p.id===s.headPosition);
+  expect(position?.mapped).toBe(false);
+  expect(position?.mapping_status).toBeNull();
   await drainPositionGpo(db);
   expect(s.members("group")).not.toContain("unmap-head");
   expect(s.members("group2")).toContain("unmap-owner");
@@ -281,7 +282,7 @@ it("honors the Directory write switch after publication",async()=>{
   await publishPositionGpo(db,s.itActor,s.input(s.headPosition),key());
   await db.prepare("UPDATE people_directory_state SET write_enabled=false WHERE connection_id=?").bind(s.connection).run();
   await drainPositionGpo(db);
-  expect(provider.apply.mock.calls.filter(([c]:[{id:string}])=>c.id===s.connection)).toHaveLength(0);
+  expect(provider.apply.mock.calls.filter(([c])=>c.id===s.connection)).toHaveLength(0);
   expect(await db.prepare("SELECT directory_config_error FROM position_gpo_policies WHERE company_id=? AND position_id=?").bind(s.f.company,s.headPosition).first("directory_config_error")).toBe("DIRECTORY_WRITE_NOT_READY");
   expect(s.members("group")).not.toContain("write-disabled-account");
 });
@@ -362,7 +363,7 @@ it("rejects stale preview, missing permission, and stale MFA before publish",asy
   await db.prepare("UPDATE hr_engagements SET job_title='Changed after review',version=version+1 WHERE person_id=?").bind(s.headPerson).run();
   await expect(rawPublishPositionGpo(db,s.itActor,{...request,previewToken:preview.token},key())).rejects.toMatchObject({code:"GPO_PREVIEW_CHANGED"});
   const current=await previewPositionGpo(db,s.itActor,request);
-  await expect(rawPublishPositionGpo(db,{...s.itActor,iam:{permissions:[]}}, {...request,previewToken:current.token},key())).rejects.toMatchObject({code:"IT_AUTHORITY_REQUIRED"});
+  await expect(rawPublishPositionGpo(db,{...s.itActor,iam:{...(await loadIamAuthority(db,s.itActor.companyId,s.itActor.userId,s.itActor.role)),permissions:[]}}, {...request,previewToken:current.token},key())).rejects.toMatchObject({code:"IT_AUTHORITY_REQUIRED"});
   mfa.check.mockRejectedValueOnce(new Error("FRESH_MFA_REQUIRED"));
   await expect(rawPublishPositionGpo(db,s.itActor,{...request,previewToken:current.token},key())).rejects.toThrow("FRESH_MFA_REQUIRED");
   await rawPublishPositionGpo(db,s.itActor,{...request,previewToken:current.token},key());
@@ -413,8 +414,8 @@ it("creates a pending Position task, supports multiple mappings, and completes a
 it("rejects Level and Department writes and never inherits a policy after a Position move",async()=>{
   const s=await setup();
   const levelId=await db.prepare("SELECT level_id FROM organization_positions WHERE id=?").bind(s.headPosition).first<string>("level_id");
-  await expect(previewGpoRule(db,s.itActor,ruleInput(s,{kind:"level",id:levelId!}))).rejects.toThrow();
-  await expect(previewGpoRule(db,s.itActor,ruleInput(s,{kind:"department",id:s.f.department}))).rejects.toThrow();
+  await expect(previewGpoRule(db,s.itActor,{...ruleInput(s,{kind:"position",id:levelId!}),target:{kind:"level",id:levelId!}})).rejects.toThrow();
+  await expect(previewGpoRule(db,s.itActor,{...ruleInput(s,{kind:"position",id:s.f.department}),target:{kind:"department",id:s.f.department}})).rejects.toThrow();
   const rule=await publishRule(s,ruleInput(s,{kind:"position",id:s.headPosition}));
   const future=`future-position-${key()}`;
   await db.prepare("INSERT INTO organization_positions(id,company_id,title,level_id,reports_to_position_id,created_by,created_at,updated_at) VALUES(?,?,'Future direct position',?,?,?,1,1)").bind(future,s.f.company,levelId,s.ownerPosition,s.f.owner.userId).run();
@@ -427,7 +428,7 @@ it("closes a task with a reason and version, then reopens on a Position change",
   const task=(await gpoRulesOverview(db,s.itActor)).tasks.find(item=>item.positionId===s.headPosition)!;
   await expect(markPositionGpoNotRequired(db,s.itActor,{positionId:s.headPosition,expectedVersion:task.version,reason:" "},key())).rejects.toThrow();
   await markPositionGpoNotRequired(db,s.itActor,{positionId:s.headPosition,expectedVersion:task.version,reason:"No Windows policy needed"},key());
-  expect((await gpoRulesOverview(db,s.itActor)).tasks.find(item=>item.positionId===s.headPosition)).toMatchObject({status:"not_required",reason:"No Windows policy needed"},key());
+  expect((await gpoRulesOverview(db,s.itActor)).tasks.find(item=>item.positionId===s.headPosition)).toMatchObject({status:"not_required",reason:"No Windows policy needed"});
   await expect(markPositionGpoNotRequired(db,s.itActor,{positionId:s.headPosition,expectedVersion:task.version,reason:"Still no policy"},key())).rejects.toMatchObject({code:"GPO_TASK_CHANGED"});
   await db.prepare("UPDATE organization_positions SET title=title||' revised',version=version+1 WHERE id=?").bind(s.headPosition).run();
   expect((await gpoRulesOverview(db,s.itActor)).tasks.find(item=>item.positionId===s.headPosition)?.status).toBe("pending");
@@ -556,4 +557,26 @@ it("defers to the Directory connection lock and retains a source committed by it
     await directory.query("SELECT pg_advisory_unlock_all()");
     directory.release();
   }
+});
+
+it("rolls back a GPO publication and immutable revision on late outbox failure, then replays the same command",async()=>{
+  const s=await setup(),input=s.input(s.headPosition),preview=await previewPositionGpo(db,s.itActor,input),commandKey=key(),payload={...input,previewToken:preview.token},suffix=key().replace(/[^a-zA-Z0-9]/g,''),trigger=`gpo_outbox_${suffix}`,fault=`gpo_outbox_fault_${suffix}`;
+  await db.prepare(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='${commandKey}' THEN RAISE EXCEPTION 'GPO_TEST_LATE_FAILURE'; END IF; RETURN NEW; END $$`).run();
+  await db.prepare(`CREATE TRIGGER ${trigger} AFTER INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION ${fault}()`).run();
+  try{
+    await expect(rawPublishPositionGpo(db,s.itActor,payload,commandKey)).rejects.toThrow('GPO_TEST_LATE_FAILURE');
+    expect(await db.prepare("SELECT count(*)::int count FROM position_gpo_policies WHERE company_id=? AND position_id=?").bind(s.f.company,s.headPosition).first('count')).toBe(0);
+    expect(await db.prepare("SELECT count(*)::int count FROM position_gpo_revisions WHERE company_id=? AND command_id=?").bind(s.f.company,commandKey).first('count')).toBe(0);
+    expect(await db.prepare("SELECT count(*)::int count FROM organization_gpo_rules WHERE company_id=?").bind(s.f.company).first('count')).toBe(0);
+    expect(await db.prepare("SELECT count(*)::int count FROM command_receipts WHERE command_id=?").bind(commandKey).first('count')).toBe(0);
+    expect(await db.prepare("SELECT count(*)::int count FROM audit_events WHERE command_id=?").bind(commandKey).first('count')).toBe(0);
+    expect(await db.prepare("SELECT count(*)::int count FROM outbox_events WHERE command_id=?").bind(commandKey).first('count')).toBe(0);
+  }finally{
+    await db.prepare(`DROP TRIGGER ${trigger} ON outbox_events`).run();
+    await db.prepare(`DROP FUNCTION ${fault}()`).run();
+  }
+  const result=await rawPublishPositionGpo(db,s.itActor,payload,commandKey);
+  expect(await rawPublishPositionGpo(db,s.itActor,payload,commandKey)).toEqual(result);
+  expect(await db.prepare("SELECT count(*)::int count FROM position_gpo_revisions WHERE company_id=? AND command_id=?").bind(s.f.company,commandKey).first('count')).toBe(1);
+  expect(await db.prepare("SELECT version FROM position_gpo_policies WHERE company_id=? AND position_id=?").bind(s.f.company,s.headPosition).first('version')).toBe(1);
 });

@@ -1,3 +1,4 @@
+import { captureCaseScreenshot } from "../helpers/case-screenshot";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import {
   activeRoles,
@@ -85,7 +86,7 @@ test("role refresh preserves the complete non-Home URL, document and scroll; dow
   await expect(page.getByRole("heading", { name: "My finance work", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Add document", exact: true })).toHaveCount(0);
   await expect(other.locator("[data-work-stale]")).toHaveAttribute("data-work-stale", "true");
-  await page.screenshot({ path: `.scratch/dev/context-switch-forbidden-${info.project.name}.png` });
+  await captureCaseScreenshot(page, `context-switch-forbidden-${info.project.name}.png`);
   await expect(other.getByText("Work role changed. Your open form has not been submitted.", { exact: false })).toBeVisible();
   expect((await context.request.get("/api/v1/holdings/acme/finance/charts")).status()).toBe(403);
   await unchangedDocument();
@@ -341,7 +342,7 @@ test("Platform role selection keeps the Manage ERPX page and checks any availabl
   page.on("request", request => { if (request.method() === "POST" && new URL(request.url()).pathname === "/api/v1/platform/assignments/active") switches.push(request.url()); });
   await role.selectOption(initial);
   expect(switches).toEqual([]);
-  const alternate = await role.getByRole("option").evaluateAll((options, selected) => {
+  const alternate = await role.getByRole("option", { includeHidden: true }).evaluateAll((options, selected) => {
     const option = (options.find(item => /auditor/i.test(item.textContent ?? "") && (item as HTMLOptionElement).value !== selected)
       ?? options.find(item => (item as HTMLOptionElement).value !== selected)) as HTMLOptionElement | undefined;
     return option ? { id: option.value, label: option.textContent ?? "" } : null;

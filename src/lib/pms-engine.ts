@@ -3,8 +3,8 @@ import { dailyRoomReport, readiness, nightBlockers } from "./pms-read";
 export { dailyRoomReport, readiness, nightBlockers } from "./pms-read";
 import { PmsError } from "./pms-error";
 export { PmsError } from "./pms-error";
-import { availability } from "./pms-inventory";
-export { availability } from "./pms-inventory";
+import { availability } from "./pms-inventory-domain";
+export { availability } from "./pms-inventory-domain";
 import {
   nightlyPrices,
   bookingQuote,
@@ -13,7 +13,7 @@ import {
   collectionPolicySchema,
   guestInputSchema,
   roomSelectionSchema,
-} from "./pms-booking";
+} from "./pms-booking-domain";
 import { z } from "zod";
 import {
   amounts,

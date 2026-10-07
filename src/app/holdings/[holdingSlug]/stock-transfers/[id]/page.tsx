@@ -15,17 +15,17 @@ import { RecordNextAction } from "@/components/workplace/record-next-action";
 import { WorkReturn } from "@/components/workplace/work-return";
 import { minorToDecimal } from "@/lib/finance-money";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext } from "@/server/authorization";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import {
   canPrepareTransfers,
   canEditTransfer,
   canReviewTransfer,
   transferDetail,
   transferOptions,
-} from "@/server/inventory-transfers";
-import { getTransit, transitWorkItem } from "@/server/inventory-transit";
+} from "@/server/modules/inventory/public/inventory-transfers";
+import { getTransit, transitWorkItem } from "@/server/modules/inventory/public/inventory-transit";
 import { TransitNextAction } from "@/components/workplace/transit-next-action";
-import { pageError } from "@/server/page-error";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";

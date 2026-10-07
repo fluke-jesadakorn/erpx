@@ -10,7 +10,7 @@ import { workFetch } from "@/lib/work-fetch";
 import { minorToDecimal } from "@/lib/finance-money";
 import { vatTreatmentLabels } from "@/lib/finance-vat-labels";
 import { useHydrated } from "@/components/ui/use-hydrated";
-import type { TaxRow } from "@/server/finance-tax-register";
+import type { TaxRow } from "@/server/modules/finance/public/finance-tax-register";
 import { FormLayout, Card, Stack } from "@/components/ui/foundation";
 
 function useTaxCommand(base: string) {

@@ -6,7 +6,7 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 
 import { useEffect, useState } from "react";
 import { diffWordsWithSpace } from "diff";
-import type { LegalDetail } from "@/lib/legal/model";
+import type { LegalDetail } from "@/server/modules/legal/public/rules/model";
 import s from "./legal.module.css";
 import { LegalEvidenceFields } from "./legal-evidence-fields";
 import { LegalPeopleSequence, useLegalPeople } from "./legal-person-select";

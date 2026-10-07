@@ -9,7 +9,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { hubResultHref } from "@/lib/hub-result";
 import { workFetch } from "@/lib/work-fetch";
-import type { customerAccessHistory, customerAccessWorkspace } from "@/server/customer-access";
+import type { customerAccessHistory, customerAccessWorkspace } from "@/server/modules/customer_authority/public/customer-access";
 import { Card, FormLayout } from "@/components/ui/foundation";
 export function CustomerAccessConsole({
   base,

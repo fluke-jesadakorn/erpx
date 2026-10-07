@@ -1,6 +1,6 @@
-import { requireWorkContext } from "@/server/authorization";
-import { errorResponse } from "@/server/http";
-import { leaveSummary } from "@/server/leave-self-service";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { errorResponse } from "@/server/modules/runtime/public/http";
+import { leaveSummary } from "@/server/modules/people_payroll/public/leave-self-service";
 
 export const dynamic = "force-dynamic";
 

@@ -27,6 +27,7 @@ async function signIn(context: BrowserContext, page: Page, credentials: Credenti
 test("H002 AI drafts from authorized versions, cites hotel evidence, then falls back manually", async ({ browser }, testInfo) => {
   const run = process.env.ERPX_DEMO_RUN;
   expect(run, "The Thai Hotel mock runner must supply an exact prepared simulation run.").toMatch(/^[a-f0-9]{12}$/);
+  if (!run) throw new Error("EXACT_BROWSER_SIMULATION_RUN_REQUIRED");
   test.setTimeout(240_000);
   const directory = resolve(`.runtime/browser/${run}`);
   const credentials = JSON.parse(await readFile(resolve(directory, "credentials.json"), "utf8")) as Credentials;

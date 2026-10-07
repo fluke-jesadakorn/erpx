@@ -9,6 +9,7 @@ import { posCommand,one,all,run } from '../src/server/pos-core';
 import { accountKeys,saleAmounts,portion,recipeQuantities,formatPosMoney,businessDate } from '../src/lib/pos';
 import { defaultConfig,pmsAccountKeys } from '../src/lib/pms';
 import { drainPos,posStripeWebhook,verifyPosStripeSignature } from '../src/server/pos-stripe';
+import type { PermissionActor } from "../src/lib/iam";
 import type { WorkContext } from '../src/server/authorization';
 import {posCustomers,posDayReport} from '../src/server/pos-daily';
 import { attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet } from './helpers/attachment-v2';
@@ -26,6 +27,15 @@ async function createSale(mode='retail'){
 async function add(sale:string,product='tea',qty=1000){await change('sale.add',sale,{productId:product,quantityMilli:qty,modifierIds:[],discountMinor:0,note:''});}
 async function pay(sale:string,amount=10700){await change('payment.create',sale,{method:'cash',amountMinor:amount,tenderedMinor:amount,reference:''});}
 async function kitchen(sale:string,action:string){const f=(await one(db,'SELECT f.* FROM pos_fulfillments f JOIN pos_lines l ON l.fulfillment_id=f.id WHERE l.sale_id=?',sale))!;return command(`kitchen.${action}`,{id:f.id,expectedVersion:f.version,reason:'customer changed order'},action==='cancel'?manager:actor);}
+async function expectLatePosAuditRollback(operation:string,request:unknown,who:WorkContext,key:string){
+ const tables=['pos_sales','pos_lines','pos_reservations','pos_stock_moves','pos_fulfillments','pos_payments','pos_postings','pos_receipts','pos_audit','pos_jobs','pms_properties','pms_records','pms_sources','pms_postings','finance_journals','finance_journal_lines','finance_invoices','finance_payments','finance_allocations','money_transaction_snapshots','commerce_stock','attachment_sets','attachment_links','attachment_events','command_assertions'];
+ const snapshot=async()=>Promise.all(tables.map(table=>all(db,`SELECT row_to_json(t)::text row FROM ${table} t ORDER BY row_to_json(t)::text`)));
+ const before=await snapshot();
+ await db.exec("CREATE FUNCTION pos_final_audit_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.operation=TG_ARGV[0] THEN RAISE EXCEPTION 'forced late POS audit failure' USING ERRCODE='23514'; END IF; RETURN NEW; END $$");
+ await db.exec(`CREATE TRIGGER pos_final_audit_fault AFTER INSERT ON pos_audit FOR EACH ROW EXECUTE FUNCTION pos_final_audit_fault('${operation}')`);
+ try{await expect(command(operation,request,who,key)).rejects.toMatchObject({code:'POS_CONFLICT'});expect(await snapshot()).toEqual(before);expect(await one(db,'SELECT id FROM pos_receipts WHERE id=?',key)).toBeNull();}
+ finally{await db.exec('DROP TRIGGER pos_final_audit_fault ON pos_audit; DROP FUNCTION pos_final_audit_fault()');}
+}
 async function clearPosSetup(){await run(db,'DELETE FROM pos_shifts');await run(db,'DELETE FROM pos_tables');await run(db,'DELETE FROM pos_registers');await run(db,'DELETE FROM pos_settings');}
 beforeAll(async()=>{await Promise.all([applyMigrations(db,env.STAFF_TEST_MIGRATIONS),applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS)]);enableAttachmentV2ForTest();},120000);
 beforeEach(async context=>{
@@ -250,6 +260,15 @@ describe('POS committed business flows',()=>{
   const input={action:'record' as const,invoiceId,issuer:'Fictional hotel tax desk',externalReference:'TAX-0001',issuedOn:'2026-09-23',documentTotalMinor:10700,documentTaxMinor:700,reason:'Matched to paper tax invoice'};
   await expect(frontTaxDocumentView(actor,invoiceId,'pms')).rejects.toMatchObject({code:'TAX_DOCUMENT_INVOICE_NOT_FOUND'});
   await expect(frontTaxDocumentCommand({...actor,companyId:'another-company'},input,'front-tax-cross-company','pos')).rejects.toMatchObject({code:'TAX_DOCUMENT_INVOICE_NOT_FOUND'});
+  const fault='tax_document_late_'+crypto.randomUUID().replaceAll('-','');
+  const snapshot=async()=>({invoice:await one(db,'SELECT * FROM finance_invoices WHERE id=?',invoiceId),documents:await one(db,'SELECT count(*) n FROM hospitality_tax_documents'),receipts:await one(db,'SELECT count(*) n FROM command_receipts'),audit:await one(db,'SELECT count(*) n FROM audit_events'),outbox:await one(db,'SELECT count(*) n FROM outbox_events')});
+  const rejectLate=async(operation:string,attempt:()=>Promise<unknown>)=>{
+   const before=await snapshot();
+   await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'TAX_DOCUMENT_LATE_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.event_type='${operation}') EXECUTE FUNCTION ${fault}();`);
+   try{await expect(attempt()).rejects.toBeDefined();expect(await snapshot()).toEqual(before);}
+   finally{await db.exec(`DROP TRIGGER IF EXISTS ${fault} ON outbox_events;DROP FUNCTION IF EXISTS ${fault}();`);}
+  };
+  await rejectLate('hospitality.tax_document.record',()=>frontTaxDocumentCommand(actor,input,'tax-document-record-0001','pos'));
   const saved=await frontTaxDocumentCommand(actor,input,'tax-document-record-0001','pos');
   expect(await frontTaxDocumentCommand(actor,input,'tax-document-record-0001','pos')).toEqual(saved);
   expect(await frontTaxDocumentView(actor,invoiceId,'pos')).toMatchObject({canRecord:true,canReview:false});
@@ -258,7 +277,13 @@ describe('POS committed business flows',()=>{
   await expect(taxDocumentCommand(actor,{action:'verify',invoiceId,documentId:saved.id,expectedVersion:1},'tax-document-self-review')).rejects.toMatchObject({code:'INDEPENDENT_REVIEW_REQUIRED'});
   await expect(taxDocumentCommand(manager,input,'tax-document-duplicate')).rejects.toMatchObject({code:'CONFLICT'});
   await expect(run(db,'UPDATE finance_invoices SET tax_minor=701 WHERE id=?',invoiceId)).rejects.toMatchObject({code:'23514'});
-  expect(await taxDocumentCommand(manager,{action:'verify',invoiceId,documentId:saved.id,expectedVersion:1},'tax-document-reviewed')).toMatchObject({state:'verified',version:2});
+  const review={action:'verify' as const,invoiceId,documentId:saved.id,expectedVersion:1};
+  await rejectLate('hospitality.tax_document.verify',()=>taxDocumentCommand(manager,review,'tax-document-reviewed'));
+  const reviewed=await taxDocumentCommand(manager,review,'tax-document-reviewed');
+  expect(reviewed).toMatchObject({state:'verified',version:2});
+  expect(await taxDocumentCommand(manager,review,'tax-document-reviewed')).toEqual(reviewed);
+  expect(await one(db,"SELECT count(*) n FROM command_receipts WHERE command_id IN ('tax-document-record-0001','tax-document-reviewed')")).toEqual({n:2});
+
   expect(await taxDocumentCommand(manager,{action:'void',invoiceId,documentId:saved.id,expectedVersion:2,reason:'Issuer voided paper original'},'tax-document-voided')).toMatchObject({state:'voided',version:3});
   const replacement=await taxDocumentCommand(actor,{...input,externalReference:'TAX-0002',documentTaxMinor:600,reason:'Replacement paper invoice has wrong tax'},'tax-document-replacement');
   await expect(taxDocumentCommand(manager,{action:'verify',invoiceId,documentId:replacement.id,expectedVersion:1},'tax-document-external-mismatch')).rejects.toMatchObject({code:'INVOICE_CHANGED'});
@@ -363,6 +388,7 @@ describe('POS committed business flows',()=>{
   const input={id:sale,expectedVersion:saleRow!.version,propertyId:'hotel',stayId:'stay',expectedPropertyVersion:1};
   const {posWorkspace}=await import('../src/server/pos');
   expect((await posWorkspace(actor,sale,'','sale')).roomChargeStays).toMatchObject([{stay_id:'stay',room_number:'101',guest_name:'Example Guest'}]);
+  await expectLatePosAuditRollback('sale.charge_to_room',input,actor,'room-charge-replay');
   const charged=await command('sale.charge_to_room',input,actor,'room-charge-replay');
   expect(charged).toMatchObject({id:sale,state:'completed',tender:'room_charge',propertyId:'hotel'});
   expect(await command('sale.charge_to_room',input,actor,'room-charge-replay')).toEqual(charged);
@@ -511,7 +537,10 @@ describe('POS committed business flows',()=>{
   expect(await one(db,'SELECT state FROM pos_sales WHERE id=?',sale)).toEqual({state:'held'});
   expect(await attachmentBindingState(db,stale.setId)).toMatchObject({set_state:'draft',link_state:'draft'});
   const evidence=await seedAttachmentSet(db,actor,{targetType:'pos_sale',targetId:sale,componentKind:'action',componentRef:'void',purposeKey:'void_evidence',expectedTargetVersion:Number(held!.version)});
-  await command('sale.cancel',{id:sale,expectedVersion:Number(held!.version),attachmentSetIds:[evidence.setId]});
+  const cancel={id:sale,expectedVersion:Number(held!.version),attachmentSetIds:[evidence.setId]},cancelKey='pos-void-rollback-replay';
+  await expectLatePosAuditRollback('sale.cancel',cancel,actor,cancelKey);
+  const cancelled=await command('sale.cancel',cancel,actor,cancelKey);expect(await command('sale.cancel',cancel,actor,cancelKey)).toEqual(cancelled);
+  expect(await one(db,'SELECT COUNT(*) n FROM pos_receipts WHERE id=?',cancelKey)).toEqual({n:1});
   expect(await one(db,'SELECT state FROM pos_sales WHERE id=?',sale)).toEqual({state:'cancelled'});
   expect(await attachmentBindingState(db,evidence.setId)).toMatchObject({set_state:'bound',link_state:'bound',binding_type:'pos_void'});
  });
@@ -693,7 +722,8 @@ describe('POS provider recovery and reporting',()=>{
   const {sale,payment,refund,rp,job}=await restrictedPromptPayRefund();
   const frozen=await one(db,'SELECT md5(snapshot_json::text) digest FROM pos_sale_documents WHERE sale_id=?',sale),returns=await one(db,"SELECT COUNT(*) n FROM pos_stock_moves WHERE kind='return'"),journals=await one(db,'SELECT COUNT(*) n FROM finance_journals');
   const input={id:job.id,accountingDate:businessDate(),reason:'customer controlled recipient correction',refundInstructionsEmail:'blocked@example.test',expectedRefundVersion:2};
-  await expect(command('exception.retry',input,{...manager,permissions:['pos.approve']})).rejects.toMatchObject({code:'PERMISSION_REQUIRED'});
+  const posReviewOnly:WorkContext & Pick<PermissionActor,'permissions'>={...manager,permissions:['pos.approve']};
+  await expect(command('exception.retry',input,posReviewOnly)).rejects.toMatchObject({code:'PERMISSION_REQUIRED'});
   await expect(command('exception.retry',input,{...manager,branchId:'pos-branch'})).rejects.toMatchObject({code:'POS_COMPANY_SETTINGS'});
   await expect(command('exception.retry',{...input,expectedRefundVersion:1},manager)).rejects.toMatchObject({code:'POS_VERSION_CONFLICT'});
   await expect(command('exception.retry',{...input,refundInstructionsEmail:'payer@example.test'},manager)).rejects.toMatchObject({code:'POS_REFUND_EMAIL_UNCHANGED'});
@@ -1153,4 +1183,20 @@ it('drills a POS report group into exactly its completed source receipts with Co
  expect(detail.rows.every(row=>row.state==='completed'&&row.register_id===group.register_id&&row.shift_id===group.shift_id&&row.currency===group.currency&&row.business_date===group.business_date)).toBe(true);
  await expect(posReportReceipts({...actor,companyId:'other-company'},{businessDate:String(group.business_date),registerId:String(group.register_id),shiftId:String(group.shift_id),currency:String(group.currency)})).rejects.toMatchObject({status:404});
  await expect(posReportReceipts({...actor,branchId:'other-branch'},{businessDate:String(group.business_date),registerId:String(group.register_id),shiftId:String(group.shift_id),currency:String(group.currency)})).rejects.toMatchObject({status:404});
+});
+
+describe('POS presentation movement query',()=>{
+ it('resolves the original sale only within its Company and optional Branch without mutating owner records',async()=>{
+  const {findPosMovementSale}=await import('../src/server/modules/pos/public/movement-presentation-query');
+  const sale=await createSale();await add(sale);await pay(sale);await change('sale.complete',sale);
+  const movement=await one(db,'SELECT m.id FROM pos_stock_moves m JOIN pos_lines l ON l.fulfillment_id=m.fulfillment_id WHERE l.sale_id=? ORDER BY m.created_at LIMIT 1',sale);
+  expect(movement).not.toBeNull();
+  const movementId=String(movement!.id),before=await all(db,'SELECT row_to_json(s)::text row FROM pos_sales s ORDER BY id');
+  expect(await findPosMovementSale(db,movementId,actor.companyId,null)).toEqual({sale_id:sale});
+  expect(await findPosMovementSale(db,movementId,actor.companyId,'pos-branch')).toEqual({sale_id:sale});
+  expect(await findPosMovementSale(db,movementId,actor.companyId,'other-branch')).toBeNull();
+  expect(await findPosMovementSale(db,movementId,'other-company',null)).toBeNull();
+  expect(await findPosMovementSale(db,'missing-movement',actor.companyId,null)).toBeNull();
+  expect(await all(db,'SELECT row_to_json(s)::text row FROM pos_sales s ORDER BY id')).toEqual(before);
+ });
 });

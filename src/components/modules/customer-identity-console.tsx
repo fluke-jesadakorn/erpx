@@ -9,7 +9,7 @@ import { workFetch } from "@/lib/work-fetch";
 import type {
   customerIdentityDetail,
   customerIdentityWorkspace,
-} from "@/server/customer-identity-changes";
+} from "@/server/modules/customer_authority/public/customer-identity-changes";
 import { Card, FormLayout } from "@/components/ui/foundation";
 export function CustomerIdentityConsole({
   base,

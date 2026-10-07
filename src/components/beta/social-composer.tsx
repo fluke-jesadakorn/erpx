@@ -18,8 +18,8 @@ import {
   type PostEditorBlock,
 } from "@/lib/social-post-editor-state";
 import type { RichContent } from "@/lib/home-rich-content";
-import type { Mention } from "@/lib/social-text";
-import type { PostContent } from "@/server/social-home";
+import type { Mention } from "@/server/modules/collaboration/public/rules/social-text";
+import type { PostContent } from "@/server/modules/collaboration/public/social-home";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { PenLine, ChevronDown } from "lucide-react";
 import { betaFetch } from "@/lib/beta-client";

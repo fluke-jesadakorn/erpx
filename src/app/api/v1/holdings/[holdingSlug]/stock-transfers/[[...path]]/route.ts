@@ -1,8 +1,8 @@
-import { requestPublicOrigin } from "@/server/public-origin";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import { z } from "zod";
-import { requireWorkContext } from "@/server/authorization";
-import { ApiError,errorResponse } from "@/server/http";
-import { listTransfers,transferOptions,transferDetail,saveTransfer,transitionTransfer,transferSchema,transferActionSchema } from "@/server/inventory-transfers";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { ApiError,errorResponse } from "@/server/modules/runtime/public/http";
+import { listTransfers,transferOptions,transferDetail,saveTransfer,transitionTransfer,transferSchema,transferActionSchema } from "@/server/modules/inventory/public/inventory-transfers";
 type Context={params:Promise<{holdingSlug:string;path?:string[]}>};
 export async function GET(_request:Request,context:Context){try{const {holdingSlug,path:p=[]}=await context.params,actor=await requireWorkContext(holdingSlug);if(p.length>1)throw new ApiError(404,"NOT_FOUND","Stock transfer route not found.");return Response.json({data:p.length?await transferDetail(actor,p[0]):{transfers:await listTransfers(actor),options:await transferOptions(actor)}},{headers:{"Cache-Control":"private, no-store"}});}catch(e){return errorResponse(e);}}
 export async function POST(request:Request,context:Context){try{

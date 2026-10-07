@@ -1,9 +1,9 @@
-import {requireWorkContext} from '@/server/authorization';
-import {approvePmsStripeRefund,requestPmsStripeRefund,recoverPmsStripeRefund} from '@/server/pms-stripe';
-import {ApiError,errorResponse} from '@/server/http';
-import {requestPublicOrigin} from '@/server/public-origin';
-import {holdingResources} from '@/server/runtime';
-import {isTransactionalSqlDatabase} from '@/server/runtime/types';
+import {requireWorkContext} from "@/server/modules/identity_access/public/authorization";
+import {approvePmsStripeRefund,requestPmsStripeRefund,recoverPmsStripeRefund} from "@/server/modules/pms/public/pms-stripe";
+import {ApiError,errorResponse} from "@/server/modules/runtime/public/http";
+import {requestPublicOrigin} from "@/server/modules/manage_erpx/public/public-origin";
+import {holdingResources} from "@/server/modules/runtime/public/runtime";
+import {isTransactionalSqlDatabase} from "@/server/modules/runtime/public/runtime/types";
 
 type Context={params:Promise<{holdingSlug:string}>};
 export async function POST(request:Request,{params}:Context){try{

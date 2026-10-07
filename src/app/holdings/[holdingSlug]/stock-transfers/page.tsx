@@ -11,10 +11,10 @@ import { PageHeader, StatusBadge } from "@/components/ui/primitives";
 import { TransferEditor } from "@/components/workplace/work-editors";
 import { minorToDecimal } from "@/lib/finance-money";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { canPrepareTransfers, transferOptions, transfersPage } from "@/server/inventory-transfers";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { canPrepareTransfers, transferOptions, transfersPage } from "@/server/modules/inventory/public/inventory-transfers";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { pageError } from "@/server/page-error";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { FilterBar, Table, TableFrame } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Transfers({

@@ -25,7 +25,7 @@ vi.mock("../src/server/runtime", () => ({
   holdingResources: async () => ({ write: db, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));
-vi.mock("../src/server/attachments/scanner", () => ({
+vi.mock("../src/server/modules/files/public/attachments/scanner", () => ({
   attachmentScannerReadiness: async () => ({
     enabled: true,
     ready: true,
@@ -40,10 +40,10 @@ vi.mock("../src/server/attachments/scanner", () => ({
     definitionUpdatedAt: Date.now(),
   }),
 }));
-vi.mock("../src/server/attachments/preview", async () => {
+vi.mock("../src/server/modules/files/public/attachments/preview", async () => {
   const actual = await vi.importActual<
-    typeof import("../src/server/attachments/preview")
-  >("../src/server/attachments/preview");
+    typeof import("../src/server/modules/files/public/attachments/preview")
+  >("../src/server/modules/files/public/attachments/preview");
   return {
     ...actual,
     attachmentPreviewReadiness: async () => ({

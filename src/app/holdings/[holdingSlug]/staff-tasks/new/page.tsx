@@ -1,9 +1,10 @@
+import { staffPresentationQueries } from "@/server/modules/work_projection/public/presentation-context-queries";
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { FeaturePage } from "@/components/features/feature-page";
 import { TaskEditor } from "@/components/modules/staff-work-controls";
-import { getWorkCapabilities } from "@/server/work-capabilities";
-import { staffPage } from "@/server/staff-page";
+
+
 import { RecordLink as Link } from "@/components/records/record-link";
 import { notFound } from "next/navigation";
 
@@ -16,8 +17,8 @@ export default async function NewTask({
 }) {
   const { holdingSlug } = await params;
   const query = await searchParams;
-  const { actor, write, base, options, projects, staff } = await staffPage(holdingSlug);
-  const capabilities = await getWorkCapabilities(write, actor);
+  const { actor, queries, base, options, projects, staff } = await staffPresentationQueries(holdingSlug);
+  const capabilities = await queries.getWorkCapabilities(actor);
   if (!capabilities.creation.some((item) => item.kind === "task")) {
     if (staff) notFound();
     return (

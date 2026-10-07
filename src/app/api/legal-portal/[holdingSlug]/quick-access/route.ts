@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { boundedBody } from "@/server/legal/body";
-import { portalContext, portalList } from "@/server/legal/portal";
-import { legalPortalQuickAccess } from "@/server/portal-quick-access";
-import { readQuickAccessPreferences, saveQuickAccessPreferences } from "@/server/quick-access-preferences";
-import { holdingBindingBySlug } from "@/server/runtime";
-import { ApiError, errorResponse } from "@/server/http";
-import { requestPublicOrigin } from "@/server/public-origin";
+import { boundedBody } from "@/server/modules/legal/public/legal/body";
+import { portalContext, portalList } from "@/server/modules/legal/public/legal/portal";
+import { legalPortalQuickAccess } from "@/server/modules/work_projection/public/portal-quick-access";
+import { readQuickAccessPreferences, saveQuickAccessPreferences } from "@/server/modules/work_projection/public/quick-access-preferences";
+import { holdingBindingBySlug } from "@/server/modules/runtime/public/runtime";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string }> };

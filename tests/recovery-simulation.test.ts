@@ -36,7 +36,7 @@ it('restores an isolated source-linked business snapshot without reposting its t
  await transitionOrder(f.owner,orderId,{action:'submit',expectedVersion:1},key());await transitionOrder(f.head,orderId,{action:'approve',expectedVersion:2},key());
  const details=await getOrder(f.owner,orderId),lineId=String(details.lines[0].id);
  await changeOrderReservation(f.owner,orderId,{expectedVersion:3,action:'reserve',lineId,quantity:'2',expiresAt:Date.now()+3600000,reason:'Reserve before recovery rehearsal'},key());
- const delivery=await fulfillOrder(f.owner,orderId,{expectedVersion:4,date:'2026-09-02',lines:[{lineId,quantity:'1'}],...(await deliveryEvidence(db,f.owner,orderId))},key());
+ const delivery=await fulfillOrder(f.owner,orderId,{attachmentSetIds:[],expectedVersion:4,date:'2026-09-02',lines:[{lineId,quantity:'1',allocations:[]}],...(await deliveryEvidence(db,f.owner,orderId))},key());
  const expected=await tableDigests(db);
  const cliEnv={...process.env,PGHOST:adminUrl.hostname,PGPORT:adminUrl.port,PGUSER:decodeURIComponent(adminUrl.username),PGPASSWORD:decodeURIComponent(adminUrl.password),PGDATABASE:source};
  const admin=new Pool({connectionString:adminUrl.href,max:1});let restored:PostgresDatabase|undefined,created=false;

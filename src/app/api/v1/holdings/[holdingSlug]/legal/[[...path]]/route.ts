@@ -1,24 +1,24 @@
-import { legalReferences, addLegalReference } from "@/server/legal/references";
-import { legalKnowledge, lawCitation } from "@/server/legal/knowledge";
-import { legalPeople } from "@/server/legal/assignees";
-import { executedCopies, reviewExecutedCopy } from "@/server/legal/executed-copies";
-import { lawCorpusView, lawCorpusCommand } from "@/server/legal/law-corpus";
-import { legalWorkspaceView } from "@/server/legal/workspace";
-import { legalRuntimeHealth } from "@/server/legal/runtime-gate";
-import { releaseAcceptance, submitReleaseAcceptance, reviewReleaseAcceptance, revokeReleaseAcceptance } from "@/server/release-acceptance";
+import { legalReferences, addLegalReference } from "@/server/modules/legal/public/legal/references";
+import { legalKnowledge, lawCitation } from "@/server/modules/legal/public/legal/knowledge";
+import { legalPeople } from "@/server/modules/legal/public/legal/assignees";
+import { executedCopies, reviewExecutedCopy } from "@/server/modules/legal/public/legal/executed-copies";
+import { lawCorpusView, lawCorpusCommand } from "@/server/modules/legal/public/legal/law-corpus";
+import { legalWorkspaceView } from "@/server/modules/legal/public/legal/workspace";
+import { legalRuntimeHealth } from "@/server/modules/legal/public/legal/runtime-gate";
+import { releaseAcceptance, submitReleaseAcceptance, reviewReleaseAcceptance, revokeReleaseAcceptance } from "@/server/modules/platform_administration/public/release-acceptance";
 import { legalProductionScope } from "@/data/production-scope";
-import { preserveAttachment } from "@/server/legal/sources";
-import { governanceView, governanceCommand } from "@/server/legal/governance";
-import { legalReports } from "@/server/legal/reports";
+import { preserveAttachment } from "@/server/modules/legal/public/legal/sources";
+import { governanceView, governanceCommand } from "@/server/modules/legal/public/legal/governance";
+import { legalReports } from "@/server/modules/legal/public/legal/reports";
 import {
   legalApprovalView,
   legalApprovalCommand,
-} from "@/server/legal/approval";
-import { boundedBody } from "@/server/legal/body";
-import { featureDetail, featureCommand } from "@/server/legal/features";
-import { retentionView, retentionCommand } from "@/server/legal/retention";
-import { queueInspection, processingStatus } from "@/server/legal/processing";
-import { trustView, trustCommand } from "@/server/legal/trust";
+} from "@/server/modules/legal/public/legal/approval";
+import { boundedBody } from "@/server/modules/legal/public/legal/body";
+import { featureDetail, featureCommand } from "@/server/modules/legal/public/legal/features";
+import { retentionView, retentionCommand } from "@/server/modules/legal/public/legal/retention";
+import { queueInspection, processingStatus } from "@/server/modules/legal/public/legal/processing";
+import { trustView, trustCommand } from "@/server/modules/legal/public/legal/trust";
 import {
   startRevision,
   ruleImpact,
@@ -33,21 +33,21 @@ import {
   evidenceBundle,
   holdPreview,
   applyAiDraft,
-} from "@/server/legal/operations";
-import type { PostgresDatabase } from "@/server/runtime/postgres";
-import { queueLegalAi, legalAiHistory } from "@/server/legal/jobs";
+} from "@/server/modules/legal/public/legal/operations";
+import type { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
+import { queueLegalAi, legalAiHistory } from "@/server/modules/legal/public/legal/jobs";
 import {
   externalSubmission,
   documentExport,
   uploadDocument,
   importExecutedCopy,
-} from "@/server/legal/documents";
-import { requireWorkContext } from "@/server/authorization";
-import { holdingResources } from "@/server/runtime";
-import { legalData, detail, legalCommand } from "@/server/legal/service";
-import { sendEnvelope, signingAction } from "@/server/legal/signing";
-import { errorResponse, ApiError } from "@/server/http";
-import { requestPublicOrigin } from "@/server/public-origin";
+} from "@/server/modules/legal/public/legal/documents";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { legalData, detail, legalCommand } from "@/server/modules/legal/public/legal/service";
+import { sendEnvelope, signingAction } from "@/server/modules/legal/public/legal/signing";
+import { errorResponse, ApiError } from "@/server/modules/runtime/public/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
 export async function GET(request: Request, ctx: Context) {

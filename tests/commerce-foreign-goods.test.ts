@@ -1,3 +1,6 @@
+import { fulfillmentSchema } from "../src/server/commerce";
+import { confirmPaymentSchema } from "../src/server/finance";
+import { returnRequestSchema } from "../src/server/commerce";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "./runtime-env";
 import { expenseDb as db, expenseFixture, key } from "./helpers/expense-fixture";
@@ -58,8 +61,8 @@ async function goods(kind: "purchase" | "sales", source?: { warehouseId: string;
   await assign("order", orderId, "stock_gl", f.manager.userId);
   const details = await getOrder(f.owner, orderId), allocations = kind === "purchase" ? [{ lotCode: key(), quantity: "2" }] : [{ lotId: source!.lotId, quantity: "2" }];
   const input = { expectedVersion: 3, date: kind === "purchase" ? "2026-09-28" : "2026-09-29", lines: [{ lineId: String(details.lines[0].id), quantity: "2", allocations }], ...(kind === "sales" ? await deliveryEvidence(db, f.owner, orderId) : {}) }, command = key();
-  const fulfilled = await fulfillOrder(f.owner, orderId, input, command);
-  expect(await fulfillOrder(f.owner, orderId, input, command)).toEqual(fulfilled);
+  const fulfilled = await fulfillOrder(f.owner, orderId, fulfillmentSchema.parse(input), command);
+  expect(await fulfillOrder(f.owner, orderId, fulfillmentSchema.parse(input), command)).toEqual(fulfilled);
   const fulfillmentId = String(fulfilled.fulfillmentId), journalId = String(await db.prepare("SELECT journal_id FROM commerce_fulfillments WHERE id=?").bind(fulfillmentId).first("journal_id"));
   await postGoods(journalId);
   await assign("order", orderId, "invoicing", f.owner.userId);
@@ -93,7 +96,7 @@ async function payment(invoiceId: string, partyId: string, amount: string, kind:
   await releasePayment(f.payer, id, { expectedVersion: 2, proof: "Treasury releases the approved foreign payment" }, key());
   const signed = kind === "payment" ? `-${amount}` : amount;
   const statement = await importBankStatement(f.reviewer, { bankAccount: ids.bank, statementNumber: key(), statementDate: "2026-09-29", opening: "0", closing: signed, sourceHash: key(), rows: [{ externalId: key(), transactionDate: "2026-09-29", amount: signed, currency: "USD" }] }, key()), bankId = String(await db.prepare("SELECT id FROM finance_bank_transactions WHERE statement_id=?").bind(statement.id).first("id"));
-  await confirmPayment(f.payer, id, { expectedVersion: 3, periodId: f.period, bankTransactionId: bankId, bankVersion: 1, bankReference: key(), proof: "Declared synthetic bank adapter matched by Treasury", allocations: [{ invoiceId, amount }], fxGainAccountId: ids.gain, fxLossAccountId: ids.loss }, key());
+  await confirmPayment(f.payer, id, confirmPaymentSchema.parse({ expectedVersion: 3, periodId: f.period, bankTransactionId: bankId, bankVersion: 1, bankReference: key(), proof: "Declared synthetic bank adapter matched by Treasury", allocations: [{ invoiceId, amount }], fxGainAccountId: ids.gain, fxLossAccountId: ids.loss }), key());
 }
 async function revalue() {
   const run = await prepareFxRevaluation(f.reviewer, { chartId: f.chart, periodId: f.period, entryDate: "2026-09-30", rates: [{ currency: "USD", rate: "37" }], gainAccountId: ids.gain, lossAccountId: ids.loss, proof: "Reviewed synthetic closing quote at actual month end" }, key());
@@ -102,7 +105,7 @@ async function revalue() {
 }
 async function returned(source: Awaited<ReturnType<typeof goods>>, missingFx?: "FX_GAIN_ACCOUNT_REQUIRED" | "FX_LOSS_ACCOUNT_REQUIRED") {
   const expectedVersion = Number(await db.prepare("SELECT version FROM commerce_fulfillments WHERE id=?").bind(source.fulfillmentId).first("version"));
-  const requested = await requestCommerceReturn(f.owner, source.fulfillmentId, { expectedVersion, date: "2026-10-01", reason: "Fictional counterparty accepted one returned lot unit", lines: [{ lineId: source.lineId, quantity: "1", allocations: [{ lotId: source.lotId, quantity: "1" }], condition: "unknown", conditionNote: "Returned unit retained for independent Quality review", qualityDueDate: "2026-10-02" }] }, key()), id = String(requested.id);
+  const requested = await requestCommerceReturn(f.owner, source.fulfillmentId, returnRequestSchema.parse({ expectedVersion, date: "2026-10-01", reason: "Fictional counterparty accepted one returned lot unit", lines: [{ lineId: source.lineId, quantity: "1", allocations: [{ lotId: source.lotId, quantity: "1" }], condition: "unknown", conditionNote: "Returned unit retained for independent Quality review", qualityDueDate: "2026-10-02" }] }), key()), id = String(requested.id);
   await expect(decideCommerceReturn(f.owner, id, "approve", { expectedVersion: 1, reason: "Self review rejected" }, key())).rejects.toMatchObject({ code: "INDEPENDENT_APPROVER_REQUIRED" });
   const decision = await decideCommerceReturn(f.head, id, "approve", { expectedVersion: 1, reason: "Independent original lot and customer or supplier return approval" }, key());
   for (const journalId of [decision.stockJournalId, decision.creditJournalId, decision.goodsFxJournalId].filter(Boolean)) await postGoods(String(journalId));
@@ -200,7 +203,7 @@ describe("native foreign Commerce goods carrying", () => {
     const holds = (await db.prepare("SELECT h.id FROM inventory_quality_holds h JOIN commerce_return_lot_allocations a ON a.id=h.source_id JOIN commerce_return_lines l ON l.id=a.return_line_id WHERE l.return_id IN (?,?)").bind(first.id, last.id).all<{ id: string }>()).results;
     expect(holds).toHaveLength(2);
     for (const { id } of holds) {
-      await inspectQualityHold(f.owner, id, { expectedVersion: 1, result: "pass", evidence: "Actual returned lot condition measured against the product", measurements: [], attachmentIds: [] }, key());
+      await inspectQualityHold(f.owner, id, { expectedVersion: 1, result: "pass", evidence: "Actual returned lot condition measured against the product", measurements: [], attachmentIds: [], attachmentSetIds: [] }, key());
       await releaseQualityHold(f.it, id, { expectedVersion: 2, reason: "Independent Quality review accepts this retained original lot" }, key());
     }
     expect(await db.prepare("SELECT inventory_quarantined_quantity(?,?) n").bind(source.warehouseId, source.productId).first("n")).toBe(0);

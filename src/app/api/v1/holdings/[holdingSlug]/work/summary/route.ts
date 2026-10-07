@@ -1,7 +1,7 @@
-import { requireWorkContext } from "@/server/authorization";
-import { getWorkSummary, getWorkPage } from "@/server/work-summary";
-import { errorResponse } from "@/server/http";
-import { measureReadRequest } from "@/server/runtime/read-request";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { getWorkSummary, getWorkPage } from "@/server/modules/work_projection/public/work-summary";
+import { errorResponse } from "@/server/modules/runtime/public/http";
+import { measureReadRequest } from "@/server/modules/runtime/public/runtime/read-request";
 export async function GET(
   request: Request,
   context: { params: Promise<{ holdingSlug: string }> },

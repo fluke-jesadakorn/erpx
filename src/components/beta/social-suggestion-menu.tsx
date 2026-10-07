@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/foundation";
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import type { Suggestion } from "@/lib/social-text";
+import type { Suggestion } from "@/server/modules/collaboration/public/rules/social-text";
 import styles from "./social-text.module.css";
 import { type UiAppearance } from "@/components/ui/foundation";
 

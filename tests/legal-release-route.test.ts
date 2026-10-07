@@ -8,16 +8,16 @@ const state = vi.hoisted(() => ({
   revoke: vi.fn(),
   write: { name: "holding-write" },
 }));
-vi.mock("../src/server/authorization", () => ({
+vi.mock("../src/server/modules/identity_access/public/authorization", () => ({
   requireWorkContext: async () => ({ holdingId: "h001", companyId: "company-a", userId: "reviewer" }),
 }));
-vi.mock("../src/server/runtime", () => ({
+vi.mock("../src/server/modules/runtime/public/runtime", () => ({
   holdingResources: async () => ({ write: state.write }),
 }));
-vi.mock("../src/server/public-origin", () => ({
+vi.mock("../src/server/modules/manage_erpx/public/public-origin", () => ({
   requestPublicOrigin: () => "https://dev-erpx.example.test",
 }));
-vi.mock("../src/server/release-acceptance", () => ({
+vi.mock("../src/server/modules/platform_administration/public/release-acceptance", () => ({
   releaseAcceptance: state.acceptance,
   submitReleaseAcceptance: vi.fn(),
   reviewReleaseAcceptance: state.review,

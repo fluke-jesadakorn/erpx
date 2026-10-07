@@ -119,16 +119,17 @@ export class MinioFileStore implements FileStore {
     }
     if (!this.preservationDb) return operation();
     const guarded = async (tx: SqlDatabase) => {
-      await tx.prepare("SELECT pg_advisory_xact_lock(hashtextextended('legal-files',0))").run();
-      if(await tx.prepare("SELECT to_regclass('attachment_orphan_preservations') present").first("present"))for(const key of keys)
-        if(await tx.prepare("SELECT 1 FROM attachment_orphan_preservations p WHERE p.object_key=? AND NOT EXISTS(SELECT 1 FROM attachment_orphan_preservation_events e WHERE e.preservation_id=p.id AND e.event_kind='restored')").bind(key).first())throw new Error('FILE_PRESERVED_PENDING_OWNER');
-      for (const key of keys) if (await tx.prepare("SELECT 1 FROM legal_file_preservations p JOIN legal_hold_targets t ON t.item_id=p.item_id JOIN legal_holds h ON h.id=t.hold_id WHERE h.state!='released' AND (p.object_key=? OR (p.source_type='attachment' AND EXISTS(SELECT 1 FROM attachment_derivatives d WHERE d.attachment_id=p.source_id AND d.object_key=?)))").bind(key, key).first()) throw new Error('LEGAL_HOLD_BLOCKS_FILE_MUTATION');
+      const authority=(await import("@/server/modules/legal/public/runtime-minio-preservation-authority")).runtimeMinioPreservationAuthority(tx);
+      await authority.lock();
+      if(await authority.preservationReady())for(const key of keys)
+        if(await authority.pendingOwner(key))throw new Error('FILE_PRESERVED_PENDING_OWNER');
+      for(const key of keys)if(await authority.held(key))throw new Error('LEGAL_HOLD_BLOCKS_FILE_MUTATION');
       return operation(tx);
     };
     return database ? guarded(database) : this.preservationDb.transaction(guarded);
   }
   async destroyPreserved(keys: string[], authorization: Parameters<NonNullable<FileStore['destroyPreserved']>>[1]) {
-    const row = await authorization.database.prepare("SELECT x.manifest FROM legal_destructions x WHERE x.id=? AND x.state='executing' AND NOT EXISTS(SELECT 1 FROM legal_hold_targets t JOIN legal_holds h ON h.id=t.hold_id WHERE t.item_id=x.item_id AND h.state!='released')").bind(authorization.destructionId).first<{ manifest: string }>();
+    const row=await (await import("@/server/modules/legal/public/runtime-minio-preservation-authority")).runtimeMinioPreservationAuthority(authorization.database).destruction(authorization.destructionId);
     if (!row) throw new Error('LEGAL_DESTRUCTION_NOT_AUTHORIZED');
     const manifest = typeof row.manifest === 'string' ? JSON.parse(row.manifest) : row.manifest;
     for (const key of keys) {

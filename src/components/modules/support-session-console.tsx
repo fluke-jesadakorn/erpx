@@ -7,7 +7,7 @@ import { PreferredDateTimeField } from "@/components/time/preferred-date-time-fi
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
-import type { supportSessionDetail, supportSessionWorkspace } from "@/server/support-sessions";
+import type { supportSessionDetail, supportSessionWorkspace } from "@/server/modules/support/public/support-sessions";
 import { FormLayout } from "@/components/ui/foundation";
 
 export function SupportSessionConsole({

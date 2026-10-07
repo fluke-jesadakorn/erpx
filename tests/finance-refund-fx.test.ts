@@ -76,4 +76,27 @@ describe("foreign refund cash and carrying evidence",()=>{
   await expect(prepareRefundInstruction(f.payer,other.obligation,refundInstructionSchema.parse({expectedVersion:Number(owner.version),amount:"100",plannedDate:"2026-09-05",bankAccount:other.ids.bank,cashAccountId:other.ids.bank,fxGainAccountId:other.ids.loss}),key())).rejects.toMatchObject({code:"FX_ACCOUNT_INVALID"});
   expect((await refundWorkspace(f.payer,other.obligation)).owner.outstanding_minor).toBe(10000);
  });
+
+ it("rolls back refund cash FX carrying snapshots and notification delivery if final outbox fails then retries exactly once",async()=>{
+  const sourceFacts=await source("incoming");await confirmManualRate(f.manager,{currency:"THB",effectiveDate:"2026-09-05",currencyPerUsd:"36",note:"Synthetic refund bank-date quote for rollback proof"},key());
+  const owner=(await refundWorkspace(f.payer,sourceFacts.obligation)).owner,instruction=await prepareRefundInstruction(f.payer,sourceFacts.obligation,refundInstructionSchema.parse({expectedVersion:Number(owner.version),amount:"40.01",plannedDate:"2026-09-05",bankAccount:sourceFacts.ids.bank,cashAccountId:sourceFacts.ids.bank,fxGainAccountId:sourceFacts.ids.gain,fxLossAccountId:sourceFacts.ids.loss}),key()),instructionId=String(instruction.id),exported=await exportRefundInstructions(f.payer,{instructions:[{id:instructionId,expectedVersion:1}]},key());
+  const statement=await importBankStatement(f.reviewer,{bankAccount:sourceFacts.ids.bank,statementNumber:key(),statementDate:"2026-09-05",opening:"0",closing:"40.01",sourceHash:key(),rows:[{externalId:key(),transactionDate:"2026-09-05",amount:"40.01",currency:"USD"}]},key()),bankId=String(await db.prepare("SELECT id FROM finance_bank_transactions WHERE statement_id=?").bind(statement.id).first("id")),command=key(),input=refundConfirmationSchema.parse({expectedVersion:2,bankTransactionId:bankId,bankVersion:1,periodId:f.period,bankReference:key(),evidence:"Reviewed exact bank amount for isolated rollback proof"}),before=(await refundWorkspace(f.payer,sourceFacts.obligation)).owner,fault=`refund_confirm_fault_${crypto.randomUUID().replaceAll("-","")}`;
+  await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'REFUND_CONFIRM_LATE_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.event_type='finance.refund.confirm') EXECUTE FUNCTION ${fault}();`);
+  try{
+   await expect(confirmRefundInstruction(f.payer,instructionId,input,command)).rejects.toThrow();
+   expect((await refundWorkspace(f.payer,sourceFacts.obligation)).owner).toEqual(before);
+   expect(await db.prepare("SELECT status,version,base_carrying_minor,cash_base_minor FROM finance_refund_instructions WHERE id=?").bind(instructionId).first()).toEqual({status:"exported",version:2,base_carrying_minor:null,cash_base_minor:null});
+   expect(await db.prepare("SELECT match_status,version,matched_id FROM finance_bank_transactions WHERE id=?").bind(bankId).first()).toEqual({match_status:"unmatched",version:1,matched_id:null});
+   expect(Number(await db.prepare("SELECT COUNT(*) n FROM finance_journals WHERE source_type IN ('return_refund','return_refund_fx') AND source_id=?").bind(instructionId).first("n"))).toBe(0);
+   expect(Number(await db.prepare("SELECT COUNT(*) n FROM finance_payments WHERE id=?").bind(`refund-payment-${command}`).first("n"))).toBe(0);
+   expect(Number(await db.prepare("SELECT COUNT(*) n FROM money_transaction_snapshots WHERE company_id=? AND source_type='finance_payment' AND source_id=?").bind(f.company,`refund-payment-${command}`).first("n"))).toBe(0);
+   for(const table of ["command_receipts","audit_events","outbox_events"])expect(Number(await db.prepare(`SELECT COUNT(*) n FROM ${table} WHERE command_id=?`).bind(command).first("n"))).toBe(0);
+   expect(Number(await db.prepare("SELECT COUNT(*) n FROM staff_notifications WHERE id LIKE ?").bind(`${command}-%`).first("n"))).toBe(0);
+  }finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
+  const result=await confirmRefundInstruction(f.payer,instructionId,input,command);expect(await confirmRefundInstruction(f.payer,instructionId,input,command)).toEqual(result);expect(result).toMatchObject({status:"confirmed",version:3,baseCarryingMinor:140035,cashBaseMinor:144036,realizedFxMinor:4001});
+  for(const table of ["command_receipts","audit_events","outbox_events"])expect(Number(await db.prepare(`SELECT COUNT(*) n FROM ${table} WHERE command_id=?`).bind(command).first("n"))).toBe(1);
+  expect(Number(await db.prepare("SELECT COUNT(*) n FROM finance_journals WHERE source_type IN ('return_refund','return_refund_fx') AND source_id=?").bind(instructionId).first("n"))).toBe(2);
+  expect(Number(await db.prepare("SELECT COUNT(*) n FROM money_transaction_snapshots WHERE company_id=? AND source_type='finance_payment' AND source_id=?").bind(f.company,`refund-payment-${command}`).first("n"))).toBe(1);
+  expect(await recoverRefundExport(f.payer,instructionId)).toMatchObject({content:exported.content,sha256:exported.sha256});
+ });
 });

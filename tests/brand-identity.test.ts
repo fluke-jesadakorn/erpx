@@ -1,3 +1,4 @@
+import type {BrandIdentity} from "../src/server/modules/brand/public/brand-identity";
 import {beforeAll,beforeEach,expect,it,vi} from "vitest";
 import {applyMigrations,env} from "./runtime-env";
 import {expenseDb as db,expenseFixture,key} from "./helpers/expense-fixture";
@@ -6,7 +7,7 @@ import {readStorefrontAppBrand,updateStorefrontAppBrand} from "../src/server/bra
 import {frontCompanyBrand} from "../src/server/front-app";
 vi.mock("../src/server/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env,holdingBindingBySlug:async(holdingSlug:string)=>({id:"h001",slug:holdingSlug})}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
-const identity=(shortName="Engineering demo")=>({identity:{shortName,tagline:"Approved company identity"},visual:{accentColor:"#224488",logoPublicationId:null}});
+const identity=(shortName="Engineering demo"):BrandIdentity=>({identity:{shortName,tagline:"Approved company identity"},visual:{accentColor:"#224488",logoPublicationId:null}});
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();f.head.role="hr_admin";f.head.assignmentId=await f.grant(f.head,"hr_admin");for(const actor of [f.owner,f.head,f.claimant])actor.modules=["brand"];});
 async function draft(value=identity(),actor=f.owner,expectedPublishedVersion=0){return saveBrandIdentityDraft(actor,{expectedPublishedVersion,identity:value,reason:"Reviewable identity draft with approved values"},key());}

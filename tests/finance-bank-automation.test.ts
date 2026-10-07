@@ -819,3 +819,60 @@ it("retains and pages more than 200 unsent collection editions without hiding th
     }),
   ).rejects.toMatchObject({ code: "INVALID_CURSOR" });
 }, 60_000);
+
+it('rolls back bank movement targets group version and command proof after final confirmation outbox failure, then retries once',async()=>{
+ const a=await receipt('60.01'),b=await receipt('39.99'),s=await statement(),proposal=await proposeBankMatchGroup(f.owner,{bankTransactionIds:[s.bank],journalLineIds:[a,b],reason:'Reviewed original aggregate bank receipt'},key()),id=String(proposal.id),command=key(),review={expectedVersion:1,reason:'Independent reviewer verified every cash receipt'},fault=`bank_group_fault_${crypto.randomUUID().replaceAll('-','')}`;
+ const originalGroup=await db.prepare('SELECT * FROM finance_bank_match_groups WHERE id=?').bind(id).first(),originalBank=await db.prepare('SELECT * FROM finance_bank_transactions WHERE id=?').bind(s.bank).first(),allocations=(await db.prepare('SELECT * FROM finance_bank_match_allocations WHERE group_id=? ORDER BY id').bind(id).all()).results;
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'BANK_GROUP_LATE_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.event_type='finance.bank-group.confirm') EXECUTE FUNCTION ${fault}();`);
+ try{
+  await expect(decideBankMatchGroup(f.manager,id,review,'confirm',command)).rejects.toThrow();
+  expect(await db.prepare('SELECT * FROM finance_bank_match_groups WHERE id=?').bind(id).first()).toEqual(originalGroup);
+  expect(await db.prepare('SELECT * FROM finance_bank_transactions WHERE id=?').bind(s.bank).first()).toEqual(originalBank);
+  expect((await db.prepare('SELECT * FROM finance_bank_match_allocations WHERE group_id=? ORDER BY id').bind(id).all()).results).toEqual(allocations);
+  expect(Number(await db.prepare('SELECT count(*) n FROM finance_bank_match_targets WHERE group_id=?').bind(id).first('n'))).toBe(0);
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n'))).toBe(0);
+ }finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
+ const matched=await decideBankMatchGroup(f.manager,id,review,'confirm',command);expect(await decideBankMatchGroup(f.manager,id,review,'confirm',command)).toEqual(matched);expect(matched).toMatchObject({status:'matched',version:2});
+ expect(Number(await db.prepare('SELECT count(*) n FROM finance_bank_match_targets WHERE group_id=?').bind(id).first('n'))).toBe(2);
+ expect(await db.prepare('SELECT match_status,version FROM finance_bank_transactions WHERE id=?').bind(s.bank).first()).toEqual({match_status:'matched',version:Number(originalBank!.version)+1});
+ for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n'))).toBe(1);
+});
+
+it('rolls back mapped file and its inner statement owner command after final outer outbox failure, then retries once',async()=>{
+ const mapping=await createBankCsvMapping(f.owner,bankCsvMappingSchema.parse({name:'Outer rollback mapping',columns:{externalId:'ID',transactionDate:'Date',amount:'Amount'}}),key()),input={mappingId:String(mapping.id),bankAccountId:f.accounts.cash,statementNumber:key(),statementDate:'2026-09-30',opening:'0',closing:'100.00',csv:'ID,Date,Amount\nBank,2026-09-04,100.00\n'},command=key(),fault=`mapped_bank_fault_${crypto.randomUUID().replaceAll('-','')}`;
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'MAPPED_BANK_LATE_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.event_type='finance.bank-csv.import') EXECUTE FUNCTION ${fault}();`);
+ try{
+  await expect(importMappedBankCsv(f.owner,input,command)).rejects.toThrow();
+  for(const table of ['finance_bank_import_files','finance_bank_statements','finance_bank_transactions'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE company_id=?`).bind(f.company).first('n'))).toBe(0);
+  for(const ownerCommand of [command,`${command}-statement`])for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(ownerCommand).first('n'))).toBe(0);
+ }finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
+ const imported=await importMappedBankCsv(f.owner,input,command);expect(await importMappedBankCsv(f.owner,input,command)).toEqual(imported);
+ for(const table of ['finance_bank_import_files','finance_bank_statements','finance_bank_transactions'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE company_id=?`).bind(f.company).first('n'))).toBe(1);
+ for(const ownerCommand of [command,`${command}-statement`])for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(ownerCommand).first('n'))).toBe(1);
+});
+
+it('retains unsent collection editions and delivery proof after final outbox failure, then retries each command once',async()=>{
+ const invoice=await obligation(),original=await prepareCollectionCase(f.owner,{invoiceId:invoice,expectedVersion:1,asOf:'2026-09-30',message:'Retained original fictional request'},key()),id=String(original.id),command=key(),input={expectedVersion:1,expectedInvoiceVersion:1,asOf:'2026-09-30',message:'Retained revised fictional request',reason:'Independent immutable message edition'},fault=`collection_fault_${crypto.randomUUID().replaceAll('-','')}`;
+ const before=await db.prepare('SELECT * FROM finance_collection_cases WHERE id=?').bind(id).first();
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'COLLECTION_LATE_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.event_type='finance.collection.revise') EXECUTE FUNCTION ${fault}();`);
+ try{
+  await expect(reviseCollectionCase(f.owner,id,input,command)).rejects.toThrow();
+  expect(await db.prepare('SELECT * FROM finance_collection_cases WHERE id=?').bind(id).first()).toEqual(before);
+  expect(Number(await db.prepare('SELECT count(*) n FROM finance_collection_cases WHERE parent_case_id=?').bind(id).first('n'))).toBe(0);
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n'))).toBe(0);
+ }finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
+ const revised=await reviseCollectionCase(f.owner,id,input,command);expect(await reviseCollectionCase(f.owner,id,input,command)).toEqual(revised);
+ expect(Number(await db.prepare('SELECT count(*) n FROM finance_collection_cases WHERE parent_case_id=?').bind(id).first('n'))).toBe(1);
+ await decideCollectionCase(f.manager,String(revised.id),{expectedVersion:1,reason:'Reviewed retained revised text'},'approve',key());
+ const delivery=key(),review={expectedVersion:2,reason:'Only test delivery of approved retained text'},approved=await db.prepare('SELECT * FROM finance_collection_cases WHERE id=?').bind(revised.id).first();
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'COLLECTION_DELIVERY_LATE_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.event_type='finance.collection.test-deliver') EXECUTE FUNCTION ${fault}();`);
+ try{
+  await expect(decideCollectionCase(f.owner,String(revised.id),review,'test-deliver',delivery)).rejects.toThrow();
+  expect(await db.prepare('SELECT * FROM finance_collection_cases WHERE id=?').bind(revised.id).first()).toEqual(approved);
+  expect(Number(await db.prepare('SELECT count(*) n FROM finance_collection_deliveries WHERE case_id=?').bind(revised.id).first('n'))).toBe(0);
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(delivery).first('n'))).toBe(0);
+ }finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
+ const delivered=await decideCollectionCase(f.owner,String(revised.id),review,'test-deliver',delivery);expect(await decideCollectionCase(f.owner,String(revised.id),review,'test-deliver',delivery)).toEqual(delivered);
+ expect(Number(await db.prepare('SELECT count(*) n FROM finance_collection_deliveries WHERE case_id=?').bind(revised.id).first('n'))).toBe(1);
+ for(const ownerCommand of [command,delivery])for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(ownerCommand).first('n'))).toBe(1);
+});

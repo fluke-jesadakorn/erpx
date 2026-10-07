@@ -8,7 +8,7 @@ import { workFetch } from "@/lib/work-fetch";
 import Image from "next/image";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { ExpenseRow as Row } from "@/server/expenses";
+import type { ExpenseRow as Row } from "@/server/modules/people_payroll/expense";
 import { createReceiptUploader, validateReceipt } from "@/lib/expense-upload";
 import styles from "./expense.module.css";
 import { Card, FormGrid } from "@/components/ui/foundation";

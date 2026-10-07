@@ -5,7 +5,7 @@ import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { useEffect, useState } from "react";
-import type { ExecutedCopy, LegalDetail } from "@/lib/legal/model";
+import type { ExecutedCopy, LegalDetail } from "@/server/modules/legal/public/rules/model";
 import { workFetch } from "@/lib/work-fetch";
 import { LegalEvidenceFields } from "./legal-evidence-fields";
 import s from "./legal.module.css";

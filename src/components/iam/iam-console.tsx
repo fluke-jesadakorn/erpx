@@ -29,7 +29,7 @@ import {
 import { evaluateAccess } from "@/lib/permissions";
 import { workFetch } from "@/lib/work-fetch";
 import { TimeText } from "@/components/time/time-preference-context";
-import type { iamOverview } from "@/server/iam-service";
+import type { iamOverview } from "@/server/modules/identity_access/public/iam-service";
 import {
   Check,
   CircleHelp,

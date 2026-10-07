@@ -94,3 +94,15 @@ it("reloads native exception decisions in the complete Work queue without a gene
  expect(withdrawn.unavailableSources).not.toContain("Operational exceptions");expect(withdrawn.items.some(row=>row.id===id)).toBe(false);
  expect(JSON.stringify(withdrawn)).not.toContain("Inspect the line guard");expect(JSON.stringify(withdrawn)).not.toContain(`/operations/${id}`);
 });
+it("rolls back exception source evidence, notice and command records after a late outbox failure, then retries and replays once",async()=>{
+ const command=key(),recordId=`operations-exception-${command}`,fault=`operations_late_${key().replace(/\W/g,"")}`,body=input();
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'OPERATIONS_FINAL_OUTBOX_FAILURE' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${fault}();`);
+ try {
+  await expect(openOperationsException(f.owner,body,command)).rejects.toMatchObject({code:"23514"});
+  for(const [table,field] of [["operations_exceptions","id"],["operations_exception_events","exception_id"],["staff_notifications","record_id"]])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE ${field}=?`).bind(recordId).first("n")).toBe(0);
+  for(const table of ["command_receipts","audit_events","outbox_events"])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first("n")).toBe(0);
+  expect((await operationsWorkspace(f.owner)).summary.active).toBe(0);
+ } finally {await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
+ const result=await openOperationsException(f.owner,body,command);expect(await openOperationsException(f.owner,body,command)).toEqual(result);expect((await operationsExceptionDetail(f.owner,recordId)).history).toHaveLength(1);
+ for(const [table,field] of [["staff_notifications","record_id"],["command_receipts","record_id"],["audit_events","record_id"],["outbox_events","aggregate_id"]])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE ${field}=?`).bind(recordId).first("n")).toBe(1);
+});

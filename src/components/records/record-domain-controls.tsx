@@ -1,4 +1,4 @@
-import type {recordDomainData} from '@/server/record-domain-details';
+import type {recordDomainData} from "@/server/modules/records/public/record-domain-details";
 import {BrandIdentityConsole} from '@/components/modules/brand-identity-console';
 import {AgentGovernanceConsole} from '@/components/modules/agent-governance-console';
 import {ProductionConsole} from '@/components/modules/production-console';
@@ -7,7 +7,7 @@ import {LearningConsole} from '@/components/modules/learning-console';
 import {BenefitsConsole} from '@/components/modules/benefits-console';
 import {TalentConsole} from '@/components/modules/talent-console';
 import {hasPermission} from '@/lib/permissions';
-import type {WorkContext} from '@/server/authorization';
+import type {WorkContext} from "@/server/modules/identity_access/public/authorization";
 export function RecordDomainControls({detail,base,actor}:{detail:Awaited<ReturnType<typeof recordDomainData>>;base:string;actor:WorkContext}){
  if(detail.domain==='brand')return <BrandIdentityConsole base={base} data={detail.data} recordOnly/>;
  if(detail.domain==='agents'&&hasPermission(actor,'ai.manage'))return <AgentGovernanceConsole base={base} data={detail.data} recordOnly/>;

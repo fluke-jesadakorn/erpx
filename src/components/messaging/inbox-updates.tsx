@@ -7,7 +7,7 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { workFetch } from "@/lib/work-fetch";
-import type { InboxItem } from "@/server/inbox";
+import type { InboxItem } from "@/server/modules/collaboration/public/inbox";
 import styles from "./inbox-updates.module.css";
 import { TimeText } from "@/components/time/time-preference-context";
 type Person = { id: string; name: string; email: string };

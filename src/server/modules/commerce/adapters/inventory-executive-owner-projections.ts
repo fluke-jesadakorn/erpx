@@ -1,0 +1,13 @@
+import "server-only";
+/** Closed native projections for Inventory, Planning, Manufacturing and Project snapshots. Callers retain their original scope/authority filters and execute the composed statement in their supplied transaction. No SQL or relation name is accepted from a caller. */
+export const inventoryExecutiveOwnerProjections = Object.freeze({
+  commerce_fulfillment_lines: "SELECT \"id\",\"fulfillment_id\",\"order_line_id\",\"quantity_milli\",\"value_minor\",\"subtotal_minor\",\"tax_minor\",\"stock_currency\" FROM commerce_fulfillment_lines",
+  commerce_fulfillments: "SELECT \"id\",\"order_id\",\"number\",\"fulfillment_date\",\"created_by\",\"created_at\",\"journal_id\",\"invoice_id\",\"version\",\"evidence_note\" FROM commerce_fulfillments",
+  commerce_order_lines: "SELECT \"id\",\"order_id\",\"product_id\",\"description\",\"quantity_milli\",\"fulfilled_milli\",\"price_minor\",\"tax_bps\",\"subtotal_minor\",\"tax_minor\",\"ordinal\",\"list_price_minor\",\"discount_bps\" FROM commerce_order_lines",
+  commerce_products: "SELECT \"id\",\"company_id\",\"sku\",\"name\",\"unit\",\"price_minor\",\"tax_bps\",\"status\",\"version\",\"tracking_mode\" FROM commerce_products",
+  commerce_return_lines: "SELECT \"id\",\"return_id\",\"fulfillment_line_id\",\"product_id\",\"quantity_milli\",\"value_minor\",\"subtotal_minor\",\"tax_minor\",\"ordinal\",\"condition_code\",\"condition_note\",\"quality_due_date\",\"expected_subtotal_minor\" FROM commerce_return_lines",
+  commerce_return_lot_allocations: "SELECT \"id\",\"return_line_id\",\"fulfillment_allocation_id\",\"lot_id\",\"quantity_milli\",\"value_minor\",\"snapshot_quantity_milli\",\"snapshot_value_minor\",\"snapshot_version\" FROM commerce_return_lot_allocations",
+  commerce_returns: "SELECT \"id\",\"company_id\",\"branch_id\",\"order_id\",\"fulfillment_id\",\"invoice_id\",\"kind\",\"number\",\"return_date\",\"reason\",\"status\",\"subtotal_minor\",\"tax_minor\",\"total_minor\",\"stock_journal_id\",\"credit_journal_id\",\"version\",\"requested_by\",\"approved_by\",\"created_at\",\"updated_at\",\"credited_minor\",\"refund_minor\",\"base_credit_minor\",\"base_credited_minor\",\"base_refund_minor\",\"fx_journal_id\",\"goods_fx_journal_id\" FROM commerce_returns",
+  commerce_settings: "SELECT \"company_id\",\"chart_id\",\"currency\",\"receivable_account_id\",\"payable_account_id\",\"revenue_account_id\",\"inventory_account_id\",\"clearing_account_id\",\"cogs_account_id\",\"input_tax_account_id\",\"output_tax_account_id\",\"cash_account_id\" FROM commerce_settings",
+  commerce_warehouses: "SELECT \"id\",\"company_id\",\"branch_id\",\"code\",\"name\",\"status\",\"version\" FROM commerce_warehouses",
+} as const);

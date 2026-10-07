@@ -19,7 +19,7 @@
     "seed:staff-defaults:acme": "bun --conditions=react-server scripts/seed-acme-staff-defaults.ts --apply",
     "seed:staff-defaults:verify": "bun --conditions=react-server scripts/seed-acme-staff-defaults.ts --verify",
     "test": "bun scripts/local/test.ts",
-    "test:integration": "bun scripts/local/test.ts",
+    "test:integration": "bun scripts/local/test.ts integration",
     "completion:inventory": "bun scripts/local/engineering-completion.ts inventory",
     "completion:integration": "bun scripts/local/engineering-completion.ts integration",
     "completion:verify": "bun scripts/local/engineering-completion.ts verify",
@@ -63,7 +63,17 @@
     "test:pos:stripe:sandbox": "bun --conditions=react-server scripts/verify-pos-stripe-sandbox.ts",
     "ui:coverage": "bun scripts/ui/coverage.mjs",
     "ui:guard": "bun scripts/ui/coverage.mjs && bun scripts/ui/check-standard.mjs",
-    "ui:check-complete": "bun scripts/ui/coverage.mjs && bun scripts/ui/check-standard.mjs --complete"
+    "ui:check-complete": "bun scripts/ui/coverage.mjs && bun scripts/ui/check-standard.mjs --complete",
+    "test:unit": "bun scripts/local/test.ts unit",
+    "test:e2e": "bun scripts/local/test.ts e2e",
+    "test:journeys": "bun scripts/local/test.ts journeys",
+    "test:uat": "bun scripts/local/test.ts uat",
+    "test:provider": "bun scripts/local/test.ts provider",
+    "test:impact": "bun scripts/local/test.ts impact",
+    "test:full": "bun scripts/testing/full.ts",
+    "test:catalogue": "bun scripts/local/test.ts --check",
+    "architecture:check": "bun scripts/architecture/check.ts",
+    "architecture:prune": "bun scripts/architecture/check.ts --prune"
   },
   "packageManager": "bun@1.2.17",
   "dependencies": {

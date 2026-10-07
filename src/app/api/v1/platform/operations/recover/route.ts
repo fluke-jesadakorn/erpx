@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { requireManageErpxContext } from "@/server/authorization";
-import { errorResponse, ApiError } from "@/server/http";
-import { activeHoldingBindings, holdingResources } from "@/server/runtime";
-import { recoverDeadLetterJob } from "@/server/platform-operations";
+import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
+import { errorResponse, ApiError } from "@/server/modules/runtime/public/http";
+import { activeHoldingBindings, holdingResources } from "@/server/modules/runtime/public/runtime";
+import { recoverDeadLetterJob } from "@/server/modules/platform_administration/public/platform-operations";
 
 const schema = z.object({
   holdingId: z.string().min(3).max(24),

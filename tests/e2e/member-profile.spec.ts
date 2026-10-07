@@ -1,5 +1,7 @@
+import { captureCaseScreenshot } from "../helpers/case-screenshot";
 import { expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { selectFixtureAssignment } from "./helpers/select-fixture-assignment";
 
 const tinyPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=", "base64");
 
@@ -9,9 +11,33 @@ test.beforeEach(async ({ context, baseURL }) => {
     data: { email: "mali@erpx.dev", password: "Mali-ERPX-2026!" },
   });
   expect(login.status(), await login.text()).toBe(200);
+  await selectFixtureAssignment(context, "acme-co", "seed_usr_mali");
 });
 
-test("another member's profile aligns the feed width with the profile card", async ({ page, context, baseURL }, testInfo) => {
+test("another member's profile aligns the feed width with the profile card", async ({ page, context, browser, baseURL }, testInfo) => {
+  const author = await browser.newContext(testInfo.project.use);
+  try {
+    const login = await author.request.post("/api/auth/sign-in/email", {
+      data: { email: "noah@erpx.dev", password: "Noah-ERPX-2026!" },
+    });
+    expect(login.status(), await login.text()).toBe(200);
+    await selectFixtureAssignment(author, "acme-co", "seed_usr_noah", "acme", "/branches/new-york");
+    const api = "/api/v1/holdings/acme/branches/new-york/beta/drafts";
+    const origin = new URL(baseURL!).origin;
+    const draft = await author.request.post(api, {
+      headers: { Origin: origin, "Idempotency-Key": randomUUID() },
+      data: { body: "Profile layout fixture: Noah's published update.", audience: { kind: "branch", id: "new-york" }, expectedVersion: 1 },
+    });
+    expect(draft.ok(), await draft.text()).toBe(true);
+    const saved = (await draft.json()).data as { id: string; version: number };
+    const publish = await author.request.post(`${api}/${saved.id}/publish`, {
+      headers: { Origin: origin, "Idempotency-Key": randomUUID() },
+      data: { expectedVersion: saved.version },
+    });
+    expect(publish.ok(), await publish.text()).toBe(true);
+  } finally {
+    await author.close();
+  }
   if (testInfo.project.name === "desktop") await page.setViewportSize({ width: 1800, height: 1200 });
   await context.addCookies([{ name: "erpx_appearance", value: "dark", url: baseURL! }]);
   await page.goto("/holdings/acme/profiles/usr_noah");
@@ -31,7 +57,7 @@ test("another member's profile aligns the feed width with the profile card", asy
   expect(layout!.postWidthGap).toBeLessThan(2);
   expect(layout!.postLeftGap).toBeLessThan(2);
   expect(layout!.overflow).toBe(false);
-  await page.screenshot({ path: `.scratch/dev/profile-viewer-${testInfo.project.name}-dark.png` });
+  await captureCaseScreenshot(page, `profile-viewer-${testInfo.project.name}-dark.png`);
 });
 
 test("profile opens from the account menu and respects the selected clock", async ({ page, context, baseURL }, testInfo) => {
@@ -48,7 +74,7 @@ test("profile opens from the account menu and respects the selected clock", asyn
   await expect(page.getByRole("button", { name: "Change cover" })).toBeFocused();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: `.scratch/dev/profile-${testInfo.project.name}-dark.png` });
+  await captureCaseScreenshot(page, `profile-${testInfo.project.name}-dark.png`);
 
   const originalResponse = await context.request.get("/api/v1/account/time-preference");
   expect(originalResponse.ok()).toBe(true);
@@ -81,7 +107,7 @@ test("profile opens from the account menu and respects the selected clock", asyn
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: `.scratch/dev/profile-${testInfo.project.name}-light.png` });
+  await captureCaseScreenshot(page, `profile-${testInfo.project.name}-light.png`);
 });
 
 test("generic time entry rejects a DST gap and requires an offset on a repeated hour", async ({ page, context }) => {
@@ -95,7 +121,7 @@ test("generic time entry rejects a DST gap and requires an offset on a repeated 
     expect(update.ok(), await update.text()).toBe(true);
     changed = true;
     await page.goto("/holdings/acme/staff-tasks/new");
-    const due = page.getByRole("textbox", { name: "Due date and time (optional)" });
+    const due = page.getByLabel("Due date and time (optional)", { exact: true });
     await expect(due).toBeEnabled();
     await due.fill("2027-03-14T02:30");
     await expect(page.getByText("This local time does not exist in America/New_York.")).toBeVisible();
@@ -116,20 +142,20 @@ test("generic time entry rejects a DST gap and requires an offset on a repeated 
   }
 });
 
-test("profile media is scanned, served privately, and removable", async ({ context, page }, testInfo) => {
+test("profile media is scanned, served privately, and removable", async ({ context, page }) => {
   test.setTimeout(120_000);
-  test.skip(testInfo.project.name !== "desktop", "One upload covers the shared media route.");
+
   const api = "/api/v1/holdings/acme/profiles";
   const beforeResponse = await context.request.get(`${api}/usr_mali`);
   expect(beforeResponse.ok(), await beforeResponse.text()).toBe(true);
   const before = (await beforeResponse.json()).data;
-  test.skip(Boolean(before.avatarUrl), "The fictional test account already has an avatar.");
+  expect(before.avatarUrl, "Each isolated profile media case starts without an avatar.").toBeFalsy();
   await page.goto(`${api.replace("/api/v1", "")}/usr_mali`);
   await page.getByLabel("Cover image file").setInputFiles({
     name: `cover-${randomUUID()}.png`, mimeType: "image/png", buffer: tinyPng,
   });
   await expect(page.getByText("Previewing cover. Review the image above before saving.")).toBeVisible();
-  await page.screenshot({ path: ".scratch/dev/profile-cover-preview.png" });
+  await captureCaseScreenshot(page, "profile-cover-preview.png");
   await page.getByRole("button", { name: "Cancel image" }).click();
   await expect(page.getByRole("button", { name: "Save cover" })).toHaveCount(0);
   await page.getByLabel("Avatar image file").setInputFiles({

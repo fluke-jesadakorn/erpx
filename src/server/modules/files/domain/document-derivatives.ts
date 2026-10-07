@@ -1,0 +1,5 @@
+import {BusinessRuleError} from '../../shared';
+export type DocumentPageInput={page:number;pageCount:number;originalChecksum:string;bytes:ArrayBuffer};
+export type DocumentPageSource={owner_type:string;owner_id:string;checksum_sha256:string;media_type:string};
+export function validateDocumentPage(input:DocumentPageInput){if(input.page<1||input.page>input.pageCount||input.pageCount>20||!Number.isInteger(input.page)||!Number.isInteger(input.pageCount)||input.bytes.byteLength>2*1024*1024)throw new BusinessRuleError(422,'DOCUMENT_PAGE_LIMIT','Use up to 20 pages, each at most 2 MB.');const bytes=new Uint8Array(input.bytes);if(bytes[0]!==0xff||bytes[1]!==0xd8)throw new BusinessRuleError(422,'PAGE_TYPE','Rendered pages must be JPEG images.');}
+export function validateDocumentType(source:DocumentPageSource,input:DocumentPageInput){if(!['application/pdf','image/jpeg','image/png','image/webp'].includes(source.media_type)||(source.media_type!=='application/pdf'&&input.pageCount!==1))throw new BusinessRuleError(422,'DOCUMENT_TYPE','This document cannot be rendered for image preparation.');}

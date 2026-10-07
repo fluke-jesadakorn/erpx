@@ -1,19 +1,10 @@
-import { hasPermission } from "@/lib/permissions";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { organizationOverview } from "@/server/organization";
 import { MemberPanel } from "@/components/beta/member-panel";
 import { PeopleEditor } from "./people-editor";
 import { AccessEditor } from "./access-editor";
 import { LevelAssignmentEditor } from "./level-assignment-editor";
-import {
-  canManagePeople,
-  directoryOptions,
-  personAccess,
-} from "@/server/people-directory";
-import { memberProfile } from "@/server/member-directory";
-import { holdingResources } from "@/server/runtime";
-import { staffSettings } from "@/server/staff-settings";
-import type { WorkContext } from "@/server/authorization";
+import { memberProfileDetails } from "@/server/modules/organization/public/member-profile-view";
+import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 export async function MemberProfile({
   actor,
   base,
@@ -23,21 +14,7 @@ export async function MemberProfile({
   base: string;
   member: { id: string; name: string; email: string; personId: string | null };
 }) {
-  const person = await memberProfile(actor, member.personId),
-    { write } = await holdingResources(actor.holdingId),
-    options = await staffSettings(write, actor),
-    manage = canManagePeople(actor),
-    access = person ? await personAccess(actor, String(person.id)) : null;
-  const history = person?.engagement_id
-    ? (
-        await write
-          .prepare(
-            "SELECT h.*,l.name level_name FROM staff_level_history h JOIN staff_levels l ON l.id=h.level_id WHERE h.engagement_id=? ORDER BY h.created_at DESC",
-          )
-          .bind(person.engagement_id)
-          .all()
-      ).results
-    : [];
+  const { person, options, manage, access, history, nodes, organization, canManageAccess, canRevokeCompany } = await memberProfileDetails(actor, member);
   return (
     <MemberPanel base={base} person={member} canRevoke={false}>
       {member.id===actor.userId&&<p><Link href={`${base}/people/payslips`}>My payslips</Link></p>}
@@ -71,10 +48,10 @@ export async function MemberProfile({
           person={person ?? undefined}
           member={!person?.user_id ? member : undefined}
           returnTo={`${base}/people?member=${encodeURIComponent(member.id)}`}
-          nodes={await directoryOptions(actor)}
+          nodes={nodes}
           levels={options.levels}
           people={options.people}
-          organization={await organizationOverview(write,actor)}
+          organization={organization}
           levelManagedSeparately={options.canManage}
         />
       )}
@@ -104,12 +81,8 @@ export async function MemberProfile({
           hasAccount={!!person.user_id}
           userId={String(person.user_id ?? "")}
           assignments={access.assignments}
-          canManage={
-            hasPermission(actor,"iam.manage") && member.id !== actor.userId
-          }
-          canRevokeCompany={
-            hasPermission(actor,"iam.roles.manage") && member.id !== actor.userId
-          }
+          canManage={canManageAccess}
+          canRevokeCompany={canRevokeCompany}
         />
       )}
     </MemberPanel>

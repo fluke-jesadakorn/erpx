@@ -7,7 +7,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./supplier-promise-console.module.css";
 import { workFetch } from "@/lib/work-fetch";
-import type { supplierPromiseDetail } from "@/server/supplier-promises";
+import type { supplierPromiseDetail } from "@/server/modules/procurement/public/supplier-promises";
 import {
   AttachmentPanel,
   type AttachmentPanelChange,

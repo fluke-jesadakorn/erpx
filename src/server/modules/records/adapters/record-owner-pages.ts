@@ -1,0 +1,68 @@
+import "server-only";
+import type { ReactNode } from "react";
+import type { RecordKind } from "@/lib/record-drawer";
+type OwnerPage = (props: {
+    params: Promise<{
+        holdingSlug: string;
+        id: string;
+    }>;
+    searchParams: Promise<Record<string, string>>;
+}) => ReactNode | Promise<ReactNode>;
+export const recordOwnerPages: Partial<Record<RecordKind, () => Promise<{
+    default: OwnerPage;
+}>>> = {
+    finance_period: () => import("@/app/holdings/[holdingSlug]/finance/close/page"),
+    order: () => import("@/app/holdings/[holdingSlug]/commerce/orders/[id]/page"),
+    invoice: () => import("@/app/holdings/[holdingSlug]/finance/invoices/[id]/page"),
+    journal: () => import("@/app/holdings/[holdingSlug]/finance/journals/[id]/page"),
+    payment: () => import("@/app/holdings/[holdingSlug]/finance/payments/[id]/page"),
+    refund: () => import("@/app/holdings/[holdingSlug]/finance/refunds/[id]/page"),
+    supplier_batch: () => import("@/app/holdings/[holdingSlug]/finance/supplier-batches/[id]/page"),
+    finance_asset: () => import("@/app/holdings/[holdingSlug]/finance/assets/[id]/page"),
+    tax_document: () => import("@/app/holdings/[holdingSlug]/finance/thai-documents/[id]/page"),
+    vat_entry: () => import("@/app/holdings/[holdingSlug]/finance/tax/entries/[id]/page"),
+    vat_correction: () => import("@/app/holdings/[holdingSlug]/finance/tax/corrections/[id]/page"),
+    vat_package: () => import("@/app/holdings/[holdingSlug]/finance/tax/packages/[id]/page"),
+    statement_package: () => import("@/app/holdings/[holdingSlug]/finance/statement-packages/[id]/page"),
+    landed_cost: () => import("@/app/holdings/[holdingSlug]/landed-costs/[id]/page"),
+    request: () => import("@/app/holdings/[holdingSlug]/requests/[id]/page"),
+    expense: () => import("@/app/holdings/[holdingSlug]/expenses/[id]/page"),
+    leave: () => import("@/app/holdings/[holdingSlug]/tasks/people_payroll/[id]/page"),
+    staff_task: () => import("@/app/holdings/[holdingSlug]/staff-tasks/[id]/page"),
+    stock_count: () => import("@/app/holdings/[holdingSlug]/stock-counts/[id]/page"),
+    stock_transfer: () => import("@/app/holdings/[holdingSlug]/stock-transfers/[id]/page"),
+    stock_transit: () => import("@/app/holdings/[holdingSlug]/stock-transit/[id]/page"),
+    rfq: () => import("@/app/holdings/[holdingSlug]/procurement-rfqs/[id]/page"),
+    supplier_bill: () => import("@/app/holdings/[holdingSlug]/supplier-bills/[id]/page"),
+    customer: () => import("@/app/holdings/[holdingSlug]/customers/[id]/page"),
+    customer_identity: () => import("@/app/holdings/[holdingSlug]/customer-identity/[id]/page"),
+    customer_duplicate: () => import("@/app/holdings/[holdingSlug]/customer-duplicates/[id]/page"),
+    customer_access: () => import("@/app/holdings/[holdingSlug]/customer-access/[id]/page"),
+    customer_followup: () => import("@/app/holdings/[holdingSlug]/customer-followups/[id]/page"),
+    crm_lead: () => import("@/app/holdings/[holdingSlug]/crm/[id]/page"),
+    marketing_candidate: () => import("@/app/holdings/[holdingSlug]/marketing/[id]/page"),
+    support_ticket: () => import("@/app/holdings/[holdingSlug]/support/[id]/page"),
+    support_incident: () => import("@/app/holdings/[holdingSlug]/support/incidents/[id]/page"),
+    support_session: () => import("@/app/holdings/[holdingSlug]/support/sessions/[id]/page"),
+    field_service: () => import("@/app/holdings/[holdingSlug]/field-service/[id]/page"),
+    asset: () => import("@/app/holdings/[holdingSlug]/assets/[id]/page"),
+    maintenance: () => import("@/app/holdings/[holdingSlug]/maintenance/[id]/page"),
+    maintenance_plan: () => import("@/app/holdings/[holdingSlug]/maintenance/plans/[id]/page"),
+    quality_hold: () => import("@/app/holdings/[holdingSlug]/quality/[id]/page"),
+    manufacturing_order: () => import("@/app/holdings/[holdingSlug]/manufacturing/[id]/page"),
+    ecommerce_checkout: () => import("@/app/holdings/[holdingSlug]/ecommerce/[id]/page"),
+    person: () => import("@/app/holdings/[holdingSlug]/people/[id]/page"),
+    payroll_run: () => import("@/app/holdings/[holdingSlug]/people/payroll/runs/[id]/page"),
+    payslip: () => import("@/app/holdings/[holdingSlug]/people/payslips/[id]/page"),
+    overtime: () => import("@/app/holdings/[holdingSlug]/overtime/[id]/page"),
+    clearance: () => import("@/app/holdings/[holdingSlug]/people/clearance/[id]/page"),
+    learning_assignment: () => import("@/app/holdings/[holdingSlug]/learning/[id]/page"),
+    benefit_enrollment: () => import("@/app/holdings/[holdingSlug]/benefits/[id]/page"),
+    talent_application: () => import("@/app/holdings/[holdingSlug]/talent/[id]/page"),
+    project: () => import("@/app/holdings/[holdingSlug]/projects/[id]/page"),
+    routine_template: () => import("@/app/holdings/[holdingSlug]/routine-templates/[id]/page"),
+    handbook: () => import("@/app/holdings/[holdingSlug]/handbook/[id]/page"),
+    legal: () => import("@/app/holdings/[holdingSlug]/legal/page"),
+    pms_document: () => import("@/app/holdings/[holdingSlug]/pms/documents/[id]/page"),
+    operation: () => import("@/app/holdings/[holdingSlug]/operations/[id]/page"),
+};

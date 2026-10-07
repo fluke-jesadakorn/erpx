@@ -10,7 +10,7 @@ import { workFetch } from "@/lib/work-fetch";
 import type {
   customerDuplicateDetail,
   customerDuplicateWorkspace,
-} from "@/server/customer-duplicates";
+} from "@/server/modules/customer_authority/public/customer-duplicates";
 import { Card, FormLayout } from "@/components/ui/foundation";
 export function CustomerDuplicateConsole({
   base,

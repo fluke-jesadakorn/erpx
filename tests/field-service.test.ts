@@ -1,3 +1,4 @@
+import {requiredFact,recordField} from "./helpers/required-fact";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "./runtime-env";
 import {
@@ -227,7 +228,7 @@ it("reconciles scheduled field visit completion and uses bounded authorized serv
   expect(match.items.map((item) => item.id)).toEqual([completed]);
   const detail = await readExecutiveEvidence(db, f.owner, "field-visit-completion", completed, filters);
   expect(detail.record).toMatchObject({ id: completed, status: "completed", version: 4, href: `/field-service/${completed}` });
-  expect(Number(detail.record.visit_completed_at)).toBeGreaterThan(0);
+  expect(Number(recordField(detail.record,"visit_completed_at"))).toBeGreaterThan(0);
   expect(detail.fields).toEqual(["scheduled_at", "visit_completed_at", "status", "version"]);
   await expect(readExecutiveEvidence(db, f.owner, "field-visit-completion", cancelled, filters)).rejects.toMatchObject({ status: 404, code: "EVIDENCE_NOT_FOUND" });
   await expect(readExecutiveEvidence(db, f.owner, "field-visit-completion", outside, filters)).rejects.toMatchObject({ status: 404, code: "EVIDENCE_NOT_FOUND" });
@@ -411,7 +412,7 @@ it("applies the approved warranty discount only while the service asset is cover
   expect(invoice).toMatchObject({ total_minor: 75000, outstanding_minor: 75000 });
   await postInvoice(
     f.manager,
-    String(invoice.id),
+    String(requiredFact(invoice).id),
     {
       periodId: f.period,
       entryDate: new Date().toISOString().slice(0, 10),
@@ -464,6 +465,32 @@ it("serializes last-unit reservations and protects scope, versions and immutable
       .bind("different", winner)
       .run(),
   ).rejects.toThrow("FIELD_SERVICE_ORDER_SOURCE_IMMUTABLE");
+});
+it("rolls Finance, money, release evidence and command receipts back together and safely replays the retry", async () => {
+  const id = await serviceOrder();
+  await act(f.claimant,id,{action:"dispatch",expectedVersion:1,reason:"Confirmed site appointment"});
+  await act(f.claimant,id,{action:"start",expectedVersion:2,reason:"Customer granted service access"});
+  await act(f.claimant,id,{action:"complete",expectedVersion:3,laborMinutes:30,evidence:"Recorded completed safety checks",customerConfirmation:"Customer confirmed completion",reason:"Visit completed for independent billing review"});
+  const commandKey=key(),input={action:"release-billing",expectedVersion:4,reason:"Independent reviewer checked retained visit evidence"},fault=`field_service_failure_${crypto.randomUUID().replaceAll("-","").slice(0,12)}`;
+  // Fail after Finance and money statements, before the final owner event. The
+  // fault is restricted to this case's order and is removed even on failure.
+  await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'FIELD_SERVICE_FINAL_EVENT_FAILURE' USING ERRCODE='23514';END;$$;
+    CREATE TRIGGER ${fault} BEFORE INSERT ON field_service_order_events FOR EACH ROW WHEN (NEW.order_id='${id}' AND NEW.action='release-billing') EXECUTE FUNCTION ${fault}();`);
+  try {
+    await expect(changeServiceOrder(f.owner,id,input,commandKey)).rejects.toMatchObject({code:"23514"});
+    expect(await db.prepare("SELECT status,version FROM field_service_orders WHERE id=?").bind(id).first()).toEqual({status:"completed",version:4});
+    expect(await db.prepare("SELECT count(*) n FROM finance_invoices WHERE source_type='field_service' AND source_id=?").bind(id).first("n")).toBe(0);
+    expect(await db.prepare("SELECT count(*) n FROM money_transaction_snapshots WHERE source_type='field_service_billing_release' AND source_id=?").bind(`field-billing-${commandKey}`).first("n")).toBe(0);
+    expect(await db.prepare("SELECT count(*) n FROM field_service_billing_releases WHERE order_id=?").bind(id).first("n")).toBe(0);
+    for(const table of ["command_receipts","audit_events","outbox_events"])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(commandKey).first("n")).toBe(0);
+  } finally { await db.exec(`DROP TRIGGER IF EXISTS ${fault} ON field_service_order_events;DROP FUNCTION IF EXISTS ${fault}();`); }
+  const result=await changeServiceOrder(f.owner,id,input,commandKey);
+  expect(result).toMatchObject({id,version:5,status:"billed"});
+  expect(await changeServiceOrder(f.owner,id,input,commandKey)).toEqual(result);
+  for(const table of ["command_receipts","audit_events","outbox_events"])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(commandKey).first("n")).toBe(1);
+  expect(await db.prepare("SELECT count(*) n FROM finance_invoices WHERE source_type='field_service' AND source_id=?").bind(id).first("n")).toBe(1);
+  expect(await db.prepare("SELECT count(*) n FROM money_transaction_snapshots WHERE source_type='field_service_billing_release' AND source_id=?").bind(`field-billing-${commandKey}`).first("n")).toBe(1);
+  expect(await db.prepare("SELECT count(*) n FROM staff_notifications WHERE record_id=? AND record_version=5").bind(id).first("n")).toBe(1);
 });
 it("surfaces a revoked technician and permits reviewed reassignment", async () => {
   const id = await serviceOrder();

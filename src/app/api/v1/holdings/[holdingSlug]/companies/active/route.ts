@@ -1,12 +1,12 @@
-import { rememberWorkspace } from "@/server/workspace-preferences";
-import { runtimeEnv } from "@/server/runtime";
+import { rememberWorkspace } from "@/server/modules/work_projection/public/workspace-preferences";
+import { runtimeEnv } from "@/server/modules/runtime/public/runtime";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   listWorkspaceCompanies,
   requireAccountAccess,
-} from "@/server/authorization";
-import { ApiError, errorResponse } from "@/server/http";
+} from "@/server/modules/identity_access/public/authorization";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 
 const schema = z.object({ companyId: z.string().min(1).max(128) });
 

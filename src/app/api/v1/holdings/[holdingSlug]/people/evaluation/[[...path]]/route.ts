@@ -1,9 +1,9 @@
-import { requireWorkContext } from "@/server/authorization";
-import { ApiError, errorResponse } from "@/server/http";
-import { addEvaluationEvidence, approveEvaluationCompensation, cancelEvaluationCompensation, confirmEvaluationPayBasis, createEvaluationAssessment, createEvaluationCompensationDraft, evaluationDetail, evaluationWorkspace, importEvaluationMarket, readEvaluationEvidence, saveEvaluationAssessment, saveEvaluationDefinition, transitionEvaluationAssessment } from "@/server/people-evaluation";
-import { evaluationAiStatus, queueEvaluationAi } from "@/server/people-evaluation-ai";
-import { runtimeEnv } from "@/server/runtime";
-import { requestPublicOrigin } from "@/server/public-origin";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { addEvaluationEvidence, approveEvaluationCompensation, cancelEvaluationCompensation, confirmEvaluationPayBasis, createEvaluationAssessment, createEvaluationCompensationDraft, evaluationDetail, evaluationWorkspace, importEvaluationMarket, readEvaluationEvidence, saveEvaluationAssessment, saveEvaluationDefinition, transitionEvaluationAssessment } from "@/server/modules/people_payroll/public/people-evaluation";
+import { evaluationAiStatus, queueEvaluationAi } from "@/server/modules/people_payroll/public/people-evaluation-ai";
+import { runtimeEnv } from "@/server/modules/runtime/public/runtime";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };

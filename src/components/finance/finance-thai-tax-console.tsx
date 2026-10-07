@@ -10,9 +10,9 @@ import {RecordDocumentPanel} from "@/components/attachments/record-document-pane
 import {workFetch} from "@/lib/work-fetch";
 import {minorToDecimal} from "@/lib/finance-money";
 import {thaiFinanceTaxPack} from "@/lib/thai-finance-tax-pack";
-import type {taxIdentityWorkspace} from "@/server/finance-tax-identities";
-import type {withholdingWorkspace} from "@/server/finance-withholding";
-import type {thaiDocumentDetail} from "@/server/finance-thai-documents";
+import type {taxIdentityWorkspace} from "@/server/modules/finance/public/finance-tax-identities";
+import type {withholdingWorkspace} from "@/server/modules/finance/public/finance-withholding";
+import type {thaiDocumentDetail} from "@/server/modules/finance/public/finance-thai-documents";
 import { Stack, FormLayout, Card } from "@/components/ui/foundation";
 
 function useThaiCommand(base:string){
@@ -92,7 +92,7 @@ export function ThaiVatInvoiceIssue({base,invoice,data}:{base:string;invoice:Rec
  return <Card as="section" appearance="standard" className="ui-panel"><h2>Issue Thai VAT invoice</h2>{error&&<InlineNotice tone="danger" role="alert">{error}</InlineNotice>}{!payers.length||!payees.length?<p>Review VAT registration and legal recipient identity first. <Link href={`${base}/finance/thai-tax`}>Open statutory identities</Link></p>:<FormLayout className="ui-form-grid" onSubmit={event=>{event.preventDefault();const form=new FormData(event.currentTarget);void send(`invoices/${invoice.id}/issue-thai-tax-invoice`,{expectedVersion:Number(invoice.version),payerIdentityId:form.get("payerIdentityId"),payeeIdentityId:form.get("payeeIdentityId"),reason:form.get("reason")});}}><Field appearance="standard">Registered issuer<Select appearance="standard" name="payerIdentityId">{payers.map(identity=><option key={String(identity.id)} value={String(identity.id)}>{String(identity.legal_name)}</option>)}</Select></Field><Field appearance="standard">Legal customer<Select appearance="standard" name="payeeIdentityId">{payees.map(identity=><option key={String(identity.id)} value={String(identity.id)}>{String(identity.legal_name)}</option>)}</Select></Field><Field appearance="standard">VAT invoice issuance evidence<TextArea appearance="standard" name="reason" minLength={10} required/></Field><Button appearance="standard" type="submit" clientManaged variant="primary" disabled={busy}>Issue retained Thai VAT invoice</Button></FormLayout>}</Card>;
 }
 
-export function ThaiMonthlyWithholdingConsole({base,data,userId,canPrepare,canApprove,canPay}:{base:string;data:Awaited<ReturnType<typeof import("@/server/finance-withholding-remittance").withholdingMonthlyWorkspace>>;userId:string;canPrepare:boolean;canApprove:boolean;canPay:boolean}){
+export function ThaiMonthlyWithholdingConsole({base,data,userId,canPrepare,canApprove,canPay}:{base:string;data:Awaited<ReturnType<typeof import("@/server/modules/finance/public/finance-withholding-remittance").withholdingMonthlyWorkspace>>;userId:string;canPrepare:boolean;canApprove:boolean;canPay:boolean}){
  const {send,busy,error}=useThaiCommand(base);
  function bankInput(form:FormData){const selected=data.banks.find(row=>row.id===form.get("bankTransactionId"));return selected?{bankTransactionId:String(selected.id),bankVersion:Number(selected.version),bankReference:String(selected.external_id),bankAccountId:String(selected.bank_account)}:null;}
  return <Stack as="section" className="ui-stack"><h2>Monthly supplier withholding</h2><p>Prepare a retained PND3 or PND53 workpaper from actual paid certificates. A different Finance reviewer approves it; Treasury records the exact bank debit and the manual filing receipt.</p>{error&&<InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}

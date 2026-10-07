@@ -89,7 +89,7 @@ it('gates production claims per Company and keeps paused AI queued without provi
     await legalReminders(db); await legalReminders(db);
     expect(await db.prepare("SELECT count(*) count FROM staff_notifications WHERE company_id=? AND record_type='legal'").bind(f.company).first()).toEqual({count:1});
     expect(await db.prepare("SELECT count(*) count FROM staff_notifications WHERE company_id=? AND record_type='legal'").bind(paused.company).first()).toEqual({count:0});
-    const generate = vi.fn(); await drainLegalAi(db,env,generate);
+    const generate = vi.fn(); await drainLegalAi(db,{},generate);
     expect(generate).not.toHaveBeenCalled();
     expect(await db.prepare("SELECT p.state FROM legal_ai_proposals p JOIN legal_items i ON i.id=p.item_id WHERE i.company_id=?").bind(paused.company).first()).toEqual({state:'queued'});
   } finally { vi.unstubAllEnvs(); }
@@ -111,7 +111,7 @@ it.each(['assignment_version','revoked_session'] as const)('rejects queued Legal
   else await db.prepare('INSERT INTO iam_revoked_sessions(session_id,company_id,user_id,revoked_at) VALUES(?,?,?,?)')
     .bind(sessionId,f.company,actor.userId,Date.now()).run();
   const generate=vi.fn();
-  await drainLegalAi(db,env,generate);
+  await drainLegalAi(db,{},generate);
   expect(generate).not.toHaveBeenCalled();
   expect(await db.prepare('SELECT state,error FROM legal_ai_proposals WHERE id=?').bind(jobId).first())
     .toEqual({state:'failed',error:change==='assignment_version'?'WORK_ROLE_UNAVAILABLE':'WORK_CONTEXT_CHANGED'});

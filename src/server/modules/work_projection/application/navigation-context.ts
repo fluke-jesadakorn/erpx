@@ -1,0 +1,5 @@
+import type {administrationAccess} from "../../runtime/public/administration";
+import type {WorkContext} from "../../identity_access/public/authorization";
+export function createNavigationContextService(ports:{administration(actor:WorkContext):ReturnType<typeof administrationAccess>;prepare(actor:WorkContext):Promise<void>;base(actor:WorkContext):string;production:boolean;availableApps(actor:WorkContext):Promise<string[]>;financeV2():boolean;executiveVisible(actor:WorkContext):Promise<boolean>}) {
+ return async function navigationContext(actor:WorkContext){const admin=await ports.administration(actor);await ports.prepare(actor);return {workspaceBase:ports.base(actor),scopeKind:actor.scope.kind,moduleIds:actor.modules,...(ports.production?{availableAppIds:await ports.availableApps(actor)}:{}),financeWorkspaceV2:ports.financeV2(),executiveVisible:await ports.executiveVisible(actor),beta:actor.beta,role:actor.role,permissions:actor.iam?.permissions,adminSections:admin.sections,canManageApprovals:admin.manageOrganization};};
+}

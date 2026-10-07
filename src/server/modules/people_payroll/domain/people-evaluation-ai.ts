@@ -1,0 +1,12 @@
+import {z} from 'zod';import {BusinessRuleError} from '../../shared';export const evaluationAiResultSchema = z.object({ people: z.array(z.object({ engagementId: z.string(), summary: z.string().min(1).max(2000), supportingEvidenceIds: z.array(z.string()).max(100), contradictions: z.array(z.string().max(1000)).max(20), unknowns: z.array(z.string().max(1000)).max(20), suggestions: z.array(z.object({ kind: z.enum(["development", "compensation_review", "role_review"]), text: z.string().max(2000), evidenceIds: z.array(z.string()).min(1).max(50) }).strict()).max(20) }).strict()).min(1).max(30) }).strict();export type EvaluationAiResult=z.infer<typeof evaluationAiResultSchema>;export type EvaluationAiFacts={rows:{employee:{id:string}}[];evidence:{id:string;engagementId:string}[];canCompensation:boolean};export function validateEvaluationAiResult(raw: unknown, facts: EvaluationAiFacts) {
+  const result = evaluationAiResultSchema.parse(raw), seen = new Set<string>();
+  for (const person of result.people) {
+    if (seen.has(person.engagementId) || !facts.rows.some(r => r.employee.id === person.engagementId)) throw new BusinessRuleError(422, "EVALUATION_AI_INVALID_CITATION", "AI referenced an unavailable employee.");
+    seen.add(person.engagementId);
+    for (const id of [...person.supportingEvidenceIds, ...person.suggestions.flatMap(s => s.evidenceIds)]) if (!facts.evidence.some(e => e.id === id && e.engagementId === person.engagementId)) throw new BusinessRuleError(422, "EVALUATION_AI_INVALID_CITATION", "AI referenced evidence that does not support this employee.");
+    if (!facts.canCompensation && person.suggestions.some(s => s.kind === "compensation_review")) throw new BusinessRuleError(422, "EVALUATION_AI_PAY_FORBIDDEN", "This proposal cannot include compensation.");
+    if (person.suggestions.some(s => /\d/.test(s.text) && s.kind === "compensation_review")) throw new BusinessRuleError(422, "EVALUATION_AI_PAY_AMOUNT", "Pay proposals require a separate human-entered policy-approved draft.");
+  }
+  if (seen.size !== new Set(facts.rows.map(r => r.employee.id)).size) throw new BusinessRuleError(422, "EVALUATION_AI_INCOMPLETE", "AI must identify unknowns for every selected employee.");
+  return result;
+}export type Job = { id: string; company_id: string; actor_json: string; query_json: string; source_hash: string; provider_json: string; state: string; result_json: string | null; error: string | null; attempts: number; created_by: string };

@@ -3,7 +3,7 @@ import {FrontLocalizedTree} from '@/components/front/front-language';
 import {useEffect,useState} from 'react';
 import {Button,Field,Table,TableFrame,TextInput} from '@/components/ui/foundation';
 import {CollectionRecordLink} from '@/components/records/record-collection';
-import {records,dates,plusDays,type Snapshot} from '@/lib/pms-model';
+import {records,dates,plusDays,type Snapshot} from "@/server/modules/pms/public/rules/pms-model";
 import {workFetch} from '@/lib/work-fetch';
 export function PmsOperationsCalendar({base,propertyId,today}:{base:string;propertyId:string;today:string}){
  const [from,setFrom]=useState(today),[loaded,setLoaded]=useState<{from:string;snapshot:Snapshot}|null>(null),[error,setError]=useState(''),[retry,setRetry]=useState(0);

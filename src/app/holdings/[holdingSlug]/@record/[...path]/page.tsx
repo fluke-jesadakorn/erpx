@@ -1,11 +1,11 @@
 import { Suspense } from "react";
-import { requireWorkContext, publicScope } from "@/server/authorization";
+import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { isRecordKind, recordRoutes, recordCanonicalHref, type RecordTarget } from "@/lib/record-drawer";
-import { recordOwnerPages } from "@/server/record-owner-pages";
+import { recordOwnerPages } from "@/server/modules/records/public/record-owner-pages";
 import { RecordDrawer } from "@/components/records/record-drawer";
 import { RecordSupplement } from "@/components/records/record-supplement";
-import { posWorkspace } from "@/server/pos";
+import { posWorkspace } from "@/server/modules/pos/public/pos";
 import { PosConsole } from "@/components/pos/pos-console";
 
 export const dynamic = "force-dynamic";

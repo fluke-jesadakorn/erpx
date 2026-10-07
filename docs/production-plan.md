@@ -1,5 +1,17 @@
 # ERPX — ปิด engineering ทั้ง catalogue ก่อนนำเสนอ
 
+## Architecture and isolated regression — 2026-10-05 (in progress)
+
+User-authorized scope: isolate service ownership and E2E across all 33 registry modules, preserving business behavior, HTTP/command contracts, transaction atomicity and ongoing work. No staging access or schema change is authorized by this refactor.
+
+The service registry now gives each business module a public boundary and records concrete domain/application capabilities. Compatibility entry points retain old import contracts; implementation lives under the owning adapters. Boundary compliance is checked separately from semantic completion: `bun run architecture:check` rejects new private cross-owner imports, SQL/runtime in domain/application and transitive impurity; `bun scripts/architecture/status.ts --require-clean` rejects incomplete semantic migrations. A zero boundary exception count does not establish that every legacy use case is clean.
+
+The strict [suite catalogue](../tests/suite-manifest.json) owns unit, PostgreSQL integration/contract, module E2E, cross-module journeys, UAT and opt-in provider lanes. See [verification commands and receipt rules](testing/README.md) and [isolated fixtures](testing/isolated-browser-simulation.md). Full acceptance requires the same-candidate native checks and every required desktop/mobile browser case; missing, skipped or retried required cases fail. Development PRs must run the complete candidate check, while an impact preview remains useful for selecting focused diagnostic checks.
+
+Current status remains **in progress** until all recorded legacy owner capabilities are migrated and the new full regression passes. Earlier Finance/PMS/catalogue evidence below retains its original source/date; it is not acceptance of this refactor.
+
+Merge enforcement was checked on 2026-10-06 through the GitHub branch-protection and rulesets APIs for `development`. Both returned HTTP 403, stating that this private repository needs GitHub Pro for those features. The candidate workflow is implemented locally, but a required status check cannot yet be enforced through the current repository plan. No repository visibility, subscription or remote protection settings were changed; a local full receipt and a remote required-check policy remain separate acceptance evidence.
+
 ## Active Finance expansion — 2026-10-04
 
 User-authorized scope: complete the nine Financial Management capability groups with simple ERPX workflows. Delivery means engineering completion and evidence; Company, bank and government certification and staging/production promotion remain separate. The recorded 2026-10-03 catalogue baseline below does not certify these additions.

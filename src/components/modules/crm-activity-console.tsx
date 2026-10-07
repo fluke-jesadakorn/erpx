@@ -7,7 +7,7 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
-import type { crmActivityWorkspace } from "@/server/crm-activities";
+import type { crmActivityWorkspace } from "@/server/modules/crm/public/crm-activities";
 import { Card, FormLayout } from "@/components/ui/foundation";
 type Data = Awaited<ReturnType<typeof crmActivityWorkspace>>;
 export function CRMActivityConsole({ base, data }: { base: string; data: Data }) {

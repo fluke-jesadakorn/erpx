@@ -1,3 +1,4 @@
+import {calendarQuerySchema} from "../src/lib/calendar";
 import {beforeAll,beforeEach,expect,it,vi} from "vitest";
 import {PDFDocument} from "pdf-lib";
 import {env,applyMigrations} from "./runtime-env";
@@ -8,11 +9,11 @@ import {legalPeople} from "../src/server/legal/assignees";
 import {importExecutedCopy,inspectDocument} from "../src/server/legal/documents";
 import {executedCopies,reviewExecutedCopy} from "../src/server/legal/executed-copies";
 import {legalCalendar,legalWork} from "../src/server/legal/integrations";
-vi.mock("../src/server/attachments/scanner",()=>({
+vi.mock("../src/server/modules/files/public/attachments/scanner",()=>({
   attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:"simulated scanner",definitionUpdatedAt:Date.now(),error:null}),
   scanAttachmentBytes:async(bytes:Uint8Array)=>({clean:!Buffer.from(bytes).includes(Buffer.from("EICAR")),signature:Buffer.from(bytes).includes(Buffer.from("EICAR"))?"EICAR":null,engine:"simulated scanner",definitionUpdatedAt:Date.now()}),
 }));
-vi.mock("../src/server/attachments/preview",()=>({attachmentPreviewReadiness:async()=>({ready:true,error:null}),detectedAttachmentMediaType:(_bytes:Uint8Array,type:string)=>type,sanitizedAttachmentPreview:async()=>null}));
+vi.mock("../src/server/modules/files/public/attachments/preview",()=>({attachmentPreviewReadiness:async()=>({ready:true,error:null}),detectedAttachmentMediaType:(_bytes:Uint8Array,type:string)=>type,sanitizedAttachmentPreview:async()=>null}));
 const db=env.H001_DB,key=()=>crypto.randomUUID();
 let f:Awaited<ReturnType<typeof seedExpenseCompany>>;
 beforeAll(()=>applyMigrations(db,env.STAFF_TEST_MIGRATIONS));
@@ -56,6 +57,16 @@ it("imports a different-hash signed original, reviews independently, preserves r
   await expect(db.prepare("UPDATE legal_executed_copies SET state='confirmed',reviewed_by=?,reviewed_at=? WHERE id=?").bind(f.tie.userId,Date.now(),copies[0].id).run()).rejects.toThrow("LEGAL_EXECUTED_REVIEW_REQUIRED");
   await expect(review(p.id,copies[0].id,{},f.manager)).rejects.toMatchObject({code:"LEGAL_INDEPENDENT_REVIEW"});
   const body={action:"executed.review",id:p.id,expectedVersion:(await access(db,f.tie,p.id)).version,executedCopyId:copies[0].id,decision:"confirm",checks,reason:"Independently inspected all pages and signing authority"},reviewKey=key();
+  const fault=`legal_executed_late_${crypto.randomUUID().replaceAll("-","")}`;
+  await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'LEGAL_EXECUTED_LATE_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.event_type='legal.executed.review') EXECUTE FUNCTION ${fault}();`);
+  try {
+    await expect(reviewExecutedCopy(db,f.tie,body,reviewKey)).rejects.toMatchObject({code:"23514"});
+    expect((await access(db,f.manager,p.id))).toMatchObject({version:body.expectedVersion,state:"approved"});
+    expect((await executedCopies(db,f.manager,p.id))[0]).toMatchObject({state:"pending_review",reviewed_by:null,version:1,reviews:[]});
+    expect(await db.prepare("SELECT command_id FROM command_receipts WHERE command_id=?").bind(reviewKey).first()).toBeNull();
+    expect(await db.prepare("SELECT id FROM audit_events WHERE command_id=?").bind(reviewKey).first()).toBeNull();
+    expect(await db.prepare("SELECT id FROM outbox_events WHERE command_id=?").bind(reviewKey).first()).toBeNull();
+  } finally {await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
   const accepted=await reviewExecutedCopy(db,f.tie,body,reviewKey);
   expect(await reviewExecutedCopy(db,f.tie,body,reviewKey)).toEqual(accepted);
   expect((await access(db,f.manager,p.id)).state).toBe("executed");
@@ -124,7 +135,7 @@ it("lets requesters submit and reply to their own routed request without legal o
   await expect(detail(db,requester,other.id)).rejects.toMatchObject({code:"LEGAL_NOT_FOUND"});
   expect((await legalData(db,requester)).total).toBe(1);
   expect((await legalWork(db,requester)).map(w=>w.id)).toEqual([r.id]);
-  expect((await legalCalendar(db,requester,{mode:"team",search:""},"2026-10-01","2026-11-01",100)).map(w=>w.sourceId)).toEqual([r.id]);
+  expect((await legalCalendar(db,requester,calendarQuerySchema.parse({mode:"team",search:""}),"2026-10-01","2026-11-01",100)).map(w=>w.sourceId)).toEqual([r.id]);
   await expect(legalCommand(db,requester,{action:"create",item:input({ownerId:requester.userId})},key())).rejects.toMatchObject({code:"LEGAL_REQUESTER_SCOPE"});
   await db.prepare("UPDATE assignments SET revoked_at=? WHERE id=?").bind(Date.now(),f.manager.assignmentId).run();
   await expect(legalCommand(db,requester,{action:"create",item},key())).rejects.toMatchObject({code:"LEGAL_ROUTING_UNAVAILABLE"});

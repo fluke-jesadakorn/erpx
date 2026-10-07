@@ -6,7 +6,7 @@ import { Button, Field, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { useState, useRef } from "react";
 import {BookingGallery} from "./booking-gallery";
-import { records, type Snapshot, type Rate, type BookingSettings as Settings } from "@/lib/pms-model";
+import { records, type Snapshot, type Rate, type BookingSettings as Settings } from "@/server/modules/pms/public/rules/pms-model";
 import { decimalToMinor, minorToDecimal } from "@/lib/finance-money";
 import styles from "./booking.module.css";
 type Save = (operation: string, input: unknown, version?: number) => Promise<boolean>;

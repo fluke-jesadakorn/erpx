@@ -26,6 +26,7 @@ import {
   taskDelegationSchema,
   taskDelegationRevokeSchema,
   taskSchema,
+  taskActionSchema,
   taskDetail,
   taskWorkState,
   listTasks,
@@ -54,6 +55,8 @@ import {
   transitionLeave,
   getLeave,
   leaveDraftSchema,
+  leaveDecisionSchema,
+  leaveLifecycleSchema,
 } from "../src/server/leave";
 import {
   saveExpense,
@@ -205,7 +208,7 @@ async function action(
     db,
     who,
     id,
-    { action: act, expectedVersion: row.version, note },
+    taskActionSchema.parse({ action: act, expectedVersion: row.version, note }),
     key(),
   );
 }
@@ -411,7 +414,7 @@ describe("Staff request routing and approval transactions", () => {
       approveLeave(
         "h001",
         id,
-        { expectedVersion: 2, note: "Too early" },
+        leaveDecisionSchema.parse({ expectedVersion: 2, note: "Too early" }),
         key(),
         hr,
       ),
@@ -422,7 +425,7 @@ describe("Staff request routing and approval transactions", () => {
     await approveLeave(
       "h001",
       id,
-      { expectedVersion: 2, note: "Department approved" },
+      leaveDecisionSchema.parse({ expectedVersion: 2, note: "Department approved" }),
       key(),
       head,
     );
@@ -434,7 +437,7 @@ describe("Staff request routing and approval transactions", () => {
       approveLeave(
         "h001",
         id,
-        { expectedVersion: 3, note: "Head again" },
+        leaveDecisionSchema.parse({ expectedVersion: 3, note: "Head again" }),
         key(),
         head,
       ),
@@ -442,7 +445,7 @@ describe("Staff request routing and approval transactions", () => {
     await approveLeave(
       "h001",
       id,
-      { expectedVersion: 3, note: "HR approved" },
+      leaveDecisionSchema.parse({ expectedVersion: 3, note: "HR approved" }),
       key(),
       hr,
     );
@@ -548,7 +551,7 @@ describe("Staff request routing and approval transactions", () => {
     await transitionLeave(
       head,
       id,
-      { action: "reject", expectedVersion: 2, note: "Correct handover" },
+      leaveLifecycleSchema.parse({ action: "reject", expectedVersion: 2, note: "Correct handover" }),
       key(),
     );
     await submit(id, 3);
@@ -558,14 +561,14 @@ describe("Staff request routing and approval transactions", () => {
     await approveLeave(
       "h001",
       id,
-      { expectedVersion: 4, note: "Department okay" },
+      leaveDecisionSchema.parse({ expectedVersion: 4, note: "Department okay" }),
       key(),
       head,
     );
     await transitionLeave(
       requester,
       id,
-      { action: "cancel", expectedVersion: 5, note: "Dates changed" },
+      leaveLifecycleSchema.parse({ action: "cancel", expectedVersion: 5, note: "Dates changed" }),
       key(),
     );
     detail = await getLeave("h001", id, requester);
@@ -574,7 +577,7 @@ describe("Staff request routing and approval transactions", () => {
       approveLeave(
         "h001",
         id,
-        { expectedVersion: 6, note: "Too late" },
+        leaveDecisionSchema.parse({ expectedVersion: 6, note: "Too late" }),
         key(),
         hr,
       ),
@@ -585,22 +588,22 @@ describe("Staff request routing and approval transactions", () => {
     await submit(id);
     const input = { expectedVersion: 2, note: "Department reviewed" },
       command = key();
-    const result = await approveLeave("h001", id, input, command, head);
-    expect(await approveLeave("h001", id, input, command, head)).toEqual(
+    const result = await approveLeave("h001", id, leaveDecisionSchema.parse(input), command, head);
+    expect(await approveLeave("h001", id, leaveDecisionSchema.parse(input), command, head)).toEqual(
       result,
     );
     const outcomes = await Promise.allSettled([
       approveLeave(
         "h001",
         id,
-        { expectedVersion: 3, note: "Approved" },
+        leaveDecisionSchema.parse({ expectedVersion: 3, note: "Approved" }),
         key(),
         hr,
       ),
       approveLeave(
         "h001",
         id,
-        { expectedVersion: 3, note: "Approved" },
+        leaveDecisionSchema.parse({ expectedVersion: 3, note: "Approved" }),
         key(),
         hr,
       ),
@@ -616,7 +619,7 @@ describe("Staff request routing and approval transactions", () => {
     await approveLeave(
       "h001",
       id,
-      { expectedVersion: 2, note: "Okay" },
+      leaveDecisionSchema.parse({ expectedVersion: 2, note: "Okay" }),
       key(),
       head,
     );
@@ -718,7 +721,7 @@ describe("Staff request routing and approval transactions", () => {
     await approveLeave(
       "h001",
       id,
-      { expectedVersion: 2, note: "Department review" },
+      leaveDecisionSchema.parse({ expectedVersion: 2, note: "Department review" }),
       key(),
       head,
     );
@@ -752,7 +755,7 @@ describe("Staff request routing and approval transactions", () => {
     await approveLeave(
       "h001",
       id,
-      { expectedVersion: 3, note: "Replacement approval" },
+      leaveDecisionSchema.parse({ expectedVersion: 3, note: "Replacement approval" }),
       key(),
       worker,
     );
@@ -786,9 +789,9 @@ describe("Projects, task phases and evidence boundaries", () => {
     const record = await getTask(db, worker, String(created.id));
     expect(record.due_at).toBeNull();
     expect((await taskDetail(db, worker, record.id)).permittedActions).toContain("complete");
-    await transitionTask(db, worker, record.id, {
+    await transitionTask(db, worker, record.id, taskActionSchema.parse({
       action: "complete", expectedVersion: record.version, note: "",
-    }, key());
+    }), key());
     expect((await getTask(db, worker, record.id)).state).toBe("completed");
     const approvals = await db.prepare("SELECT COUNT(*)::int count FROM approval_instances WHERE record_type='task' AND record_id=?")
       .bind(record.id).first<{ count: number }>();
@@ -798,7 +801,7 @@ describe("Projects, task phases and evidence boundaries", () => {
     const created=await saveTask(db,requester,null,taskSchema.parse({title:"Document completed site check",assigneeUserId:worker.userId}),key());
     const evidence=await seedAttachmentSet(db,worker,{targetType:"staff_task",targetId:String(created.id),purposeKey:"task_evidence",componentKind:"action",componentRef:"task:ready",expectedTargetVersion:1});
     const command=key();
-    await transitionTask(db,worker,String(created.id),{action:"complete",expectedVersion:1,note:"Site check completed with attached evidence",attachmentSetIds:[evidence.setId]},command);
+    await transitionTask(db,worker,String(created.id),taskActionSchema.parse({action:"complete",expectedVersion:1,note:"Site check completed with attached evidence",attachmentSetIds:[evidence.setId]}),command);
     expect(await attachmentBindingState(db,evidence.setId)).toMatchObject({set_state:"bound",link_state:"bound",binding_type:"task_action",binding_id:`${created.id}:complete:2`});
     expect(await getTask(db,worker,String(created.id))).toMatchObject({state:"completed",version:2});
   });
@@ -1391,8 +1394,8 @@ describe("Reusable levels and routine scheduling", () => {
 it('refreshes a persisted Work snapshot immediately after task submit, approval and reassignment', async () => {
   const { workSnapshot } = await import('../src/server/work-items');
   const { closeRedisCache } = await import('../src/server/runtime/redis-cache');
-  const previous = process.env.NODE_ENV, redisUrl = process.env.ERPX_REDIS_URL;
-  process.env.NODE_ENV = 'development';
+  const redisUrl = process.env.ERPX_REDIS_URL;
+  vi.stubEnv('NODE_ENV', 'development');
   try {
     const id = await task([head.userId], [head.userId]);
     const before = await workSnapshot(head);
@@ -1415,5 +1418,5 @@ it('refreshes a persisted Work snapshot immediately after task submit, approval 
     expect((await workSnapshot(requester)).items.find(item => item.id === id)?.status).toBe('cancelled');
     if (redisUrl) process.env.ERPX_REDIS_URL = redisUrl;
     expect((await workSnapshot(requester)).items.find(item => item.id === id)?.status).toBe('cancelled');
-  } finally { if (redisUrl === undefined) delete process.env.ERPX_REDIS_URL; else process.env.ERPX_REDIS_URL = redisUrl; await closeRedisCache(); if (previous === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = previous; }
+  } finally { if (redisUrl === undefined) delete process.env.ERPX_REDIS_URL; else process.env.ERPX_REDIS_URL = redisUrl; await closeRedisCache(); vi.unstubAllEnvs(); }
 });

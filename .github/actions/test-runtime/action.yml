@@ -1,0 +1,54 @@
+name: ERPX isolated test runtime
+description: Install the pinned toolchain, disposable PostgreSQL administrator and strict attachment scanner.
+inputs:
+  browser:
+    description: Install Chromium and its system dependencies.
+    required: false
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 24.20.0
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: 1.2.17
+    - name: Pin the Node executable
+      shell: bash
+      run: |
+        echo "ERPX_NODE_BIN=$(command -v node)" >> "$GITHUB_ENV"
+        echo "ERPX_BUN_BIN=$(command -v bun)" >> "$GITHUB_ENV"
+    - name: Install pinned dependencies
+      shell: bash
+      run: bun install --frozen-lockfile
+    - name: Install PostgreSQL 18 and attachment verification tools
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y postgresql-common
+        sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+        sudo apt-get install -y postgresql-client-18 clamav clamav-daemon libheif-examples poppler-utils lsof age
+    - name: Provision the guarded disposable database administrator
+      shell: bash
+      env:
+        PGPASSWORD: erpx-ci-only
+      run: psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -v ON_ERROR_STOP=1 -c "CREATE ROLE erpx_test_admin LOGIN PASSWORD 'erpx-ci-only' CREATEDB NOSUPERUSER NOCREATEROLE NOREPLICATION;"
+    - name: Start the isolated attachment scanner
+      shell: bash
+      run: |
+        sudo systemctl stop clamav-freshclam || true
+        sudo freshclam
+        sudo mkdir -p /tmp/erpx-clamav
+        sudo chown clamav:clamav /tmp/erpx-clamav
+        printf '%s\n' 'Foreground yes' 'LocalSocket /tmp/erpx-clamav/clamd.sock' 'LocalSocketMode 666' 'DatabaseDirectory /var/lib/clamav' 'User clamav' 'ScanPDF yes' 'ScanArchive yes' 'LogFile /tmp/erpx-clamav/clamd.log' > /tmp/erpx-clamav/clamd.conf
+        sudo clamd --config-file=/tmp/erpx-clamav/clamd.conf &
+        for attempt in $(seq 1 60); do test -S /tmp/erpx-clamav/clamd.sock && break; sleep 1; done
+        test -S /tmp/erpx-clamav/clamd.sock
+        ERPX_CI_CLAMAV_VERSION=$(clamd --version | sed -E 's/^ClamAV ([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+        [[ "$ERPX_CI_CLAMAV_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+        echo "ERPX_CLAMAV_VERSION=$ERPX_CI_CLAMAV_VERSION" >> "$GITHUB_ENV"
+    - name: Install the browser runtime
+      if: inputs.browser == 'true'
+      shell: bash
+      run: bunx playwright install --with-deps chromium

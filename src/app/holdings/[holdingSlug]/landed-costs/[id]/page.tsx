@@ -9,9 +9,9 @@ import { minorToDecimal } from "@/lib/finance-money";
 import { hasPermission } from "@/lib/permissions";
 import { samePerson } from "@/lib/iam";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { landedCostDetail } from "@/server/inventory-landed-costs";
-import { pageError } from "@/server/page-error";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { landedCostDetail } from "@/server/modules/inventory/public/inventory-landed-costs";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { PageContent, Card } from "@/components/ui/foundation";
 
 export const dynamic = "force-dynamic";

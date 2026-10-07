@@ -2,7 +2,7 @@
 import {FrontLocalizedTree,useFrontLanguage} from '@/components/front/front-language';
 import {RecordLink} from '@/components/records/record-link';
 import {recordCanonicalHref} from '@/lib/record-drawer';
-import {records,type PmsRecord,type Snapshot} from '@/lib/pms-model';
+import {records,type PmsRecord,type Snapshot} from "@/server/modules/pms/public/rules/pms-model";
 import {minorToDecimal} from '@/lib/finance-money';
 export function StaySummary({snapshot,stay,financial,base,documents}:{snapshot:Snapshot;stay:PmsRecord<'stay'>;financial:boolean;base:string;documents:Array<{id:string;folio_id:string;kind:string}>}){
  const language=useFrontLanguage(),reservation=records(snapshot,'reservation').find(r=>r.id===stay.data.reservationId),folio=records(snapshot,'folio').find(f=>f.id===stay.data.folioId),guest=records(snapshot,'guest').find(g=>g.id===stay.data.guestId),money=(amount:number)=>`THB ${minorToDecimal(amount)}`;

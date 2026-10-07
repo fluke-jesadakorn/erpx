@@ -17,6 +17,7 @@ type NavigationContext = {
   counts: Counts;
   workViewAvailability: WorkViewAvailability | null;
   quickAccess: QuickAccessProjection | null;
+  quickAccessLoading: boolean;
   quickAccessError: string;
   shortcutStorageKey?: string;
   refresh: () => Promise<void>;
@@ -25,7 +26,7 @@ type NavigationContext = {
   publishWork: (count: number | null, availability?: WorkViewAvailability) => void;
 };
 const empty: Counts = { home: null, work: null };
-const NavigationCounts = createContext<NavigationContext>({ counts: empty, workViewAvailability: null, quickAccess: null, quickAccessError: "", refresh: async () => {}, saveQuickAccess: () => {}, readHome: () => {}, publishWork: () => {} });
+const NavigationCounts = createContext<NavigationContext>({ counts: empty, workViewAvailability: null, quickAccess: null, quickAccessLoading: true, quickAccessError: "", refresh: async () => {}, saveQuickAccess: () => {}, readHome: () => {}, publishWork: () => {} });
 export const useNavigationCounts = () => useContext(NavigationCounts);
 
 export function NavigationCountsProvider({ base, initialShortcutCards, shortcutStorageKey, children }: {
@@ -43,6 +44,8 @@ export function NavigationCountsProvider({ base, initialShortcutCards, shortcutS
     preferences: { pinnedIds: null, version: 0 },
     preferencesUnavailable: false,
   });
+  // The initial authorized catalogue has no persisted preference snapshot yet.
+  const [quickAccessLoading, setQuickAccessLoading] = useState(true);
   const [quickAccessError, setQuickAccessError] = useState("");
   const generation = useRef(0);
   const pendingRead = useRef<Promise<void> | null>(null);
@@ -56,6 +59,8 @@ export function NavigationCountsProvider({ base, initialShortcutCards, shortcutS
   }, []);
   const saveQuickAccess = useCallback((preferences: WorkCardPreferences) => {
     setQuickAccess((current) => current ? { ...current, preferences, preferencesUnavailable: false } : current);
+    setQuickAccessLoading(false);
+    setQuickAccessError("");
   }, []);
   const endpoint = `/api/v1${base}/navigation`;
   const refresh = useCallback(async () => {
@@ -71,14 +76,16 @@ export function NavigationCountsProvider({ base, initialShortcutCards, shortcutS
         setCounts(previous => ({ home: data.home, work: workRevision === summaryRevision.current ? data.work : previous.work }));
         if (workRevision === summaryRevision.current && data.workViewAvailability) setWorkViewAvailability(data.workViewAvailability);
         setQuickAccess((previous) => previous && previous.preferences.version > data.quickAccess.preferences.version
-          ? { ...data.quickAccess, preferences: previous.preferences, preferencesUnavailable: false }
+          ? { ...data.quickAccess, preferences: previous.preferences }
           : data.quickAccess);
+        setQuickAccessLoading(false);
         setQuickAccessError("");
       }
     } catch {
       if (!controller.signal.aborted && current === generation.current) {
         setCounts(empty);
         setWorkViewAvailability(null);
+        setQuickAccessLoading(false);
         setQuickAccessError("Shortcuts could not refresh.");
       }
     } finally {
@@ -138,5 +145,5 @@ export function NavigationCountsProvider({ base, initialShortcutCards, shortcutS
 
     };
   }, [home, base, refresh, readHome, invalidate, publishWork]);
-  return <NavigationCounts.Provider value={{ counts, workViewAvailability, quickAccess, quickAccessError, shortcutStorageKey, refresh, saveQuickAccess, readHome, publishWork }}>{children}</NavigationCounts.Provider>;
+  return <NavigationCounts.Provider value={{ counts, workViewAvailability, quickAccess, quickAccessLoading, quickAccessError, shortcutStorageKey, refresh, saveQuickAccess, readHome, publishWork }}>{children}</NavigationCounts.Provider>;
 }

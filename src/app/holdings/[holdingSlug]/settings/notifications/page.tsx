@@ -4,7 +4,7 @@ import { FeaturePage } from "@/components/features/feature-page";
 import { PushSettings } from "@/components/settings/push-settings";
 import { PageHeader } from "@/components/ui/primitives";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope,requireWorkContext } from "@/server/authorization";
+import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 
 export default async function NotificationSettings({params}:PageProps<"/holdings/[holdingSlug]/settings/notifications">){
   const actor=await requireWorkContext((await params).holdingSlug);

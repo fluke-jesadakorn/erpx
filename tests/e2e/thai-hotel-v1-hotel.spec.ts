@@ -11,6 +11,7 @@ type DemoState = { fixture: { hospitality: { companyId: string; propertyId: stri
 test("H002 guest journey includes independent folio correction, payment, checkout and Night Audit", async ({ browser }, testInfo) => {
   const run = process.env.ERPX_DEMO_RUN;
   expect(run, "The Thai Hotel mock runner must supply an exact prepared simulation run.").toMatch(/^[a-f0-9]{12}$/);
+  if (!run) throw new Error("EXACT_BROWSER_SIMULATION_RUN_REQUIRED");
   test.setTimeout(360_000);
   const directory = resolve(`.runtime/browser/${run}`);
   const credentials = JSON.parse(await readFile(resolve(directory, "credentials.json"), "utf8")) as SimulatedFrontCredentials;
@@ -95,7 +96,10 @@ test("H002 guest journey includes independent folio correction, payment, checkou
     expect(guest).toBeTruthy();
     expect(reservation?.data).toMatchObject({ state: "confirmed", source: "phone" });
     expect(stay?.data).toMatchObject({ state: "reserved", arrival: today, departure: checkout });
-    expect(stay?.data.prices.reduce((total: number, price: { total: number }) => total + price.total, 0)).toBeGreaterThan(0);
+    const prices = stay?.data.prices;
+    expect(Array.isArray(prices)).toBe(true);
+    if (!Array.isArray(prices)) throw new Error("STAY_PRICE_LINES_REQUIRED");
+    expect(prices.reduce((total: number, price: { total: number }) => total + price.total, 0)).toBeGreaterThan(0);
 
     const housekeepingPage = await housekeeping.newPage();
     await signInFrontRole(housekeeping, housekeepingPage, credentials, "pms_housekeeping", "pms", companyId, pmsPath(`housekeeping?property=${propertyId}`));

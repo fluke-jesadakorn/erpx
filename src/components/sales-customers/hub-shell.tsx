@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { PageContent } from "@/components/ui/foundation";
-import { hubHref, salesViews, customersViews, type HubQuery } from "@/lib/sales-customers";
+import { hubHref, salesViews, customersViews, type HubQuery } from "@/server/modules/sales/public/rules/navigation";
 import styles from "./hub.module.css";
 
 export function HubShell({ base, hub, view, access, actions, children, reviewCount }: {

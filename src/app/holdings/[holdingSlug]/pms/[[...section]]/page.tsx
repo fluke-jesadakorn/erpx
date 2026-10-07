@@ -1,15 +1,15 @@
-import { requireWorkContext, publicScope } from "@/server/authorization";
+import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
-import {pmsListSelection} from "@/lib/pms-read-selection";
-import { pmsWorkspace } from "@/server/pms";
+import {pmsListSelection} from "@/server/modules/pms/public/rules/pms-read-selection";
+import { pmsWorkspace } from "@/server/modules/pms/public/pms";
 import { PmsWorkspaceView } from "@/components/pms/workspace";
-import { pmsSections } from "@/lib/pms-model";
-import { pageError } from "@/server/page-error";
-import { companyFeatureCatalogue } from "@/server/hospitality-rollout";
-import { pmsCrossLinks } from "@/lib/pms-cross-links";
+import { pmsSections } from "@/server/modules/pms/public/rules/pms-model";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+import { companyFeatureCatalogue } from "@/server/modules/pms/public/hospitality-rollout";
+import { pmsCrossLinks } from "@/server/modules/pms/public/rules/pms-cross-links";
 import { notFound } from "next/navigation";
 import { redirect } from "next/navigation";
-import { frontWorkspaceHref } from "@/server/front-app";
+import { frontWorkspaceHref } from "@/server/modules/work_projection/public/front-app";
 export const dynamic = "force-dynamic";
 export default async function PmsPage({
   params,

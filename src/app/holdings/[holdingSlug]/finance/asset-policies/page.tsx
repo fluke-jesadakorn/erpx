@@ -1,11 +1,11 @@
 import { FeaturePage } from "@/components/features/feature-page";
 import { FinanceWorkspace } from "@/components/finance/finance-workspace";
 import { FinanceAssetPolicyControls } from "@/components/finance/finance-asset-policy-controls";
-import { publicScope, requireWorkContext } from "@/server/authorization";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { hasPermission } from "@/lib/permissions";
-import { assetPolicyWorkspace } from "@/server/finance-asset-policies";
-import { financeCompanyTools } from "@/server/finance-company-tools";
+import { assetPolicyWorkspace } from "@/server/modules/finance/public/finance-asset-policies";
+import { financeCompanyTools } from "@/server/modules/finance/public/finance-company-tools";
 export const dynamic = "force-dynamic";
 export default async function AssetPoliciesPage({
   params,

@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { workFetch } from "@/lib/work-fetch";
-import type { leaveAdministration } from "@/server/leave-self-service";
+import type { leaveAdministration } from "@/server/modules/people_payroll/public/leave-self-service";
 import styles from "./leave-policy-wizard.module.css";
 import { type UiAppearance } from "@/components/ui/foundation";
 

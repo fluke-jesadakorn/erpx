@@ -1,6 +1,6 @@
-import { requireWorkContext } from "@/server/authorization";
-import { errorResponse } from "@/server/http";
-import { listCharts, listInvoices, listJournals, listPayments, statements } from "@/server/finance";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { errorResponse } from "@/server/modules/runtime/public/http";
+import { listCharts, listInvoices, listJournals, listPayments, statements } from "@/server/modules/finance/public/finance";
 
 export const dynamic = "force-dynamic";
 

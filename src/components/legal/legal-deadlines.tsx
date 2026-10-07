@@ -5,7 +5,7 @@ import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { useState } from "react";
-import { previewDeadline } from "@/lib/legal/deadlines";
+import { previewDeadline } from "@/server/modules/legal/public/rules/deadlines";
 import s from "./legal.module.css";
 export function LegalDeadlines() {
   const [result, setResult] = useState<ReturnType<typeof previewDeadline> | null>(null),

@@ -1,0 +1,10 @@
+import { z } from "zod";
+export type EngineeringAttestation = { scope: "isolated-engineering"; run: string; sourceFingerprint: string; softwareVersion: string; fileManifestSha256: string };
+export const engineeringEnrollmentSchema = z.object({ run: z.string().regex(/^[a-f0-9]{12}$/), sourceFingerprint: z.string().regex(/^[a-f0-9]{64}$/), softwareVersion: z.string(), fileManifestSha256: z.string().regex(/^[a-f0-9]{64}$/), companyIds: z.array(z.string().min(1)).max(100), disabledCompanyIds: z.array(z.string().min(1)).max(100).default([]), expiresAt: z.number().int().positive().optional() });
+export type EngineeringEnrollment = z.infer<typeof engineeringEnrollmentSchema>;
+export type EngineeringAttestationFacts = { directory: string; release: string; attestationPath: string; manifestPath: string; attestation: EngineeringAttestation; releaseInfo: EngineeringAttestation; digest: string };
+export function acceptsEngineeringAttestation(run: string, artifactVersion: string, facts: EngineeringAttestationFacts) {
+  const { directory, release, attestationPath, manifestPath, attestation, releaseInfo, digest } = facts;
+  return directory.endsWith(`/.runtime/browser/${run}`) && release === `${directory}/release` && attestationPath === `${directory}/engineering-attestation.json` && manifestPath === `${directory}/release/release-files.json` && attestation.scope === "isolated-engineering" && attestation.run === run && /^[a-f0-9]{64}$/.test(attestation.sourceFingerprint) && attestation.softwareVersion === `release-${attestation.sourceFingerprint}` && attestation.softwareVersion === artifactVersion && releaseInfo.sourceFingerprint === attestation.sourceFingerprint && releaseInfo.softwareVersion === attestation.softwareVersion && digest === attestation.fileManifestSha256 && releaseInfo.fileManifestSha256 === digest;
+}
+export function isEngineeringVerificationOrigin(url: URL, context: EngineeringAttestation | null) { return Boolean(context) && url.protocol === "http:" && url.port === "3104" && (["127.0.0.1", "localhost"].includes(url.hostname) || /^dev-[a-z0-9-]+\.localhost$/.test(url.hostname)); }

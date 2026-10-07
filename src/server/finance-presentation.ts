@@ -1,6 +1,2 @@
-import "server-only";
-
-/** A single release/rollback switch; independent of financial command authority. */
-export function financeWorkspaceV2Enabled() {
-  return process.env.ERPX_FINANCE_WORKSPACE_V2 === "1";
-}
+/** Compatibility entry point; implementation belongs to finance. */
+export {financeWorkspaceV2Enabled} from "@/server/modules/finance/adapters/finance-presentation";

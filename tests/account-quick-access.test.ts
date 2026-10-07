@@ -11,21 +11,21 @@ const state = vi.hoisted(() => ({
   save: vi.fn(),
 }));
 
-vi.mock("../src/server/authorization", () => ({
+vi.mock("../src/server/modules/identity_access/public/authorization", () => ({
   currentSession: async () => {
     if (state.rejectSession) throw new Error("UNAUTHENTICATED");
     return { session: { user: { id: state.userId } } };
   },
 }));
-vi.mock("../src/server/workspace-choices", () => ({ workspaceChoices: async () => state.choices }));
-vi.mock("../src/server/work-role-options", () => ({
+vi.mock("../src/server/modules/organization/public/workspace-choices", () => ({ workspaceChoices: async () => state.choices }));
+vi.mock("../src/server/modules/work_projection/public/work-role-options", () => ({
   workRoleOptions: async () => {
     if (state.rejectRole) throw new ApiError(403, "FORBIDDEN", "Work role unavailable.");
     return { access: { userId: state.userId }, options: [{ id: "assignment" }] };
   },
 }));
-vi.mock("../src/server/quick-access-preferences", async (importOriginal) => ({
-  ...await importOriginal<typeof import("../src/server/quick-access-preferences")>(),
+vi.mock("../src/server/modules/work_projection/public/quick-access-preferences", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../src/server/modules/work_projection/public/quick-access-preferences")>(),
   readQuickAccessPreferences: state.read,
   saveQuickAccessPreferences: state.save,
 }));

@@ -1,0 +1,2 @@
+import type {SqlDatabase} from '../../runtime/public/runtime/types';
+export function payrollStatutoryDecisionEffects(database:()=>SqlDatabase){return {decisionEvidence(value: string, key: string, id: string, value2: string, userId: string, assignmentId: string, version: number, value3: string, now: number) { return database().prepare("INSERT INTO decision_evidence(id,command_id,record_id,action,actor_id,assignment_id,reviewed_version,input_digest,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(value, key, id, value2, userId, assignmentId, version, value3, now); }};}

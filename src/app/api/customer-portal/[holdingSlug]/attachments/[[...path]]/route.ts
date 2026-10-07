@@ -1,5 +1,6 @@
+import {appAttachmentSources} from "@/server/modules/files/public/app-attachment-sources";
 import { z } from "zod";
-import { attachmentComponentKinds } from "@/server/attachments/types";
+import { attachmentComponentKinds } from "@/server/modules/files/public/attachments/types";
 import {
   attachmentContent,
   attachmentLinkStatus,
@@ -8,17 +9,17 @@ import {
   listAttachmentSets,
   reserveAttachmentFile,
   withdrawAttachmentLink,
-} from "@/server/attachments/service";
-import { readBoundedUploadBody } from "@/server/attachments/upload";
-import { boundedBody } from "@/server/legal/body";
+} from "@/server/modules/files/public/attachments/service";
+import { readBoundedUploadBody } from "@/server/modules/files/public/attachments/upload";
+import { boundedBody } from "@/server/modules/legal/public/legal/body";
 import {
   customerPortalAttachmentContext,
   customerPortalAttachmentSession,
   customerPortalAttachmentTarget,
   customerPortalSharedPreview,
-} from "@/server/customer-portal-attachments";
-import { ApiError, errorResponse } from "@/server/http";
-import { requestPublicOrigin } from "@/server/public-origin";
+} from "@/server/modules/customer_360/public/customer-portal-attachments";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
@@ -169,10 +170,7 @@ export async function PUT(request: Request, context: Context) {
     const session = await customerPortalAttachmentSession(holdingSlug);
     const bindingId = await customerPortalAttachmentTarget(session.write, "upload", path[1]);
     const portal = await customerPortalAttachmentContext(holdingSlug, bindingId);
-    const intent = await portal.write.prepare(`SELECT declared_bytes,media_type FROM upload_intents
-      WHERE id=? AND attachment_set_id IS NOT NULL AND created_by=? AND company_id=?`)
-      .bind(path[1], portal.attachmentActor.userId, portal.attachmentActor.companyId)
-      .first<{ declared_bytes: number; media_type: string }>();
+    const intent = await appAttachmentSources(portal.write).portalReservation(path[1],portal.attachmentActor.userId,portal.attachmentActor.companyId);
     if (!intent) throw new ApiError(404, "UPLOAD_NOT_FOUND", "Upload intent not found.");
     const contentType = request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
     if (contentType !== intent.media_type)

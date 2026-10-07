@@ -541,6 +541,9 @@ export function AppNavigation({
         presentation="responsive-panel"
       >
         <div className={appStyles.content}>
+          {base !== "/platform" && !search.trim() && (
+            <WorkShortcuts base={base} role={context.role} placement="panel" onNavigate={() => setLauncherOpen(false)} />
+          )}
           {model.primary.some((entry) => entry.id === "calendar") && (
             <Link
               className={appStyles.launcherRow}

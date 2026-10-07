@@ -20,7 +20,7 @@ vi.mock("../src/server/runtime", async original => ({
 }));
 // The request boundary is the isolated fixture. Native page loading and all
 // Legal source revision/date/member/Company guards remain real.
-vi.mock("../src/server/page-error", () => ({ pageError: async (error: unknown) => { throw error; } }));
+vi.mock("../src/server/modules/work_projection/public/page-error", () => ({ pageError: async (error: unknown) => { throw error; } }));
 import CitationPage from "../src/app/holdings/[holdingSlug]/legal/citations/[id]/page";
 
 const db = env.H001_DB, key = () => crypto.randomUUID(), text = "ข้อความอ้างอิงสมมติสำหรับการทดสอบ ไม่ใช่กฎหมายหรือคำแนะนำจริง";
@@ -31,7 +31,9 @@ beforeEach(async () => {
   boundary.actor = f.tie;
   await legalCommand(db, f.manager, { action: "settings", enabled: true }, key());
 });
-async function command(id: string, action: string, extra: Record<string, unknown>, actor = f.manager) {
+function command(id:string,action:`law.${string}`|`knowledge.${string}`,extra?:Record<string,unknown>,actor?:WorkContext):ReturnType<typeof lawCorpusCommand>;
+function command(id:string,action:string,extra?:Record<string,unknown>,actor?:WorkContext):ReturnType<typeof lawCorpusCommand>|ReturnType<typeof legalCommand>;
+async function command(id: string, action: string, extra: Record<string, unknown> = {}, actor: WorkContext = f.manager) {
   const input = { action, id, expectedVersion: (await access(db, actor, id)).version, reason: "Independent synthetic engineering evidence review", ...extra };
   return action.startsWith("law.") || action.startsWith("knowledge.") ? lawCorpusCommand(db, actor, input, key()) : legalCommand(db, actor, input, key());
 }
@@ -42,7 +44,7 @@ async function original(kind: "rule" | "contract") {
   return { itemId: created.id, document: (await detail(db, f.manager, created.id)).documents[0] };
 }
 function pageParam(sourceId: string) {
-  const parameter = getDynamicParam({ id: sourceId }, "id", "d", undefined, null);
+  const parameter = getDynamicParam({ id: sourceId }, "id", "d", null, null);
   expect(parameter.value).toBe(encodeURIComponent(sourceId));
   return parameter.value as string;
 }

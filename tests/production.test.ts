@@ -280,9 +280,14 @@ async function order(mode: "bom" | "formula" = "bom", demand = "2") {
 it("reconciles posted production cost by month and opens only authorized movement evidence", async () => {
   const { id: orderId } = await order();
   await changeManufacturingOrder(owner, orderId, { action: "reserve", expectedVersion: 1, expiresAt: Date.now() + 3600000, reason: "Reserve approved plan materials" }, key());
-  await changeManufacturingOrder(owner, orderId, { action: "issue", expectedVersion: 2, reason: "Issue reserved material to WIP" }, key());
-  await changeManufacturingOrder(owner, orderId, { action: "report", expectedVersion: 3, outputQuantity: "1.8", scrapQuantity: "0.2", laborCost: "10.00", overheadCost: "2.00", reason: "Record actual production output" }, key());
-  await changeManufacturingOrder(reviewer, orderId, { action: "pass-qc", expectedVersion: 4, reason: "Independent inspection passed" }, key());
+  const postingClock = vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-10-02T12:00:00Z"));
+  try {
+    await changeManufacturingOrder(owner, orderId, { action: "issue", expectedVersion: 2, entryDate: "2026-10-02", reason: "Issue reserved material to WIP" }, key());
+    await changeManufacturingOrder(owner, orderId, { action: "report", expectedVersion: 3, entryDate: "2026-10-02", outputQuantity: "1.8", scrapQuantity: "0.2", laborCost: "10.00", overheadCost: "2.00", reason: "Record actual production output" }, key());
+    await changeManufacturingOrder(reviewer, orderId, { action: "pass-qc", expectedVersion: 4, entryDate: "2026-10-02", reason: "Independent inspection passed" }, key());
+  } finally {
+    postingClock.mockRestore();
+  }
 
   const now = Date.parse("2026-10-06T12:00:00Z"), postedJournal = `mfg-journal-${key()}`, draftJournal = `mfg-draft-${key()}`;
   const insertJournal = async (id: string, number: string, status: "posted" | "draft", postedAt: number | null) => db.prepare(`INSERT INTO finance_journals
@@ -547,4 +552,45 @@ it("warns the manufacturing owner before material protection expires and escalat
   await db.prepare("UPDATE manufacturing_material_reservations SET expires_at=? WHERE order_id=?").bind(now - 1, id).run();
   expect((await escalateInventoryReservations(db, now)).expired).toBeGreaterThanOrEqual(1);
   expect(await escalateInventoryReservations(db, now)).toEqual({ expiring: 0, expired: 0 });
+});
+
+it('rolls back independently released Planning capacity and Manufacturing order on late outbox failure, then retries and replays',async()=>{
+ const {resourceId,specificationId}=await routedSpecification(),plan=await createPlanningScenario(owner,{warehouseId:warehouse,specificationId,specificationVersion:2,demandQuantity:'2',startDate:'2026-10-05',dueDate:'2026-10-06'},key());
+ const command=key(),input={action:'approve',expectedVersion:1,reason:'Independent reviewer authorizes protected routing capacity'},suffix=key().replace(/[^a-zA-Z0-9]/g,''),fault=`planning_release_fault_${suffix}`,trigger=`planning_release_outbox_${suffix}`;
+ await db.prepare(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='${command}' THEN RAISE EXCEPTION 'PLANNING_RELEASE_LATE_FAILURE'; END IF; RETURN NEW; END $$`).run();
+ await db.prepare(`CREATE TRIGGER ${trigger} AFTER INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION ${fault}()`).run();
+ try{
+  await expect(reviewPlanningRecommendation(reviewer,plan.recommendationId,input,command)).rejects.toThrow('PLANNING_RELEASE_LATE_FAILURE');
+  expect(await db.prepare('SELECT status,version FROM planning_scenarios WHERE id=?').bind(plan.id).first()).toEqual({status:'calculated',version:1});
+  expect(await db.prepare('SELECT status,version FROM planning_recommendations WHERE id=?').bind(plan.recommendationId).first()).toEqual({status:'proposed',version:1});
+  expect(await db.prepare('SELECT count(*)::int count FROM planning_resource_allocations WHERE resource_id=?').bind(resourceId).first('count')).toBe(0);
+  expect(await db.prepare('SELECT count(*)::int count FROM manufacturing_orders WHERE recommendation_id=?').bind(plan.recommendationId).first('count')).toBe(0);
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*)::int count FROM ${table} WHERE command_id=?`).bind(command).first('count')).toBe(0);
+ }finally{await db.prepare(`DROP TRIGGER ${trigger} ON outbox_events`).run();await db.prepare(`DROP FUNCTION ${fault}()`).run();}
+ const receipt=await reviewPlanningRecommendation(reviewer,plan.recommendationId,input,command);expect(await reviewPlanningRecommendation(reviewer,plan.recommendationId,input,command)).toEqual(receipt);
+ expect(await db.prepare('SELECT sum(minutes)::int minutes FROM planning_resource_allocations WHERE resource_id=? AND released_at IS NULL').bind(resourceId).first('minutes')).toBe(35);
+ expect(await db.prepare('SELECT count(*)::int count FROM manufacturing_orders WHERE recommendation_id=?').bind(plan.recommendationId).first('count')).toBe(1);
+});
+
+it('rolls back released output stock, WIP journal and Files binding on late Manufacturing outbox failure, then retries and replays',async()=>{
+ const {id}=await order();await changeManufacturingOrder(owner,id,{action:'reserve',expectedVersion:1,expiresAt:Date.now()+3600000,reason:'Reserve material for atomic output proof'},key());
+ await changeManufacturingOrder(owner,id,{action:'issue',expectedVersion:2,reason:'Issue reserved material under the approved map',entryDate:'2026-10-02'},key());
+ await changeManufacturingOrder(owner,id,{action:'report',expectedVersion:3,outputQuantity:'2',scrapQuantity:'0',laborCost:'10',overheadCost:'2',reason:'Report exact costs before independent output review',entryDate:'2026-10-02'},key());
+ const evidence=await seedAttachmentSet(db,owner,{targetType:'production_run',targetId:id,purposeKey:'qc_evidence',componentRef:'qc-review',expectedTargetVersion:4});
+ const command=key(),input={action:'pass-qc',expectedVersion:4,entryDate:'2026-10-02',reason:'Independent inspector releases accepted output with retained scanned evidence',attachmentSetIds:[evidence.setId]},suffix=key().replace(/[^a-zA-Z0-9]/g,''),fault=`manufacturing_issue_fault_${suffix}`,trigger=`manufacturing_issue_outbox_${suffix}`;
+ await db.prepare(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='${command}' THEN RAISE EXCEPTION 'MANUFACTURING_ISSUE_LATE_FAILURE'; END IF; RETURN NEW; END $$`).run();
+ await db.prepare(`CREATE TRIGGER ${trigger} AFTER INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION ${fault}()`).run();
+ try{
+  await expect(changeManufacturingOrder(reviewer,id,input,command)).rejects.toThrow('MANUFACTURING_ISSUE_LATE_FAILURE');
+  expect(await db.prepare('SELECT status,version,material_cost_minor FROM manufacturing_orders WHERE id=?').bind(id).first()).toEqual({status:'awaiting_qc',version:4,material_cost_minor:2000});
+  expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,output).first()).toBeNull();
+  expect(await db.prepare('SELECT consumed_milli FROM manufacturing_material_reservations WHERE order_id=?').bind(id).first('consumed_milli')).toBe(4000);
+  expect(await db.prepare("SELECT count(*)::int count FROM finance_journals WHERE source_type='manufacturing_output' AND source_id=?").bind(id).first('count')).toBe(0);
+  expect(await attachmentBindingState(db,evidence.setId)).toMatchObject({set_state:'draft',link_state:'draft'});
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*)::int count FROM ${table} WHERE command_id=?`).bind(command).first('count')).toBe(0);
+ }finally{await db.prepare(`DROP TRIGGER ${trigger} ON outbox_events`).run();await db.prepare(`DROP FUNCTION ${fault}()`).run();}
+ const receipt=await changeManufacturingOrder(reviewer,id,input,command);expect(await changeManufacturingOrder(reviewer,id,input,command)).toEqual(receipt);
+ expect(await attachmentBindingState(db,evidence.setId)).toMatchObject({set_state:'bound',link_state:'bound'});
+ expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,output).first()).toEqual({quantity_milli:2000,value_minor:3200});
+ expect(await db.prepare("SELECT count(*)::int count FROM manufacturing_order_postings WHERE order_id=? AND phase='output'").bind(id).first('count')).toBe(1);
 });

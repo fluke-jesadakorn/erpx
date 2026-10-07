@@ -1,10 +1,10 @@
 import { FeaturePage } from "@/components/features/feature-page";
 import { FinanceWorkspace } from "@/components/finance/finance-workspace";
 import { FinanceBookAdjustmentControls } from "@/components/finance/finance-book-adjustment-controls";
-import { publicScope, requireWorkContext } from "@/server/authorization";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { hasPermission } from "@/lib/permissions";
-import { bookAdjustmentConsoleWorkspace } from "@/server/finance-book-adjustments";
+import { bookAdjustmentConsoleWorkspace } from "@/server/modules/finance/public/finance-book-adjustments";
 export const dynamic = "force-dynamic";
 export default async function BookAdjustmentsPage({
   params,

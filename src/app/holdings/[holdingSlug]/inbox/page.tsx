@@ -1,3 +1,4 @@
+import { collaborationPresentationQueries } from "@/server/modules/collaboration/public/presentation-queries";
 
 import { PageContent } from "@/components/ui/patterns";
 import { FeaturePage } from "@/components/features/feature-page";
@@ -6,13 +7,13 @@ import { InboxUpdates } from "@/components/messaging/inbox-updates";
 import { PageHeader } from "@/components/ui/primitives";
 import { hasPermission } from "@/lib/permissions";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import {holdingResources} from "@/server/runtime";
-import {inboxSummary} from "@/server/inbox";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+
+
 
 export default async function Inbox({params,searchParams}:PageProps<"/holdings/[holdingSlug]/inbox">){
   const actor=await requireWorkContext((await params).holdingSlug),base=workspaceBase(publicScope(actor)),query=await searchParams;
-  const {write}=await holdingResources(actor.holdingId),summary=await inboxSummary(write,actor);
+  const presentation=await collaborationPresentationQueries(actor.holdingId),summary=await presentation.inboxSummary(actor);
   const tab=query.view||query.tab==="updates"?"updates":query.tab==="teams"?"teams":"chats";
   return <PageContent as={FeaturePage} data-source="live">
     <PageHeader appearance="standard" title="Your inbox" description="Conversations, notices, and updates from your work."/>

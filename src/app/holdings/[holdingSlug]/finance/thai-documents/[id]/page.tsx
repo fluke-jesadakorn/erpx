@@ -5,9 +5,9 @@ import {ThaiDocumentControls} from "@/components/finance/finance-thai-tax-consol
 import {minorToDecimal} from "@/lib/finance-money";
 import {hasPermission} from "@/lib/permissions";
 import {workspaceBase} from "@/lib/workspace";
-import {publicScope,requireWorkContext} from "@/server/authorization";
-import {thaiDocumentDetail} from "@/server/finance-thai-documents";
-import {pageError} from "@/server/page-error";
+import {publicScope,requireWorkContext} from "@/server/modules/identity_access/public/authorization";
+import {thaiDocumentDetail} from "@/server/modules/finance/public/finance-thai-documents";
+import {pageError} from "@/server/modules/work_projection/public/page-error";
 import { Card } from "@/components/ui/foundation";
 export const dynamic="force-dynamic";
 export default async function Page({params}:{params:Promise<{holdingSlug:string;id:string}>}){

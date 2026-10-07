@@ -1,0 +1,1 @@
+export const collaborationReadProjection = { ownerEngagement: 'JOIN hr_people p ON p.user_id=x.user_id AND p.company_id=x.company_id JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id', cardOwnerName: '(SELECT legal_name FROM hr_people WHERE company_id=c.company_id AND user_id=c.owner_id AND merged_into_id IS NULL LIMIT 1)' } as const;

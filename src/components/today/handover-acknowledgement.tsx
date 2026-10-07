@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/foundation";
 
 import { useEffect, useState } from "react";
 import { betaFetch } from "@/lib/beta-client";
-import type { HandoverAcknowledgement as Acknowledgement } from "@/server/handover";
+import type { HandoverAcknowledgement as Acknowledgement } from "@/server/modules/operations/public/handover";
 import styles from "./handover-composer.module.css";
 import { type UiAppearance } from "@/components/ui/foundation";
 

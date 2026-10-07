@@ -81,9 +81,13 @@ test("isolated demo links a support case to its sales source and records removal
       `/holdings/simulation/support?orderId=${encodeURIComponent(quoteId)}`,
       { waitUntil: "domcontentloaded" },
     );
-    const supportForm = ownerPage.locator("#workspace-content form").filter({
-      hasText: "Record customer issue",
+    await expect(ownerPage).toHaveURL(url => url.pathname === "/holdings/simulation/customers" && url.searchParams.get("view") === "support" && url.searchParams.get("new") === "1" && url.searchParams.get("orderId") === quoteId);
+    const supportDrawer = ownerPage.getByRole("dialog", { name: "New service case", exact: true });
+    await expect(supportDrawer).toBeVisible();
+    const supportForm = supportDrawer.locator("form").filter({
+      has: supportDrawer.getByRole("heading", { name: "Record customer issue from order", exact: true }),
     });
+    await expect(supportForm).toHaveCount(1);
     await supportForm.locator('input[name="title"]').fill(title);
     await supportForm
       .locator('textarea[name="issue"]')
@@ -98,16 +102,33 @@ test("isolated demo links a support case to its sales source and records removal
     await supportForm
       .getByRole("button", { name: "Create linked support case", exact: true })
       .click();
-    expect((await createResponse).status()).toBe(200);
-    await expect(ownerPage.getByRole("heading", { name: title, exact: true })).toBeVisible();
+    const createdSupport = await createResponse;
+    expect(createdSupport.status()).toBe(200);
+    const createdTicketId = (await createdSupport.json()).data.id as string;
+    expect(createdTicketId, "actual created Support command result").toBeTruthy();
+    await expect(ownerPage).toHaveURL(url => url.pathname === "/holdings/simulation/customers" && url.searchParams.get("detailKind") === "support_ticket" && url.searchParams.get("detailId") === createdTicketId);
+    await expect(supportDrawer).not.toBeVisible();
+    const supportRecord = ownerPage.getByTestId("record-detail-drawer");
+    await expect(supportRecord).toHaveCount(1);
+    await expect(supportRecord.locator("[data-record-drawer-content]").getByRole("heading", { name: title, exact: true })).toBeVisible();
+    const supportFullPage = supportRecord.getByRole("link", { name: "Open full page ↗", exact: true });
+    await expect(supportFullPage).toHaveAttribute("href", `/holdings/simulation/support/${createdTicketId}`);
+    await supportFullPage.click();
+    await expect(ownerPage).toHaveURL(new RegExp(`/support/${createdTicketId}$`));
+    await expect(ownerPage.locator("#workspace-content:visible").getByRole("heading", { name: title, exact: true })).toBeVisible();
     const ticketId = new URL(ownerPage.url()).pathname.split("/").pop();
     expect(ticketId, "created support ticket id").toBeTruthy();
+    expect(ticketId).toBe(createdTicketId);
 
     await ownerPage.goto("/holdings/simulation/collaboration", {
       waitUntil: "domcontentloaded",
     });
     await expect(ownerPage.getByRole("heading", { name: "Cross-record collaboration" })).toBeVisible();
-    const relationForm = ownerPage.locator("#workspace-content form").filter({ hasText: "Link records" });
+    await ownerPage.locator("#workspace-content:visible summary").filter({ hasText: /^Link records$/ }).click();
+    const relationDrawer = ownerPage.getByRole("dialog", { name: "Link records", exact: true });
+    const relationForm = relationDrawer.locator("form");
+    await expect(relationDrawer).toBeVisible();
+    await expect(relationForm).toHaveCount(1);
     await relationForm.locator('select[name="sourceType"]').selectOption("commerce_order");
     await relationForm.locator('input[name="sourceId"]').fill(quoteId);
     await relationForm.locator('select[name="targetType"]').selectOption("support_ticket");
@@ -123,7 +144,9 @@ test("isolated demo links a support case to its sales source and records removal
     );
     await relationForm.getByRole("button", { name: "Create typed relation" }).click();
     expect((await linkResponse).status()).toBe(200);
-    const relationCard = ownerPage.locator("#workspace-content form").filter({ hasText: "Remove relation" });
+    await relationDrawer.getByRole("button", { name: "Close dialog", exact: true }).click();
+    await expect(relationDrawer).not.toBeVisible();
+    const relationCard = ownerPage.locator("#workspace-content:visible form").filter({ hasText: "Remove relation" });
     await expect(relationCard).toContainText(`commerce_order ${quoteId}`);
     await expect(relationCard).toContainText(`support_ticket ${ticketId}`);
 
@@ -137,7 +160,7 @@ test("isolated demo links a support case to its sales source and records removal
     );
     await relationCard.getByRole("button", { name: "Remove relation" }).click();
     expect((await removeResponse).status()).toBe(200);
-    await expect(ownerPage.locator("#workspace-content form").filter({ hasText: "Remove relation" })).toHaveCount(0);
+    await expect(ownerPage.locator("#workspace-content:visible form").filter({ hasText: "Remove relation" })).toHaveCount(0);
   } finally {
     await ownerContext.close();
   }

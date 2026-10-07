@@ -1,10 +1,10 @@
 import { FeaturePage } from "@/components/features/feature-page";
 import { FinanceRecordWorkspace } from "@/components/finance/finance-record-workspace";
-import {requireWorkContext,publicScope} from '@/server/authorization';
+import {requireWorkContext,publicScope} from "@/server/modules/identity_access/public/authorization";
 import {workspaceBase} from '@/lib/workspace';
-import {supplierBatchWorkspace} from '@/server/supplier-payments';
+import {supplierBatchWorkspace} from "@/server/modules/procurement/public/supplier-payments";
 import {SupplierBatchConsole} from '@/components/modules/supplier-batch-console';
-import {pageError} from '@/server/page-error';
+import {pageError} from "@/server/modules/work_projection/public/page-error";
 import {RecordDocumentPanel} from '@/components/attachments/record-document-panel';
 import {hasPermission} from '@/lib/permissions';
 export const dynamic='force-dynamic';

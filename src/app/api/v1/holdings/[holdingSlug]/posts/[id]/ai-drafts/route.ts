@@ -1,2 +1,2 @@
-import { betaHandler } from "@/server/beta-api";
+import { betaHandler } from "@/server/modules/manage_erpx/public/beta-api";
 export const POST = betaHandler("ai-drafts");

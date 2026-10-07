@@ -1,7 +1,7 @@
-import { requireManageErpxContext } from "@/server/authorization";
-import { runtimeEnv } from "@/server/runtime";
-import { ApiError, errorResponse } from "@/server/http";
-import { platformExecutiveSnapshot, platformExecutiveSources, requirePlatformExecutive } from "@/server/platform-executive";
+import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
+import { runtimeEnv } from "@/server/modules/runtime/public/runtime";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { platformExecutiveSnapshot, platformExecutiveSources, requirePlatformExecutive } from "@/server/modules/platform_administration/public/platform-executive";
 
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };

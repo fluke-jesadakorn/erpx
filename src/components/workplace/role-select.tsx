@@ -2,7 +2,7 @@
 import { Button, TextInput, Combobox, type UiAppearance } from "@/components/ui/foundation";
 
 import { useId, useState } from "react";
-import type { WorkAssignment } from "@/server/authorization";
+import type { WorkAssignment } from "@/server/modules/identity_access/public/authorization";
 
 export function RoleSelect({
   assignments,

@@ -1,0 +1,8 @@
+import "server-only";
+/** Closed native projections for Legal, Asset, Maintenance and Customer joins. Callers retain their original scope/authority filters and execute the composed statement in their supplied transaction. No SQL or relation name is accepted from a caller. */
+export const finalRootOwnerProjectionSources = {
+  commerce_fulfillments: "SELECT \"id\",\"order_id\",\"number\",\"fulfillment_date\",\"created_by\",\"created_at\",\"journal_id\",\"invoice_id\",\"version\",\"evidence_note\" FROM commerce_fulfillments",
+  commerce_orders: "SELECT \"id\",\"company_id\",\"branch_id\",\"department_id\",\"kind\",\"number\",\"party_id\",\"warehouse_id\",\"currency\",\"order_date\",\"due_date\",\"note\",\"state\",\"subtotal_minor\",\"tax_minor\",\"source_id\",\"version\",\"created_by\",\"approved_by\",\"created_at\",\"updated_at\",\"price_list_id\",\"price_list_version\",\"discount_reason\",\"discount_approval_required\",\"discount_approved_by\",\"discount_approved_at\" FROM commerce_orders",
+  commerce_products: "SELECT \"id\",\"company_id\",\"sku\",\"name\",\"unit\",\"price_minor\",\"tax_bps\",\"status\",\"version\",\"tracking_mode\" FROM commerce_products",
+  commerce_returns: "SELECT \"id\",\"company_id\",\"branch_id\",\"order_id\",\"fulfillment_id\",\"invoice_id\",\"kind\",\"number\",\"return_date\",\"reason\",\"status\",\"subtotal_minor\",\"tax_minor\",\"total_minor\",\"stock_journal_id\",\"credit_journal_id\",\"version\",\"requested_by\",\"approved_by\",\"created_at\",\"updated_at\",\"credited_minor\",\"refund_minor\",\"base_credit_minor\",\"base_credited_minor\",\"base_refund_minor\",\"fx_journal_id\",\"goods_fx_journal_id\" FROM commerce_returns",
+} as const;

@@ -9,7 +9,7 @@ import {Button,Field,Select,TextArea,TextInput,Table,TableFrame} from "@/compone
 import {financialNoteTitles,financialPresentation,type FinancialPresentationCode} from "@/lib/finance-reporting";
 import {minorToDecimal} from "@/lib/finance-money";
 import {workFetch} from "@/lib/work-fetch";
-import type {reportingWorkspace} from "@/server/finance-reporting";
+import type {reportingWorkspace} from "@/server/modules/finance/public/finance-reporting";
 import { FormLayout, Stack, Card } from "@/components/ui/foundation";
 
 type Workspace=Awaited<ReturnType<typeof reportingWorkspace>>;

@@ -6,10 +6,16 @@
     "plugins": []
   },
   "include": [
-    "tests/e2e/demo-*.spec.ts",
-    "tests/e2e/legal-uat.spec.ts",
-    "tests/e2e/helpers/**/*.ts",
-    "playwright.config.ts"
+    "next-env.d.ts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "playwright*.config.ts",
+    "vitest*.config.mts",
+    "tests/**/*.ts"
   ],
-  "exclude": ["node_modules", ".runtime", ".scratch"]
+  "exclude": [
+    "node_modules",
+    ".runtime",
+    ".scratch"
+  ]
 }

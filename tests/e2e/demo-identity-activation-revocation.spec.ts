@@ -70,7 +70,10 @@ async function verifyMfa(page: Page) {
   const enroll = page.getByRole("button", { name: "Set up authenticator", exact: true });
   if (await enroll.count()) {
     await enroll.click();
-    const setup = page.locator("code").first();
+    const security = page.locator("#security-content:visible");
+    await expect(security).toHaveCount(1);
+    const setup = security.locator("code");
+    await expect(setup).toHaveCount(1);
     await expect(setup).toBeVisible();
     const secret = await setup.innerText();
     await page.getByLabel("Six-digit code", { exact: true }).fill(authenticatorCode(secret));
@@ -149,12 +152,24 @@ test("Demo invitation activates a separate account and revocation removes access
     expect(activatePerson.ok(), await activatePerson.text()).toBe(true);
     await ownerPage.goto(`${base}/people/${personId}?tab=access`);
 
-    await ownerPage.goto(`${base}/people/${personId}?tab=access`);
-    const access = ownerPage.locator('#workspace-content [data-feature-widget="person-access"]');
+    const workspace = ownerPage.locator("#workspace-content:visible");
+    await expect(workspace).toHaveCount(1);
+    const access = workspace.locator('[data-feature-widget="person-access"]');
+    await expect(access).toHaveCount(1);
+    await expect(access).toBeVisible();
     await access.locator("summary").filter({ hasText: /^Invite to ERPX$/ }).click();
-    await access.locator('select[name="role"]').selectOption("employee");
-    await access.getByLabel("Access expires", { exact: true }).fill("2030-01-01");
-    await access.getByRole("button", { name: "Create activation link", exact: true }).click();
+    const inviteDialog = ownerPage.getByRole("dialog", { name: "Invite to ERPX", exact: true });
+    await inviteDialog.locator('select[name="role"]').selectOption("employee");
+    await inviteDialog.getByLabel("Access expires", { exact: true }).fill("2030-01-01");
+    const invitationResponse = ownerPage.waitForResponse(response => response.request().method() === "POST" && response.url().endsWith(`/people/directory/${personId}/invite`));
+    await inviteDialog.getByRole("button", { name: "Create activation link", exact: true }).click();
+    const invited = await invitationResponse;
+    expect(invited.status(), await invited.text()).toBe(200);
+    const createdInvitation = (await invited.json()).data as { id: string; reviewId: string };
+    expect(createdInvitation.id).toMatch(/^invite-/);
+    expect(createdInvitation.reviewId).toBeTruthy();
+    await inviteDialog.getByRole("button", { name: "Close dialog", exact: true }).click();
+    await expect(inviteDialog).not.toBeVisible();
     const link = access.getByLabel("Activation link (expires in 48 hours)", { exact: true });
     await expect(link).toHaveValue(/\/activate\?token=/);
     activationLink = await link.inputValue();
@@ -166,9 +181,13 @@ test("Demo invitation activates a separate account and revocation removes access
     await verifyMfa(reviewerPage);
     await reviewerPage.goto(`${base}/people/settings?section=reviews&refresh=${Date.now()}`);
     await expect(reviewerPage.locator("[data-work-stale]")).toHaveAttribute("data-work-stale", "false");
-    await reviewerPage.goto(`${base}/people/settings?section=reviews`);
-    const invitation = reviewerPage.locator("#workspace-content article").filter({ hasText: "Authorize an employee invitation and initial grant." }).first();
+    const reviewerWorkspace = reviewerPage.locator("#workspace-content:visible");
+    await expect(reviewerWorkspace).toHaveCount(1);
+    const invitation = reviewerWorkspace.locator("article").filter({ hasText: "Authorize an employee invitation and initial grant." }).filter({ has: reviewerPage.locator("pre").filter({ hasText: createdInvitation.id }) });
+    await expect(invitation).toHaveCount(1);
     await expect(invitation).toBeVisible();
+    await invitation.locator("summary").filter({ hasText: /^Review exact change and impact$/ }).click();
+    expect(JSON.parse(await invitation.locator("pre").innerText()).invitationId).toBe(createdInvitation.id);
     await invitation.locator('select[name="decision"]').selectOption("approve");
     await invitation.locator('textarea[name="reason"]').fill("Reviewed the employee identity and least-privilege scope.");
     await invitation.getByRole("button", { name: "Record decision", exact: true }).click();
@@ -176,7 +195,7 @@ test("Demo invitation activates a separate account and revocation removes access
 
     await inviteePage.goto(activationLink);
     await expect(inviteePage.getByRole("heading", { name: "Activate your ERPX account", exact: true })).toBeVisible();
-    await inviteePage.getByLabel("Password", { exact: true }).fill(employeePassword);
+    await inviteePage.getByLabel(/^Password(?:\s*\*)?$/).fill(employeePassword);
     await inviteePage.getByLabel("Confirm password", { exact: true }).fill(employeePassword);
     await inviteePage.getByRole("button", { name: "Activate account", exact: true }).click();
     await expect(inviteePage).toHaveURL(/\/login$/);
@@ -185,17 +204,37 @@ test("Demo invitation activates a separate account and revocation removes access
     await inviteePage.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(inviteePage).toHaveURL(new RegExp(`${base}/(?:branches/[^/]+/)?home$|/work-role\\?`));
     if (inviteePage.url().includes("/work-role")) {
-      await inviteePage.getByRole("combobox", { name: "Role for actions & approvals" }).fill("employee");
-      await inviteePage.getByRole("listbox").getByRole("option").click();
+      const picker = inviteePage.locator("#work-role-content:visible #role-picker");
+      await expect(picker).toHaveCount(1);
+      const trigger = picker.getByRole("button", { name: /Role for actions & approvals/ });
+      await expect(trigger).toHaveCount(1);
+      await expect(trigger).toBeEnabled();
+      await trigger.click();
+      const search = picker.getByRole("combobox", { name: "Search roles", exact: true });
+      await expect(search).toHaveCount(1);
+      await search.fill("employee");
+      const employee = picker.getByRole("listbox", { name: "Available roles", exact: true }).getByRole("option");
+      await expect(employee).toHaveCount(1);
+      await employee.click();
     }
     await expect(inviteePage).toHaveURL(new RegExp(`${base}/(?:branches/[^/]+/)?home$`));
     await expect(inviteePage.getByRole("main")).toBeVisible();
+    const employeeHome = new URL(inviteePage.url());
+    const employeeWorkspace = employeeHome.pathname.replace(/\/home$/, "");
+    const selfReadUrl = new URL(`/api/v1${employeeWorkspace}/people/people/${personId}`, origin).toString();
+    const authorizedSelf = await inviteePage.request.get(selfReadUrl);
+    expect(authorizedSelf.status(), "the activated employee can read their own record in the selected branch").toBe(200);
+    expect((await authorizedSelf.json()).data.person.id).toBe(personId);
 
     await ownerPage.goto(`${base}/people/${personId}?tab=access`);
     await access.getByRole("button", { name: "Revoke role", exact: true }).click();
     await expect(access.getByRole("button", { name: "Revoke role", exact: true })).toHaveCount(0);
-    const revokedNavigation = await inviteePage.goto(`${base}/home`);
+    const revokedSelf = await inviteePage.request.get(selfReadUrl);
+    expect(revokedSelf.status(), "the same employee read is denied immediately after revocation").toBe(409);
+    expect((await revokedSelf.json()).error.code).toBe("WORK_ROLE_UNAVAILABLE");
+    const revokedNavigation = await inviteePage.goto(employeeHome.toString());
     expect(revokedNavigation?.status(), "revoked employee cannot open the protected home").toBe(403);
+    await expect(inviteePage).toHaveURL(employeeHome.toString());
     const denied = inviteePage.getByRole("region", { name: "Your role cannot open this view", exact: true });
     await expect(denied).toHaveCount(1);
     await expect(denied.getByRole("heading", { name: "Your role cannot open this view", exact: true })).toBeVisible();

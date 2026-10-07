@@ -9,7 +9,7 @@ import { PreferredDateTimeField } from "@/components/time/preferred-date-time-fi
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
-import type { CustomerNotesView } from "@/server/customer-notes";
+import type { CustomerNotesView } from "@/server/modules/sales/public/customer-notes";
 import { Card, FormGrid } from "@/components/ui/foundation";
 export function CustomerNotes({ base, data, mode = "all" }: { base: string; data: CustomerNotesView; mode?: "all" | "create" | "history" }) {
   const router = useRouter(),

@@ -10,7 +10,7 @@ import { RecordLink as Link } from "@/components/records/record-link";
 import { workFetch } from "@/lib/work-fetch";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { refundWorkspace } from "@/server/refunds";
+import type { refundWorkspace } from "@/server/modules/finance/public/refunds";
 import { minorToDecimal } from "@/lib/finance-money";
 import {
   AttachmentPanel,

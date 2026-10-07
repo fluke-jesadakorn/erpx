@@ -80,6 +80,31 @@ async function post() {
   await postJournal(f.manager, String(j.id), key(), { expectedVersion: 1 });
   return j;
 }
+it('rolls immutable report snapshot and issued CSV bytes back after final outbox failure, then retries and replays once',async()=>{
+ await post();const definition=await prepareFinancialReport(f.owner,financialReportSchema.parse({chartId:f.chart,name:'Immutable export rollback',rows:[{key:'expense',label:'=1+1',kind:'accounts',accountIds:[f.accounts.expense]}]}),key());await approve(String(definition.id));
+ const id=String(definition.id),command=key(),input={startDate:'2026-09-01',endDate:'2026-09-30'},fault=`planning_snapshot_fault_${crypto.randomUUID().replaceAll('-','')}`;
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'REPORT_SNAPSHOT_LATE_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.event_type='finance.report.snapshot') EXECUTE FUNCTION ${fault}();`);
+ try{
+  await expect(snapshotFinancialReport(f.owner,id,input,command)).rejects.toThrow();
+  expect(Number(await db.prepare('SELECT count(*) n FROM finance_report_snapshots WHERE definition_id=?').bind(id).first('n'))).toBe(0);
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n'))).toBe(0);
+ }finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
+ const saved=await snapshotFinancialReport(f.owner,id,input,command);expect(await snapshotFinancialReport(f.owner,id,input,command)).toEqual(saved);
+ const bytes=await exportFinancialReport(f.owner,String(saved.id));expect(bytes.content).toContain('"\'=1+1","80.01","money"');
+ expect(Number(await db.prepare('SELECT count(*) n FROM finance_report_snapshots WHERE definition_id=?').bind(id).first('n'))).toBe(1);
+ for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n'))).toBe(1);
+});
+it('rolls independent plan approval back after final outbox failure, then retries and replays once',async()=>{
+ const edition=await prepareBudgetEdition(f.owner,budgetEditionSchema.parse({chartId:f.chart,name:'Approved edition rollback',year:2026,lines:[{accountId:f.accounts.expense,month:'2026-09',amount:'100.00'}]}),key()),id=String(edition.id),command=key(),input={expectedVersion:1,reason:'Independent reviewed budget account evidence'},fault=`plan_approval_fault_${crypto.randomUUID().replaceAll('-','')}`,before=await db.prepare('SELECT * FROM finance_plan_editions WHERE id=?').bind(id).first();
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'PLAN_APPROVAL_LATE_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.event_type='finance.plan.approve') EXECUTE FUNCTION ${fault}();`);
+ try{
+  await expect(decideFinancePlan(f.manager,id,input,'approve',command)).rejects.toThrow();
+  expect(await db.prepare('SELECT * FROM finance_plan_editions WHERE id=?').bind(id).first()).toEqual(before);
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n'))).toBe(0);
+ }finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
+ const approved=await decideFinancePlan(f.manager,id,input,'approve',command);expect(await decideFinancePlan(f.manager,id,input,'approve',command)).toEqual(approved);expect(approved).toMatchObject({status:'approved',version:2});
+ for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n'))).toBe(1);
+});
 it("keeps native Finance reviews in the combined Today queue with independent authority, and removes a reviewed plan", async () => {
   const budget=await prepareBudgetEdition(f.owner,budgetEditionSchema.parse({chartId:f.chart,name:"Today review fixture",year:2026,lines:[{accountId:f.accounts.expense,month:"2026-09",amount:"100.01"}]}),key());
   const reviewer=await readWorkSnapshot(f.manager),preparer=await readWorkSnapshot(f.owner);

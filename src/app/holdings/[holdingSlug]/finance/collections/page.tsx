@@ -8,15 +8,15 @@ import {
   TextInput,
   Button,
 } from "@/components/ui/foundation";
-import { publicScope, requireWorkContext } from "@/server/authorization";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { hasPermission } from "@/lib/permissions";
-import { ledgerWorkspace } from "@/server/ledger";
+import { ledgerWorkspace } from "@/server/modules/finance/public/ledger";
 import {
   collectionWorkspace,
   cashDueForecast,
-} from "@/server/finance-collections";
-import { financeCompanyTools } from "@/server/finance-company-tools";
+} from "@/server/modules/finance/public/finance-collections";
+import { financeCompanyTools } from "@/server/modules/finance/public/finance-company-tools";
 export const dynamic = "force-dynamic";
 export default async function CollectionsPage({
   params,

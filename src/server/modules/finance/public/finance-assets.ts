@@ -1,0 +1,2 @@
+/** Compatibility entry; its legacy implementation is tracked in ownership.json. */
+export { assetSchema, assetEditSchema, assetActivationSchema, assetDepreciationSchema, assetDecisionSchema, assetDisposalSchema, assetDetail, assetPage, assetOptions, createAsset, editAsset, cancelDraftAsset, activateAsset, depreciateAsset, prepareAssetDisposal, decideAssetDisposal } from "../../../finance-assets";

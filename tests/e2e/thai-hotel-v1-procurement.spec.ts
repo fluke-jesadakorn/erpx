@@ -26,7 +26,7 @@ async function signInRole(context: BrowserContext, page: Page, credentials: Cred
 }
 
 async function requestCommand(page: Page, requestId: string, button: string, note: string) {
-  const workspace = page.locator("#workspace-content");
+  const workspace = page.locator("#workspace-content:visible");
   await workspace.getByLabel("Message or decision evidence", { exact: true }).fill(note);
   const response = page.waitForResponse((item) => item.request().method() === "POST" && item.url().includes(`/api/v1/holdings/riverside-lantern/requests/${requestId}/actions`));
   await workspace.getByRole("button", { name: button, exact: true }).click();
@@ -50,7 +50,7 @@ function actionSelect(page: Page) {
 }
 
 function field(page: Page, label: string | RegExp, options?: { exact?: boolean }) {
-  return page.locator("#workspace-content").getByLabel(label, options).first();
+  return page.locator("#workspace-content:visible").getByLabel(label, options).first();
 }
 
 async function clickInVisualViewport(page: Page, target: Locator) {
@@ -159,7 +159,7 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
     await field(buyerPage, "Quoted arrival", { exact: true }).fill("2026-10-10");
     await field(buyerPage, "Quote valid through", { exact: true }).fill("2026-10-20");
     await field(buyerPage, "Quotation evidence and terms", { exact: true }).fill("Supplier quotation for six of the ten approved kitchen rice.");
-    await buyerPage.locator("#workspace-content").locator('input[name^="price-"]').first().fill("12.50");
+    await buyerPage.locator("#workspace-content:visible").locator('input[name^="price-"]').first().fill("12.50");
     const offerResponse = buyerPage.waitForResponse((item) => item.request().method() === "POST" && item.url().includes(`/api/v1/holdings/riverside-lantern/procurement-rfqs/${rfqId}`));
     await buyerPage.getByRole("button", { name: "Record quotation", exact: true }).click();
     expect((await offerResponse).ok()).toBe(true);
@@ -170,13 +170,13 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
     await field(buyerPage, "Quoted arrival", { exact: true }).fill("2026-10-10");
     await field(buyerPage, "Quote valid through", { exact: true }).fill("2026-10-20");
     await field(buyerPage, "Quotation evidence and terms", { exact: true }).fill("Second fictional supplier quote for comparison; higher unit cost than the first offer.");
-    await buyerPage.locator("#workspace-content").locator('input[name^="price-"]').first().fill("13.50");
+    await buyerPage.locator("#workspace-content:visible").locator('input[name^="price-"]').first().fill("13.50");
     const comparisonOffer = buyerPage.waitForResponse((item) => item.request().method() === "POST" && item.url().includes(`/api/v1/holdings/riverside-lantern/procurement-rfqs/${rfqId}`));
     await buyerPage.getByRole("button", { name: "Record quotation", exact: true }).click();
     expect((await comparisonOffer).ok()).toBe(true);
     await buyerPage.reload({ waitUntil: "domcontentloaded" });
     await expect(buyerPage.locator("td").filter({ hasText: "DEMO-REQUEST-RFQ-6-COMPARE" }).first()).toBeVisible();
-    const proposedOffer = buyerPage.locator("#workspace-content").locator('select[name="offer"]').first();
+    const proposedOffer = buyerPage.locator("#workspace-content:visible").locator('select[name="offer"]').first();
     const cheapestOffer = await proposedOffer.locator("option").filter({ hasText: /DEMO-REQUEST-RFQ-6$/ }).first().getAttribute("value");
     expect(cheapestOffer).toBeTruthy();
     await proposedOffer.selectOption(cheapestOffer!);
@@ -236,7 +236,7 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
     await field(buyerPage, "Quoted arrival", { exact: true }).fill("2026-10-10");
     await field(buyerPage, "Quote valid through", { exact: true }).fill("2026-10-20");
     await field(buyerPage, "Quotation evidence and terms", { exact: true }).fill("Supplier quotation for the remaining four of the ten approved kitchen rice.");
-    await buyerPage.locator("#workspace-content").locator('input[name^="price-"]').first().fill("12.50");
+    await buyerPage.locator("#workspace-content:visible").locator('input[name^="price-"]').first().fill("12.50");
     const secondOfferResponse = buyerPage.waitForResponse((item) => item.request().method() === "POST" && item.url().includes(`/api/v1/holdings/riverside-lantern/procurement-rfqs/${secondRfqId}`));
     await buyerPage.getByRole("button", { name: "Record quotation", exact: true }).click();
     expect((await secondOfferResponse).ok()).toBe(true);
@@ -373,7 +373,7 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
       await assignWorkflowOwner(ownerPage, invoicePath, "invoice", "Review invoice Debit / Credit and post GL", approver!, "Assign the independent Finance approver to post the supplier invoice.");
       await approverPage.goto(invoicePath, { waitUntil: "domcontentloaded" });
       await expect(approverPage.getByRole("button", { name: "Approve and post invoice", exact: true })).toBeVisible();
-      await approverPage.locator("#workspace-content").locator('select[name="period"]').first().selectOption({ label: "2026" });
+      await approverPage.locator("#workspace-content:visible").locator('select[name="period"]').first().selectOption({ label: "2026" });
       const invoicePost = approverPage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith(`/api/v1/holdings/riverside-lantern/finance/invoices/${invoiceId}/post`));
       await approverPage.getByRole("button", { name: "Approve and post invoice", exact: true }).click();
       const invoicePostResult = await invoicePost;
@@ -390,7 +390,7 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
     const firstInvoiceRow = preparerPage.locator("fieldset").filter({ hasText: "Available THB 125.00" }).first();
     await expect(firstInvoiceRow).toBeVisible();
     await firstInvoiceRow.getByRole("checkbox").check();
-    const paymentBank = preparerPage.locator("#workspace-content").locator('select[name="bank"]').first();
+    const paymentBank = preparerPage.locator("#workspace-content:visible").locator('select[name="bank"]').first();
     await paymentBank.selectOption({ index: 1 });
     const paymentBankAccountId = await paymentBank.inputValue();
     await field(preparerPage, "Planned payment date", { exact: true }).fill("2026-10-01");
@@ -429,7 +429,7 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
     // Demo account labels are configured data (and can change with the
     // chart fixture), so select the first real bank account after the
     // placeholder rather than relying on a hard-coded code/name.
-    await preparerPage.locator("#workspace-content").locator('select[name="bankAccount"]:visible').first().selectOption(paymentBankAccountId);
+    await preparerPage.locator("#workspace-content:visible").locator('select[name="bankAccount"]:visible').first().selectOption(paymentBankAccountId);
     await field(preparerPage, "Statement number", { exact: true }).fill("DEMO-SUPPLIER-PAY-2026");
     await field(preparerPage, "Statement date", { exact: true }).fill("2026-10-02");
     await field(preparerPage, "Opening balance", { exact: true }).fill("125");
@@ -447,7 +447,7 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
     expect(reconciledBatchResponse.ok()).toBe(true);
     const matchingBankRow = (await reconciledBatchResponse.json()).data.bank.find((row: { external_id: string; amount_minor: number; bank_account: string }) => row.external_id === "DEMO-BANK-SUPPLIER-125");
     expect(matchingBankRow).toMatchObject({ amount_minor: -12500, bank_account: paymentBankAccountId });
-    const instructionCards = treasuryPage.locator("section.card").filter({ hasText: /BILL-/ });
+    const instructionCards = treasuryPage.locator("section.ui-panel:visible").filter({ hasText: /BILL-/ });
     await expect(instructionCards).toHaveCount(1, { timeout: 20_000 });
     const instructionCard = instructionCards.first();
     await instructionCard.locator('select[name="bank"]').selectOption(String(matchingBankRow.id));

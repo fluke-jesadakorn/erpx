@@ -1,6 +1,8 @@
+import { captureCaseScreenshot } from "../helpers/case-screenshot";
 import { test, expect, type BrowserContext } from "@playwright/test";
 import { readFileSync, existsSync } from "node:fs";
-const fixturePath = ".scratch/messaging/fixture.json";
+import { selectFixtureAssignment } from "./helpers/select-fixture-assignment";
+const fixturePath = process.env.ERPX_E2E_FIXTURE ?? ".scratch/messaging/fixture.json";
 type Actor = { email: string; userId: string; assignmentId: string };
 const f: {
   company: string;
@@ -23,18 +25,7 @@ async function login(ctx: BrowserContext, who: string) {
   });
   expect(response.ok(), await response.text()).toBeTruthy();
   expect(response.headers()["content-type"]).toContain("application/json");
-  await ctx.addCookies([
-    {
-      name: "erpx_company_h001",
-      value: f!.company,
-      url: process.env.ERPX_E2E_BASE_URL!,
-    },
-    {
-      name: "erpx_assignment_h001",
-      value: f!.actors[who].assignmentId,
-      url: process.env.ERPX_E2E_BASE_URL!,
-    },
-  ]);
+  await selectFixtureAssignment(ctx, f!.company, f!.actors[who].assignmentId);
 }
 async function post(ctx: BrowserContext, path: string, data: unknown) {
   const response = await ctx.request.post(`${root}/${path}`, {
@@ -121,10 +112,7 @@ test("real accounts chat, reconnect, attach files, use teams and enforce private
     await expect(
       page.getByRole("log").getByText(greeting, { exact: true }),
     ).toBeVisible();
-    await page.screenshot({
-      path: `.scratch/messaging/${testInfo.project.name}-chat.png`,
-      fullPage: true,
-    });
+    await captureCaseScreenshot(page, `${testInfo.project.name}-chat.png`, { fullPage: true });
     await page.getByRole("button", { name: "Teams", exact: true }).click();
     await page.getByRole("button", { name: "New team", exact: true }).click();
     const teamName = `Acceptance ${testInfo.project.name} ${Date.now()}`;
@@ -183,10 +171,7 @@ test("real accounts chat, reconnect, attach files, use teams and enforce private
     expect(
       (await bob.request.get(`${root}/rooms/${channel.id}/messages`)).ok(),
     ).toBeTruthy();
-    await page.screenshot({
-      path: `.scratch/messaging/${testInfo.project.name}-channel.png`,
-      fullPage: true,
-    });
+    await captureCaseScreenshot(page, `${testInfo.project.name}-channel.png`, { fullPage: true });
     await post(context, `teams/${team.id}`, {
       name: teamName,
       members: [f!.actors.carol.userId],
@@ -195,10 +180,13 @@ test("real accounts chat, reconnect, attach files, use teams and enforce private
     expect(
       (await bob.request.get(`${root}/rooms/${channel.id}/messages`)).status(),
     ).toBe(404);
-    await page.getByRole("button", { name: "Updates", exact: true }).click();
-    await expect(
-      page.getByRole("navigation", { name: "Inbox views" }),
-    ).toBeVisible();
+    await page.getByRole("button", { name: "Notifications", exact: true }).click();
+    await expect.poll(() => new URL(page.url()).searchParams.get("tab")).toBe("updates");
+    const readFilter = page.getByRole("combobox", { name: "Read filter", exact: true });
+    await expect(readFilter).toHaveValue("unread");
+    await readFilter.selectOption("all");
+    await expect(readFilter).toHaveValue("all");
+    await expect(page.getByRole("combobox", { name: "Category", exact: true })).toHaveValue("");
   } finally {
     await bob.close();
   }

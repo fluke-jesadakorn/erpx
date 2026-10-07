@@ -1,15 +1,17 @@
+import { financePresentationQueries } from "@/server/modules/finance/public/presentation-queries";
 import {recordCanonicalHref} from "@/lib/record-drawer";
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Button, Field, Table, TableFrame, TextInput } from "@/components/ui/foundation";
-import { holdingResources } from "@/server/runtime";
-import { listCharts } from "@/server/finance";
+
+
+import { listCharts } from "@/server/modules/finance/public/finance";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { publicScope, requireWorkContext } from "@/server/authorization";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { hasPermission } from "@/lib/permissions";
 import { minorToDecimal } from "@/lib/finance-money";
 import { vatPackageLabels, vatReviewLabels, vatTreatmentLabels } from "@/lib/finance-vat-labels";
-import { vatWorkspace } from "@/server/finance-tax-register";
+import { vatWorkspace } from "@/server/modules/finance/public/finance-tax-register";
 import { FinanceWorkspace, financeStyles as styles } from "@/components/finance/finance-workspace";
 import {
   VatEntryPreparation,
@@ -32,12 +34,7 @@ export default async function TaxPage({
     data = await vatWorkspace(actor, { chartId: q.chart, filingMonth: q.filingMonth });
   const monthEnd=new Date(Date.UTC(Number(data.filingMonth.slice(0,4)),Number(data.filingMonth.slice(5,7)),0)).toISOString().slice(0,10);
   const [periods, charts] = await Promise.all([
-      (await holdingResources(actor.holdingId)).write
-        .prepare(
-          "SELECT id,end_date FROM finance_periods WHERE company_id=? ORDER BY start_date DESC",
-        )
-        .bind(actor.companyId)
-        .all<{ id: string; end_date: string }>(),
+      (await financePresentationQueries(actor.holdingId)).financeEntrypointQueries().periodEndDates(actor.companyId),
       listCharts(actor),
     ]),
     period = periods.results.find((row) => String(row.end_date).slice(0, 7) === data.filingMonth),

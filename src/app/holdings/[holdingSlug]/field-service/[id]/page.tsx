@@ -1,8 +1,8 @@
 import { RecordLink as Link } from "@/components/records/record-link";
-import { requireWorkContext, publicScope } from "@/server/authorization";
+import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
-import { pageError } from "@/server/page-error";
-import { fieldServiceDetail } from "@/server/field-service";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+import { fieldServiceDetail } from "@/server/modules/field_service/public/field-service";
 import { FieldServiceConsole } from "@/components/modules/field-service-console";
 import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
 import { minorToDecimal } from "@/lib/finance-money";

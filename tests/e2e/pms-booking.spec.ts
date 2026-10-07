@@ -32,9 +32,13 @@ test("searches, quotes and confirms a family stay in an isolated hotel", async (
     !isolated,
     "Requires the isolated booking fixture on port 3102; never creates a live reservation",
   );
+  const arrival = new Date(); arrival.setUTCDate(arrival.getUTCDate() + 7);
+  const departure = new Date(arrival); departure.setUTCDate(departure.getUTCDate() + 2);
+  const cancellation = new Date(arrival); cancellation.setUTCDate(cancellation.getUTCDate() - 1);
+  const arrivalDate = arrival.toISOString().slice(0, 10), departureDate = departure.toISOString().slice(0, 10), cancellationDate = cancellation.toISOString().slice(0, 10);
   await page.goto("/book/booking-test");
-  await page.getByLabel("Check-in", { exact: true }).fill("2026-10-05");
-  await page.getByLabel("Check-out", { exact: true }).fill("2026-10-07");
+  await page.getByLabel("Check-in", { exact: true }).fill(arrivalDate);
+  await page.getByLabel("Check-out", { exact: true }).fill(departureDate);
   await page.getByLabel("Child ages per room").fill("7");
   await page.getByRole("button", { name: "Search availability" }).click();
   await expect(page.getByText("THB 7,062.00", { exact: true })).toBeVisible();
@@ -50,7 +54,7 @@ test("searches, quotes and confirms a family stay in an isolated hotel", async (
     page.getByRole("heading", { name: "Review your stay" }),
   ).toBeVisible();
   await expect(
-    page.getByText(/Free cancellation until 2026-10-04 18:00/),
+    page.getByText(`Free cancellation until ${cancellationDate} 18:00`, { exact: true }),
   ).toBeVisible();
   await page
     .getByLabel("I have reviewed the dates, full price and cancellation terms.")

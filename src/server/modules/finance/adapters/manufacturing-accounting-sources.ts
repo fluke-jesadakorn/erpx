@@ -1,0 +1,6 @@
+
+import type {SqlDatabase} from '../../runtime/public/runtime/types';import {assertion} from '../../workflow/public/commands';export function manufacturingAccountingSources(db:SqlDatabase){return {async activeChart(chartId:string,companyId:string){return db.prepare("SELECT base_currency FROM finance_charts WHERE id=? AND company_id=? AND status='active'")
+    .bind(chartId, companyId).first<{ base_currency: string }>();},
+guardAccountCategory(key:string,value:string,account:string,companyId:string,chartId:string,accountKind:'asset'|'scrap_expense'|'conversion'){return assertion(db, key, value, `EXISTS(SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND status='active' AND control_kind='none' ${accountKind === 'asset' ? "AND category='asset'" : accountKind === 'scrap_expense' ? "AND category IN ('expense','other_expense')" : "AND category IN ('liability','expense')"})`, [account, companyId, chartId]);},
+async postingPeriod(companyId:string,entryDate:string,entryDate2:string){return db.prepare("SELECT id FROM finance_periods WHERE company_id=? AND state='open' AND start_date<=? AND end_date>=? ORDER BY start_date DESC,id LIMIT 1")
+    .bind(companyId, entryDate, entryDate2).first<{ id: string }>();}};}

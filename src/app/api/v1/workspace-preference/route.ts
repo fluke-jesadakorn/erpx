@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { requirePlatformContext, requireWorkContext, publicScope } from '@/server/authorization';
+import { requirePlatformContext, requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
 import { parseHoldingWorkspace, workspaceBase, workspaceHref } from '@/lib/workspace';
-import { runtimeEnv } from '@/server/runtime';
-import { rememberWorkspace } from '@/server/workspace-preferences';
-import { ApiError, errorResponse } from '@/server/http';
+import { runtimeEnv } from "@/server/modules/runtime/public/runtime";
+import { rememberWorkspace } from "@/server/modules/work_projection/public/workspace-preferences";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 
 export async function POST(request:Request) {
   try {

@@ -50,6 +50,56 @@ vi.mock("../src/server/runtime", () => ({
   runtimeEnv: async () => env,
 }));
 type Fixture = Awaited<ReturnType<typeof expenseFixture>>;
+it('rolls back both original posted document claims after final pair outbox failure, then retries and replays once',async()=>{
+ const source=await journal(f,'2026-02-15',[{accountId:f.accounts.tax,debit:'50',credit:'0'},{accountId:f.accounts.revenue,debit:'0',credit:'50'}]),target=await journal(g,'2026-02-15',[{accountId:g.accounts.expense,debit:'50',credit:'0'},{accountId:g.accounts.payable,debit:'0',credit:'50'}]),input={reference:'Original pair retained on retry',source:{companyId:f.company,journalId:source,accountId:f.accounts.tax},target:{companyId:g.company,journalId:target,accountId:g.accounts.payable},currency:'THB',amount:'50',reason:'Reviewed original posted document accounts'},command=key(),id=`intercompany-pair-${command}`,fault=`pair_fault_${crypto.randomUUID().replaceAll('-','')}`;
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'INTERCOMPANY_PAIR_LATE_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.event_type='finance.intercompany-pair.prepare') EXECUTE FUNCTION ${fault}();`);
+ try{
+  await expect(prepareIntercompanyPair(f.owner,input,command)).rejects.toThrow();
+  expect(await db.prepare('SELECT id FROM finance_intercompany_document_pairs WHERE id=?').bind(id).first()).toBeNull();
+  expect(Number(await db.prepare('SELECT count(*) n FROM finance_intercompany_pair_claims WHERE pair_id=?').bind(id).first('n'))).toBe(0);
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n'))).toBe(0);
+ }finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
+ const pair=await prepareIntercompanyPair(f.owner,input,command);expect(await prepareIntercompanyPair(f.owner,input,command)).toEqual(pair);
+ expect(Number(await db.prepare('SELECT count(*) n FROM finance_intercompany_pair_claims WHERE pair_id=?').bind(id).first('n'))).toBe(2);
+ for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n'))).toBe(1);
+});
+it("rolls acquisition calculation, evidence and command records back after a final outbox failure, then retries and replays once", async () => {
+  const interest = await prepareOwnershipEdition(f.owner, {
+    investorCompanyId:f.company, investeeCompanyId:g.company, method:'subsidiary',
+    ownershipBps:8000, votingBps:8000, controlAssessment:'Reviewed subsidiary control',
+    effectiveFrom:'2026-01-01', reason:'Reviewed acquisition ownership',
+  }, key());
+  await decideOwnershipEdition(f.manager, String(interest.id), {
+    expectedVersion:1, reason:'Independent ownership approval',
+  }, 'approve', key());
+  const command = key(), acquisitionId = `acquisition-${command}`, calculationId = `acquisition-calc-${command}`;
+  const input = {
+    ownershipId:String(interest.id), ownershipVersion:2, acquisitionDate:'2026-01-20',
+    currency:'THB', consideration:'100', nciMeasurement:'fair_value' as const,
+    nciFairValue:'20', identifiableNetAssets:'80', cguReference:'Reviewed source CGU',
+    reason:'Reviewed purchase evidence',
+  };
+  const fault = `group_acquisition_fault_${command.replaceAll('-','_')}`;
+  await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'GROUP_ACQUISITION_FINAL_OUTBOX' USING ERRCODE='23514'; END; $$; CREATE TRIGGER ${fault} BEFORE INSERT ON outbox_events FOR EACH ROW WHEN(NEW.command_id='${command.replaceAll("'","''")}') EXECUTE FUNCTION ${fault}();`);
+  try {
+    await expect(prepareAcquisitionEdition(f.owner,input,command)).rejects.toMatchObject({code:'23514'});
+    expect(await db.prepare('SELECT 1 FROM finance_acquisitions WHERE id=?').bind(acquisitionId).first()).toBeNull();
+    expect(await db.prepare('SELECT 1 FROM finance_calculation_runs WHERE id=?').bind(calculationId).first()).toBeNull();
+    expect(await db.prepare('SELECT 1 FROM finance_calculation_events WHERE run_id=?').bind(calculationId).first()).toBeNull();
+    for (const table of ['command_receipts','audit_events','outbox_events'])
+      expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n')).toBe(0);
+  } finally {
+    await db.exec(`DROP TRIGGER ${fault} ON outbox_events; DROP FUNCTION ${fault}();`);
+  }
+  const applied = await prepareAcquisitionEdition(f.owner,input,command);
+  expect(await prepareAcquisitionEdition(f.owner,input,command)).toEqual(applied);
+  expect(applied).toMatchObject({id:acquisitionId,calculationRunId:calculationId,version:1});
+  expect(await db.prepare('SELECT count(*) n FROM finance_acquisitions WHERE id=?').bind(acquisitionId).first('n')).toBe(1);
+  expect(await db.prepare('SELECT count(*) n FROM finance_calculation_runs WHERE id=?').bind(calculationId).first('n')).toBe(1);
+  expect(await db.prepare('SELECT count(*) n FROM finance_calculation_events WHERE run_id=?').bind(calculationId).first('n')).toBe(1);
+  for (const table of ['command_receipts','audit_events','outbox_events'])
+    expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n')).toBe(1);
+});
 it("recognizes the associate's actual period profit through an owned equity-method bridge while excluding its individual GL", async () => {
   await activity(f, "30", "10");
   await activity(g, "20", "5");
@@ -942,6 +992,7 @@ it("retains annual profit after independently closing two consecutive months and
         id,
         {
           expectedVersion: Number(started.version),
+          attachmentSetIds: [],
           proof:
             "Independent reconciliation of Company GL, subledgers and bank readiness before close.",
         },
@@ -995,6 +1046,7 @@ it("retains annual profit after independently closing two consecutive months and
       String(final.id),
       {
         expectedVersion: Number(started.version),
+        attachmentSetIds: [],
         proof:
           "Independent reconciliation after the fiscal transfer and before retained annual group reporting.",
       },
@@ -1088,9 +1140,10 @@ async function result(id: string) {
         .first("result_json"),
     ),
   ) as {
-    balanceSheet: { code: string; amount: string }[];
-    profitAndLoss: { code: string; amount: string }[];
+    balanceSheet: { code: string; amount: string; category: string }[];
+    profitAndLoss: { code: string; amount: string; category: string }[];
     profit: string;
+    profitAttribution: {parent: string; nci: string};
   };
 }
 it("reads retained group drawers by ID with exact interval sources and Company/Holding denial", async () => {
@@ -1133,7 +1186,7 @@ it("reads retained group drawers by ID with exact interval sources and Company/H
   ).rejects.toMatchObject({ status: 404 });
   await expect(
     groupExpansionRecord(
-      { ...f.owner, scope: { ...f.owner.scope, kind: "company" } },
+      { ...f.owner, scope: { ...f.owner.scope, kind: "branch", branchId: f.branch, branchSlug: "branch", branchName: "Branch" } },
       "finance_group_edition",
       id,
     ),
@@ -1276,6 +1329,9 @@ it("includes reversed originals and exact inverses, guards period alignment, sta
         ...f.owner,
         scope: {
           kind: "branch",
+          branchId: f.branch,
+          branchSlug: "branch",
+          branchName: "Branch",
           holdingId: "h001",
           holdingSlug: "test",
           holdingName: "Test",

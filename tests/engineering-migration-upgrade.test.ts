@@ -11,7 +11,7 @@ import { scanAttachmentNow } from "../src/server/attachments/service";
 import { defaultConfig } from "../src/lib/pms";
 import { snapshotMoneyCarry } from "../src/server/company-money";
 
-vi.mock("../src/server/attachments/scanner", () => ({
+vi.mock("../src/server/modules/files/public/attachments/scanner", () => ({
   attachmentScannerReadiness: async () => ({ enabled: true, ready: true, engine: "Upgrade interface fixture", definitionUpdatedAt: Date.now(), error: null }),
   scanAttachmentBytes: async () => ({ clean: true, signature: null, engine: "Upgrade interface fixture", definitionUpdatedAt: Date.now() }),
 }));

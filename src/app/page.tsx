@@ -1,16 +1,18 @@
 import { headers } from "next/headers";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { createAuth } from "@/server/auth";
+import { createAuth } from "@/server/modules/identity_access/public/auth";
 import {
   requireManageErpxContext,
   requireAccountAccess,
   assignmentApplies,
   firstAuthorizedWorkspace,
-} from "@/server/authorization";
-import { readWorkspacePreference } from "@/server/workspace-preferences";
-import { activeHoldingBindings, runtimeEnv } from "@/server/runtime";
+} from "@/server/modules/identity_access/public/authorization";
+
+import { activeHoldingBindings } from "@/server/modules/runtime/public/runtime";
 import { parseHoldingWorkspace, workspaceHref } from "@/lib/workspace";
+
+import { savedWorkspaceForPresentation } from "@/server/modules/work_projection/public/workspace-entry-presentation-query";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +32,7 @@ export default async function RootPage({
     query.from.startsWith("/holdings/")
       ? query.from
       : undefined;
-  const saved = await readWorkspacePreference((await runtimeEnv()).CONTROL_DB,session.user.id);
+  const saved = await savedWorkspaceForPresentation(session.user.id);
   const preferred = saved?.workspace_path ?? (accountSwitch ? switchSource : (await cookies()).get("erpx_last_workspace")?.value);
   if (preferred?.startsWith("/platform/")) {
     try {

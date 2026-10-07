@@ -1,0 +1,13 @@
+import 'server-only';
+/** Closed, named source clauses for the supplied notification statement snapshot.
+ * No table, SQL, predicate or alias is accepted from a caller. */
+export function collaborationNotificationSnapshotSources(){return {
+  "legal_hold_notifications_legal_items_i_join": "JOIN (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"kind\", \"title\", \"description\", \"classification\", \"country\", \"jurisdiction\", \"language\", \"currency\", \"timezone\", \"priority\", \"due_date\", \"owner_id\", \"created_by\", \"state\", \"version\", \"created_at\", \"updated_at\", \"escalation_owner\", \"sla_started_at\", \"sla_due_at\", \"intake_form_id\", \"intake_answers\" FROM legal_items) i",
+  "legal_law_source_notifications_legal_items_i_from": "FROM (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"kind\", \"title\", \"description\", \"classification\", \"country\", \"jurisdiction\", \"language\", \"currency\", \"timezone\", \"priority\", \"due_date\", \"owner_id\", \"created_by\", \"state\", \"version\", \"created_at\", \"updated_at\", \"escalation_owner\", \"sla_started_at\", \"sla_due_at\", \"intake_form_id\", \"intake_answers\" FROM legal_items) i",
+  "legal_law_source_notifications_legal_members_m_from": "FROM (SELECT \"item_id\", \"user_id\", \"access\" FROM legal_members) m",
+  "legal_reminder_notifications_legal_items_i_join": "JOIN (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"kind\", \"title\", \"description\", \"classification\", \"country\", \"jurisdiction\", \"language\", \"currency\", \"timezone\", \"priority\", \"due_date\", \"owner_id\", \"created_by\", \"state\", \"version\", \"created_at\", \"updated_at\", \"escalation_owner\", \"sla_started_at\", \"sla_due_at\", \"intake_form_id\", \"intake_answers\" FROM legal_items) i",
+  "legal_reminder_notifications_legal_settings_s_join": "JOIN (SELECT \"company_id\", \"enabled\", \"ai_enabled\", \"version\", \"reminder_days\" FROM legal_settings) s",
+  "legal_reminder_notifications_legal_members_m_from": "FROM (SELECT \"item_id\", \"user_id\", \"access\" FROM legal_members) m",
+  "legal_reminder_notifications_legal_items_i_from": "FROM (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"kind\", \"title\", \"description\", \"classification\", \"country\", \"jurisdiction\", \"language\", \"currency\", \"timezone\", \"priority\", \"due_date\", \"owner_id\", \"created_by\", \"state\", \"version\", \"created_at\", \"updated_at\", \"escalation_owner\", \"sla_started_at\", \"sla_due_at\", \"intake_form_id\", \"intake_answers\" FROM legal_items) i",
+  "legal_reminder_notifications_legal_obligations_o_join": "JOIN (SELECT \"item_id\", \"data\" FROM legal_obligations) o"
+} as const;}

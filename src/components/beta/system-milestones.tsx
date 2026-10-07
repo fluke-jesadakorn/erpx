@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { HomePost } from "@/server/social-home";
+import type { HomePost } from "@/server/modules/collaboration/public/social-home";
 import { TimeText } from "@/components/time/time-preference-context";
 import styles from "./social.module.css";
 

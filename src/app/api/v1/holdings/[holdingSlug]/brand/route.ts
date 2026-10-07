@@ -1,7 +1,7 @@
-import {requireWorkContext} from "@/server/authorization";
-import {requestPublicOrigin} from "@/server/public-origin";
-import {ApiError,errorResponse} from "@/server/http";
-import {brandIdentityWorkspace,saveBrandIdentityDraft,publishBrandIdentity,rollbackBrandIdentity,changeBrandCategoryLock,cancelBrandDraft} from "@/server/brand-identity";
+import {requireWorkContext} from "@/server/modules/identity_access/public/authorization";
+import {requestPublicOrigin} from "@/server/modules/manage_erpx/public/public-origin";
+import {ApiError,errorResponse} from "@/server/modules/runtime/public/http";
+import {brandIdentityWorkspace,saveBrandIdentityDraft,publishBrandIdentity,rollbackBrandIdentity,changeBrandCategoryLock,cancelBrandDraft} from "@/server/modules/brand/public/brand-identity";
 type Context={params:Promise<{holdingSlug:string}>};const headers={"Cache-Control":"private, no-store"};
 export async function GET(_:Request,c:Context){try{return Response.json({data:await brandIdentityWorkspace(await requireWorkContext((await c.params).holdingSlug))},{headers});}catch(e){return errorResponse(e);}}
 export async function POST(r:Request,c:Context){try{

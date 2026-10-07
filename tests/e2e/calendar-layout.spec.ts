@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { selectFixtureAssignment } from "./helpers/select-fixture-assignment";
 
 const base = "/holdings/acme";
 const calendarApi = "**/api/v1/holdings/acme/calendar?*";
@@ -111,6 +112,7 @@ test.beforeEach(async ({ context, baseURL }) => {
     data: { email: "mali@erpx.dev", password: "Mali-ERPX-2026!" },
   });
   expect(response.status()).toBe(200);
+  await selectFixtureAssignment(context, "acme-co", "seed_usr_mali");
 });
 
 test.beforeEach(async ({ page }) => {
@@ -164,17 +166,29 @@ test("calendar view and filters follow URL history and event detail retains the 
   await page.goto(`${base}/calendar?view=week&date=2026-09-18&layers=appointments,roster`);
   const views = page.getByRole("group", { name: "Calendar view" });
   const appointments = page.getByLabel("Appointments", { exact: true });
+  const filterTrigger = page.locator("[data-calendar-filters] > summary");
+  const filters = page.getByRole("dialog", { name: /^Filters\b/ });
+  const verifyAppointments = async () => {
+    await filterTrigger.click();
+    await expect(filters).toBeVisible();
+    await expect(filters.getByLabel("Appointments", { exact: true })).not.toBeChecked();
+    await filters.getByRole("button", { name: "Close dialog", exact: true }).click();
+    await expect(filters).toHaveCount(0);
+  };
 
-  await page.locator("[data-calendar-filters] > summary").click();
+  await filterTrigger.click();
+  await expect(filters).toBeVisible();
   await appointments.click();
   await expect(appointments).not.toBeChecked();
   await expect(page).toHaveURL(/(?:\?|&)layers=/);
   await expect(page).not.toHaveURL(/layers=[^&]*appointments/);
+  await filters.getByRole("button", { name: "Close dialog", exact: true }).click();
+  await expect(filters).toHaveCount(0);
 
   await views.getByRole("button", { name: "Month" }).click();
   await expect(page).toHaveURL(/(?:\?|&)view=month(?:&|$)/);
   await expect(page.locator('[data-calendar-view="month"]')).toBeVisible();
-  await expect(appointments).not.toBeChecked();
+  await verifyAppointments();
 
   await views.getByRole("button", { name: "Agenda" }).click();
   await expect(page).toHaveURL(/(?:\?|&)view=agenda(?:&|$)/);
@@ -183,7 +197,7 @@ test("calendar view and filters follow URL history and event detail retains the 
     "aria-pressed",
     "true",
   );
-  await expect(appointments).not.toBeChecked();
+  await verifyAppointments();
 
   await views.getByRole("button", { name: "Week" }).click();
   const event = page.locator("[data-calendar-event]").first();
@@ -364,7 +378,18 @@ test("authorized roster events open the roster planner", async ({ page }) => {
 });
 
 test("day view renders a horizontally scrollable people timeline and opens event details", async ({ page }) => {
+  await page.route(calendarApi, (route) => {
+    const fixture = calendarFixture(route.request().url());
+    if (!fixture.data.items.some(item => item.sourceId === "calendar-selected")) throw new Error("DAY_TIMELINE_APPOINTMENT_FIXTURE_REQUIRED");
+    return route.fulfill({ json: { data: { ...fixture.data, items: fixture.data.items.map(item => item.sourceId === "calendar-selected" ? {
+      ...item,
+      allDay: false,
+      startsAt: Date.parse("2026-09-18T09:00:00+07:00"),
+      endsAt: Date.parse("2026-09-18T10:00:00+07:00"),
+    } : item) } } });
+  });
   await page.goto(`${base}/calendar?view=day&date=2026-09-18`);
+  await page.getByRole("button", { name: "Refresh calendar", exact: true }).click();
   const timeline = page.locator('[data-calendar-view="day"]');
   await expect(timeline).toBeVisible();
   await expect(page.getByRole("button", { name: "Day", exact: true })).toHaveAttribute("aria-pressed", "true");

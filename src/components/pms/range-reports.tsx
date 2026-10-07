@@ -5,8 +5,8 @@ import {Button,Field,TextInput,Table,TableFrame} from '@/components/ui/foundatio
 import {Dialog} from '@/components/ui/dialog';
 import {CollectionRecordLink} from '@/components/records/record-collection';
 import {workFetch} from '@/lib/work-fetch';
-import {money,plusDays} from '@/lib/pms-model';
-import type {pmsRangeReport} from '@/server/pms/reports';
+import {money,plusDays} from "@/server/modules/pms/public/rules/pms-model";
+import type {pmsRangeReport} from "@/server/modules/pms/public/pms/reports";
 type Report=Awaited<ReturnType<typeof pmsRangeReport>>;
 export function PmsRangeReports({base,propertyId,today}:{base:string;propertyId:string;today:string}){
  const [from,setFrom]=useState(plusDays(today,-6)),[to,setTo]=useState(today),[result,setResult]=useState<Report|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[detail,setDetail]=useState<{date:string;page:number;rows:Array<{id:string;description:string;kind:string;total:number}>;hasNext:boolean}|null>(null);

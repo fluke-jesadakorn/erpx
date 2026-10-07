@@ -5,9 +5,9 @@ import {recordCanonicalHref} from "@/lib/record-drawer";
 import {minorToDecimal} from "@/lib/finance-money";
 import {financialNoteTitles,financialPresentation,type FinancialPresentationCode} from "@/lib/finance-reporting";
 import {workspaceBase} from "@/lib/workspace";
-import {publicScope,requireWorkContext} from "@/server/authorization";
-import {statementPackageDetail} from "@/server/finance-reporting";
-import {pageError} from "@/server/page-error";
+import {publicScope,requireWorkContext} from "@/server/modules/identity_access/public/authorization";
+import {statementPackageDetail} from "@/server/modules/finance/public/finance-reporting";
+import {pageError} from "@/server/modules/work_projection/public/page-error";
 import { Card } from "@/components/ui/foundation";
 export const dynamic="force-dynamic";
 export default async function StatementPage({params}:{params:Promise<{holdingSlug:string;id:string}>}){

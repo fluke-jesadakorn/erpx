@@ -1,5 +1,5 @@
-import { frontCompanyBrand, storefrontLogo } from "@/server/front-app";
-import { storefrontAppIconPng } from "@/server/front-icon";
+import { frontCompanyBrand, storefrontLogo } from "@/server/modules/work_projection/public/front-app";
+import { storefrontAppIconPng } from "@/server/modules/work_projection/public/front-icon";
 
 export async function GET(
   _request: Request,

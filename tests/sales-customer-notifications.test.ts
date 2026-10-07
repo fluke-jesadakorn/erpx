@@ -1,3 +1,4 @@
+import { fulfillmentSchema } from '../src/server/commerce';
 import {beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from './runtime-env';
 import {expenseDb as db,expenseFixture,key} from './helpers/expense-fixture';
@@ -18,7 +19,7 @@ async function delivered(){
   const order=await saveOrder(f.owner,null,orderSchema.parse({kind:'sales',partyId:customer,warehouseId:warehouse,orderDate:'2026-09-21',dueDate:'2026-09-22',lines:[{productId:product,quantity:'1',price:'10',taxBps:0}]}),key()),orderId=String(order.id);
   await transitionOrder(f.owner,orderId,{action:'submit',expectedVersion:1},key());await transitionOrder(f.head,orderId,{action:'approve',expectedVersion:2},key());
   const lineId=String((await getOrder(f.owner,orderId)).lines[0].id),proof=await deliveryEvidence(db,f.owner,orderId);
-  const delivery=await fulfillOrder(f.owner,orderId,{expectedVersion:3,date:'2026-09-22',lines:[{lineId,quantity:'1'}],...proof},key());
+  const delivery=await fulfillOrder(f.owner,orderId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-22',lines:[{lineId,quantity:'1'}],...proof}),key());
   return {orderId,customer,fulfillmentId:String(delivery.fulfillmentId)};
 }
 
@@ -40,17 +41,17 @@ it('cancels a queued notice when consent or the address changes before provider 
   const source=await delivered();await updateCustomerNotificationSettings(f.head,{expectedVersion:0,adapter:'sandbox'},key());
   const queued=await queueDeliveryNotification(f.owner,source.fulfillmentId,{expectedVersion:1,note:'Prepared before dispatch confirmation'},key());
   await saveMaster(f.owner,'parties',source.customer,{kind:'customer',code:key(),name:'Notification customer',paymentTermsDays:30,creditLimit:'0',status:'active',notificationEmail:'receiving@example.invalid',notificationConsent:'revoked',expectedVersion:1},key());
-  const send=vi.fn();await deliverCustomerNotification(db,{},String(queued.id),send as typeof fetch,Date.now());expect(send).not.toHaveBeenCalled();
+  const send=vi.fn();await deliverCustomerNotification(db,{},String(queued.id),send,Date.now());expect(send).not.toHaveBeenCalled();
   expect(await db.prepare('SELECT status,last_error FROM commerce_customer_notifications WHERE id=?').bind(queued.id).first()).toEqual({status:'cancelled',last_error:'CUSTOMER_CONSENT_OR_EMAIL_CHANGED'});
 });
 
 it('records provider failure and retries the same immutable message without duplicate creation',async()=>{
   const source=await delivered();await updateCustomerNotificationSettings(f.head,{expectedVersion:0,adapter:'resend'},key());
-  const queued=await queueDeliveryNotification(f.owner,source.fulfillmentId,{expectedVersion:1,note:'Live adapter retry evidence'},key()),failed=vi.fn(async()=>new Response('{}',{status:503})),now=Date.now();
-  await expect(deliverCustomerNotification(db,{RESEND_API_KEY:'test-key',RESEND_FROM:'dispatch@example.invalid'},String(queued.id),failed as typeof fetch,now)).rejects.toThrow('CUSTOMER_EMAIL_DELIVERY_FAILED');
+  const queued=await queueDeliveryNotification(f.owner,source.fulfillmentId,{expectedVersion:1,note:'Live adapter retry evidence'},key()),failed=vi.fn<(input:RequestInfo | URL,init?:RequestInit)=>Promise<Response>>(async()=>new Response('{}',{status:503})),now=Date.now();
+  await expect(deliverCustomerNotification(db,{RESEND_API_KEY:'test-key',RESEND_FROM:'dispatch@example.invalid'},String(queued.id),failed,now)).rejects.toThrow('CUSTOMER_EMAIL_DELIVERY_FAILED');
   expect(await db.prepare('SELECT status,version,attempts,last_error FROM commerce_customer_notifications WHERE id=?').bind(queued.id).first()).toEqual({status:'failed',version:2,attempts:1,last_error:'CUSTOMER_EMAIL_DELIVERY_FAILED'});
   await retryCustomerNotification(f.owner,String(queued.id),{expectedVersion:2},key());
-  const sent=vi.fn(async()=>Response.json({id:'provider-message-1'}));await deliverCustomerNotification(db,{RESEND_API_KEY:'test-key',RESEND_FROM:'dispatch@example.invalid'},String(queued.id),sent as typeof fetch,now+2000);
+  const sent=vi.fn<(input:RequestInfo | URL,init?:RequestInit)=>Promise<Response>>(async()=>Response.json({id:'provider-message-1'}));await deliverCustomerNotification(db,{RESEND_API_KEY:'test-key',RESEND_FROM:'dispatch@example.invalid'},String(queued.id),sent,now+2000);
   expect(sent).toHaveBeenCalledTimes(1);const request=sent.mock.calls[0]![1] as RequestInit;expect(request.headers).toMatchObject({'Idempotency-Key':queued.id});
   expect(await db.prepare('SELECT status,version,attempts,provider_message_id FROM commerce_customer_notifications WHERE id=?').bind(queued.id).first()).toEqual({status:'sent',version:4,attempts:1,provider_message_id:'provider-message-1'});
 });

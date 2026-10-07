@@ -173,3 +173,20 @@ it("allows HR to schedule a Position move while its GPO configuration is blocked
   expect(preview.ready).toBe(true);
   expect((await submitPositionMove(db,f.hr,input,preview.previewToken,preview.expiresAt,key())).status).toBe("scheduled");
 });
+
+it('rolls back People placement and audit on the final outbox failure, then permits a fresh reviewed move and replay',async()=>{
+ const f=await fixture(),input=f.move(),preview=await previewPositionMove(db,f.hr,input),command=key(),submitted=await submitPositionMove(db,f.hr,input,preview.previewToken,preview.expiresAt,command);
+ const before=(await db.prepare('SELECT id,version,branch_id,department_id,level_id,manager_person_id FROM hr_engagements WHERE id IN (?,?) ORDER BY id').bind(f.first,f.second).all()).results;
+ const recordId=submitted.id.replaceAll("'","''");
+ await db.exec(`CREATE FUNCTION fail_position_move_event_test() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.aggregate_id='${recordId}' AND NEW.event_type='organization.position-move.applied' THEN RAISE EXCEPTION 'forced final move event failure' USING ERRCODE='23514'; END IF; RETURN NEW; END $$; CREATE TRIGGER fail_position_move_event_test BEFORE INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION fail_position_move_event_test()`);
+ try{await drainPositionMoves(db,input.effectiveAt+1);}finally{await db.exec('DROP TRIGGER fail_position_move_event_test ON outbox_events; DROP FUNCTION fail_position_move_event_test()');}
+ expect((await positionMoves(db,f.hr,submitted.id) as PositionMoveRecord).status).toBe('needs_review');
+ expect((await db.prepare('SELECT id,version,branch_id,department_id,level_id,manager_person_id FROM hr_engagements WHERE id IN (?,?) ORDER BY id').bind(f.first,f.second).all()).results).toEqual(before);
+ expect(await db.prepare('SELECT department_id,version FROM organization_positions WHERE id=?').bind(f.position).first()).toEqual({department_id:f.department,version:1});
+ for(const table of ['staff_organization_history','audit_events','outbox_events'])expect((await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(submitted.id).first())?.n).toBe(0);
+ const nextPreview=await previewPositionMove(db,f.hr,input),nextKey=key(),retried=await submitPositionMove(db,f.hr,input,nextPreview.previewToken,nextPreview.expiresAt,nextKey);
+ expect(await submitPositionMove(db,f.hr,input,nextPreview.previewToken,nextPreview.expiresAt,nextKey)).toEqual(retried);
+ await drainPositionMoves(db,input.effectiveAt+2);expect((await positionMoves(db,f.hr,retried.id) as PositionMoveRecord).status).toBe('applied');await drainPositionMoves(db,input.effectiveAt+3);
+ expect((await db.prepare('SELECT department_id FROM hr_engagements WHERE id IN (?,?)').bind(f.first,f.second).all()).results).toEqual([{department_id:f.accountsDepartment},{department_id:f.accountsDepartment}]);
+ for(const table of ['audit_events','outbox_events'])expect((await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(retried.id).first())?.n).toBe(1);
+});

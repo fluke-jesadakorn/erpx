@@ -3,10 +3,10 @@ import {FeaturePage} from "@/components/features/feature-page";
 import {PayrollRecoveryConsole} from "@/components/modules/payroll-recovery-console";
 import {hasPermission} from "@/lib/permissions";
 import {workspaceBase} from "@/lib/workspace";
-import {publicScope,requireWorkContext} from "@/server/authorization";
-import {pageError} from "@/server/page-error";
-import {payrollRecoveryPage} from "@/server/payroll-recoveries";
-import {payrollPostingOptions} from "@/server/people-payroll";
+import {publicScope,requireWorkContext} from "@/server/modules/identity_access/public/authorization";
+import {pageError} from "@/server/modules/work_projection/public/page-error";
+import {payrollRecoveryPage} from "@/server/modules/people_payroll/public/payroll-recoveries";
+import {payrollPostingOptions} from "@/server/modules/people_payroll/public/people-payroll";
 export const dynamic='force-dynamic';
 export default async function PayrollRecoveries({params}:{params:Promise<{holdingSlug:string}>}){
  const {holdingSlug}=await params,actor=await requireWorkContext(holdingSlug),base=workspaceBase(publicScope(actor));let data;try{data=await payrollRecoveryPage(actor);}catch(error){return pageError(error,holdingSlug);}

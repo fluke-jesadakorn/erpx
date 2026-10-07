@@ -5,8 +5,8 @@ import { WorkDashboard } from "@/components/workplace/work-dashboard";
 import { workResponsibilities,workTypes,workViews } from "@/lib/work-item";
 import { queues } from "@/lib/work-queue";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope,requireWorkContext } from "@/server/authorization";
-import { getWorkPage } from "@/server/work-summary";
+import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { getWorkPage } from "@/server/modules/work_projection/public/work-summary";
 import { redirect } from "next/navigation";
 
 export default async function WorkPage({

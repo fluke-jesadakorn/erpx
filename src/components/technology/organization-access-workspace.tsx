@@ -42,7 +42,7 @@ import type { OrganizationAccessData } from "@/lib/organization-access";
 import type { OrganizationPerson, OrganizationPosition } from "@/lib/organization";
 import type { DirectoryAutomationData } from "@/lib/directory-operations";
 import type { PeopleLifecycleData, LifecycleInput, LifecyclePreview } from "@/lib/people-lifecycle";
-import type { TechnologyData } from "@/lib/technology";
+import type { TechnologyData } from "@/server/modules/identity_access/public/rules/technology";
 import type {
   GpoRule,
   GpoRuleInput,
@@ -60,7 +60,7 @@ import {
   OrganizationExplorer,
   type OrganizationSelection,
 } from "@/components/people/organization-explorer";
-import type { HoldingPeopleDirectory } from "@/server/holding-people-directory";
+import type { HoldingPeopleDirectory } from "@/server/modules/organization/public/holding-people-directory";
 import { PositionConsole } from "./position-console";
 import { ProvisioningWorkspace } from "./provisioning-workspace";
 import styles from "./organization-access-workspace.module.css";

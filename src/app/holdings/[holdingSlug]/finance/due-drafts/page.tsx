@@ -1,8 +1,8 @@
 import {FeaturePage} from "@/components/features/feature-page";
 import {FinanceWorkspace} from "@/components/finance/finance-workspace";
 import {FinanceDueControls} from "@/components/finance/finance-due-controls";
-import {requireWorkContext,publicScope} from "@/server/authorization";
-import {financeDueWorkspace} from "@/server/finance-due-drafts";
+import {requireWorkContext,publicScope} from "@/server/modules/identity_access/public/authorization";
+import {financeDueWorkspace} from "@/server/modules/finance/public/finance-due-drafts";
 import {hasPermission} from "@/lib/permissions";
 import {workspaceBase} from "@/lib/workspace";
 export const dynamic="force-dynamic";

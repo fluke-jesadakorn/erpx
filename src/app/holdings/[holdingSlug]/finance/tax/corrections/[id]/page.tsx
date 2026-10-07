@@ -1,12 +1,12 @@
 import { Table, TableFrame } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { publicScope, requireWorkContext } from "@/server/authorization";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { hasPermission } from "@/lib/permissions";
 import { minorToDecimal } from "@/lib/finance-money";
 import { vatReviewLabels, vatTreatmentLabels } from "@/lib/finance-vat-labels";
-import { vatCorrectionDetail } from "@/server/finance-tax-register";
-import { pageError } from "@/server/page-error";
+import { vatCorrectionDetail } from "@/server/modules/finance/public/finance-tax-register";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { FinanceWorkspace } from "@/components/finance/finance-workspace";
 import { VatCorrectionReview } from "@/components/finance/vat-register-controls";
 import { Card } from "@/components/ui/foundation";

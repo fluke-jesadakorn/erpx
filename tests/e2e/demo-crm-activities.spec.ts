@@ -40,28 +40,33 @@ test("isolated demo records CRM lead activities through Sales ownership and Work
   try {
     await signInRole(operatorContext, operatorPage, credentials, "sales_operator", path);
     await expect(operatorPage.getByRole("heading", { name: "Lead activities", exact: true })).toBeVisible();
-    await operatorPage.locator('#workspace-content').getByLabel("Subject", { exact: true }).fill("Confirm installation window");
-    await operatorPage.locator('#workspace-content').getByLabel("Next action details", { exact: true }).fill("Email the customer with the approved installation window.");
+    await operatorPage.locator('#workspace-content:visible').getByLabel("Subject", { exact: true }).fill("Confirm installation window");
+    await operatorPage.locator('#workspace-content:visible').getByLabel("Next action details", { exact: true }).fill("Email the customer with the approved installation window.");
     await operatorPage.getByRole("combobox", { name: "Responsible salesperson", exact: true }).selectOption({ label: "Support agent" });
-    await operatorPage.locator('#workspace-content').getByLabel("Due date", { exact: true }).fill("2026-09-26");
+    await operatorPage.locator('#workspace-content:visible').getByLabel("Due date", { exact: true }).fill("2026-09-26");
     await Promise.all([
       operatorPage.waitForResponse((response) => response.url().includes("/api/v1/holdings/simulation/crm/activities") && response.request().method() === "POST"),
       operatorPage.getByRole("button", { name: "Schedule activity", exact: true }).click(),
     ]);
-    const activity = operatorPage.locator("#workspace-content article.card").filter({ hasText: "Confirm installation window" });
+    const activity = operatorPage.locator("#workspace-content:visible article[data-slot=card]:visible").filter({ hasText: "Confirm installation window" });
     await expect(activity).toBeVisible();
     await expect(activity.getByText(/open · Owner/)).toBeVisible();
     await signInRole(managerContext, managerPage, credentials, "sales_manager", path);
-    const managerActivity = managerPage.locator("#workspace-content article.card").filter({ hasText: "Confirm installation window" });
+    const managerActivity = managerPage.locator("#workspace-content:visible article[data-slot=card]:visible").filter({ hasText: "Confirm installation window" });
     await expect(managerActivity).toBeVisible();
     await expect(managerActivity.getByText(/open · Owner/)).toBeVisible();
-    await operatorPage.locator("#workspace-content").getByText("Record activity decision", { exact: true }).click();
-    await activity.getByRole("combobox", { name: "Action", exact: true }).selectOption("complete");
-    await activity.getByRole("textbox", { name: "Outcome and reason", exact: true }).fill("Customer confirmed the installation window.");
+    await activity.locator("summary").filter({ hasText: /^Record activity decision$/ }).click();
+    const decisionDrawer = operatorPage.getByRole("dialog", { name: "Record activity decision", exact: true });
+    const decisionForm = decisionDrawer.locator("form");
+    await expect(decisionDrawer).toBeVisible();
+    await expect(decisionForm).toHaveCount(1);
+    await decisionForm.getByRole("combobox", { name: "Action", exact: true }).selectOption("complete");
+    await decisionForm.getByRole("textbox", { name: "Outcome and reason", exact: true }).fill("Customer confirmed the installation window.");
     await Promise.all([
       operatorPage.waitForResponse((response) => response.url().includes("/api/v1/holdings/simulation/crm/activities") && response.request().method() === "POST"),
-      activity.getByRole("button", { name: "Save activity decision", exact: true }).click(),
+      decisionForm.getByRole("button", { name: "Save activity decision", exact: true }).click(),
     ]);
+    await expect(decisionDrawer).not.toBeVisible();
     await expect(activity.getByText(/completed · Owner/)).toBeVisible();
     await testInfo.attach("crm-activity-result", { contentType: "application/json", body: JSON.stringify({ run, leadId, roles: ["sales_operator", "sales_manager"], created: true, reloadedForManager: true, completed: true }, null, 2) });
   } finally {

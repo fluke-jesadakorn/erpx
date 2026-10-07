@@ -65,7 +65,7 @@ it("keeps approval, GL and payment separate and returns an unposted GL review fo
 });
 it("posts one balanced GL under retries and blocks a revoked primary",async()=>{
   const id=await f.claim();await f.throughAccounts(id);await f.action(f.manager,id,"approve");
-  const row=await getExpense(f.manager,id), input={expectedVersion:Number(row.version),periodId:f.period,entryDate:"2026-09-02"}, command=key();
+  const row=await getExpense(f.manager,id), input={attachmentSetIds:[],expectedVersion:Number(row.version),periodId:f.period,entryDate:"2026-09-02"}, command=key();
   const result=await postExpense(f.manager,id,input,command);
   expect(await postExpense(f.manager,id,input,command)).toEqual(result);
   const sums=await db.prepare("SELECT SUM(l.debit_minor) debit,SUM(l.credit_minor) credit FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.source_id=?").bind(id).first();
@@ -105,16 +105,16 @@ it("routes standalone invoice posting and partial settlement through different n
   const invoice=await createInvoice(f.reviewer,invoiceSchema.parse({partyId:party,kind:"payable",invoiceNumber:key(),invoiceDate:"2026-09-01",dueDate:"2026-09-03",currency:"THB",subtotal:"100",tax:"7",taxAccountId:f.accounts.tax,debitAccountId:f.accounts.expense,creditAccountId:f.accounts.payable}),key());
   const view=await resolveFlow(db,f.owner,"invoice",invoice.id);
   await assignFlowPrimary(db,f.owner,"invoice",invoice.id,{stepKey:"draft",userId:f.manager.userId,reason:"Independent GL accountant",saveDefault:false,expectedVersion:view.version,recordVersion:view.recordVersion},key());
-  await expect(postInvoice(f.reviewer,invoice.id,{expectedVersion:1,periodId:f.period,entryDate:"2026-09-02"},key())).rejects.toBeDefined();
-  await postInvoice(f.manager,invoice.id,{expectedVersion:1,periodId:f.period,entryDate:"2026-09-02"},key());
+  await expect(postInvoice(f.reviewer,invoice.id,{attachmentSetIds:[],expectedVersion:1,periodId:f.period,entryDate:"2026-09-02"},key())).rejects.toBeDefined();
+  await postInvoice(f.manager,invoice.id,{attachmentSetIds:[],expectedVersion:1,periodId:f.period,entryDate:"2026-09-02"},key());
   expect((await resolveFlow(db,f.payer,"invoice",invoice.id)).canAct).toBe(true);
-  await expect(settleInvoice(f.payer,invoice.id,{expectedVersion:2,date:"2026-09-03",amount:"40",reference:"Missing slip"},key())).rejects.toMatchObject({code:"PAYMENT_SLIP_REQUIRED"});
+  await expect(settleInvoice(f.payer,invoice.id,{attachmentSetIds:[],expectedVersion:2,date:"2026-09-03",amount:"40",reference:"Missing slip"},key())).rejects.toMatchObject({code:"PAYMENT_SLIP_REQUIRED"});
   const slip=await f.attach(invoice.id,"invoice_payment");
-  await settleInvoice(f.payer,invoice.id,{paymentSlipId:slip,expectedVersion:2,date:"2026-09-03",amount:"40",reference:"Actual bank reference"},key());
+  await settleInvoice(f.payer,invoice.id,{attachmentSetIds:[],paymentSlipId:slip,expectedVersion:2,date:"2026-09-03",amount:"40",reference:"Actual bank reference"},key());
   const partial=await resolveFlow(db,f.payer,"invoice",invoice.id);expect(partial.current?.key).toBe("posted");expect(partial.canAct).toBe(true);
-  await expect(settleInvoice(f.payer,invoice.id,{paymentSlipId:slip,expectedVersion:3,date:"2026-09-03",amount:"67",reference:"Reused slip"},key())).rejects.toMatchObject({status:409});
+  await expect(settleInvoice(f.payer,invoice.id,{attachmentSetIds:[],paymentSlipId:slip,expectedVersion:3,date:"2026-09-03",amount:"67",reference:"Reused slip"},key())).rejects.toMatchObject({status:409});
   const finalSlip=await f.attach(invoice.id,"invoice_payment");
-  await settleInvoice(f.payer,invoice.id,{paymentSlipId:finalSlip,expectedVersion:3,date:"2026-09-03",amount:"67",reference:"Remaining bank reference"},key());
+  await settleInvoice(f.payer,invoice.id,{attachmentSetIds:[],paymentSlipId:finalSlip,expectedVersion:3,date:"2026-09-03",amount:"67",reference:"Remaining bank reference"},key());
   expect((await resolveFlow(db,f.payer,"invoice",invoice.id)).current).toBeNull();
 });
 
@@ -149,14 +149,14 @@ it("keeps an active company account eligible to submit its own draft before an H
 it("requires stock approval before balanced GL and posts the counted stock only once",async()=>{
   const {saveCount,transitionCount}=await import("../src/server/inventory-counts");
   const stock=await stockFixture();
-  const created=await saveCount(f.owner,null,{warehouseId:stock.warehouseId,countDate:"2026-09-02",reason:"Physical count verification",lines:[{productId:stock.productId,countedQuantity:"10",unitCost:"10"}]},key());
+  const created=await saveCount(f.owner,null,{warehouseId:stock.warehouseId,countDate:"2026-09-02",reason:"Physical count verification",lines:[{productId:stock.productId,countedQuantity:"10",unitCost:"10",allocations:[]}]},key());
   const id=String(created.id);
-  await transitionCount(f.owner,id,"submit",{expectedVersion:1},key());
+  await transitionCount(f.owner,id,"submit",{attachmentSetIds:[],expectedVersion:1},key());
   await choose("stock_count",id,"submitted",f.manager.userId);
-  await expect(transitionCount(f.manager,id,"post",{expectedVersion:2,reason:"Cannot skip approval"},key())).rejects.toBeDefined();
-  await transitionCount(f.manager,id,"approve",{expectedVersion:2,reason:"Physical evidence checked"},key());
+  await expect(transitionCount(f.manager,id,"post",{attachmentSetIds:[],expectedVersion:2,reason:"Cannot skip approval"},key())).rejects.toBeDefined();
+  await transitionCount(f.manager,id,"approve",{attachmentSetIds:[],expectedVersion:2,reason:"Physical evidence checked"},key());
   expect(await db.prepare("SELECT COUNT(*) n FROM commerce_stock WHERE product_id=?").bind(stock.productId).first("n")).toBe(0);
-  const command=key(),input={expectedVersion:3,reason:"Debit credit valuation checked"};
+  const command=key(),input={attachmentSetIds:[],expectedVersion:3,reason:"Debit credit valuation checked"};
   const posted=await transitionCount(f.manager,id,"post",input,command);
   expect(await transitionCount(f.manager,id,"post",input,command)).toEqual(posted);
   expect(await db.prepare("SELECT quantity_milli,value_minor FROM commerce_stock WHERE product_id=?").bind(stock.productId).first()).toEqual({quantity_milli:10000,value_minor:10000});
@@ -174,7 +174,7 @@ it("hands purchase receipt to accounting before drafting and posting its payable
   await transitionOrder(f.head,id,{action:"approve",expectedVersion:2},key());
   await choose("order",id,"stock_gl",f.manager.userId);
   const details=await getOrder(f.owner,id);
-  const receipt=await fulfillOrder(f.owner,id,{expectedVersion:3,date:"2026-09-02",lines:[{lineId:String(details.lines[0].id),quantity:"2"}]},key());
+  const receipt=await fulfillOrder(f.owner,id,{attachmentSetIds:[],expectedVersion:3,date:"2026-09-02",evidenceIds:[],evidenceNote:"",lines:[{lineId:String(details.lines[0].id),quantity:"2",allocations:[]}]},key());
   const journal=await db.prepare("SELECT j.id,j.status FROM finance_journals j JOIN commerce_fulfillments f ON f.journal_id=j.id WHERE f.id=?").bind(receipt.fulfillmentId).first<{id:string;status:string}>();
   expect(journal?.status).toBe("draft");
   expect((await resolveFlow(db,f.manager,"order",id)).current?.key).toBe("stock_gl");
@@ -186,7 +186,7 @@ it("hands purchase receipt to accounting before drafting and posting its payable
   const invoice=await invoiceFulfillment(f.owner,String(receipt.fulfillmentId),{expectedVersion:1,date:"2026-09-02",dueDate:"2026-09-03"},key());
   expect(await db.prepare("SELECT status FROM finance_invoices WHERE id=?").bind(invoice.invoiceId).first("status")).toBe("draft");
   await choose("invoice",String(invoice.invoiceId),"draft",f.manager.userId);
-  await postInvoice(f.manager,String(invoice.invoiceId),{expectedVersion:1,periodId:f.period,entryDate:"2026-09-02"},key());
+  await postInvoice(f.manager,String(invoice.invoiceId),{attachmentSetIds:[],expectedVersion:1,periodId:f.period,entryDate:"2026-09-02"},key());
   expect((await resolveFlow(db,f.payer,"invoice",String(invoice.invoiceId))).current?.key).toBe("posted");
 });
 
@@ -207,7 +207,7 @@ it("cancels an approved order independently but requires a return after stock mo
   const cancelled=await transitionOrder(f.head,cancellable,{action:"cancel",expectedVersion:3},key());
   expect(cancelled).toMatchObject({state:"cancelled",version:4});
   const received=await approvedOrder(),details=await getOrder(f.owner,received);
-  await fulfillOrder(f.owner,received,{expectedVersion:3,date:"2026-09-02",lines:[{lineId:String(details.lines[0].id),quantity:"1"}]},key());
+  await fulfillOrder(f.owner,received,{attachmentSetIds:[],expectedVersion:3,date:"2026-09-02",evidenceIds:[],evidenceNote:"",lines:[{lineId:String(details.lines[0].id),quantity:"1",allocations:[]}]},key());
   await expect(transitionOrder(f.head,received,{action:"cancel",expectedVersion:4},key())).rejects.toMatchObject({code:"ORDER_REVERSAL_REQUIRED"});
 });
 
@@ -249,4 +249,25 @@ it("keeps batched Work equal to detail-authorized flows across roles and scopes"
       for (const row of rows) await expect(detail(actor,String(row.id))).resolves.toBeDefined();
     }
   }
+});
+it("rolls back reassignment and owner revision on a final outbox failure before same-key retry and replay",async()=>{
+  await f.grant(f.tie,"finance_preparer");
+  const id=await f.claim(),view=await resolveFlow(db,f.owner,"expense",id),command=key();
+  const input={stepKey:"accounts_review",userId:f.tie.userId,saveDefault:true,reason:"Independent reviewer rotation",expectedVersion:view.version,recordVersion:view.recordVersion};
+  const priorRoute=await db.prepare("SELECT * FROM flow_routes WHERE company_id=? AND kind='expense' AND record_id=?").bind(f.company,id).first();
+  const priorExpense=await db.prepare("SELECT version,updated_at FROM finance_expenses WHERE id=?").bind(id).first();
+  const priorDefaults=await db.prepare("SELECT COUNT(*) n FROM flow_defaults WHERE company_id=?").bind(f.company).first("n");
+  const trigger="flow_late_"+command.replace(/[^a-zA-Z0-9]/g,""),fn=trigger+"_failure";
+  await db.prepare(`CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'late workflow outbox failure' USING ERRCODE='23514'; END $$`).run();
+  await db.prepare(`CREATE TRIGGER ${trigger} BEFORE INSERT ON outbox_events FOR EACH ROW WHEN (NEW.command_id='${command}') EXECUTE FUNCTION ${fn}()`).run();
+  try{
+    await expect(assignFlowPrimary(db,f.owner,"expense",id,input,command)).rejects.toThrow("late workflow outbox failure");
+    expect(await db.prepare("SELECT * FROM flow_routes WHERE company_id=? AND kind='expense' AND record_id=?").bind(f.company,id).first()).toEqual(priorRoute);
+    expect(await db.prepare("SELECT version,updated_at FROM finance_expenses WHERE id=?").bind(id).first()).toEqual(priorExpense);
+    expect(await db.prepare("SELECT COUNT(*) n FROM flow_defaults WHERE company_id=?").bind(f.company).first("n")).toBe(priorDefaults);
+    for(const table of ["command_receipts","audit_events","outbox_events","flow_events"])expect(await db.prepare(`SELECT COUNT(*) n FROM ${table} WHERE command_id=?`).bind(command).first("n")).toBe(0);
+  }finally{await db.prepare(`DROP TRIGGER ${trigger} ON outbox_events`).run();await db.prepare(`DROP FUNCTION ${fn}()`).run();}
+  const result=await assignFlowPrimary(db,f.owner,"expense",id,input,command);
+  expect(await assignFlowPrimary(db,f.owner,"expense",id,input,command)).toEqual(result);
+  for(const table of ["command_receipts","audit_events","outbox_events","flow_events"])expect(await db.prepare(`SELECT COUNT(*) n FROM ${table} WHERE command_id=?`).bind(command).first("n")).toBe(1);
 });

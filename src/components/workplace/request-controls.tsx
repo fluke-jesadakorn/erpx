@@ -24,7 +24,7 @@ import {
   type RequestKind,
   type RequestItem,
 } from "@/lib/employee-services";
-import type { EmployeeRequest, employeeRequestDetail } from "@/server/employee-requests";
+import type { EmployeeRequest, employeeRequestDetail } from "@/server/modules/records/public/employee-requests";
 import styles from "./services.module.css";
 import { Card } from "@/components/ui/foundation";
 export type RequestOptions = {

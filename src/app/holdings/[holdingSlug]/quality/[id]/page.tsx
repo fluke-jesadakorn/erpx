@@ -5,11 +5,11 @@ import { QualityConsole } from "@/components/modules/quality-console";
 import { StatusBadge } from "@/components/ui/primitives";
 import { OperationSummary } from "@/components/workplace/operation-summary";
 import { workspaceBase } from "@/lib/workspace";
-import { requireWorkContext, publicScope } from "@/server/authorization";
-import { ApiError } from "@/server/http";
-import { qualityAlerts } from "@/server/quality-alerts";
-import { qualityDetail } from "@/server/quality";
-import { accessPage } from "@/server/page-error";
+import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
+import { ApiError } from "@/server/modules/runtime/public/http";
+import { qualityAlerts } from "@/server/modules/quality/public/quality-alerts";
+import { qualityDetail } from "@/server/modules/quality/public/quality";
+import { accessPage } from "@/server/modules/work_projection/public/page-error";
 import styles from "./quality-detail.module.css";
 
 export const dynamic = "force-dynamic";

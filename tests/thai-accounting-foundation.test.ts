@@ -1,3 +1,4 @@
+import type { FinanceRow } from "../src/server/modules/finance/public/finance";
 import { beforeAll,beforeEach,describe,expect,it,vi } from "vitest";
 import { applyMigrations,env } from "./runtime-env";
 import { expenseDb as db,expenseFixture,key } from "./helpers/expense-fixture";
@@ -119,7 +120,7 @@ describe("Thai accounting foundation",()=>{
     await db.prepare("INSERT INTO finance_parties(id,company_id,kind,code,name,currency,created_at,updated_at) VALUES(?,?,'customer',?,'Legacy customer','THB',1,1)").bind(party,f.company,party).run();
     await db.prepare("INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,base_total_minor,base_outstanding_minor,debit_account_id,credit_account_id,status,created_by,created_at,updated_at) VALUES(?,?,?,'receivable',?,'2026-09-02','2026-09-15','THB',100,0,100,100,100,100,?,?,'posted',?,1,1)").bind(invoice,f.company,party,invoice,f.accounts.cash,f.accounts.revenue,f.reviewer.userId).run();
     expect(await aging(f.manager,"receivable","2026-09-30",f.chart)).toEqual(expect.arrayContaining([expect.objectContaining({id:invoice,outstanding:"1.00",legacy_date_evidence:true})]));
-    const period=await db.prepare("SELECT * FROM finance_periods WHERE id=?").bind(f.period).first();
+    const period=await db.prepare("SELECT * FROM finance_periods WHERE id=?").bind(f.period).first<FinanceRow>();
     const reconciliation=await calculateCloseReconciliations(db,f.manager,period!);
     expect(reconciliation).toMatchObject({ready:false,rows:[expect.objectContaining({differenceMinor:0,source:expect.objectContaining({legacyDateCount:1})})]});
     await expect(beginClose(f.reviewer,f.period,key())).rejects.toMatchObject({code:"CLOSE_RECONCILIATION_FAILED"});

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { accountWorkContext } from "@/server/account-work-context";
-import { errorResponse } from "@/server/http";
-import { holdingBindingBySlug } from "@/server/runtime";
+import { accountWorkContext } from "@/server/modules/identity_access/public/account-work-context";
+import { errorResponse } from "@/server/modules/runtime/public/http";
+import { holdingBindingBySlug } from "@/server/modules/runtime/public/runtime";
 
 const query = z.object({ from: z.string().min(1).max(2000), companyId: z.string().min(1).max(128).optional() });
 

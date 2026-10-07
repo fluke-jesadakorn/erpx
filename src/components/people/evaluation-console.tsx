@@ -5,8 +5,8 @@ import { FormDrawer } from "@/components/ui/dialog";
 import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
 import { AssessmentEditor, Choice, DefinitionEditor, InputField, MarketImportEditor, Notes, StartAssessmentEditor, Tick, definitionLabels, type EvaluationCommand } from "./evaluation-editors";
 import type { DefinitionKind, EvaluationDefinition } from "@/lib/people-evaluation";
-import type { EvaluationRow, EvaluationWorkspace, evaluationDetail } from "@/server/people-evaluation";
-import type { EvaluationAiResult } from "@/server/people-evaluation-ai";
+import type { EvaluationRow, EvaluationWorkspace, evaluationDetail } from "@/server/modules/people_payroll/public/people-evaluation";
+import type { EvaluationAiResult } from "@/server/modules/people_payroll/public/people-evaluation-ai";
 import styles from "./evaluation.module.css";
 
 type Detail = Awaited<ReturnType<typeof evaluationDetail>>;

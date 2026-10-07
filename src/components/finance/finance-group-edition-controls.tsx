@@ -7,7 +7,7 @@ import type { z } from "zod";
 import type {
   groupReportEditionSchema,
   groupExpansionWorkspace,
-} from "@/server/finance-group-editions";
+} from "@/server/modules/finance/public/finance-group-editions";
 import { financeCommandFetch as workFetch } from "@/lib/finance-command-fetch";
 import { minorToDecimal } from "@/lib/finance-money";
 import { financeReportPeriods } from "@/lib/finance-report-periods";

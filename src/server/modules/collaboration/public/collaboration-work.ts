@@ -1,0 +1,1 @@
+export {collaborationWorkspace,collaborationExport,collaborationActionDetail,createRecordRelation,removeRecordRelation,createActionCard,changeActionCard,collaborationActionWork} from '../adapters/collaboration-work';export type {Row,Source,Card} from '../domain/collaboration-work';

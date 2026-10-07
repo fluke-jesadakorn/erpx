@@ -1,0 +1,1 @@
+import type {SqlDatabase} from '../../runtime/public/runtime/types';export function collaborationMessageSource(db:SqlDatabase,id:string,companyId:string){return db.prepare('SELECT object_key,checksum_sha256 FROM attachments WHERE id=? AND company_id=?').bind(id,companyId).first<{object_key:string;checksum_sha256:string}>();}

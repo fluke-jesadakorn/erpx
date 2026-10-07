@@ -1,7 +1,7 @@
-import { requireWorkContext } from "@/server/authorization";
-import { requestPublicOrigin } from "@/server/public-origin";
-import { ApiError, errorResponse } from "@/server/http";
-import { profileInput, saveMemberProfile } from "@/server/member-profiles";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { profileInput, saveMemberProfile } from "@/server/modules/organization/public/member-profiles";
 
 export async function PATCH(request: Request, context: RouteContext<"/api/v1/holdings/[holdingSlug]/profiles/me">) {
   try {

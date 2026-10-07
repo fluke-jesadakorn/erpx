@@ -1,0 +1,5 @@
+export type BillingEvidenceSource={id:string;holding_id:string;object_key:string;size:number;sha256:string;source_state:string;mime:string;filename:string};
+export type BillingScanJob={id:string;evidence_id:string;attempt:number};
+export type BillingScanResult={clean:boolean;engine:string;signature:string|null;definitionUpdatedAt:number};
+export type BillingEvidenceReconciliation={sources:number;unavailable:number;sealedMalware:number;destroyed:number;missingObjects:string[];sizeMismatches:string[];checksumMismatches:string[];missingLedger:string[];orphanObjects:string[];ledgerStoredBytes:number;physicalStoredBytes:number;quotaDeltaBytes:number;duplicateLedgerObjects:number};
+export function billingEvidenceReconciliationReady(report:BillingEvidenceReconciliation){return report.unavailable===0&&report.missingObjects.length===0&&report.sizeMismatches.length===0&&report.checksumMismatches.length===0&&report.missingLedger.length===0&&report.orphanObjects.length===0&&report.quotaDeltaBytes===0&&report.duplicateLedgerObjects===0;}

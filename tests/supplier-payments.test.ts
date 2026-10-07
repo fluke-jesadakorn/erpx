@@ -127,3 +127,24 @@ it('prevents the legacy contractor exporter and supplier batches from reserving 
  const current=Number(await db.prepare('SELECT version FROM finance_invoices WHERE id=?').bind(legacySource).first('version'));
  await expect(createSupplierBatch(f.reviewer,input([entry(legacySource,'100',current)]),key())).rejects.toMatchObject({code:'CONFLICT'});
 });
+it('rolls back supplier payment accounting, bank match and File binding after the final outbox fails, then retries and replays once',async()=>{
+ const source=await invoice(),draft=await createSupplierBatch(f.reviewer,input([entry(source)]),key()),batchId=String(draft.id);await decideSupplierBatch(f.manager,batchId,{expectedVersion:1,reason:'Independent supplier payment review'},key(),'approve');await exportSupplierBatch(f.payer,batchId,{expectedVersion:2},key());
+ const item=(await supplierBatchWorkspace(f.payer,batchId)).items[0],proof=await seedAttachmentSet(db,f.payer,{targetType:'finance_supplier_batch',targetId:batchId,componentKind:'action',componentRef:`supplier-instruction:${String(item.id)}`,purposeKey:'payment_proof',expectedTargetVersion:3}),bankRow=await bank(),command=key(),payload={expectedVersion:2,bankTransactionId:bankRow.id,bankVersion:bankRow.version,periodId:f.period,bankReference:'SIM-ROLLBACK-100',evidence:'Approved beneficiary and exact bank debit checked',attachmentSetIds:[proof.setId]},fault=`supplier_payment_failure_${crypto.randomUUID().replaceAll('-','').slice(0,12)}`;
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'SUPPLIER_FINAL_OUTBOX_FAILURE' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} BEFORE INSERT ON outbox_events FOR EACH ROW WHEN(NEW.command_id='${command.replaceAll("'","''")}') EXECUTE FUNCTION ${fault}();`);
+ try{
+  await expect(confirmSupplierInstruction(f.payer,String(item.id),payload,command)).rejects.toMatchObject({code:'23514'});
+  expect(await db.prepare('SELECT outstanding_minor,status FROM finance_invoices WHERE id=?').bind(source).first()).toEqual({outstanding_minor:10000,status:'posted'});
+  expect(await db.prepare('SELECT match_status,version FROM finance_bank_transactions WHERE id=?').bind(bankRow.id).first()).toEqual({match_status:'unmatched',version:bankRow.version});
+  expect(await db.prepare('SELECT status,version,payment_id FROM finance_supplier_instructions WHERE id=?').bind(item.id).first()).toEqual({status:'exported',version:2,payment_id:null});
+  expect(await db.prepare('SELECT version FROM finance_supplier_batches WHERE id=?').bind(batchId).first('version')).toBe(3);
+  expect(await db.prepare("SELECT count(*) n FROM finance_journals WHERE source_type='supplier_batch' AND source_id=?").bind(item.id).first('n')).toBe(0);
+  expect(await db.prepare('SELECT count(*) n FROM finance_allocations WHERE invoice_id=?').bind(source).first('n')).toBe(0);
+  expect(await attachmentBindingState(db,proof.setId)).toMatchObject({set_state:'draft',link_state:'draft'});
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n')).toBe(0);
+ }finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
+ const confirmed=await confirmSupplierInstruction(f.payer,String(item.id),payload,command);expect(await confirmSupplierInstruction(f.payer,String(item.id),payload,command)).toEqual(confirmed);
+ expect(await db.prepare('SELECT outstanding_minor,status FROM finance_invoices WHERE id=?').bind(source).first()).toEqual({outstanding_minor:0,status:'paid'});expect(await attachmentBindingState(db,proof.setId)).toMatchObject({set_state:'bound',link_state:'bound'});
+ expect(await db.prepare("SELECT count(*) n FROM finance_journals WHERE source_type='supplier_batch' AND source_id=?").bind(item.id).first('n')).toBe(1);
+ expect(await db.prepare('SELECT count(*) n FROM finance_allocations WHERE invoice_id=?').bind(source).first('n')).toBe(1);
+ for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n')).toBe(1);
+});

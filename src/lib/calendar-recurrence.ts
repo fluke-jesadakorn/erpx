@@ -1,4 +1,4 @@
-import { addDays } from "./people-roster";
+import { addDays } from "@/server/modules/people_payroll/public/rules/people-roster-domain";
 import { localDateTimeToInstant } from "./calendar-timeline";
 
 export type RecurrenceRule={

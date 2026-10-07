@@ -1,7 +1,7 @@
 "use client";
 
 import { AttachmentPanel } from "@/components/attachments/attachment-panel";
-import type { LeaveEvidencePolicy, LeaveEvidencePurpose } from "@/server/leave-evidence";
+import type { LeaveEvidencePolicy, LeaveEvidencePurpose } from "@/server/modules/people_payroll/public/leave-evidence";
 import styles from "@/components/leave/leave-flow.module.css";
 import { Stack } from "@/components/ui/foundation";
 

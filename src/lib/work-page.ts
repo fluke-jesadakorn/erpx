@@ -1,5 +1,5 @@
 import { filterWork, isMyAction, workInView, workMatchesView, workViews } from "./work-item";
-import type { WorkSummary } from "@/server/work-summary";
+import type { WorkSummary } from "@/server/modules/work_projection/public/work-summary";
 
 export type WorkPageQuery = {
   view: string; queue: string; type: string; q: string; responsibility: string; offset?: number; tracking?: string;

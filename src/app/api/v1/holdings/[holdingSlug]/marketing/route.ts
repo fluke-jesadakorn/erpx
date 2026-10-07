@@ -1,14 +1,14 @@
-import { requireWorkContext } from "@/server/authorization";
-import { requestPublicOrigin } from "@/server/public-origin";
-import { ApiError, errorResponse } from "@/server/http";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import {
   changeMarketing,
   createMarketingAsset,
   createMarketingCandidate,
   marketingDetail,
   marketingWorkspace,
-} from "@/server/marketing";
-import {changeMarketingCampaign} from '@/server/marketing-campaigns';
+} from "@/server/modules/marketing/public/marketing";
+import {changeMarketingCampaign} from "@/server/modules/marketing/public/marketing-campaigns";
 type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
 export async function GET(r: Request, c: C) {

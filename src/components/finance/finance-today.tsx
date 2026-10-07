@@ -7,8 +7,8 @@ import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { formatMoneyUnits } from "@/lib/company-money";
 import { financeWork, type FinanceWorkView } from "@/lib/finance-work";
 import { workItemHref } from "@/lib/work-item";
-import type { FinanceAttention } from "@/server/finance-workspace";
-import type { WorkSnapshot } from "@/server/work-items";
+import type { FinanceAttention } from "@/server/modules/finance/public/finance-workspace";
+import type { WorkSnapshot } from "@/server/modules/work_projection/public/work-items";
 import styles from "./finance-workspace.module.css";
 import { FilterBar } from "@/components/ui/foundation";
 

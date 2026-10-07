@@ -3,8 +3,8 @@ import { addDays, rosterMonday, type RosterCommand, type RosterData, type Roster
 import { organizationSession, readOrganization } from "../helpers/organization-access-browser";
 import { mockPeopleDraft } from "../helpers/people-draft-browser";
 
-test("a team schedule adds shifts, publishes, copies a week and creates a Calendar appointment", async ({ page, context }, info) => {
-  test.setTimeout(180_000); test.skip(info.project.name !== "desktop");
+test("a team schedule adds shifts, publishes, copies a week and creates a Calendar appointment", async ({ page, context }) => {
+  test.setTimeout(180_000);
   const base = await organizationSession(context, "hr_admin"), organization = await readOrganization(context, base);
   await mockPeopleDraft(page, organization);
   const position = organization.positions.find(position => position.active && position.roster_required && position.department_id)!;

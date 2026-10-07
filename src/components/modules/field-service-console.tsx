@@ -10,7 +10,7 @@ import { workFetch } from "@/lib/work-fetch";
 import { PreferredDateTimeField } from "@/components/time/preferred-date-time-field";
 import { minorToDecimal } from "@/lib/finance-money";
 import { ServiceSpareForm } from "./service-spare-form";
-import type { fieldServiceDetail, fieldServiceWorkspace } from "@/server/field-service";
+import type { fieldServiceDetail, fieldServiceWorkspace } from "@/server/modules/field_service/public/field-service";
 import { FormLayout, Card } from "@/components/ui/foundation";
 function useCommand(base: string) {
   const router = useRouter(),

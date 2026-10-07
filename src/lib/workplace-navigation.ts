@@ -2,7 +2,7 @@ import { workViews, workViewAvailable, type WorkViewAvailability } from "./work-
 import { adminSections, type AdminSection } from "./administration";
 import { iamSections } from "./iam";
 import { hasPermission } from "./permissions";
-import { salesCustomerAccess, salesCustomerLegacyDestination } from "./sales-customers";
+import { salesCustomerAccess, salesCustomerLegacyDestination } from "@/server/modules/sales/public/rules/navigation";
 import { peopleIamDestination } from "./people-lifecycle";
 import { financeDestinationForRoute, financeNavigation, financeRootItems, financeSidebarId } from "./finance-navigation";
 import { workplaceCategories, workplaceModuleDestinations, workplaceStartActions, type WorkplaceCategoryId, type AiSupport } from "./workplace-catalogue";
@@ -579,6 +579,13 @@ export function workplaceNavigation(
       `${base}/projects`,
       ["project list"],
     );
+
+    if (context.moduleIds?.includes("operations") && hasPermission(actor, "records.read") &&
+        (!context.availableAppIds || context.availableAppIds.includes("operations"))) {
+      group("operations", "Operations", "projects", "business", [
+        item("operations", "Operations", "operations", "Operations", "projects"),
+      ], `${base}/operations`);
+    }
 
     const technologyItems = hasPermission(actor, "iam.read") ? [
       item("technology-organization", "Organization & Access", "technology?view=organization", "Technology", "access", ["positions", "employees", "levels", "departments", "Directory", "GPO", "provisioning", "Windows policies", "mappings"]),

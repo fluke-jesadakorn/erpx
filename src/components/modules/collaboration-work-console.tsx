@@ -8,7 +8,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
 import { PreferredDateTimeField } from "@/components/time/preferred-date-time-field";
-import type { collaborationWorkspace } from "@/server/collaboration-work";
+import type { collaborationWorkspace } from "@/server/modules/collaboration/public/collaboration-work";
 import { FormLayout } from "@/components/ui/foundation";
 export function CollaborationWorkConsole({
   base,

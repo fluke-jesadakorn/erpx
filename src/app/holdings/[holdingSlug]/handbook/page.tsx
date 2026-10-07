@@ -1,3 +1,4 @@
+import { collaborationPresentationQueries } from "@/server/modules/collaboration/public/presentation-queries";
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { FeaturePage, FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
@@ -8,11 +9,11 @@ import { EmptyState,PageHeader } from "@/components/ui/primitives";
 import { HandbookEditors } from "@/components/workplace/handbook-controls";
 import styles from "@/components/workplace/services.module.css";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope,requireWorkContext } from "@/server/authorization";
-import { handbookEditorOptions,handbookList } from "@/server/handbook";
-import { companyMembers } from "@/server/member-directory";
-import { pageError } from "@/server/page-error";
-import { holdingResources } from "@/server/runtime";
+import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+
+import { companyMembers } from "@/server/modules/organization/public/member-directory";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+
 import { RecordLink as Link } from "@/components/records/record-link";
 import { Card } from "@/components/ui/foundation";
 export default async function Handbook({
@@ -24,15 +25,15 @@ export default async function Handbook({
 }) {
   const actor = await requireWorkContext((await params).holdingSlug),
     base = workspaceBase(publicScope(actor)),
-    { write } = await holdingResources(actor.holdingId),
+    presentation = await collaborationPresentationQueries(actor.holdingId),
     query = await searchParams,
     editing = false,
-    data = await handbookList(write, actor, query.q ?? "", editing,query.cursor).catch(
+    data = await presentation.handbookList(actor, query.q ?? "", editing, query.cursor).catch(
       (e: unknown) => {
         return pageError(e, actor.holdingSlug);
       },
     );
-  const drafts = data.access.editor ? await handbookList(write, actor, query.q ?? "", true, query["drafts.cursor"]) : null;
+  const drafts = data.access.editor ? await presentation.handbookList(actor, query.q ?? "", true, query["drafts.cursor"]) : null;
   return (
     <FeaturePage className={`content ${styles.stack}`} data-source="live">
       <PageHeader appearance="standard"
@@ -80,7 +81,7 @@ export default async function Handbook({
           base={base}
           companyId={actor.companyId}
           userId={actor.userId}
-          options={await handbookEditorOptions(write, actor)}
+          options={await presentation.handbookEditorOptions(actor)}
           members={await companyMembers(actor)}
         /></FeatureWidget>
       )}

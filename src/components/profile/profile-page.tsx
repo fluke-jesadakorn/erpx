@@ -10,7 +10,7 @@ import { Camera, ExternalLink, Link2, MapPin, Pencil, UserRound } from "lucide-r
 import { workFetch } from "@/lib/work-fetch";
 import { TimeText } from "@/components/time/time-preference-context";
 import { TimePreferenceEditor } from "@/components/time/time-preference-editor";
-import type { memberProfileView } from "@/server/member-profiles";
+import type { memberProfileView } from "@/server/modules/organization/public/member-profiles";
 import styles from "./profile-page.module.css";
 
 type Profile = Awaited<ReturnType<typeof memberProfileView>>;

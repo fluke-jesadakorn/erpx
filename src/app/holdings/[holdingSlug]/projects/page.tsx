@@ -1,3 +1,4 @@
+import { staffPresentationQueries } from "@/server/modules/work_projection/public/presentation-context-queries";
 import { FeaturePage, FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { ServiceNavigation } from "@/components/modules/service-navigation";
 import {
@@ -6,8 +7,8 @@ StaffTaskLinks,
 } from "@/components/modules/staff-work-controls";
 import { ListFilters } from "@/components/ui/list-filters";
 import { EmptyState,PageHeader } from "@/components/ui/primitives";
-import { administrationAccess } from "@/server/administration";
-import { staffPage } from "@/server/staff-page";
+import { administrationAccess } from "@/server/modules/runtime/public/administration";
+
 import { RecordLink as Link } from "@/components/records/record-link";
 import { Card } from "@/components/ui/foundation";
 export default async function Projects({
@@ -18,7 +19,7 @@ export default async function Projects({
   searchParams: Promise<{q?:string}>;
 }) {
   const { holdingSlug } = await params,
-    { actor, base, options, projects, staff } = await staffPage(holdingSlug);
+    { actor, base, options, projects, staff } = await staffPresentationQueries(holdingSlug);
   const query=await searchParams;
   const visible=projects.filter(p=>!query.q||`${p.title} ${p.description}`.toLowerCase().includes(query.q.toLowerCase()));
   const access = await administrationAccess(actor);

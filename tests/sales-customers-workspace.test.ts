@@ -6,7 +6,8 @@ import { customerWorkspaceDirectory, customerWorkspaceProfile, salesToday, custo
 import { customerTimeline } from "../src/server/customer-timeline";
 import { createCustomerFollowup } from "../src/server/customer-followups";
 import { createSupportTicket } from "../src/server/support";
-import * as crm from "../src/server/crm";
+import * as crm from "../src/server/modules/crm/public/crm";
+import { editedCustomerParty } from "../src/server/modules/finance/public/document-posting-preview";
 vi.mock("../src/server/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 let f: Awaited<ReturnType<typeof expenseFixture>>, customer: string, noDocument: string, order: string;
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
@@ -19,6 +20,9 @@ beforeEach(async () => {
 });
 afterEach(() => { vi.restoreAllMocks(); });
 it("reads customers without source documents without expanding the timeline API", async () => {
+  expect(await editedCustomerParty(f.owner, customer, db)).toMatchObject({ id: customer, kind: "customer", person_id: null });
+  expect(await editedCustomerParty({ ...f.owner, companyId: "other" }, customer, db)).toBeNull();
+  expect(await editedCustomerParty(f.owner, key(), db)).toBeNull();
   expect((await customerWorkspaceDirectory(f.owner, {})).items.map(row => row.id)).toEqual([customer, noDocument]);
   const profile = await customerWorkspaceProfile(f.owner, noDocument);
   expect(profile.customer.id).toBe(noDocument);

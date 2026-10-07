@@ -1,7 +1,7 @@
-import { holdingResources } from "@/server/runtime";
-import { requireWorkContext } from "@/server/authorization";
-import { errorResponse } from "@/server/http";
-import { postRevisionHistory } from "@/server/social-home";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { errorResponse } from "@/server/modules/runtime/public/http";
+import { postRevisionHistory } from "@/server/modules/collaboration/public/social-home";
 
 export async function GET(
   _request: Request,

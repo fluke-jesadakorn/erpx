@@ -8,7 +8,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { RoleSelect } from "./role-select";
 import { useContextSwitch } from "./context-switch-provider";
-import type { WorkAssignment } from "@/server/authorization";
+import type { WorkAssignment } from "@/server/modules/identity_access/public/authorization";
 import styles from "./account.module.css";
 
 export function WorkRolePicker({

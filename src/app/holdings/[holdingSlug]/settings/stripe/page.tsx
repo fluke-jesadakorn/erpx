@@ -1,9 +1,11 @@
+import { posPresentationQueries } from "@/server/modules/pos/public/presentation-queries";
+
 import { RecordLink as Link } from "@/components/records/record-link";
-import {requireWorkContext,publicScope} from '@/server/authorization';
-import {holdingResources} from '@/server/runtime';
+import {requireWorkContext,publicScope} from "@/server/modules/identity_access/public/authorization";
+
 import {hasPermission} from '@/lib/permissions';
 import {workspaceBase} from '@/lib/workspace';
-import {accessPage} from '@/server/page-error';
+import {accessPage} from "@/server/modules/work_projection/public/page-error";
 import {CompanyStripe} from '@/components/finance/company-stripe';
 import { PageContent } from "@/components/ui/foundation";
 
@@ -11,8 +13,8 @@ export const dynamic='force-dynamic';
 export default async function StripeSettings({params}:PageProps<'/holdings/[holdingSlug]/settings/stripe'>){
  const actor=await requireWorkContext((await params).holdingSlug);
  if(actor.branchId||actor.departmentId||!hasPermission(actor,'pos.payments.configure')&&!hasPermission(actor,'finance.approve'))return accessPage('permission',actor.holdingSlug);
- const base=workspaceBase(publicScope(actor)),{write}=await holdingResources(actor.holdingId);
- const connection=await write.prepare('SELECT * FROM pos_connections WHERE company_id=?').bind(actor.companyId).first();
- const jobs=(await write.prepare("SELECT id,kind,state,last_error,payload_json FROM pos_jobs WHERE company_id=? AND kind IN ('connect','connect_refresh') ORDER BY created_at DESC LIMIT 10").bind(actor.companyId).all()).results;
+ const base=workspaceBase(publicScope(actor)),presentation=await posPresentationQueries(actor.holdingId);
+ const connection=await presentation.stripeEntrypointFacts().connection(actor.companyId);
+ const jobs=(await presentation.stripeEntrypointFacts().jobs(actor.companyId)).results;
  return <PageContent as="div" className="ui-page-content"><Link href={`${base}/settings`}>← Settings</Link><h1>Company Stripe</h1><CompanyStripe base={base} commandScope={`${actor.holdingId}:${actor.companyId}:${actor.userId}`} connection={connection as Parameters<typeof CompanyStripe>[0]['connection']} jobs={jobs as Parameters<typeof CompanyStripe>[0]['jobs']} liveEnabled={process.env.POS_STRIPE_LIVE_ENABLED==='true'}/></PageContent>;
 }

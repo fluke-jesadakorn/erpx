@@ -1,22 +1,22 @@
 import { z } from "zod";
-import { requireWorkContext } from "@/server/authorization";
-import { holdingResources } from "@/server/runtime";
-import { iamActorFromWork } from "@/server/iam-context";
-import { requestPublicOrigin } from "@/server/public-origin";
-import { ApiError, errorResponse } from "@/server/http";
-import type { PostgresDatabase } from "@/server/runtime/postgres";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { iamActorFromWork } from "@/server/modules/identity_access/public/iam-context";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import type { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
 import {
   technologyData,
   previewProvisioning,
   applyProvisioning,
   retryProvisioning,
-} from "@/server/technology";
-import { provisioningInput } from "@/lib/technology";
-import { directoryOperationsApi } from "@/server/directory-operations-api";
-import { positionGpoOverview, previewPositionGpo, publishPositionGpo, previewUnmapPositionGpo, unmapPositionGpo, retryPositionGpo, retryPositionGpoConfig } from "@/server/position-gpo";
-import { gpoRulesOverview, previewGpoRule, publishGpoRule, previewRemoveGpoRule, removeGpoRule, retryGpoRuleConfig, markPositionGpoNotRequired } from "@/server/gpo-rules";
-import { organizationAccessData } from "@/server/organization-access";
-import {bindProvisioningEvidence} from '@/server/system-evidence';
+} from "@/server/modules/identity_access/public/technology";
+import { provisioningInput } from "@/server/modules/identity_access/public/rules/technology";
+import { directoryOperationsApi } from "@/server/modules/identity_access/public/directory-operations-api";
+import { positionGpoOverview, previewPositionGpo, publishPositionGpo, previewUnmapPositionGpo, unmapPositionGpo, retryPositionGpo, retryPositionGpoConfig } from "@/server/modules/identity_access/public/position-gpo";
+import { gpoRulesOverview, previewGpoRule, publishGpoRule, previewRemoveGpoRule, removeGpoRule, retryGpoRuleConfig, markPositionGpoNotRequired } from "@/server/modules/identity_access/public/gpo-rules";
+import { organizationAccessData } from "@/server/modules/organization/public/organization-access";
+import {bindProvisioningEvidence} from "@/server/modules/platform_administration/public/system-evidence";
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
 export const dynamic = "force-dynamic";
 export async function GET(_request: Request, context: Context) {

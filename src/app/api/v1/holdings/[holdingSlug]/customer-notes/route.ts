@@ -1,7 +1,7 @@
-import {requireWorkContext} from '@/server/authorization';
-import {requestPublicOrigin} from '@/server/public-origin';
-import {ApiError,errorResponse} from '@/server/http';
-import {createCustomerNote,changeCustomerNote,customerNotesForOrder,customerNotesForCustomer} from '@/server/customer-notes';
+import {requireWorkContext} from "@/server/modules/identity_access/public/authorization";
+import {requestPublicOrigin} from "@/server/modules/manage_erpx/public/public-origin";
+import {ApiError,errorResponse} from "@/server/modules/runtime/public/http";
+import {createCustomerNote,changeCustomerNote,customerNotesForOrder,customerNotesForCustomer} from "@/server/modules/sales/public/customer-notes";
 type Context={params:Promise<{holdingSlug:string}>};
 const headers={'Cache-Control':'private, no-store'};
 export async function GET(r:Request,c:Context){try{const query=new URL(r.url).searchParams,orderId=query.get('orderId'),customerId=query.get('customerId'),a=await requireWorkContext((await c.params).holdingSlug);if(orderId&&customerId)throw new ApiError(422,'SOURCE_AMBIGUOUS','Choose either an order or customer source.');if(!orderId&&!customerId)throw new ApiError(422,'SOURCE_REQUIRED','Choose an order or customer source.');return Response.json({data:orderId?await customerNotesForOrder(a,orderId):await customerNotesForCustomer(a,customerId!)},{headers});}catch(e){return errorResponse(e);}}

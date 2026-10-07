@@ -1,6 +1,6 @@
-import {requireWorkContext} from '@/server/authorization';
-import {errorResponse} from '@/server/http';
-import {crmAnalytics,marketingAnalytics,defaultAnalyticsRange} from '@/server/crm-marketing-report';
+import {requireWorkContext} from "@/server/modules/identity_access/public/authorization";
+import {errorResponse} from "@/server/modules/runtime/public/http";
+import {crmAnalytics,marketingAnalytics,defaultAnalyticsRange} from "@/server/modules/crm/public/crm-marketing-report";
 type Context={params:Promise<{holdingSlug:string}>};
 export async function GET(request:Request,context:Context){
  try{

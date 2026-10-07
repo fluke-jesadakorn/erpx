@@ -1,11 +1,11 @@
-import { requireWorkContext } from "@/server/authorization";
-import { holdingResources } from "@/server/runtime";
-import { calendarHierarchy, calendarData } from "@/server/calendar";
-import { ApiError, errorResponse } from "@/server/http";
-import { publishedAnnouncements } from "@/server/calendar/announcements";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { calendarHierarchy, calendarData } from "@/server/modules/work_projection/public/calendar/index";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { publishedAnnouncements } from "@/server/modules/work_projection/public/calendar/announcements";
 import { today } from "@/lib/calendar";
 import { POST as command } from "../route";
-import { calendarAvailability } from "@/server/calendar/availability";
+import { calendarAvailability } from "@/server/modules/work_projection/public/calendar/availability";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string; path: string[] }> };
 export async function GET(request: Request, context: Context) {

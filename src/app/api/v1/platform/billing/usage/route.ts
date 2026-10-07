@@ -1,8 +1,8 @@
-import { requireManageErpxContext } from "@/server/authorization";
-import { ApiError, errorResponse } from "@/server/http";
-import { activeHoldingBindings, runtimeEnv } from "@/server/runtime";
-import { usageMonth } from "@/server/usage";
-import { readPlatformUsageProjection } from "@/server/usage-projection";
+import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { activeHoldingBindings, runtimeEnv } from "@/server/modules/runtime/public/runtime";
+import { usageMonth } from "@/server/modules/commercial/public/usage";
+import { readPlatformUsageProjection } from "@/server/modules/commercial/public/usage-projection";
 
 export async function GET(request: Request) {
   try {

@@ -28,10 +28,10 @@ beforeAll(async () => {
 it("registers, verifies email and recovers a password through actual Better Auth handlers", async () => {
   const original = globalThis.fetch,
     emails: string[] = [];
-  globalThis.fetch = vi.fn(async (_url, options) => {
+  vi.stubGlobal("fetch", vi.fn(async (_url: string | URL | Request, options?: RequestInit) => {
     emails.push(JSON.parse(String(options?.body)).text);
     return Response.json({ id: "mail-test" });
-  });
+  }));
   try {
     const auth = await createAuth(),
       email = `${crypto.randomUUID()}@example.test`,

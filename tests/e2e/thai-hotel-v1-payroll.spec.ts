@@ -223,7 +223,7 @@ test("H002 synthetic payroll covers approved time, correction, review, GL and sa
     const ownerPage = await ownerContext.newPage();
     await signIn(ownerContext, ownerPage, credentials, "holding_owner");
     await openPayrollSettings(ownerPage);
-    const mappingForm = ownerPage.locator("form.business-form").filter({ has: ownerPage.getByRole("button", { name: "Save mapping draft", exact: true }) });
+    const mappingForm = ownerPage.locator("form.ui-form-grid").filter({ has: ownerPage.getByRole("button", { name: "Save mapping draft", exact: true }) });
     await mappingForm.locator('select[name="chartId"]').selectOption({ index: 0 });
     const accountValues = async (name: string) => mappingForm.locator(`select[name="${name}"] option:not([value=""])`).evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
     const expenseAccounts = await accountValues("expenseAccountId");
@@ -282,7 +282,7 @@ test("H002 synthetic payroll covers approved time, correction, review, GL and sa
     const treasuryPage = await treasury.newPage();
     await signIn(treasury, treasuryPage, credentials, "treasury");
     await openCurrentRun(treasuryPage, runId);
-    const batchForm = treasuryPage.locator('section[aria-label="Payroll payment batch"] form.business-form');
+    const batchForm = treasuryPage.locator('section[aria-label="Payroll payment batch"] form.ui-form-grid');
     await batchForm.locator('select[name="formatCode"]').selectOption("generic-csv");
     const postingOptionsResponse = await finance.request.get("/api/v1/holdings/riverside-lantern/people/payroll/posting-options");
     expect(postingOptionsResponse.ok(), await postingOptionsResponse.text()).toBe(true);
@@ -312,7 +312,7 @@ test("H002 synthetic payroll covers approved time, correction, review, GL and sa
     const paymentFile = await downloadPromise;
     expect(paymentFile.suggestedFilename()).toContain(batch.id);
     await treasuryPage.reload({ waitUntil: "domcontentloaded" });
-    const bankForm = treasuryPage.locator("form.business-form").filter({ has: treasuryPage.getByRole("heading", { name: "Reconcile bank results", exact: true }) });
+    const bankForm = treasuryPage.locator("form.ui-form-grid").filter({ has: treasuryPage.getByRole("heading", { name: "Reconcile bank results", exact: true }) });
     const bankReferenceInputs = bankForm.locator('input[name^="ref:"]');
     await expect(bankForm.getByRole("heading", { name: "Reconcile bank results", exact: true })).toBeVisible();
     await expect(bankReferenceInputs).toHaveCount(4);

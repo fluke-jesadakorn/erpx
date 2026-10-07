@@ -1,8 +1,8 @@
-import { requestPublicOrigin } from "@/server/public-origin";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import { z } from "zod";
-import { requireWorkContext } from "@/server/authorization";
-import { runtimeEnv, holdingResources } from "@/server/runtime";
-import { ApiError, errorResponse } from "@/server/http";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { runtimeEnv, holdingResources } from "@/server/modules/runtime/public/runtime";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import {
   activateAiConnection,
   aiConnectionSchema,
@@ -16,7 +16,7 @@ import {
   saveAiConnection,
   selectAiProviders,
   testAiConnection,
-} from "@/server/ai-providers";
+} from "@/server/modules/agent/public/ai-providers";
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
 export async function GET(_request: Request, context: Context) {
   try {

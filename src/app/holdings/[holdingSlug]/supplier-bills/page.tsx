@@ -1,9 +1,9 @@
 import { StatusBadge } from "@/components/ui/primitives";
 import { RecordLink as Link } from "@/components/records/record-link";
-import {requireWorkContext,publicScope} from '@/server/authorization';
+import {requireWorkContext,publicScope} from "@/server/modules/identity_access/public/authorization";
 import {workspaceBase} from '@/lib/workspace';
-import {pageError} from '@/server/page-error';
-import {supplierBillCaptureOptions,supplierBillWorkspace,supplierInvoicePolicy} from '@/server/supplier-bill-matching';
+import {pageError} from "@/server/modules/work_projection/public/page-error";
+import {supplierBillCaptureOptions,supplierBillWorkspace,supplierInvoicePolicy} from "@/server/modules/procurement/public/supplier-bill-matching";
 import {SupplierBillCapture,SupplierInvoicePolicy} from '@/components/modules/supplier-bill-console';
 import {hasPermission} from '@/lib/permissions';
 import { PageContent, Card, Table, TableFrame } from "@/components/ui/foundation";

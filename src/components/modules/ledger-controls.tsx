@@ -8,7 +8,7 @@ import { workFetch } from "@/lib/work-fetch";
 import { minorToDecimal } from "@/lib/finance-money";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { LedgerRow } from "@/server/ledger";
+import type { LedgerRow } from "@/server/modules/finance/public/ledger";
 import {
   AttachmentPanel,
   type AttachmentPanelChange,

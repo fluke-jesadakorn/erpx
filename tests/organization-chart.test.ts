@@ -9,7 +9,7 @@ function person(id: string, manager: string | null, extra: Partial<OrganizationP
   return { person_id: id, engagement_id: "e-" + id, user_id: null, email: null, legal_name: "Person " + id, engagement_version: 1, person_version: 1, company_id: "company", branch_id: "branch", department_id: "department", position_id: null, manager_person_id: manager, level_id: null, level_number: manager ? 6 : 1, level_name: manager ? "Staff" : "CEO", status: "active", person_status: "active", start_date: "2026-01-01", end_date: null, job_title: "Staff", issues: [], ...extra };
 }
 function data(people: OrganizationPerson[]): OrganizationOverview {
-  return { people, positions: [], nodes: [{ id: "branch", display_name: "Bangkok", kind: "branch", slug: "bangkok", branch_id: null }, { id: "department", display_name: "Operations", kind: "department", slug: "operations", branch_id: "branch" }], levels: [], templates: [], canManage: false };
+  return { actorId:"fixture",nodeChanges:[],changeQueue:{recordId:null,state:"",query:"",page:1,pageSize:20,total:0,pages:0},canManageUnits:false,people, positions: [], nodes: [{ status:"active",hierarchy_revision:1,id: "branch", display_name: "Bangkok", kind: "branch", slug: "bangkok", branch_id: null }, { status:"active",hierarchy_revision:1,id: "department", display_name: "Operations", kind: "department", slug: "operations", branch_id: "branch" }], levels: [], templates: [], canManage: false };
 }
 it("uses actual managers across levels and branches, with direct counts and full search", () => {
   const graph = buildOrganizationGraph(data([person("ceo", null), person("manager", "ceo", { level_number: 3 }), person("staff", "manager", { legal_name: "Sofia Example", branch_id: "elsewhere" }), person("direct", "ceo")]));
@@ -56,7 +56,7 @@ it("groups assigned levels independently of reporting depth and retains unknown 
 });
 it("keeps branches separate while sharing department colors", () => {
   const overview = data([person("a", null), person("b", null, { branch_id: "other", department_id: "other-ops" })]);
-  overview.nodes.push({ id: "other-ops", kind: "department", slug: "operations", display_name: "Operations", branch_id: "other" });
+  overview.nodes.push({ status:"active",hierarchy_revision:1,id: "other-ops", kind: "department", slug: "operations", display_name: "Operations", branch_id: "other" });
   const graph = buildOrganizationGraph(overview);
   const groups = levelGroups(graph, overview, teamIds(graph, null))[0].groups;
   expect(groups).toHaveLength(2);

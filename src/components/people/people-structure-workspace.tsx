@@ -33,9 +33,9 @@ import { PersonAvatar } from "@/components/ui/person-avatar";
 import { workFetch } from "@/lib/work-fetch";
 import { draftKey, type DraftDefinition, type DraftItem } from "@/lib/organization-draft";
 import { peopleExplorerTabs, projectedDirectory } from "@/lib/people-explorer";
-import type { peopleExplorerDetail } from "@/server/people-explorer-detail";
-import type { peopleNewPersonData } from "@/server/people-hr-settings";
-import type { HoldingPeopleDirectory } from "@/server/holding-people-directory";
+import type { peopleExplorerDetail } from "@/server/modules/people_payroll/public/people-explorer-detail";
+import type { peopleNewPersonData } from "@/server/modules/people_payroll/public/people-hr-settings";
+import type { HoldingPeopleDirectory } from "@/server/modules/organization/public/holding-people-directory";
 import type { OrganizationExplorerContext, OrganizationSelection } from "./organization-explorer";
 import type { PanelControls } from "./organization-panel-rows";
 import {

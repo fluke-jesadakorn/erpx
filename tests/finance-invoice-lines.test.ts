@@ -4,6 +4,7 @@ import { expenseDb as db, expenseFixture, key } from "./helpers/expense-fixture"
 import { createInvoice, createParty, getInvoice, invoiceSchema, postInvoice, voidDraftInvoice } from "../src/server/finance";
 import { confirmManualRate } from "../src/server/company-money";
 import { assignFlowPrimary, resolveFlow } from "../src/server/flow-routing";
+import { documentPostingPreview } from "../src/server/modules/finance/public/document-posting-preview";
 
 vi.mock("server-only", () => ({}));
 vi.mock("../src/server/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
@@ -27,6 +28,8 @@ describe("native multi-line Finance documents", () => {
     const draft = await createInvoice(f.reviewer, original, command);
     expect(await createInvoice(f.reviewer, original, command)).toEqual(draft);
     const first = await getInvoice(f.manager, String(draft.id));
+    expect(await documentPostingPreview(f.manager, "invoice", String(draft.id), db)).toMatchObject({ state: "ready", posted: false, debit: 267504, credit: 267504 });
+    expect(await documentPostingPreview({ ...f.manager, companyId: "other" }, "invoice", String(draft.id), db)).toBeNull();
     expect(first.lines.map(line => [Number(line.quantity_millis), Number(line.unit_price_minor), Number(line.subtotal_minor), Number(line.tax_minor)])).toEqual([[1500, 100001, 150002, 10500], [2000, 50001, 100002, 7000]]);
     const frozen = first.lines.map(line => line.source_snapshot_json);
     const edited = { ...original, expectedVersion: 1, lines: original.lines!.map(line => ({ ...line, description: `${line.description} ตรวจทาน` })) };
@@ -38,6 +41,7 @@ describe("native multi-line Finance documents", () => {
     const postKey=key(), posted=await postInvoice(f.manager,String(draft.id),{expectedVersion:2,periodId:f.period,entryDate:"2026-09-10"},postKey);
     expect(await postInvoice(f.manager,String(draft.id),{expectedVersion:2,periodId:f.period,entryDate:"2026-09-10"},postKey)).toEqual(posted);
     const reloaded=await getInvoice(f.reviewer,String(draft.id));
+    expect(await documentPostingPreview(f.reviewer, "invoice", String(draft.id), db)).toMatchObject({ state: "ready", posted: true, debit: 267504, credit: 267504 });
     expect(reloaded.invoice).toMatchObject({status:"posted",total_minor:267504,outstanding_minor:267504,line_revision:2,version:3});
     expect(reloaded.lines.map(line=>line.description)).toEqual(edited.lines!.map(line=>line.description));
     expect(reloaded.lineHistory).toHaveLength(2);

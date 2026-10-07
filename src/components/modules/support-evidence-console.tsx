@@ -14,7 +14,7 @@ import {
   useAttachmentFeatureMode,
 } from "@/components/attachments/attachment-feature-context";
 import { workFetch } from "@/lib/work-fetch";
-import type { supportEvidence } from "@/server/support-evidence";
+import type { supportEvidence } from "@/server/modules/support/public/support-evidence";
 import { Card, FormGrid, Stack, FormLayout } from "@/components/ui/foundation";
 
 const emptyChange: AttachmentPanelChange = {

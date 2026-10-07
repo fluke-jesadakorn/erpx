@@ -5,8 +5,8 @@ import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { useCallback, useEffect, useState } from "react";
-import type { releaseAcceptance } from "@/server/release-acceptance";
-import type { legalRuntimeHealth } from "@/server/legal/runtime-gate";
+import type { releaseAcceptance } from "@/server/modules/platform_administration/public/release-acceptance";
+import type { legalRuntimeHealth } from "@/server/modules/legal/public/legal/runtime-gate";
 import { legalProductionScope } from "@/data/production-scope";
 import s from "./legal.module.css";
 

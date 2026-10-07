@@ -1,10 +1,20 @@
 import type { NextConfig } from "next";
+import { dirname, join } from "node:path";
+const cohortDirectory = process.env.ERPX_DATA_DIR;
+// Case apps link dependencies from an immutable sibling fixture template.
+// Turbopack must resolve both inside its filesystem root (see its root guide).
+const isolatedBrowserRoot = process.env.NODE_ENV === "development" &&
+  process.env.ERPX_ENVIRONMENT === "local" &&
+  process.env.ERPX_BROWSER_SIMULATION === "thai-hotel-v1" &&
+  ["http://127.0.0.1:3102", "http://127.0.0.1:3104"].includes(process.env.ERPX_PUBLIC_ORIGIN ?? "") &&
+  cohortDirectory && /\/\.runtime\/browser\/[a-f0-9]{12}$/.test(cohortDirectory) &&
+  process.cwd() === join(cohortDirectory, "app") ? dirname(cohortDirectory) : undefined;
 const nextConfig: NextConfig = {
   // Version asset URLs so browsers and the CDN load the matching UI bundle.
   deploymentId:
     process.env.NEXT_DEPLOYMENT_ID ?? "navigation-more-20260916-v1",
-  turbopack: { root: process.cwd() },
-  outputFileTracingRoot: process.cwd(),
+  turbopack: { root: isolatedBrowserRoot ?? process.cwd() },
+  outputFileTracingRoot: isolatedBrowserRoot ?? process.cwd(),
   output: "standalone",
   // Keep the public development console's mobile navigation unobstructed.
   // Compile/runtime errors still appear without the floating dev indicator.
@@ -30,7 +40,7 @@ const nextConfig: NextConfig = {
     "console-dev-erpx.jesadakorn.com",
     "dev-pms.jesadakorn.com",
     "dev-pos.jesadakorn.com",
-    ...(process.env.ERPX_BROWSER_SIMULATION_PORT === "3104" ? ["dev-pms.localhost", "dev-pos.localhost"] : []),
+    ...(["3102", "3104"].includes(process.env.ERPX_BROWSER_SIMULATION_PORT ?? "") ? ["dev-pms.localhost", "dev-pos.localhost"] : []),
   ],
   poweredByHeader: false,
   headers() {

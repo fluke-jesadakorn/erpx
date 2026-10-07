@@ -1,10 +1,10 @@
 import { guidedIntakeInputSchema } from "@/lib/ai/guided-intake";
-import { requireWorkContext } from "@/server/authorization";
-import { holdingResources, runtimeEnv } from "@/server/runtime";
-import { ApiError, errorResponse } from "@/server/http";
-import { requestPublicOrigin } from "@/server/public-origin";
-import { guidedIntakeOptions, prepareGuidedIntake } from "@/server/guided-intake";
-import { generateThaiHotelMockAi, isThaiHotelAiMockEnabled } from "@/server/simulation-only-adapters";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { holdingResources, runtimeEnv } from "@/server/modules/runtime/public/runtime";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { guidedIntakeOptions, prepareGuidedIntake } from "@/server/modules/operations/public/guided-intake";
+import { generateThaiHotelMockAi, isThaiHotelAiMockEnabled } from "@/server/modules/runtime/public/simulation-only-adapters";
 
 type Context = { params: Promise<{ holdingSlug: string }> };
 export async function GET(_request: Request, context: Context) {

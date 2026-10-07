@@ -23,12 +23,12 @@ import { FeatureWidget as FeatureWidgetBase, WidgetGrid } from "@/components/fea
 import { ListPagination } from "@/components/ui/list-pagination";
 import { SetupChecklist } from "@/components/ui/setup-checklist";
 import { TaxDocumentReference } from "@/components/hospitality/tax-document-reference";
-import { accountKeys, type PosAccounts } from "@/lib/pos";
+import { accountKeys, type PosAccounts } from "@/server/modules/pos/public/rules/pos";
 import { useMoneyFormatter } from "@/components/money/currency-provider";
 import { posCommerceAccountDefaults, posGeneratedAccountSpecs } from "@/lib/pos-bootstrap";
 import { workFetch } from "@/lib/work-fetch";
-import type { PosWorkspace } from "@/server/pos";
-import type { PosRow } from "@/server/pos-core";
+import type { PosWorkspace } from "@/server/modules/pos/public/pos";
+import type { PosRow } from "@/server/modules/pos/public/pos-core";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import QRCode from "qrcode";

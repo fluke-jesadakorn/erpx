@@ -12,11 +12,11 @@ import {
   publicOffers,
   publicQuote,
   recoverBooking,
-} from "@/server/pms-booking";
-import { ApiError, errorResponse } from "@/server/http";
-import { requestPublicOrigin } from "@/server/public-origin";
-import {guestBookingDocument} from "@/server/pms/guest-document";
-import { publicChangeQuote, confirmBookingChange } from "@/server/pms-booking-changes";
+} from "@/server/modules/pms/public/pms-booking";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import {guestBookingDocument} from "@/server/modules/pms/public/pms/guest-document";
+import { publicChangeQuote, confirmBookingChange } from "@/server/modules/pms/public/pms-booking-changes";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string; action: string }> };
 export async function GET(request: Request, { params }: Context) {

@@ -7,8 +7,8 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { hubResultHref } from "@/lib/hub-result";
 import { workFetch } from "@/lib/work-fetch";
-import type { crmDetail, crmWorkspace } from "@/server/crm";
-import type { crmIdentities } from "@/server/crm-identities";
+import type { crmDetail, crmWorkspace } from "@/server/modules/crm/public/crm";
+import type { crmIdentities } from "@/server/modules/crm/public/crm-identities";
 import { Card, FormLayout } from "@/components/ui/foundation";
 export function CRMConsole({
   base,

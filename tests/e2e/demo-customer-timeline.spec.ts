@@ -5,7 +5,21 @@ import { resolve } from "node:path";
 
 type DemoUser = { email: string; role: string; roles?: string[] };
 type Credentials = { password: string; users: DemoUser[] };
-type DemoState = { fixture?: { customerId?: string } };
+type DemoState = { fixture?: { customerId?: string; quotationId?: string } };
+
+async function openFullProfileView(page: Page, view: "History" | "Summary") {
+  const path = new URL(page.url()).pathname;
+  const href = path + (view === "History" ? "?section=history" : "");
+  const link = page.locator("#workspace-content:visible").getByRole("navigation", { name: "Customer profile views", exact: true }).getByRole("link", { name: view, exact: true });
+  await expect(link).toHaveAttribute("href", href);
+  await link.click();
+  const drawer = page.getByTestId("record-detail-drawer").filter({ visible: true });
+  await expect(drawer).toHaveCount(1);
+  const fullPage = drawer.getByRole("link", { name: "Open full page ↗", exact: true });
+  await expect(fullPage).toHaveAttribute("href", href);
+  await fullPage.click();
+  await expect(page).toHaveURL(new URL(href, page.url()).href);
+}
 
 async function signInRole(context: BrowserContext, page: Page, credentials: Credentials, role: string, path: string) {
   const user = credentials.users.find((item) => item.roles?.includes(role) || item.role === role);
@@ -31,7 +45,9 @@ test("isolated demo exposes a scoped Customer 360 timeline to independent Sales 
   const credentials = JSON.parse(await readFile(resolve(directory, "credentials.json"), "utf8")) as Credentials;
   const state = JSON.parse(await readFile(resolve(directory, "state.json"), "utf8")) as DemoState;
   const customerId = state.fixture?.customerId;
+  const quotationId = state.fixture?.quotationId;
   expect(customerId).toBeTruthy();
+  expect(quotationId).toBeTruthy();
   const operatorContext = await createEngineeringBrowserContext(browser,testInfo);
   const managerContext = await createEngineeringBrowserContext(browser,testInfo);
   const operatorPage = await operatorContext.newPage();
@@ -40,41 +56,62 @@ test("isolated demo exposes a scoped Customer 360 timeline to independent Sales 
   try {
     await signInRole(operatorContext, operatorPage, credentials, "sales_operator", path);
     await expect(operatorPage.getByRole("heading", { name: "Simulation customer only", exact: true })).toBeVisible();
-    await expect(operatorPage.getByRole("heading", { name: "Visible source activity", exact: true })).toBeVisible();
-    await expect(operatorPage.locator("#workspace-content").getByText(/quote ·/i).first()).toBeVisible();
-    await expect(operatorPage.locator("#workspace-content").getByText(/Sales quotations\/orders/).first()).toBeVisible();
-    await expect(operatorPage.locator("#workspace-content").getByText(/payment beneficiary|contact details|ต้นทุน/i)).toHaveCount(0);
-    await expect(operatorPage.getByRole("heading", { name: "Record contact", exact: true })).toBeVisible();
-    const contactTime = operatorPage.locator('#workspace-content').getByLabel("Contact time", { exact: true });
+    const operatorWorkspace = operatorPage.locator("#workspace-content:visible");
+    await expect(operatorWorkspace).toHaveCount(1);
+    const pendingWork = operatorWorkspace.locator("section").filter({ has: operatorPage.getByRole("heading", { name: "Pending work", exact: true }) });
+    await expect(pendingWork).toHaveCount(1);
+    const source = pendingWork.locator(`[data-slot="record-list"] a[href="/holdings/simulation/commerce/orders/${quotationId}?view=quote"]`);
+    await expect(source).toHaveCount(1);
+    await expect(source).toContainText(/Quotation ·/);
+    await expect(source).toHaveAttribute("href", /\/commerce\/orders\/[^?]+\?view=quote$/);
+    await expect(operatorPage.locator("#workspace-content:visible").getByText(/payment beneficiary|contact details|ต้นทุน/i)).toHaveCount(0);
+    await operatorWorkspace.getByRole("button", { name: "Record contact", exact: true }).click();
+    const contact = operatorPage.getByRole("dialog", { name: "Record customer contact", exact: true });
+    await expect(contact).toBeVisible();
+    await expect(contact.getByRole("heading", { name: "Record contact", exact: true })).toBeVisible();
+    const contactTime = contact.getByLabel("Contact time", { exact: true });
     await expect(contactTime).toBeEnabled();
     const instant = Math.floor(Date.now() / 60_000) * 60_000 - 120_000;
-    const timeField = operatorPage.locator("#workspace-content .preferred-date-time-field").filter({ has: operatorPage.getByLabel("Contact time", { exact: true }) });
+    const timeField = contact.locator(".preferred-date-time-field").filter({ has: operatorPage.getByLabel("Contact time", { exact: true }) });
     const timeZone = (await timeField.locator("small").first().textContent())?.match(/^Timezone: ([^\s·]+)/)?.[1];
     expect(timeZone, "the contact editor displays its resolved timezone").toBeTruthy();
     const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(instant).map(part => [part.type, part.value]));
     await contactTime.fill(`${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`);
     await expect(timeField.locator('input[name="occurred"]')).toHaveValue(new Date(instant).toISOString());
-    await operatorPage.getByRole("textbox", { name: "Contact summary", exact: true }).fill("Demo customer asked for the updated service terms by email.");
+    await contact.getByRole("textbox", { name: "Contact summary", exact: true }).fill("Demo customer asked for the updated service terms by email.");
     const [saved] = await Promise.all([
       operatorPage.waitForResponse((response) => response.url().includes("/api/v1/holdings/simulation/customer-notes") && response.request().method() === "POST"),
-      operatorPage.getByRole("button", { name: "Save internal note", exact: true }).click(),
+      contact.getByRole("button", { name: "Save internal note", exact: true }).click(),
     ]);
     expect(saved.ok(), await saved.text()).toBe(true);
     expect(saved.request().postDataJSON().occurredAt).toBe(instant);
     const noteId = (await saved.json()).data.id;
-    await expect(operatorPage.getByRole("paragraph").filter({ hasText: "Demo customer asked for the updated service terms by email." }).first()).toBeVisible();
-    const source = operatorPage.locator("#workspace-content section.card").filter({ hasText: "Visible source activity" }).locator('a[href*="/commerce/orders/"]').first();
+    await expect(contact).not.toBeVisible();
+    await openFullProfileView(operatorPage, "History");
+    await expect(operatorWorkspace.getByRole("heading", { name: "Customer history", exact: true })).toBeVisible();
+    await expect(operatorWorkspace.getByRole("paragraph").filter({ hasText: "Demo customer asked for the updated service terms by email." }).filter({ visible: true })).toBeVisible();
+    await operatorPage.reload();
+    await expect(operatorWorkspace.getByRole("paragraph").filter({ hasText: "Demo customer asked for the updated service terms by email." }).filter({ visible: true })).toBeVisible();
+    await openFullProfileView(operatorPage, "Summary");
     await expect(source).toHaveAttribute("href", /\/commerce\/orders\//);
     await source.click();
+    const sourceDrawer = operatorPage.getByTestId("record-detail-drawer").filter({ visible: true });
+    await expect(sourceDrawer).toHaveCount(1);
+    await expect(sourceDrawer.getByRole("link", { name: "Open full page ↗", exact: true })).toHaveAttribute("href", `/holdings/simulation/commerce/orders/${quotationId}?view=quote`);
+    await sourceDrawer.getByRole("link", { name: "Open full page ↗", exact: true }).click();
     await expect(operatorPage).toHaveURL(/\/commerce\/orders\//);
     await signInRole(managerContext, managerPage, credentials, "sales_manager", path);
-    await expect(managerPage.getByRole("heading", { name: "Visible source activity", exact: true })).toBeVisible();
-    await expect(managerPage.locator("#workspace-content").getByText(/quote ·/i).first()).toBeVisible();
-    await expect(managerPage.getByRole("paragraph").filter({ hasText: "Demo customer asked for the updated service terms by email." }).first()).toBeVisible();
+    const managerWorkspace = managerPage.locator("#workspace-content:visible");
+    await expect(managerWorkspace).toHaveCount(1);
+    await expect(managerWorkspace.getByRole("heading", { name: "Pending work", exact: true })).toBeVisible();
+    await expect(managerWorkspace.locator(`a[href="/holdings/simulation/commerce/orders/${quotationId}?view=quote"]`)).toContainText(/Quotation ·/);
+    await openFullProfileView(managerPage, "History");
+    await expect(managerWorkspace.getByRole("heading", { name: "Customer history", exact: true })).toBeVisible();
+    await expect(managerWorkspace.getByRole("paragraph").filter({ hasText: "Demo customer asked for the updated service terms by email." }).filter({ visible: true })).toBeVisible();
     const notes = await managerContext.request.get(`/api/v1/holdings/simulation/customer-notes?customerId=${customerId}`);
     expect(notes.ok(), await notes.text()).toBe(true);
     expect((await notes.json()).data.notes).toContainEqual(expect.objectContaining({ id: noteId, occurred_at: instant, body: "Demo customer asked for the updated service terms by email." }));
-    await expect(managerPage.locator("#workspace-content").getByText(/payment beneficiary|contact details|ต้นทุน/i)).toHaveCount(0);
+    await expect(managerPage.locator("#workspace-content:visible").getByText(/payment beneficiary|contact details|ต้นทุน/i)).toHaveCount(0);
     await testInfo.attach("customer-timeline-result", { contentType: "application/json", body: JSON.stringify({ run, customerId, roles: ["sales_operator", "sales_manager"], sourceLinkScoped: true, standaloneNoteCreatedAndReloaded: true, restrictedFieldsHidden: true }, null, 2) });
     await managerPage.screenshot({ path: testInfo.outputPath("customer-timeline.png"), fullPage: true });
   } finally {

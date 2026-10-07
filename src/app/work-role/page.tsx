@@ -1,16 +1,16 @@
 
 import { PageContent } from "@/components/ui/patterns";
-import { assignmentApplies, canEnterManageErpx } from "@/server/authorization";
+import { assignmentApplies, canEnterManageErpx } from "@/server/modules/identity_access/public/authorization";
 import { WorkspaceMenu } from "@/components/workplace/workspace-menu";
-import { workspaceChoices } from "@/server/workspace-choices";
+import { workspaceChoices } from "@/server/modules/organization/public/workspace-choices";
 import { redirect } from 'next/navigation';
 import { safeReturnPath } from '@/lib/access-problem';
 import { parseHoldingWorkspace,workspaceBase } from '@/lib/workspace';
-import { workRoleOptions } from '@/server/work-role-options';
+import { workRoleOptions } from "@/server/modules/work_projection/public/work-role-options";
 import { WorkRolePicker } from '@/components/workplace/work-role-picker';
-import { pageError } from '@/server/page-error';
-import { accountQuickAccessItems } from '@/server/account-quick-access';
-import { readQuickAccessPreferences } from '@/server/quick-access-preferences';
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+import { accountQuickAccessItems } from "@/server/modules/identity_access/public/account-quick-access";
+import { readQuickAccessPreferences } from "@/server/modules/work_projection/public/quick-access-preferences";
 import { QuickAccessShelf } from '@/components/quick-access/shelf';
 import rail from '@/components/quick-access/area-rail.module.css';
 export const dynamic='force-dynamic';

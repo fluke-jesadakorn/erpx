@@ -18,7 +18,7 @@ test('new logins restore database holding, company and role with no browser cook
  try {
   expect(await fresh.cookies()).toHaveLength(0);
   const login=await fresh.newPage();await login.goto('/login');
-  await login.getByLabel('Work email').fill(credentials.email);await login.getByLabel('Password',{exact:true}).fill(credentials.password);
+  await login.getByLabel('Work email').fill(credentials.email);await login.getByLabel(/^Password(?:\s*\*)?$/).fill(credentials.password);
   await login.getByRole('button',{name:'Sign in',exact:true}).click();
   await expect(login).toHaveURL(/\/holdings\/acme\/home$/);
   await expect(login.locator('[data-work-company]')).toHaveAttribute('data-work-company','beacon-co');
@@ -36,9 +36,10 @@ test('new logins restore database holding, company and role with no browser cook
    // Explicit login destinations still win over the saved business area.
    await next.request.post('/api/auth/sign-out');
    await nextPage.goto('/login?next=%2Fplatform%2Fhome');
-   await nextPage.getByLabel('Work email').fill(credentials.email);await nextPage.getByLabel('Password',{exact:true}).fill(credentials.password);
+   await nextPage.getByLabel('Work email').fill(credentials.email);await nextPage.getByLabel(/^Password(?:\s*\*)?$/).fill(credentials.password);
    await nextPage.getByRole('button',{name:'Sign in',exact:true}).click();
-   await expect(nextPage).toHaveURL(/\/platform\/home$/);
+   await expect(nextPage).toHaveURL(/\/holdings\/erpx\/manage-erpx$/);
+   await expect(nextPage.getByRole('heading',{name:'ERPX Management',exact:true})).toBeVisible();
   } finally {await next.close();}
  } finally {
   await fresh.close();

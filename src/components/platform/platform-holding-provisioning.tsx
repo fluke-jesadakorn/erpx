@@ -12,7 +12,7 @@ import { useState } from "react";
 import type {
   PlatformProvisioningSnapshot,
   ProvisionHoldingResult,
-} from "@/server/platform-operations";
+} from "@/server/modules/platform_administration/public/platform-operations";
 import type { ResourceSlot } from "@/lib/holding-registry";
 import { Card, TableFrame, FormLayout } from "@/components/ui/foundation";
 

@@ -1,0 +1,11 @@
+import "server-only";
+import { publicScope } from "@/server/modules/identity_access/public/authorization";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { workSnapshot } from "./work-items";
+import { getWorkCapabilities } from "./work-capabilities";
+import { navigationContext } from "../public/navigation-context";
+import { readWorkCardPreferences } from "./work-card-preferences";
+import { createWorkSummary } from "../application/work-summary";
+const service = createWorkSummary({ clock: { now: () => Date.now() }, scope: publicScope, resource: async (actor) => { const { write } = await holdingResources(actor.holdingId); return { capabilities: actor => getWorkCapabilities(write, actor), preferences: actor => readWorkCardPreferences(write, actor) }; }, navigation: navigationContext, snapshot: workSnapshot });
+export const getWorkCardProjection = service.getWorkCardProjection, getWorkSummary = service.getWorkSummary, getWorkPage = service.getWorkPage;
+export type { WorkSummary, WorkPageSummary } from "../application/work-summary";

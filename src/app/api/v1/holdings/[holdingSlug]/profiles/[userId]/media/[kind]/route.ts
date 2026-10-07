@@ -1,7 +1,7 @@
-import { requireWorkContext } from "@/server/authorization";
-import { holdingResources } from "@/server/runtime";
-import { profileMediaRow } from "@/server/member-profiles";
-import { ApiError, errorResponse } from "@/server/http";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
+import { profileMediaRow } from "@/server/modules/organization/public/member-profiles";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 
 export async function GET(_request: Request, context: RouteContext<"/api/v1/holdings/[holdingSlug]/profiles/[userId]/media/[kind]">) {
   try {

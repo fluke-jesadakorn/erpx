@@ -11,12 +11,12 @@ import {
 } from "@/components/modules/payroll-workspace";
 import { hasPermission } from "@/lib/permissions";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { pageError } from "@/server/page-error";
-import { listCountryPacks,payrollOptions, payrollPostingOptions } from "@/server/people-payroll";
-import { thaiPayrollConfiguration } from "@/server/payroll-statutory";
-import { getPayrollSchedule } from "@/server/payroll-readiness";
-import { isThaiHotelPayrollMockEnabled } from "@/server/simulation-only-adapters";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+import { listCountryPacks,payrollOptions, payrollPostingOptions } from "@/server/modules/people_payroll/public/people-payroll";
+import { thaiPayrollConfiguration } from "@/server/modules/people_payroll/public/payroll-statutory";
+import { getPayrollSchedule } from "@/server/modules/people_payroll/public/payroll-readiness";
+import { isThaiHotelPayrollMockEnabled } from "@/server/modules/runtime/public/simulation-only-adapters";
 import { forbidden } from "next/navigation";
 import { PageContent, Card } from "@/components/ui/foundation";
 

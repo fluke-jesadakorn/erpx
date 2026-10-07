@@ -1,8 +1,8 @@
-import { requireWorkContext } from "@/server/authorization";
-import { acknowledgeHandover, handoverAcknowledgement } from "@/server/handover";
-import { ApiError, errorResponse } from "@/server/http";
-import { requestPublicOrigin } from "@/server/public-origin";
-import { holdingResources } from "@/server/runtime";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { acknowledgeHandover, handoverAcknowledgement } from "@/server/modules/operations/public/handover";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { holdingResources } from "@/server/modules/runtime/public/runtime";
 
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string; postId: string }> };

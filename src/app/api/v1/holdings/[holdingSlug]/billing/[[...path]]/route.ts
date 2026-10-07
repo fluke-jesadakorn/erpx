@@ -1,3 +1,3 @@
-import { billingHandler } from "@/server/billing-api";
+import { billingHandler } from "@/server/modules/billing/public/billing-api";
 export const GET = billingHandler(false);
 export const POST = billingHandler(false);

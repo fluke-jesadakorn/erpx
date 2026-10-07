@@ -1,0 +1,1 @@
+export {type CompanyRow,type NodeRow,type LevelRow,type PositionRow,type PersonRow,type DirectorySelection,type DirectorySelectionRecord,type SelectedPersonRow,archivedScope} from '../domain/directory-projection';

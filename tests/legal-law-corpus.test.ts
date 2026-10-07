@@ -10,11 +10,11 @@ import { legalCitation } from "../src/server/legal/citations";
 import { bangkokSourceCheckDate, drainLegalSourceChecks, lawCorpusCommand, lawCorpusView, officialLawUrl } from "../src/server/legal/law-corpus";
 import { lawCitation, lawKnowledge, legalKnowledge, retrieveLegalAiEvidence, revalidateLegalAiEvidence, validateLegalAiCitations } from "../src/server/legal/knowledge";
 vi.mock("../src/server/runtime", () => ({ runtimeEnv: async () => env, holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }) }));
-vi.mock("../src/server/attachments/scanner", () => ({
+vi.mock("../src/server/modules/files/public/attachments/scanner", () => ({
   attachmentScannerReadiness: async () => ({ enabled: true, ready: true, engine: "simulated scanner", definitionUpdatedAt: Date.now(), error: null }),
   scanAttachmentBytes: async () => ({ clean: true, signature: null, engine: "simulated scanner", definitionUpdatedAt: Date.now() }),
 }));
-vi.mock("../src/server/attachments/preview", () => ({ attachmentPreviewReadiness: async () => ({ ready: true, error: null }), detectedAttachmentMediaType: (_bytes: Uint8Array, type: string) => type, sanitizedAttachmentPreview: async () => null }));
+vi.mock("../src/server/modules/files/public/attachments/preview", () => ({ attachmentPreviewReadiness: async () => ({ ready: true, error: null }), detectedAttachmentMediaType: (_bytes: Uint8Array, type: string) => type, sanitizedAttachmentPreview: async () => null }));
 const db = env.H001_DB, key = () => crypto.randomUUID(), text = "ข้อความสมมติสำหรับการทดสอบ สิทธิขอสำเนาข้อมูลส่วนบุคคล ต้องตรวจฉบับและข้อเท็จจริง ไม่ใช่ข้อสรุปกฎหมายจริง";
 let f: Awaited<ReturnType<typeof seedExpenseCompany>>;
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });

@@ -7,7 +7,7 @@ import { workFetch } from "@/lib/work-fetch";
 import { useEffect, useState } from "react";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { useStaffCommand } from "@/components/modules/staff-work-controls";
-import type { requestAiStatus } from "@/server/request-ai";
+import type { requestAiStatus } from "@/server/modules/records/public/request-ai";
 import styles from "./services.module.css";
 type Status = Awaited<ReturnType<typeof requestAiStatus>>;
 export function RequestAi({

@@ -4,8 +4,8 @@ import { z } from "zod";
 import { LeaveEditor } from "@/components/self-service/leave-editor";
 import styles from "@/components/leave/leave-flow.module.css";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { leaveSummary } from "@/server/leave-self-service";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { leaveSummary } from "@/server/modules/people_payroll/public/leave-self-service";
 
 export const dynamic = "force-dynamic";
 

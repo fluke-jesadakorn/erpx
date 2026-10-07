@@ -14,7 +14,7 @@ import {
   type ProvisioningInput,
   type ProvisioningPreview,
   type TechnologyData,
-} from "@/lib/technology";
+} from "@/server/modules/identity_access/public/rules/technology";
 import type { PeopleLifecycleData } from "@/lib/people-lifecycle";
 import styles from "./technology.module.css";
 import consoleStyles from "./provisioning-console.module.css";
@@ -50,7 +50,7 @@ export function ProvisioningWorkspace({ appearance = "legacy",
     [search, setSearch] = useState(""),
     [statusFilter, setStatusFilter] = useState("all"),
     [source, setSource] = useState<"position" | "supplemental">("position"),
-    [withdraw, setWithdraw] = useState<import("@/lib/technology").AppliedPackage | null>(null);
+    [withdraw, setWithdraw] = useState<import("@/server/modules/identity_access/public/rules/technology").AppliedPackage | null>(null);
   const pending = data.operations.some((op) => ["queued", "running", "retry"].includes(op.status));
   useEffect(() => {
     if (!pending) return;

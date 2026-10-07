@@ -58,6 +58,31 @@ it('binds authenticated portal evidence atomically and denies revoked or cross-c
 it('rejects expired and stale customer portal action bindings',async()=>{
  const body=input(),id=String((await requestCustomerAccess(requester,body,key())).id);await changeCustomerAccess(reviewer,id,{action:'approve',expectedVersion:1,reason:'Independent portal action review'},key());await db.prepare('INSERT INTO customer_access_identities(binding_id,user_id,email,bound_at) VALUES(?,?,?,?)').bind(id,'customer-user-1',body.email,Date.now()).run();await expect(customerPortalCommand(db,{userId:'customer-user-1',email:body.email},{bindingId:id,expectedBindingVersion:1,action:'request_support',note:''},key())).rejects.toMatchObject({code:'CUSTOMER_PORTAL_BINDING_CHANGED'});await changeCustomerAccess(requester,id,{action:'revoke',expectedVersion:2,reason:'Customer authority expired for this test'},key());await expect(customerPortalCommand(db,{userId:'customer-user-1',email:body.email},{bindingId:id,expectedBindingVersion:3,action:'request_support',note:''},key())).rejects.toMatchObject({code:'CUSTOMER_PORTAL_BINDING_EXPIRED'});
 });
+it('rolls back customer evidence, grant version, notifications and audit when the final outbox handoff fails, then replays a retry',async()=>{
+ const body=input(),id=String((await requestCustomerAccess(requester,body,key())).id);
+ await changeCustomerAccess(reviewer,id,{action:'approve',expectedVersion:1,reason:'Independent customer authority accepted'},key());
+ const identity={userId:'customer-rollback-user',email:body.email};await customerPortalProjection(db,identity);
+ const file=await seedAttachmentSet(db,requester,{targetType:'customer_access_binding',targetId:id,purposeKey:'customer_support_evidence',componentKind:'action',componentRef:'request_support',expectedTargetVersion:2});
+ const actor={...identity,holdingId:f.owner.holdingId,holdingSlug:f.owner.holdingSlug,holdingName:f.owner.holdingName},commandKey=key(),payload={bindingId:id,expectedBindingVersion:2,action:'request_support',note:'Clean package evidence',attachmentSetIds:[file.setId]};
+ const fault=`portal_late_${crypto.randomUUID().replaceAll('-','')}`;
+ await db.prepare(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.event_type='customer.portal.request_support' THEN RAISE EXCEPTION 'CUSTOMER_PORTAL_LATE_HANDOFF' USING ERRCODE='23514'; END IF; RETURN NEW; END $$`).run();
+ await db.prepare(`CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION ${fault}()`).run();
+ try {
+  await expect(customerPortalCommand(db,actor,payload,commandKey)).rejects.toMatchObject({code:'23514'});
+  expect(await db.prepare('SELECT version FROM customer_access_bindings WHERE id=?').bind(id).first()).toEqual({version:2});
+  expect(await db.prepare('SELECT id FROM customer_portal_actions WHERE request_key=?').bind(commandKey).first()).toBeNull();
+  expect(await db.prepare('SELECT id FROM audit_events WHERE command_id=?').bind(commandKey).first()).toBeNull();
+  expect(await db.prepare('SELECT id FROM staff_notifications WHERE record_id=? AND message LIKE ?').bind(orderId,'Customer %').first()).toBeNull();
+  expect(await attachmentBindingState(db,file.setId)).toMatchObject({set_state:'draft',link_state:'draft'});
+ } finally {
+  await db.prepare(`DROP TRIGGER ${fault} ON outbox_events`).run();await db.prepare(`DROP FUNCTION ${fault}()`).run();
+ }
+ const result=await customerPortalCommand(db,actor,payload,commandKey);
+ expect(await customerPortalCommand(db,actor,payload,commandKey)).toEqual(result);
+ expect(await db.prepare('SELECT version FROM customer_access_bindings WHERE id=?').bind(id).first()).toEqual({version:3});
+ expect(await attachmentBindingState(db,file.setId)).toMatchObject({set_state:'bound',link_state:'bound'});
+ expect(Number((await db.prepare('SELECT count(*) AS count FROM customer_portal_actions WHERE request_key=?').bind(commandKey).first<{count:number}>())?.count)).toBe(1);
+});
 it('revokes immediately, hides wrong-scope bindings and blocks stale decisions',async()=>{
  const body=input(),id=String((await requestCustomerAccess(requester,body,key())).id);await changeCustomerAccess(reviewer,id,{action:'approve',expectedVersion:1,reason:'Independent recipient review complete'},key());await expect(changeCustomerAccess(reviewer,id,{action:'reject',expectedVersion:1,reason:'Stale parallel review'},key())).rejects.toMatchObject({code:'CONFLICT'});await changeCustomerAccess(requester,id,{action:'revoke',expectedVersion:2,reason:'Customer contact authority was withdrawn'},key());expect((await customerPortalProjection(db,{userId:'customer-user-1',email:body.email})).items).toEqual([]);for(const a of [{...requester,companyId:'other'},{...requester,branchId:'other'},{...requester,departmentId:'other'}])expect((await customerAccessWorkspace(a)).rows).toEqual([]);
 });

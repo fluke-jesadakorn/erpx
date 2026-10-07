@@ -2,8 +2,8 @@
 import {useSearchParams} from 'next/navigation';
 import {RecordCollectionDrawer,RecordFacts,CollectionRecordLink} from './record-collection';
 import {Table,TableFrame} from '@/components/ui/table';
-import type {pmsHotelSources} from '@/server/pms/home';
-import type {PmsWorkspace} from '@/server/pms';
+import type {pmsHotelSources} from "@/server/modules/pms/public/pms/home";
+import type {PmsWorkspace} from "@/server/modules/pms/public/pms";
 type Sources=Awaited<ReturnType<typeof pmsHotelSources>>;
 export function PmsHotelSources({api,frontHref}:{api:string;frontHref:string}){
  const query=useSearchParams();let args:Record<string,string>={};try{args=JSON.parse(query.get('detailArgs')??'{}');}catch{}

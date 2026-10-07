@@ -1,12 +1,12 @@
 import { InlineNotice } from "@/components/ui/foundation";
 import { TimeText } from "@/components/time/time-preference-context";
-import {supportEvidence} from "@/server/support-evidence";
+import {supportEvidence} from "@/server/modules/support/public/support-evidence";
 import {SupportEvidenceConsole} from "@/components/modules/support-evidence-console";
 import { RecordLink as Link } from "@/components/records/record-link";
-import {requireWorkContext,publicScope} from '@/server/authorization';
+import {requireWorkContext,publicScope} from "@/server/modules/identity_access/public/authorization";
 import {workspaceBase} from '@/lib/workspace';
-import {pageError} from '@/server/page-error';
-import {supportDetail} from '@/server/support';
+import {pageError} from "@/server/modules/work_projection/public/page-error";
+import {supportDetail} from "@/server/modules/support/public/support";
 import {SupportSlaConsole} from '@/components/modules/support-sla-console';
 import {SupportConsole} from '@/components/modules/support-console';
 import { PageContent, Card } from "@/components/ui/foundation";

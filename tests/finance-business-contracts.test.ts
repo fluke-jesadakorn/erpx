@@ -435,3 +435,46 @@ it("rejects self approval, stale sources, cross-Company access and billed-window
     ),
   ).rejects.toMatchObject({ code: "CONTRACT_CHANGED" });
 });
+it("rolls back prepared billing invoice and receipts if scheduled completion fails, then retries its retained source exactly once",async()=>{
+ const c=await active(),scheduled=await scheduleFinanceDraft(f.owner,{kind:"billing",sourceId:c.id,runOn:"2026-09-16",input:{expectedVersion:2,month:"2026-09",invoiceDate:"2026-09-16",dueDate:"2026-09-30"},reason:"Prepare original source under retained delegation"},key()),id=String(scheduled.id),command=`${id}:draft`,fault=`finance_due_fault_${crypto.randomUUID().replaceAll("-","")}`,now=new Date("2026-09-16T12:00:00Z");
+ const retained=await db.prepare("SELECT input_json,input_hash,source_version,assignment_version FROM finance_due_drafts WHERE id=?").bind(id).first();
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'FINANCE_DUE_COMPLETION_FAULT' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER UPDATE ON finance_due_drafts FOR EACH ROW WHEN (NEW.status='prepared') EXECUTE FUNCTION ${fault}();`);
+ try{
+  expect(await drainFinanceDueDrafts(db,f.owner.holdingId,now)).toBe(0);
+  expect(await db.prepare("SELECT status,last_code,version,attempts,result_json FROM finance_due_drafts WHERE id=?").bind(id).first()).toMatchObject({status:"blocked",last_code:"FINANCE_SCHEDULE_RETRY",version:2,attempts:1,result_json:null});
+  expect(Number(await db.prepare("SELECT count(*) n FROM finance_business_billing_runs WHERE root_id=?").bind(c.id).first("n"))).toBe(0);
+  expect(Number(await db.prepare("SELECT count(*) n FROM finance_invoices WHERE company_id=?").bind(f.company).first("n"))).toBe(0);
+  for(const table of ["command_receipts","audit_events","outbox_events"])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first("n"))).toBe(0);
+  expect(await db.prepare("SELECT input_json,input_hash,source_version,assignment_version FROM finance_due_drafts WHERE id=?").bind(id).first()).toEqual(retained);
+ }finally{await db.exec(`DROP TRIGGER ${fault} ON finance_due_drafts;DROP FUNCTION ${fault}();`);}
+ await decideFinanceDueDraft(f.owner,id,{expectedVersion:2,reason:"Retry unchanged retained source after worker fault"},"retry",key());
+ expect(await drainFinanceDueDrafts(db,f.owner.holdingId,now)).toBe(1);expect(await drainFinanceDueDrafts(db,f.owner.holdingId,now)).toBe(0);
+ expect(Number(await db.prepare("SELECT count(*) n FROM finance_business_billing_runs WHERE root_id=?").bind(c.id).first("n"))).toBe(1);expect(Number(await db.prepare("SELECT count(*) n FROM finance_invoices WHERE company_id=?").bind(f.company).first("n"))).toBe(1);
+ for(const table of ["command_receipts","audit_events","outbox_events"])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first("n"))).toBe(1);
+ expect(await db.prepare("SELECT status,version,attempts,last_code FROM finance_due_drafts WHERE id=?").bind(id).first()).toEqual({status:"prepared",version:4,attempts:2,last_code:null});
+ expect(await db.prepare("SELECT input_json,input_hash,source_version,assignment_version FROM finance_due_drafts WHERE id=?").bind(id).first()).toEqual(retained);
+});
+it("restores the retained invoice and billing edition on final revision outbox failure, then retries and replays once",async()=>{
+ const c=await active(),original=await prepareBusinessBilling(f.owner,c.id,{expectedVersion:2,month:'2026-09',invoiceDate:'2026-09-16',dueDate:'2026-09-30'},key());
+ const request={expectedVersion:1,invoiceExpectedVersion:1,billing:{month:'2026-09',invoiceDate:'2026-09-30',dueDate:'2026-10-15'},pricing:{kind:'flat' as const,amount:'80.01'},reason:'Retain the original bill while reviewing corrected service pricing'},command=key(),fault=`business_revision_fault_${crypto.randomUUID().replaceAll('-','')}`;
+ const snapshots=async()=>Promise.all([
+  db.prepare('SELECT * FROM finance_business_contracts WHERE id=?').bind(c.id).first(),
+  db.prepare('SELECT * FROM finance_business_billing_runs WHERE root_id=? ORDER BY id').bind(c.id).all().then(rows=>rows.results),
+  db.prepare('SELECT * FROM finance_invoices WHERE company_id=? ORDER BY id').bind(f.company).all().then(rows=>rows.results),
+  db.prepare('SELECT * FROM finance_invoice_line_versions WHERE invoice_id IN(SELECT id FROM finance_invoices WHERE company_id=?) ORDER BY id').bind(f.company).all().then(rows=>rows.results),
+  db.prepare('SELECT * FROM money_transaction_snapshots WHERE company_id=? ORDER BY source_type,source_id,amount_kind').bind(f.company).all().then(rows=>rows.results),
+ ]),before=await snapshots();
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'BUSINESS_REVISION_FINAL_OUTBOX' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.event_type='finance.business-billing.revise') EXECUTE FUNCTION ${fault}();`);
+ try{
+  await expect(prepareBusinessBillingRevision(f.owner,String(original.id),request,command)).rejects.toThrow('BUSINESS_REVISION_FINAL_OUTBOX');
+  expect(await snapshots()).toEqual(before);
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id IN (?,?)`).bind(command,`${command}-invoice`).first('n'))).toBe(0);
+ }finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
+ const corrected=await prepareBusinessBillingRevision(f.owner,String(original.id),request,command);
+ expect(await prepareBusinessBillingRevision(f.owner,String(original.id),request,command)).toEqual(corrected);
+ expect(corrected).toMatchObject({result:{subtotal:'40.01'}});
+ expect(await db.prepare('SELECT status,version FROM finance_invoices WHERE id=?').bind(original.invoiceId).first()).toEqual({status:'voided',version:2});
+ expect(Number(await db.prepare('SELECT count(*) n FROM finance_business_billing_runs WHERE parent_run_id=?').bind(original.id).first('n'))).toBe(1);
+ expect(Number(await db.prepare('SELECT count(*) n FROM finance_invoices WHERE company_id=?').bind(f.company).first('n'))).toBe(2);
+ for(const table of ['command_receipts','audit_events','outbox_events'])for(const receipt of [command,`${command}-invoice`])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(receipt).first('n'))).toBe(1);
+});

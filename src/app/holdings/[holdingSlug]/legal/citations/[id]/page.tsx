@@ -1,10 +1,11 @@
+import { legalPresentationQueries } from "@/server/modules/legal/public/presentation-queries";
 
 import { PageContent } from "@/components/ui/patterns";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { requireWorkContext } from "@/server/authorization";
-import { holdingResources } from "@/server/runtime";
-import { legalCitation } from "@/server/legal/citations";
-import { pageError } from "@/server/page-error";
+import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+
+
+import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function CitationPage({
@@ -16,10 +17,10 @@ export default async function CitationPage({
 }) {
   const { holdingSlug, id } = await params;
   const actor = await requireWorkContext(holdingSlug),
-    { write } = await holdingResources(actor.holdingId);
+    presentation = await legalPresentationQueries(actor.holdingId);
   // This Next runtime URI-encodes dynamic page params before passing them to
   // user code. Restore the typed source ID once at the transport boundary.
-  const source = await legalCitation(write, actor, decodeURIComponent(id), (await searchParams).asOf).catch((error) =>
+  const source = await presentation.legalCitation(actor, decodeURIComponent(id), (await searchParams).asOf).catch((error) =>
     pageError(error, holdingSlug),
   );
   const base = `/holdings/${holdingSlug}/legal`;

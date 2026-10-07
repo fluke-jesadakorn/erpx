@@ -1,0 +1,1 @@
+export const organizationChannelAssignmentSql=`EXISTS(SELECT 1 FROM assignments oa WHERE oa.company_id=op.company_id AND oa.user_id=op.user_id AND oa.revoked_at IS NULL AND oa.valid_from<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND oa.valid_until>floor(extract(epoch FROM clock_timestamp())*1000)::bigint)`;

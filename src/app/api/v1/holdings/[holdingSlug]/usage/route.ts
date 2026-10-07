@@ -1,6 +1,6 @@
-import { requireWorkContext, requestedHoldingScope } from "@/server/authorization";
-import { ApiError, errorResponse } from "@/server/http";
-import { readHoldingUsage, usageMonth } from "@/server/usage";
+import { requireWorkContext, requestedHoldingScope } from "@/server/modules/identity_access/public/authorization";
+import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
+import { readHoldingUsage, usageMonth } from "@/server/modules/commercial/public/usage";
 import { hasPermission } from "@/lib/permissions";
 
 export async function GET(request: Request, context: { params: Promise<{ holdingSlug: string }> }) {

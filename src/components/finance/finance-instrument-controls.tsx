@@ -19,7 +19,7 @@ import {
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { FinanceExpansionDecision } from "./finance-expansion-decision";
 import {FinancePrepareOn,financeDraftCommand} from "./finance-prepare-on";
-import type { InstrumentInput } from "@/lib/finance-instrument-policy";
+import type { InstrumentInput } from "@/server/modules/finance/public/rules/finance-instrument-policy";
 import { RecordLink } from "@/components/records/record-link";
 type Row = Record<string, string | number | null>;
 type Data = {

@@ -15,9 +15,9 @@ import { workFetch } from "@/lib/work-fetch";
 import { InvoiceSlipUpload, type InvoiceSlipSelection } from "./invoice-slip-upload";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Row } from "@/server/commerce";
+import type { Row } from "@/server/modules/commerce/public/commerce";
 import { minorToDecimal } from "@/lib/finance-money";
-import { businessDate } from "@/lib/pos";
+import { businessDate } from "@/server/modules/pos/public/rules/pos";
 import {
   AttachmentPanel,
   type AttachmentPanelChange,

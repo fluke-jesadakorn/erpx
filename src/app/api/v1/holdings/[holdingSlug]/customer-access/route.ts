@@ -1,7 +1,7 @@
-import {requireWorkContext} from '@/server/authorization';
-import {requestPublicOrigin} from '@/server/public-origin';
-import {ApiError,errorResponse} from '@/server/http';
-import {changeCustomerAccess,customerAccessHistory,customerAccessWorkspace,requestCustomerAccess} from '@/server/customer-access';
+import {requireWorkContext} from "@/server/modules/identity_access/public/authorization";
+import {requestPublicOrigin} from "@/server/modules/manage_erpx/public/public-origin";
+import {ApiError,errorResponse} from "@/server/modules/runtime/public/http";
+import {changeCustomerAccess,customerAccessHistory,customerAccessWorkspace,requestCustomerAccess} from "@/server/modules/customer_authority/public/customer-access";
 type Context={params:Promise<{holdingSlug:string}>};
 const headers={'Cache-Control':'private, no-store'};
 export async function GET(r:Request,c:Context){try{const a=await requireWorkContext((await c.params).holdingSlug),id=new URL(r.url).searchParams.get('id');return Response.json({data:id?await customerAccessHistory(a,id):await customerAccessWorkspace(a)},{headers});}catch(e){return errorResponse(e);}}
