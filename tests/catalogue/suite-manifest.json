@@ -9135,6 +9135,54 @@
       }
     },
     {
+      "id": "shared.ui.ui-standard-guard.unit",
+      "lane": "unit",
+      "owner": "shared.ui",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "files": [
+        "tests/unit/shared.ui/ui-standard-guard.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
       "id": "shared.architecture.architecture-boundaries.unit",
       "lane": "unit",
       "owner": "shared.architecture",

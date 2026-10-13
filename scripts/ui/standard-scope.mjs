@@ -35,6 +35,8 @@ export const sharedAdapters = [
   "src/app/login/login-form.tsx",
   "src/components/workplace/workplace-controls.tsx", "src/components/workplace/app-navigation.tsx",
   "src/components/shared/features/feature-page.tsx", "src/components/shared/features/feature-widget.tsx",
+  // Navigation context extracted from feature-page; it preserves children and the legacy cut-page default.
+  "src/components/shared/features/feature-environment.tsx",
   "src/components/finance/finance-workspace.tsx", "src/components/projects/project-structure-console.tsx",
   "src/app/holdings/[holdingSlug]/account-switcher.tsx", "src/components/workplace/role-select.tsx",
   "src/components/finance/money/currency-provider.tsx",

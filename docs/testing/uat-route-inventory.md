@@ -1,6 +1,6 @@
 # ERPX UAT route inventory
 
-Generated from `src/app` page files on 2026-10-14. The route source fingerprint is `e9d8dbce79d0ccad4a288586fe16c3b8344c955bc917522f5c41ad238381aab1`. This inventories implemented page files and is not a capability-catalog acceptance claim.
+Generated from `src/app` page files on 2026-10-14. The route source fingerprint is `e7a2e9d04dfb9b6513716bcd47425e7166dff88e81e9c64612c918fe0e08b924`. This inventories implemented page files and is not a capability-catalog acceptance claim.
 
 - 227 page routes in source (current source count)
 - Desktop Chrome and Pixel 7 emulation

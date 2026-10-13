@@ -1,23 +1,31 @@
 [
   {
     "source": "src/app/book/[holdingSlug]/[propertyId]/page.tsx",
-    "fingerprint": "df8b02dcb548eec47a78d56ec028d9cacb192f5b6ddd54ae2ac68048c9daa815",
-    "reason": "deferred-pms-pos"
+    "fingerprint": "db496de7d6a172b163afc65065781ec92e7bb111336e81083b2499c65d6119be",
+    "reason": "deferred-pms-pos",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reconcile the committed owner-import/record-workflow baseline; this follow-up does not change the source or specialized geometry."
   },
   {
     "source": "src/app/book/[holdingSlug]/layout.tsx",
-    "fingerprint": "c8d4b162f08b00c71e091809bb8138b0c6bf721f4ce9e822f6b03faea3576ebe",
-    "reason": "deferred-pms-pos"
+    "fingerprint": "1add80bba8a9c5ab59d706c9a58bdb9a3292a96d737eae88a6cd72aef2a354f3",
+    "reason": "deferred-pms-pos",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation."
   },
   {
     "source": "src/app/book/[holdingSlug]/manage/page.tsx",
-    "fingerprint": "40040586371d77c5c6c3af386cc829aed0d48cbb735e8d42913ad5e0a87cf24d",
-    "reason": "deferred-pms-pos"
+    "fingerprint": "e828c670be2f8983ee087df1729565eadd5d8d62b917d526901d60c7b48bcbfb",
+    "reason": "deferred-pms-pos",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reconcile the committed owner-import/record-workflow baseline; this follow-up does not change the source or specialized geometry."
   },
   {
     "source": "src/app/book/[holdingSlug]/page.tsx",
-    "fingerprint": "902334b97219c5af7eaa3fc688997a5349dfc989888e24ab84c2b8654de60ec3",
-    "reason": "deferred-pms-pos"
+    "fingerprint": "b8da95b4c2133cbd905c8911bd640f62657d2720a5be83756c2219e58c04e27a",
+    "reason": "deferred-pms-pos",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation."
   },
   {
     "source": "src/app/front-access/error.tsx",
@@ -36,8 +44,10 @@
   },
   {
     "source": "src/app/front-access/icon/[size]/route.ts",
-    "fingerprint": "4da8fceb72eed21980850a995aa1eb6b870aa85c5fddde3af4139e5d6bede7a3",
-    "reason": "deferred-pms-pos"
+    "fingerprint": "a33c19e5a79167a7449a868ec628e425ddbd74c44538e679f9bc1b9fc54369ba",
+    "reason": "deferred-pms-pos",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reconcile the committed owner-import/record-workflow baseline; this follow-up does not change the source or specialized geometry."
   },
   {
     "source": "src/app/front-access/layout.tsx",
@@ -46,8 +56,10 @@
   },
   {
     "source": "src/app/front-access/login/page.tsx",
-    "fingerprint": "c038fbd852059793aa39032a64fb8cbc9317d893172c221e1305b44766d02864",
-    "reason": "deferred-pms-pos"
+    "fingerprint": "b045fd109c63dbebcd81d44462fd2a30f70bcf4826a537d7ccfe7f84532d281c",
+    "reason": "deferred-pms-pos",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation."
   },
   {
     "source": "src/app/front-access/manifest.webmanifest/route.ts",
@@ -56,8 +68,10 @@
   },
   {
     "source": "src/app/front-access/page.tsx",
-    "fingerprint": "a1ea543181eaa689ed2895c5f60a3ba0b94b4a4ea4d7bd5c22dae9be4230f268",
-    "reason": "deferred-pms-pos"
+    "fingerprint": "1f35a055d88ec420e1e239fbedc354162b6fe2ef16edcac88cff91f4ccda794d",
+    "reason": "deferred-pms-pos",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation."
   },
   {
     "source": "src/app/front-access/reset-password/page.tsx",
@@ -71,29 +85,38 @@
   },
   {
     "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/[[...path]]/page.tsx",
-    "fingerprint": "2225b3ee362ac773e351ddafc9dc0f35f6c91c24bb8dc15eb2fe11c2af99570c",
+    "fingerprint": "b1a693cfeb4cdc9f1a1ad1bb433c4c063cdce7606caed4cec2f6bc8c4f9066c9",
     "reason": "deferred-pms-pos",
-    "reviewReason": "Record drawer owner links and embedded detail adapters; specialized presentation retained."
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation.",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de"
   },
   {
     "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/apple-icon.png/route.ts",
-    "fingerprint": "7de4ef56ebd0156bb41550e23e96ba5ea5b5d26b97a272c974967fc838a70e29",
-    "reason": "deferred-pms-pos"
+    "fingerprint": "05f64408800c6ef86638da62371dcfc5c614d90e84b5964e0b234f524a1013eb",
+    "reason": "deferred-pms-pos",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reconcile the committed owner-import/record-workflow baseline; this follow-up does not change the source or specialized geometry."
   },
   {
     "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/icon/[size]/route.ts",
-    "fingerprint": "b113b5b5888e8aec7ac8809a95690d1d457db68e2598319ef43703be13e1ea0a",
-    "reason": "deferred-pms-pos"
+    "fingerprint": "061207f40a4658ed527b6431e82090c39c3122e9b2029cbb6b3eaad8c46fbdb8",
+    "reason": "deferred-pms-pos",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reconcile the committed owner-import/record-workflow baseline; this follow-up does not change the source or specialized geometry."
   },
   {
     "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/logo/route.ts",
-    "fingerprint": "3121f2f73a5a12b5d8b2cf33c28408c3fa075623791abce29edb09ab563d23ee",
-    "reason": "deferred-pms-pos"
+    "fingerprint": "b6c3200a069efe07c7d55805b62854c47760f30856135f3d46af31e2cb8b805d",
+    "reason": "deferred-pms-pos",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reconcile the committed owner-import/record-workflow baseline; this follow-up does not change the source or specialized geometry."
   },
   {
     "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/manifest.webmanifest/route.ts",
-    "fingerprint": "023d219bd208a80f834b88c1b219dc56b449e5c13d96e38b805b30e6445836f0",
-    "reason": "deferred-pms-pos"
+    "fingerprint": "e7f691e991eba7182a69a32622918d2b5e7780fcd6d69780f722c61ed9653aa1",
+    "reason": "deferred-pms-pos",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reconcile the committed owner-import/record-workflow baseline; this follow-up does not change the source or specialized geometry."
   },
   {
     "source": "src/app/front/error.tsx",
@@ -107,37 +130,45 @@
   },
   {
     "source": "src/app/holdings/[holdingSlug]/calendar/page.tsx",
-    "fingerprint": "d6c23030b76f5e05a7f1dbb146c8ce2ad51a38a1495eba6697b0a63090d353bd",
-    "reason": "specialized calendar grid ancestor dimensions"
+    "fingerprint": "348565dd5dc7afa94d7ee44b98db81d91224e7944b5cc40409445e7ff2c78303",
+    "reason": "specialized calendar grid ancestor dimensions",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reviewed owner-folder import changes only; calendar page padding and specialized grid geometry are unchanged."
   },
   {
     "source": "src/app/holdings/[holdingSlug]/hospitality/setup/page.tsx",
-    "fingerprint": "db2ab7bc97db15d71b924531600ecea32f4314df9299497be6895b37d54f0768",
-    "reason": "deferred-pms-pos"
+    "fingerprint": "9d1e070f3e2e8ddeda725378dae4efd0e6f22d430475fb2a70a77324a17592bd",
+    "reason": "deferred-pms-pos",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation."
   },
   {
     "source": "src/app/holdings/[holdingSlug]/pms/[[...section]]/page.tsx",
-    "fingerprint": "e9d026a743ec83f67be0b855182c3d0a898cf97389e5d9be07b651f02774e968",
+    "fingerprint": "47a6d95471266db8171289b1022b1aa9f1b250361627d340d5564431aacf8508",
     "reason": "deferred-pms-pos",
-    "reviewReason": "Record drawer owner links and embedded detail adapters; specialized presentation retained."
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation.",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de"
   },
   {
     "source": "src/app/holdings/[holdingSlug]/pms/documents/[id]/page.tsx",
-    "fingerprint": "fd8d4f8706cf646a106f446b462e7f33cba7be9bcb112a035a26f871945b12df",
+    "fingerprint": "fd2fe56229fad22b183130fcdbbdc691590b3fb06d59886fbdf5c155fd7f9e4a",
     "reason": "deferred-pms-pos",
-    "reviewReason": "Record drawer owner links and embedded detail adapters; specialized presentation retained."
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation.",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de"
   },
   {
     "source": "src/app/holdings/[holdingSlug]/pms/import/page.tsx",
-    "fingerprint": "48083f3353c6d6853ae021f984adfd07f29f1f280099ad927cbaa6ffa8248efd",
+    "fingerprint": "ed8c28a51bd4318331f3da64103c26cdb1eb218c17c056fbfdb8f389611c431d",
     "reason": "deferred-pms-pos",
-    "reviewReason": "Record drawer owner links and embedded detail adapters; specialized presentation retained."
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation.",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de"
   },
   {
     "source": "src/app/holdings/[holdingSlug]/pos/page.tsx",
-    "fingerprint": "0bf1fdc7d0e431da7ae8a1dfd6ee318cbdff0baa42aa102a5d79c5abfe912e09",
+    "fingerprint": "3a831a234fce5319d4367d9335f2e7665f3fb4c6cdf20c0e576eba3da36e2a90",
     "reason": "deferred-pms-pos",
-    "reviewReason": "Record drawer owner links and embedded detail adapters; specialized presentation retained."
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation.",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de"
   },
   {
     "source": "src/app/marketing/page.tsx",
@@ -151,13 +182,17 @@
   },
   {
     "source": "src/components/collaboration/social-advanced-editor.tsx",
-    "fingerprint": "d93d31e31f665d59f30c8179438be9ffa51ce471cc8cca1d55bed7ce4b2777e6",
-    "reason": "frozen-specialized"
+    "fingerprint": "55472f927947ddf75e58831f64e6cbe581c12cca76580893a77747d0f64c06c6",
+    "reason": "frozen-specialized",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reviewed owner-folder imports and disabled rich-text suggestion handling; retain specialized editor presentation."
   },
   {
     "source": "src/components/collaboration/social-post-content-editor.tsx",
-    "fingerprint": "6a538204445bb07c1bc9f3b553652158c02d11c836ba4c86492339ef628375f8",
-    "reason": "frozen-specialized"
+    "fingerprint": "79e36cc9cf016c4bd1dff9cad0eafbbe9e3e62fdb544a00caa6170bb8e05950d",
+    "reason": "frozen-specialized",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reviewed owner-folder imports and disabled rich-text suggestion handling; retain specialized editor presentation."
   },
   {
     "source": "src/components/collaboration/social-text.module.css",
@@ -206,15 +241,17 @@
   },
   {
     "source": "src/components/runtime/executive/canvas.module.css",
-    "fingerprint": "2cda63a2caeeec65c4503bc231a0cc64c8bb8c4be139d4ce703aebd1cd253f17",
+    "fingerprint": "6e07b8a2a13e16c8c8d21cd4492efddec32b364ef63d10f9985093e76c582dd7",
     "reason": "Style owner of a frozen component",
-    "reviewReason": "Browser-reviewed Executive table source drilldown: prevent flex shrinking record tables to zero height inside fixed-height widgets; widget editing, resize controls and specialized presentation retained."
+    "reviewReason": "Reconcile the committed owner-import/record-workflow baseline; this follow-up does not change the source or specialized geometry.",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de"
   },
   {
     "source": "src/components/runtime/executive/canvas.tsx",
-    "fingerprint": "5200251cbd52fa5b0d718e747bd62d4679e67aa4d9001e0b62646c5cf22916a0",
+    "fingerprint": "ea836320e723b2a532f5eabb0781c7081cc7853c8f14ecc0f6adc53383e0e823",
     "reason": "frozen-specialized",
-    "reviewReason": "Record drawer owner links and embedded detail adapters; specialized presentation retained."
+    "reviewReason": "Reviewed owner-folder imports and committed guest-account evidence terminology; retain canvas geometry, resize and saved-layout rendering.",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de"
   },
   {
     "source": "src/components/runtime/executive/chart.tsx",
@@ -239,9 +276,10 @@
   },
   {
     "source": "src/components/shared/features/layout-editor.tsx",
-    "fingerprint": "c15291801ec50455f43ddb01379ef693cfbdad38203ef3cdd8f176dc2968ea01",
+    "fingerprint": "39fdd06fa6a492f0dcf046b0923bdeb19ff183b7e6acdd4f8c1de80641f223e9",
     "reason": "frozen-specialized",
-    "reviewReason": "Refresh pre-existing HEAD fingerprint; this drawer change does not alter this file."
+    "reviewReason": "Reviewed owner-folder imports and committed guest-account evidence terminology; retain canvas geometry, resize and saved-layout rendering.",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de"
   },
   {
     "source": "src/components/front/front-app-shell.module.css",
@@ -250,13 +288,17 @@
   },
   {
     "source": "src/components/front/front-app-shell.tsx",
-    "fingerprint": "c89e572fb24697cf321ecaf9d61ab42a4f88e0091f486c7507d65761767155e2",
-    "reason": "deferred-pms-pos"
+    "fingerprint": "8f86f2cf646fbac1fb4c8d2739faa1927054432ab99920d6551c7c5e75e981dd",
+    "reason": "deferred-pms-pos",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation."
   },
   {
     "source": "src/components/front/front-error.tsx",
-    "fingerprint": "6b09521504bc9578fb45adfe07f2ca57484285ed010027416daf08ee929041d2",
-    "reason": "deferred-pms-pos"
+    "fingerprint": "263f2b7a62b9855c60e00d5b411db957152a7306f6b342119ef2b632b037bbdd",
+    "reason": "deferred-pms-pos",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation."
   },
   {
     "source": "src/components/front/front-language.tsx",
@@ -265,8 +307,10 @@
   },
   {
     "source": "src/components/shared/hospitality/module-menu.ts",
-    "fingerprint": "5b1e3780ec063b1b0937d0098896766d4f9b9faaecdbc3195ca1ae5d4c6f01c5",
-    "reason": "deferred-pms-pos"
+    "fingerprint": "19065f520467805d747c12e5958d6d1568588a20846a159ec016db45c7663a9a",
+    "reason": "deferred-pms-pos",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation."
   },
   {
     "source": "src/components/shared/hospitality/module-tiles.module.css",
@@ -286,8 +330,10 @@
   },
   {
     "source": "src/components/shared/hospitality/setup-guide.tsx",
-    "fingerprint": "aa34b4eb585264d4aa8844aac85d621307fb28619a4920b3f824016283660a71",
-    "reason": "deferred-pms-pos"
+    "fingerprint": "6f89c9714b4bde8f09c6c092b683fbe1513868f39de11ccb3f7b8b2e41b9fccd",
+    "reason": "deferred-pms-pos",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation."
   },
   {
     "source": "src/components/shared/hospitality/tax-document-reference.tsx",
@@ -339,8 +385,10 @@
   },
   {
     "source": "src/components/people_payroll/organization-draft-workspace.tsx",
-    "fingerprint": "03fcd3fa3f5bdc684ef0e806898139f46ec88da9a0a9fe177bb8c5b16cdf4a1d",
-    "reason": "frozen-specialized"
+    "fingerprint": "04bcac60f1f5aab23e199e139565ffce0fbe33698b2595fc61d845773322149b",
+    "reason": "frozen-specialized",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reviewed owner-folder imports and committed shared People structure loading/draft recovery; retain specialized draft, schedule and drag behavior."
   },
   {
     "source": "src/components/people_payroll/organization-explorer.module.css",
@@ -350,8 +398,10 @@
   },
   {
     "source": "src/components/people_payroll/organization-explorer.tsx",
-    "fingerprint": "fb67fd85709a8d78ff23d82aa7ab2e0b2657cdf7ac547522bd3925774562457e",
-    "reason": "frozen-specialized"
+    "fingerprint": "1259169bf5a8979df2a68c212a8b127ad457a1960bc332f74ec26c4214019112",
+    "reason": "frozen-specialized",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reviewed owner-folder imports and committed shared People structure loading/draft recovery; retain specialized draft, schedule and drag behavior."
   },
   {
     "source": "src/components/people_payroll/organization-panel-rows.module.css",
@@ -360,8 +410,10 @@
   },
   {
     "source": "src/components/people_payroll/organization-panel-rows.tsx",
-    "fingerprint": "d06ceaad608ff34e7f578c09aa63e4b67ffc07517011f74fb0606c05ceb85080",
-    "reason": "frozen-specialized"
+    "fingerprint": "b37d1c2cd4ad0c513b3ad4bb8207b1e8a0ca8b290005b730863abdb382bd2bd0",
+    "reason": "frozen-specialized",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reviewed owner-folder imports and committed shared People structure loading/draft recovery; retain specialized draft, schedule and drag behavior."
   },
   {
     "source": "src/components/people_payroll/people-directory.module.css",
@@ -387,8 +439,10 @@
   },
   {
     "source": "src/components/people_payroll/people-organization-workspace.tsx",
-    "fingerprint": "a778a94e850d0fec6d82a2b1df16dc5d862e28eba7bf2bdf8987a4b405bc124e",
-    "reason": "frozen-specialized"
+    "fingerprint": "92d0b22680dfe452cf7744ab337ea1b59d0a27917b6b07221bf77bba6275f6c3",
+    "reason": "frozen-specialized",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reviewed owner-folder imports and committed shared People structure loading/draft recovery; retain specialized draft, schedule and drag behavior."
   },
   {
     "source": "src/components/organization/organization-structure.module.css",
@@ -404,8 +458,10 @@
   },
   {
     "source": "src/components/people_payroll/people-team-schedule.tsx",
-    "fingerprint": "0f0ff5a573403d6084b6aff53ebb87465a52c884f041d78d388e4f66d3d5d0ba",
-    "reason": "frozen-specialized"
+    "fingerprint": "2b1e4e28fdd39267f63f2b920e3fc8683f66c8640d514d250f9687ea952f29b0",
+    "reason": "frozen-specialized",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reviewed owner-folder imports and committed shared People structure loading/draft recovery; retain specialized draft, schedule and drag behavior."
   },
   {
     "source": "src/components/people_payroll/roster-workspace.tsx",
@@ -431,30 +487,38 @@
   },
   {
     "source": "src/components/pms/booking-flow.tsx",
-    "fingerprint": "62298e2198a156460eb4c08bb6b6dfd54d5bde1b4caa1cbb407dbb6b498c73b2",
-    "reason": "deferred-pms-pos"
+    "fingerprint": "b24cb6477e3b107096892f3b073e8cf9a52de7adafae19828faf65ae8ff498f8",
+    "reason": "deferred-pms-pos",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation."
   },
   {
     "source": "src/components/pms/booking-refunds.tsx",
-    "fingerprint": "e1b0661d182bc9f7967a1b546c66d827c67bbdea361c7b8137ec861988144e26",
+    "fingerprint": "f6478ff33dd379f87bdcd1df71f72a6c59276a284e36684db502e35fe878fcdd",
     "reason": "deferred-pms-pos",
-    "reviewReason": "Record drawer owner links and embedded detail adapters; specialized presentation retained."
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation.",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de"
   },
   {
     "source": "src/components/pms/booking-settings.tsx",
-    "fingerprint": "e4ae3dd6de0a707563361e2895d9a85d2bdd53f583abf2a44f63c4e69e119d62",
-    "reason": "deferred-pms-pos"
+    "fingerprint": "7b3fffe9f991d310bad51953a15102de9a00223fa9159c0f5e98d07488e07265",
+    "reason": "deferred-pms-pos",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation."
   },
   {
     "source": "src/components/pms/booking.module.css",
-    "fingerprint": "15fbb24f82e5b1adfeb3546609e712d46d5c25e5440995f3d21c5515465c2aca",
-    "reason": "deferred-pms-pos"
+    "fingerprint": "65b3bb57309cc5ffe67a4f42887323a2d4b76d010756a25b66132173906122c6",
+    "reason": "deferred-pms-pos",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reconcile the committed owner-import/record-workflow baseline; this follow-up does not change the source or specialized geometry."
   },
   {
     "source": "src/components/pms/counter-refunds.tsx",
-    "fingerprint": "0d0abe69b94175774fcc50bfd32db02c33fd5e23121b6fba02f67408bdb69b69",
+    "fingerprint": "12aa2dba5e46d0d5b36c66c3dfb1ad0e2b3669d5e41cebcb70a7f9737a1b625a",
     "reason": "deferred-pms-pos",
-    "reviewReason": "Record drawer owner links and embedded detail adapters; specialized presentation retained."
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation.",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de"
   },
   {
     "source": "src/components/pms/document.module.css",
@@ -463,8 +527,10 @@
   },
   {
     "source": "src/components/pms/guest-booking-manager.tsx",
-    "fingerprint": "96df71b542a00f73829e4bcfc9c2319fc6688f0b9cca8cd40da17fbfff93d3f9",
-    "reason": "deferred-pms-pos"
+    "fingerprint": "f4d9402198e9ce448dea4c7fe44df1709344ae646e0862445b71462838147439",
+    "reason": "deferred-pms-pos",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation."
   },
   {
     "source": "src/components/pms/home.module.css",
@@ -473,47 +539,59 @@
   },
   {
     "source": "src/components/pms/home.tsx",
-    "fingerprint": "1c41193a5ca556eecaa601b4e12520b8c003b9b4ccc7ea647fbb27d0000492c5",
+    "fingerprint": "1793f92282077a4327fe658668bf1c761995cf163c8df8c52a41866c01996d9e",
     "reason": "deferred-pms-pos",
-    "reviewReason": "Record drawer owner links and embedded detail adapters; specialized presentation retained."
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation.",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de"
   },
   {
     "source": "src/components/pms/import.tsx",
-    "fingerprint": "7a4fce26e825167f46ef51674aa05534a2494b326ad01a723a0004ec0465baa5",
-    "reason": "deferred-pms-pos"
+    "fingerprint": "abedf5a3903684ecf3cc3c248755fa1426a55f31049a6be10c943e7f28480855",
+    "reason": "deferred-pms-pos",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation."
   },
   {
     "source": "src/components/pms/promptpay-counter.tsx",
-    "fingerprint": "1d054363d833fd8350c3fdc075834e0ccac89ca06bed0a66f01e8232d34622f5",
-    "reason": "deferred-pms-pos"
+    "fingerprint": "10f46ef5839e33fa738c70a1b8299baa904dfff5f69b0062cbb9eb12d6d022f3",
+    "reason": "deferred-pms-pos",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation."
   },
   {
     "source": "src/components/pms/workspace.module.css",
-    "fingerprint": "1a072ba5b3d4e5d40331a0fce0f09e6f1d4a77e3250e7381ca16c2a23bed1c2d",
+    "fingerprint": "d29475476dab8a6db2b040e7aa4c4e5e8050d32e8faa1e72f1955e3ec846e5fa",
     "reason": "deferred-pms-pos",
-    "reviewReason": "Record drawer owner links and embedded detail adapters; specialized presentation retained."
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation.",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de"
   },
   {
     "source": "src/components/pms/workspace.tsx",
-    "fingerprint": "1f5e0a60c107b1ff1709701b758dcecdcf7017e86adb83e7c77038d5e467f730",
+    "fingerprint": "0c06eee71b20cecceba8855b56a32a55f4950c5f7b971d72ab53258f57c2fb99",
     "reason": "deferred-pms-pos",
-    "reviewReason": "Reviewed owner RecordSurface links and inline PMS editors; browser confirms read-first detail, no nested editor drawer, Back/Keep/Discard and list focus return."
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation.",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de"
   },
   {
     "source": "src/components/pos/pos-closing.tsx",
-    "fingerprint": "2f0a20809d2b883028eee0d2913d79cbc148331845615ff0e1535c36d8c932c7",
-    "reason": "deferred-pms-pos"
+    "fingerprint": "626f74fd20ecce45ed31311b4b95c70efe1d9cc5997d522fb915eccb58be7178",
+    "reason": "deferred-pms-pos",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation."
   },
   {
     "source": "src/components/pos/pos-console.tsx",
-    "fingerprint": "8a97d30521e87faba81a72c372f614a6b9683907983d65e3f00acf0ad17f6c5d",
+    "fingerprint": "79e96a4ae406ffb619b55266529e2f20a5418d19f20a15471b68596d452cef1a",
     "reason": "deferred-pms-pos",
-    "reviewReason": "Record drawer owner links and embedded detail adapters; specialized presentation retained."
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation.",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de"
   },
   {
     "source": "src/components/pos/pos-sales.tsx",
-    "fingerprint": "ba064e9b6a34c013e78ab4411223f63726ce741bbdcb4f41a0a405715378efa4",
-    "reason": "deferred-pms-pos"
+    "fingerprint": "a7dd7e093807ae040813bba089e39d2df50c4e71d7599b28f7f5f0eda74622c3",
+    "reason": "deferred-pms-pos",
+    "reviewCommit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+    "reviewReason": "Reviewed committed hospitality owner/screen extraction, guest-account terminology, scoped read recovery, localization and development-only prototypes; retain deferred legacy presentation."
   },
   {
     "source": "src/components/pos/pos.module.css",

@@ -1,252 +1,6 @@
 {
   "schemaVersion": 2,
-  "boundaryConsumers": [
-    {
-      "owner": "src/app/holdings/[holdingSlug]/calendar/page.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/app/holdings/[holdingSlug]/pms/[[...section]]/page.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/app/holdings/[holdingSlug]/pms/documents/[id]/page.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/app/holdings/[holdingSlug]/pos/page.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/app/front/[holdingSlug]/[companySlug]/[app]/[[...path]]/page.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pms/pms-backoffice-guests-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pms/pms-front-workspace.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pms/pms-backoffice-inventory-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pms/pms-front-cashier-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pms/pms-front-night-audit-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pms/pms-backoffice-reservations-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pms/settings-panel.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pms/pms-backoffice-rooms-housekeeping-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pms/pms-front-reservations-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pms/pms-backoffice-dashboard-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pms/pms-front-guest-accounts-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pms/pms-front-dashboard-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pms/pms-front-front-desk-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pms/workspace.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pms/pms-backoffice-guest-accounts-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pms/pms-front-housekeeping-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pms/pms-backoffice-cashier-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pms/pms-backoffice-reports-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pms/pms-backoffice-front-desk-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pms/pms-backoffice-settings-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pms/pms-backoffice-workspace.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pms/pms-front-rooms-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pms/pms-backoffice-night-audit-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/work_projection/calendar/calendar-workspace.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pos/pos-backoffice-readiness-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pos/pos-backoffice-reports-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pos/pos-backoffice-kitchen-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pos/pos-backoffice-settings-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pos/pos-backoffice-history-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pos/pos-console.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pos/pos-backoffice-sale-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pos/pos-backoffice-console.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pos/pos-management.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pos/pos-backoffice-shift-review-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pos/pos-backoffice-history-reversals-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pos/pos-backoffice-shifts-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pos/pos-backoffice-sale-void-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/pos/pos-backoffice-sale-empty-screen.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/people_payroll/people-team-schedule.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/people_payroll/people-organization-workspace.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/people_payroll/organization-draft-workspace.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/people_payroll/organization-panel-rows.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/people_payroll/roster-workspace.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    },
-    {
-      "owner": "src/components/people_payroll/people-structure-workspace.tsx",
-      "component": "src/components/shared/features/feature-environment.tsx",
-      "reason": "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary."
-    }
-  ],
+  "boundaryConsumers": [],
   "notes": [
     "Source inventory is not browser acceptance.",
     "Pending states include conditional permissions, data, pagination, portals and print.",
@@ -1338,7 +1092,7 @@
       "route": "/holdings/[holdingSlug]/customers",
       "source": "src/app/holdings/[holdingSlug]/customers/page.tsx",
       "scope": "standardize",
-      "fingerprint": "2e0eb15518768c2ec2e2b96abde70d1d32c85741c79bbc76a5cb347e1a99141b",
+      "fingerprint": "438ab86b74b3bcf1a70ccc3bb8ec1824db9067166b2448fdbe833683e3d0aa6a",
       "authorization": [
         "requireWorkContext(holdingSlug), base = workspaceBase(publicScope(actor)), access = await salesCustomersAccess(actor), query = await searchParams"
       ],
@@ -19827,7 +19581,7 @@
       "route": "/holdings/[holdingSlug]/finance/sales",
       "source": "src/app/holdings/[holdingSlug]/finance/sales/page.tsx",
       "scope": "standardize",
-      "fingerprint": "3d1f749225ba823c633f627fdd67351c9fa8bd888cc1c11a3b68cff78da98f41",
+      "fingerprint": "e2fd4d76db4b6f715ccaed70c206e722782ad5b4aa43f172dec28835e85ac1f0",
       "authorization": [
         "requireWorkContext(holdingSlug), base = workspaceBase(publicScope(actor)), search = await searchParams"
       ],
@@ -23984,7 +23738,7 @@
       "route": "/holdings/[holdingSlug]/finance/assets/[id]",
       "source": "src/app/holdings/[holdingSlug]/finance/assets/[id]/page.tsx",
       "scope": "standardize",
-      "fingerprint": "eb43a65a8fbf81b1cdbc0c0364bef0b741bc676d6ba41e1c41d587bfa69957cf",
+      "fingerprint": "c1b96687889ff12d4d9d7e78b25616201a70901c912089b1539cde765f5192fb",
       "authorization": [
         "requireWorkContext(holdingSlug),base=workspaceBase(publicScope(actor))"
       ],
@@ -24140,7 +23894,7 @@
       "route": "/holdings/[holdingSlug]/finance/assets",
       "source": "src/app/holdings/[holdingSlug]/finance/assets/page.tsx",
       "scope": "standardize",
-      "fingerprint": "7e3fdac66a819090ff522ca42d3a5d5ec434fb2fc8152e958cc5c9b81f88df30",
+      "fingerprint": "e3f434678fe7478617b4d452ded4853dab08c8ae640e8c345f51c97222a9edd8",
       "authorization": [
         "requireWorkContext(holdingSlug),base=workspaceBase(publicScope(actor))"
       ],
@@ -27978,7 +27732,7 @@
       "route": "/holdings/[holdingSlug]/@record/[...path]",
       "source": "src/app/holdings/[holdingSlug]/@record/[...path]/page.tsx",
       "scope": "standardize",
-      "fingerprint": "28fc469499e78d6d850a61daaa7fe969119405814a2a69ba9db719e0b9f1dd81",
+      "fingerprint": "8459730c6f75cb005e1d2403d4db7c5ee704bd3b6f7db1dacdceab35183165b1",
       "authorization": [
         "requireWorkContext(holdingSlug), base = workspaceBase(publicScope(actor))",
         "requireWorkContext(holdingSlug),base=workspaceBase(publicScope(actor)),financial=!hasPermission(actor,'pos.read'),tab=financial?'reports':'sale',initial=await posWorkspace(actor,id,'',tab,undefined,false,financial)"
@@ -39372,7 +39126,7 @@
     {
       "source": "src/app/holdings/[holdingSlug]/finance/sales/page.tsx",
       "scope": "standardize",
-      "fingerprint": "b6addb9c545017edf529e0e1cdeb1c214b4eec5ad28bddf329e62e926bf20115",
+      "fingerprint": "2a45a94c8f77cffc7338d458837d34b5d4e65b044e5741dfcf4fef8fa1121697",
       "imports": [
         "src/components/commerce/commerce-controls.tsx",
         "src/components/finance/finance-workspace.tsx",
@@ -39397,6 +39151,7 @@
         "FeaturePage",
         "Field",
         "FinanceWorkspace",
+        "FormActions",
         "InlineNotice",
         "IssueCustomerReceipt",
         "Link",
@@ -48458,7 +48213,7 @@
     {
       "source": "src/components/records/pos-record-console.tsx",
       "scope": "standardize",
-      "fingerprint": "b187e4c2f1cb7108d3f61b7a2f63e7394ff6600fa219607038123a2295264258",
+      "fingerprint": "c8007b450a6ff1f029de226c267bc8f96f13fa678512aede9c143c8026ded9a9",
       "imports": [
         "src/components/pos/pos-controller.ts",
         "src/components/records/pos-record-detail.tsx",
@@ -54921,7 +54676,7 @@
     {
       "source": "src/components/crm/crm-identity-console.tsx",
       "scope": "standardize",
-      "fingerprint": "69efd1088746e89a1dda1e7c13c45c2f27b4c20acf32c6e7a0062bbc44172d16",
+      "fingerprint": "5adb47088614dd8652955d6636986212793298d25a85bb2979a0ab5a4af6e04d",
       "imports": [
         "src/components/records/record-link.tsx",
         "src/components/sales/customers/hub-form.tsx",
@@ -56066,7 +55821,7 @@
     },
     {
       "source": "src/components/shared/features/feature-environment.tsx",
-      "scope": "standardize",
+      "scope": "shared-adapter",
       "fingerprint": "b5bd27e1434c308a9e60a71e232fad66b177e3326bfa995e4b3f683371c2c83e",
       "imports": [
         "src/components/workplace/coming-soon-page.tsx",
@@ -69509,7 +69264,7 @@
     {
       "source": "src/components/finance/finance-asset-console.tsx",
       "scope": "standardize",
-      "fingerprint": "7d13340b3cd6d65e5ea09fbab19f5b4ffcc289e621bd5286b89f2c880409bef3",
+      "fingerprint": "30e5398ae9dbc4078157b7375ae857d88e03a6398e8ce6a1a2ca5ee545fc370a",
       "imports": [
         "src/components/records/record-link.tsx",
         "src/components/ui/form-disclosure.tsx",
