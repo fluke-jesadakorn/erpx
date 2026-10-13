@@ -1,0 +1,44 @@
+{
+  "run": "012cda34b446",
+  "sourceFingerprint": "0d55e2b81029bfff1f1fa3cdcf8890025f16a97f2fb9bab89aabb3d2360b6608",
+  "verificationFingerprint": "740e36abd0eb56a5cf25b8df3f6c8cdcd17e015da9a74f5209465a577760c880",
+  "release": {
+    "id": "2026-10-09T16-03-12-459Z",
+    "fileManifestSha256": "6ab212867e6301a70bca62b3ed8d4363bfe6d71f9fa4e59e355f434fe7797c47"
+  },
+  "scope": "Release HTTP: 3 \u00d7 200 rooms, 730-day synthetic closed stay/reservation/account metadata; 20 distinct normal staff accounts. Historic revenue is not invented.",
+  "counts": [
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    }
+  ],
+  "accounts": 20,
+  "rounds": 10,
+  "durationMs": 144285,
+  "readCount": 840,
+  "writeCount": 400,
+  "readP95Ms": 1132.5597909999997,
+  "writeP95Ms": 10160.837791999998,
+  "failedSamples": 0,
+  "sameProcesses": true,
+  "unchanged": true,
+  "samplesSha256": "fc97e1a2ea76bb2f3e0ec91ab9d80c8e5bb20b8a65abb213482129da7fe3a212",
+  "passed": false,
+  "acceptance": false,
+  "interpretation": "All 840 reads and 400 writes returned valid responses. SLO failed with 1,133 ms read p95 and 10,161 ms logical write p95 including conflict retries. Reconciliation runner incorrectly matched scale-history references; separate owned-database diagnostic found exactly 200 room_total snapshots totaling 141,240,000 minor units. Fix the selection and rerun the unchanged candidate; no acceptance."
+}

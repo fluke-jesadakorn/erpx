@@ -3,8 +3,8 @@ import {PlatformExecutiveSources} from "@/components/records/platform-executive-
 import {CollectionRecordLink} from "@/components/records/record-collection";
 import { PageContent } from "@/components/ui/patterns";
 import { Table } from "@/components/ui/foundation";
-import { TimeText } from "@/components/time/time-preference-context";
-import { FeaturePage, FeatureWidget, WidgetGrid } from "@/components/features/feature-page";
+import { TimeText } from "@/components/people_payroll/time/time-preference-context";
+import { FeaturePage, FeatureWidget, WidgetGrid } from "@/components/shared/features/feature-page";
 import { LiveBanner, Metric, PageHeader, StatusBadge } from "@/components/ui/primitives";
 import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
 

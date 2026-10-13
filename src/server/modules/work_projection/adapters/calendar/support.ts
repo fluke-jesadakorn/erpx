@@ -1,6 +1,6 @@
 import type { CalendarAccess } from "../../domain/calendar/access";
 import 'server-only';
-import type { CalendarQuery } from '@/lib/calendar';
+import type { CalendarQuery } from "@/lib/work_projection/calendar";
 import { visibleSourceRecord, sourceRecordInput } from "@/server/modules/records/public/source-record-policy";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { calendarSupportSupportFacts } from "../../../support/public/calendar-support-facts";

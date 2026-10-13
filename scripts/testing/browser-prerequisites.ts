@@ -3,7 +3,6 @@ import { join, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import type { BrowserCase } from "./browser-results";
 import type { Suite } from "./catalogue";
-import { repositoryRoot } from "./catalogue";
 import { pinnedBunBinary } from "./runtime-tooling";
 
 export const browserPrerequisiteIds = ["legal-worker", "legal-ai", "encrypted-recovery"] as const;
@@ -37,7 +36,7 @@ export function browserCasePrerequisites(suite: Pick<Suite, "fixture" | "lane">,
 type Release = { id: string; node: string; sourceFingerprint: string; softwareVersion: string; fileManifestSha256: string };
 type CompiledState = { run: string; prefix: string; origin: string; port: number; ready: boolean; sourceFingerprint: string; softwareVersion: string; release?: { id: string; fileManifestSha256: string }; fixture?: { legal?: unknown } };
 export function assertCompiledLegalCase(state: CompiledState, release: Release, run: string) {
-  if (!/^[a-f0-9]{12}$/.test(run) || state.run !== run || state.prefix !== `erpx_browser_${run}` || state.origin !== "http://127.0.0.1:3104" || state.port !== 3104 || !state.ready || !state.fixture?.legal || release.node !== "24.20.0" || !/^[a-f0-9]{64}$/.test(release.sourceFingerprint) || !/^[a-f0-9]{64}$/.test(release.fileManifestSha256) || state.sourceFingerprint !== release.sourceFingerprint || state.softwareVersion !== `release-${release.sourceFingerprint}` || release.softwareVersion !== state.softwareVersion || state.release?.id !== release.id || state.release.fileManifestSha256 !== release.fileManifestSha256) throw new Error("EXACT_COMPILED_LEGAL_CASE_REQUIRED");
+  if (!/^[a-f0-9]{12}$/.test(run) || state.run !== run || state.prefix !== `erpx_browser_${run}` || state.origin !== "http://127.0.0.1:3104" || state.port !== 3104 || !state.ready || !state.fixture?.legal || release.node !== "26.11.1" || !/^[a-f0-9]{64}$/.test(release.sourceFingerprint) || !/^[a-f0-9]{64}$/.test(release.fileManifestSha256) || state.sourceFingerprint !== release.sourceFingerprint || state.softwareVersion !== `release-${release.sourceFingerprint}` || release.softwareVersion !== state.softwareVersion || state.release?.id !== release.id || state.release.fileManifestSha256 !== release.fileManifestSha256) throw new Error("EXACT_COMPILED_LEGAL_CASE_REQUIRED");
 }
 export function assertRecoveryEvidence(evidence: Record<string, unknown>, release: Release) {
   const legal = evidence.legal as Record<string, unknown> | undefined;
@@ -64,6 +63,7 @@ export async function prepareBrowserCasePrerequisites(input: {
 }): Promise<Record<string, string>> {
   const required = browserCasePrerequisites(input.suite, input.wanted);
   if (input.suite.fixture !== "legal" || input.suite.lane !== "uat") return {};
+  const { repositoryRoot } = await import("./catalogue");
   const { run, execute } = input, root = repositoryRoot, directory = resolve(input.directory), output = join(input.evidenceDirectory, "prerequisites");
   if (directory !== join(root, ".runtime/browser", run) || !resolve(input.evidenceDirectory).startsWith(join(root, ".scratch/dev/test-suites/browser") + "/")) throw new Error("OWNED_BROWSER_PREREQUISITE_DIRECTORIES_REQUIRED");
   const state = JSON.parse(await readFile(join(directory, "state.json"), "utf8")) as CompiledState;
@@ -80,7 +80,7 @@ export async function prepareBrowserCasePrerequisites(input: {
     for (const prerequisite of required) {
       if (prerequisite === "encrypted-recovery") {
         if (!input.releaseDirectory) throw new Error("ATTESTED_RECOVERY_CANDIDATE_DIRECTORY_REQUIRED");
-        await execute([bun, "scripts/local/test.ts", "integration", "tests/engineering-recovery.test.ts"], {
+        await execute([bun, "scripts/testing/test.ts", "integration", "tests/integration/shared.evidence/engineering-recovery.test.ts"], {
           ...environment, ERPX_ENGINEERING_RELEASE_DIR: input.releaseDirectory, ERPX_ENGINEERING_SOURCE_FINGERPRINT: state.sourceFingerprint, ERPX_ENGINEERING_EVIDENCE_DIR: output,
         }, join(output, "encrypted-recovery.log"));
         const bytes = await readFile(join(output, "encrypted-recovery.json"));
@@ -90,7 +90,7 @@ export async function prepareBrowserCasePrerequisites(input: {
         await withPausedBrowserJobs(async mode => {
           await execute([bun, "scripts/local/run-server-script.ts", "scripts/local/browser-simulation.ts", mode, run], environment, join(output, `${prerequisite}-${mode}.log`));
         }, async () => {
-          await execute([bun, "scripts/local/run-server-script.ts", "scripts/fixtures/legal-production-worker-uat.ts", run, join(directory, "release"), prerequisite === "legal-ai" ? "ai" : "worker"], environment, join(output, `${prerequisite}.log`));
+          await execute([bun, "scripts/local/run-server-script.ts", "scripts/testing/fixtures/legal-production-worker-uat.ts", run, join(directory, "release"), prerequisite === "legal-ai" ? "ai" : "worker"], environment, join(output, `${prerequisite}.log`));
           const name = prerequisite === "legal-ai" ? "legal-ai-engineering-evidence.json" : "legal-production-worker-evidence.json", bytes = await readFile(join(directory, name));
           const evidence = JSON.parse(bytes.toString());
           if (evidence.run !== run || evidence.scope !== "isolated-engineering" || evidence.sourceFingerprint !== state.sourceFingerprint || evidence.softwareVersion !== release.softwareVersion || evidence.releaseManifestSha256 !== release.fileManifestSha256) throw new Error("BROWSER_PREREQUISITE_EVIDENCE_IDENTITY_CHANGED");

@@ -3,7 +3,7 @@ import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { workFetch } from "@/lib/work-fetch";
+import { workFetch } from "@/lib/work_projection/work-fetch";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";

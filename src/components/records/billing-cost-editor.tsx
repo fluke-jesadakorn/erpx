@@ -1,5 +1,5 @@
 "use client";
-import type { BillingCost,BillingPeriod } from '@/lib/billing';
+import type { BillingCost,BillingPeriod } from "@/lib/billing/billing";
 import { FormDisclosure } from '@/components/ui/form-disclosure';
 import { Button,Field,Select,TextInput,TextArea } from '@/components/ui/foundation';
 export function BillingCostEditor({cost,period,busy,reasonValid,command}:{cost:BillingCost;period:BillingPeriod;busy:boolean;reasonValid:boolean;command:(action:string,fields:Record<string,unknown>)=>Promise<boolean>}){

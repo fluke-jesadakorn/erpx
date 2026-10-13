@@ -1,4 +1,4 @@
-import type {InvoiceLine} from '@/lib/billing';
+import type {InvoiceLine} from "@/lib/billing/billing";
 import {stripeUrl,stripeList,testObject,type BillingStripe,type StripeObject} from '../domain/stripe';
 import type {BillingAccount,BillingInvoiceRow,BillingJobRow} from '../domain/billing';
 import type {LegacyStripeEvent} from '../domain/beta-billing';

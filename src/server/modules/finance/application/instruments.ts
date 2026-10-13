@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {instrumentSchedule,halfAway,type InstrumentInput} from '../domain/finance-instrument-policy';
-import {decimalToUnits,unitsToDecimal} from '@/lib/finance-money';
+import {decimalToUnits,unitsToDecimal} from "@/lib/finance/finance-money";
 import type {WorkContext} from '@/server/modules/identity_access/public/authorization';
 import type {FinanceError} from '../domain/invoice-line-revision';
 import type {JournalInput,JournalLineInput} from '../domain/finance';

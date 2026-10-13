@@ -3,10 +3,10 @@ import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button } from "@/components/ui/foundation";
 
-import { workFetch } from "@/lib/work-fetch";
+import { workFetch } from "@/lib/work_projection/work-fetch";
 import { useEffect, useState } from "react";
 import { useHydrated } from "@/components/ui/use-hydrated";
-import { useStaffCommand } from "@/components/modules/staff-work-controls";
+import { useStaffCommand } from "@/components/work_projection/staff-work-controls";
 import type { requestAiStatus } from "@/server/modules/records/public/request-ai";
 import styles from "./services.module.css";
 type Status = Awaited<ReturnType<typeof requestAiStatus>>;

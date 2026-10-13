@@ -1,10 +1,10 @@
 # Local development data and acceptance workflows
 
-Run `bun run seed:local` (or its alias `bun run db:seed:local`) to apply local migrations, reconcile the international fixtures, repair known legacy identity links, and configure connected commerce. The command uses the configured development PostgreSQL databases and private files, preserves existing business records, and does not reset passwords. Configure `.env.local` from `.env.example` with absolute data/manifest paths and the development databases on the shared PostgreSQL 5432 service. Production and staging use separate databases on that service. `scripts/seed-d1.ts --remote` rejects development fixtures; these credentials must never be used for a production tenant.
+Run `bun run seed:local` (or its alias `bun run db:seed:local`) to apply local migrations, reconcile the international fixtures, repair known legacy identity links, and configure connected commerce. The command uses the configured development PostgreSQL databases and private files, preserves existing business records, and does not reset passwords. Configure `.env.local` from `.env.example` with absolute data/manifest paths and the development databases on the shared PostgreSQL 5432 service. Production and staging use separate databases on that service. `scripts/seed/seed-d1.ts --remote` rejects development fixtures; these credentials must never be used for a production tenant.
 
 ### Acme Position pay and Level leave defaults
 
-This fixture is separate from `seed:local` and is restricted to the `erpx_dev_*` databases on loopback port 5432 and Company `acme-co`. Run `bun --conditions=react-server scripts/seed-acme-staff-defaults.ts --preview` first. `--defaults` installs a USD monthly pay recommendation for every active Acme Position and tracked annual/sick policy recommendations for Levels 1–6, leaving employee records untouched. After testing one fictional employee through People, run `--apply` to add draft compensation only where an Engagement has no compensation history and to replace only legacy untracked leave assignments. `--verify` checks that the default catalog is complete. Repeating `--apply` preserves HR-edited default versions, approved compensation and custom leave assignments.
+This fixture is separate from `seed:local` and is restricted to the `erpx_dev_*` databases on loopback port 5432 and Company `acme-co`. Run `bun --conditions=react-server scripts/seed/seed-acme-staff-defaults.ts --preview` first. `--defaults` installs a USD monthly pay recommendation for every active Acme Position and tracked annual/sick policy recommendations for Levels 1–6, leaving employee records untouched. After testing one fictional employee through People, run `--apply` to add draft compensation only where an Engagement has no compensation history and to replace only legacy untracked leave assignments. `--verify` checks that the default catalog is complete. Repeating `--apply` preserves HR-edited default versions, approved compensation and custom leave assignments.
 
 Fixture monthly pay by Level is USD 12,000 / 9,000 / 6,500 / 4,800 / 3,600 / 2,800 for Levels 1–6. Annual leave is 18 / 15 / 12 / 10 / 8 / 6 days; sick leave is 15 days at every Level. These numbers are fictional workflow data, not employment policy, legal entitlement or Thai statutory payroll. The seed reports Engagements missing Position, Level or pay group for HR review instead of guessing a placement.
 
@@ -48,7 +48,7 @@ Assignments have company/branch/department scope and expiry. The account menu sh
 
 ## Run and verify
 
-Use Bun 1.2.17. Reuse existing ERPX processes where available.
+Use Bun 1.4.3. Reuse existing ERPX processes where available.
 
 ```bash
 bun run seed:local
@@ -85,4 +85,4 @@ See [implementation status](production-plan.md) for the complete 31-module inven
 
 Physical counts are available from Stock & movements and Inventory module actions, with APIs under `/api/v1/holdings/{holdingSlug}/stock-counts`. Counts require an inventory operator and an independent holding finance reviewer. Subsequent stock movement invalidates an unposted snapshot. Migrations 0024–0025 add counts, decisions and the combined inventory ledger. `bun run seed:verify:local` now checks that stock quantity/value equals the combined movement ledger.
 
-Direct warehouse transfers are available from Stock & movements and Inventory module actions, with APIs under `/api/v1/holdings/{holdingSlug}/stock-transfers`. Migration 0026 extends the movement ledger. `scripts/verify-inventory-transfers.ts` exercises source/receiver branch scopes, independent receipt review, return/correction, concurrent stock changes and preservation of company valuation.
+Direct warehouse transfers are available from Stock & movements and Inventory module actions, with APIs under `/api/v1/holdings/{holdingSlug}/stock-transfers`. Migration 0026 extends the movement ledger. `scripts/testing/workflows/verify-inventory-transfers.ts` exercises source/receiver branch scopes, independent receipt review, return/correction, concurrent stock changes and preservation of company valuation.

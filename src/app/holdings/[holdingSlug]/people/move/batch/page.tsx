@@ -1,7 +1,7 @@
 import { organizationPresentationQueries } from "@/server/modules/organization/public/presentation-queries";
 import { notFound, redirect } from "next/navigation";
-import { peopleContextHref, type PeopleRouteSearch } from "@/lib/people-route-context";
-import { workspaceBase } from "@/lib/workspace";
+import { peopleContextHref, type PeopleRouteSearch } from "@/lib/people_payroll/people-route-context";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { requirePermission } from "@/server/modules/identity_access/public/iam-permissions";
 

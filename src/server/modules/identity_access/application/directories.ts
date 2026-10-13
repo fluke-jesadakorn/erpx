@@ -3,7 +3,7 @@ import { connectionInput, mappingInput, type ConnectionRow, type ConnectionInput
 import { grantInput, type GrantInput, type IamAssignmentFact } from '../domain/iam-service';
 import type { IamActor } from '../domain/iam-actor';
 import type { ProviderSnapshot } from '../domain/providers';
-import { emptyDirectoryHierarchy, validateDirectoryHierarchy, type DirectoryHierarchy } from '@/lib/hierarchy';
+import { emptyDirectoryHierarchy, validateDirectoryHierarchy, type DirectoryHierarchy } from "@/lib/organization/hierarchy";
 import type { IdentityError } from './authorization';
 export type DirectoryTestResult = {
     userCount: number;

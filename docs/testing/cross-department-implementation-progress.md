@@ -54,7 +54,7 @@
 
 ขยายเส้นทางเดียวกันผ่านปลายทาง Finance จริงใน working demo: หลังโพสต์ AP invoice แล้ว Finance preparer สร้าง supplier payment batch, Finance approver ตรวจและอนุมัติ beneficiary/amount, Treasury export คำสั่ง, Finance preparer import sandbox bank statement และ Treasury เลือก debit ที่ตรงกันเพื่อ settle invoice. การทดสอบใช้ browser contexts แยก employee, people manager, Finance preparer, Finance approver, purchasing operator, purchasing manager, warehouse manager และ Treasury; หลัง reload ตรวจ batch item เป็น `confirmed`, payment/allocation link และ API ของ invoice เป็น `paid` พร้อม outstanding เป็นศูนย์.
 
-คำสั่ง `ERPX_DEMO_RUN=57b31d4eaffa ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-purchase-request-rfq.spec.ts --project=desktop` ผ่าน 1/1 ใน 46.6 วินาที (Playwright summary 47.2 วินาที). หลักฐานอยู่ที่ [purchase request → payment browser acceptance](evidence/2026-09-22-purchase-request-purchase-to-payment-browser-acceptance.txt).
+คำสั่ง `ERPX_DEMO_RUN=57b31d4eaffa ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/procurement/demo-purchase-request-rfq.spec.ts --project=desktop` ผ่าน 1/1 ใน 46.6 วินาที (Playwright summary 47.2 วินาที). หลักฐานอยู่ที่ [purchase request → payment browser acceptance](evidence/2026-09-22-purchase-request-purchase-to-payment-browser-acceptance.txt).
 
 ขอบเขตยังเป็น isolated simulation ไม่ใช่ supplier/bank provider, statutory procurement, production operation หรือ business sign-off; browser ใช้ branch รับของ 6/10 ส่วน split allocation และ receipt 6+4 มี owner regression แยกต่างหาก.
 
@@ -62,7 +62,7 @@
 
 ปิด browser acceptance ของตัวอย่างเดียวกันให้ครบยอด 10 หน่วยผ่านหน้าจอจริง: Purchasing แบ่ง demand เป็น RFQ/PO สองชุด (6 + 4), ได้ quotation และ purchasing-manager approval แยกกัน, Warehouse รับของครบทั้งสองใบ, Finance approver โพสต์ goods-movement GL สอง journal, Finance จับคู่และโพสต์ AP invoice แบบ receipt-specific สองใบ (THB 150,000 และ THB 100,000), Finance รวมสอง invoice ใน supplier payment batch THB 250,000, Treasury export และยืนยัน bank debit จาก statement sandbox สองรายการ. หลัง reload ตรวจ instruction ทั้งสองเป็น `confirmed` และ API ของ invoice ทั้งสองเป็น `paid` พร้อม outstanding เป็นศูนย์.
 
-คำสั่ง `ERPX_DEMO_RUN=d48f9000053f ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-purchase-request-rfq.spec.ts --project=desktop` ผ่าน 1/1 ในประมาณ 1 นาที. หลักฐานอยู่ที่ [split purchase request → payment browser acceptance](evidence/2026-09-22-purchase-request-split-purchase-to-payment-browser-acceptance.txt) และบันทึกใน evidence ledger แล้ว. Demo seed เพิ่ม default Finance invoice reviewer เพื่อไม่ให้เอกสาร AP ใหม่ค้างโดยไม่มี primary owner.
+คำสั่ง `ERPX_DEMO_RUN=d48f9000053f ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/procurement/demo-purchase-request-rfq.spec.ts --project=desktop` ผ่าน 1/1 ในประมาณ 1 นาที. หลักฐานอยู่ที่ [split purchase request → payment browser acceptance](evidence/2026-09-22-purchase-request-split-purchase-to-payment-browser-acceptance.txt) และบันทึกใน evidence ledger แล้ว. Demo seed เพิ่ม default Finance invoice reviewer เพื่อไม่ให้เอกสาร AP ใหม่ค้างโดยไม่มี primary owner.
 
 ขอบเขตยังเป็น isolated simulation ไม่ใช่ supplier/bank provider, statutory procurement, production operation หรือ business sign-off; ใบแจ้งหนี้ยังเป็นสองใบผูกกับ receipt แต่ละ PO และการรวมเป็น supplier invoice เดียวข้ามหลาย PO ยังคงเป็น capability gate แยก.
 
@@ -76,13 +76,13 @@
 
 เพิ่ม warranty pricing ที่ใช้งานจริงใน service agreement โดยเก็บส่วนลดแบบ immutable และคำนวณจาก `warranty_end` ของ asset ฝั่ง server. งานที่อยู่ใน warranty สร้าง billing release และ Finance receivable ตามจำนวนหลังส่วนลด พร้อมเก็บหลักฐานว่าใช้ policy ใด; งานที่หมด warranty คิด visit rate เต็ม. Reviewer คนละคนปล่อย billing แล้ว Finance approver คนละคน post invoice ต่อใน workflow Finance ปกติ โดยยังคง source linkage ของ service order.
 
-`bun run test -- tests/field-service.test.ts` ผ่าน 5/5 รวม chargeable path, warranty 50% (150000 → 75000), invoice source linkage และ posting. หลักฐานอยู่ที่ [Field Service warranty pricing](evidence/2026-09-22-field-service-warranty-pricing.txt). Browser หลายบทบาท, provider และ business/UAT acceptance ยังคงเป็น gate แยก.
+`bun run test -- tests/integration/field_service/field-service.test.ts` ผ่าน 5/5 รวม chargeable path, warranty 50% (150000 → 75000), invoice source linkage และ posting. หลักฐานอยู่ที่ [Field Service warranty pricing](evidence/2026-09-22-field-service-warranty-pricing.txt). Browser หลายบทบาท, provider และ business/UAT acceptance ยังคงเป็น gate แยก.
 
 ## Purchase-to-payment acceptance — 2026-09-21
 
 เพิ่ม owner-service acceptance ที่เริ่มจากใบขอซื้อ Laptop 10 เครื่องและเดินครบผ่านการอนุมัติอิสระ, RFQ/award, PO, รับของ 6+4, post stock GL สองชุด, match ใบแจ้งหนี้ผู้ขายหนึ่งใบกับ receipt ทั้งสอง, สร้างและ post AP invoice รวมหนึ่งใบ, อนุมัติและ export supplier batch, จับคู่ bank evidence ยอด THB 250,000 และตรวจ invoice paid, stock quantity/value, balanced journals กับ progress 6/6 จาก source recordsเดิม.
 
-ผลทดสอบ `tests/purchase-to-payment.test.ts` ผ่าน 1/1 และ `tests/supplier-bill-matching.test.ts` ผ่าน 8/8 บน disposable PostgreSQL simulation. กรณีเฉพาะครอบคลุมการแข่งขันจับคู่ receipt, การคืน AP draft, การปล่อย receipt ทั้งสองกลับมาแก้ไขแบบ atomic และ Company policy ที่บังคับ matching พร้อม version/idempotency/immutable history. Browser acceptance ผ่านทั้ง Desktop Chrome และ Pixel 7 โดยเปิด required, ตรวจคำอธิบาย control, คืนค่า optional และตรวจประวัติผ่าน UI จริง. บันทึกผลและ scope แบบ checksum ใน evidence ledger แล้ว. Partial/split requisition allocation และ UOM conversion ปิดด้วย migration 0238 และ owner-service acceptance แล้ว; multi-role purchase-to-payment browser, provider, production และ business sign-off ยังคงค้าง.
+ผลทดสอบ `tests/integration/procurement/purchase-to-payment.test.ts` ผ่าน 1/1 และ `tests/integration/procurement/supplier-bill-matching.test.ts` ผ่าน 8/8 บน disposable PostgreSQL simulation. กรณีเฉพาะครอบคลุมการแข่งขันจับคู่ receipt, การคืน AP draft, การปล่อย receipt ทั้งสองกลับมาแก้ไขแบบ atomic และ Company policy ที่บังคับ matching พร้อม version/idempotency/immutable history. Browser acceptance ผ่านทั้ง Desktop Chrome และ Pixel 7 โดยเปิด required, ตรวจคำอธิบาย control, คืนค่า optional และตรวจประวัติผ่าน UI จริง. บันทึกผลและ scope แบบ checksum ใน evidence ledger แล้ว. Partial/split requisition allocation และ UOM conversion ปิดด้วย migration 0238 และ owner-service acceptance แล้ว; multi-role purchase-to-payment browser, provider, production และ business sign-off ยังคงค้าง.
 
 ผู้ใช้ยืนยันให้ใช้ข้อมูลจำลองก่อน ยังไม่พร้อมระบุบริษัท/สาขา pilot ผู้รับรอง Finance/Payroll/Operations หรือ public production hostname จึงเก็บ production acceptance เป็น pending และคง `https://erpx.jesadakorn.com` เป็น development บน 3100 ส่วน production 3101 ไม่เปลี่ยน
 
@@ -97,7 +97,7 @@
 
 | งาน | สิ่งที่เปลี่ยน | ข้อจำกัดที่ยังเหลือ |
 | --- | --- | --- |
-| G19 test runner | `scripts/local/test.ts` ตรวจ Bun 1.2.17 / Node 24.20.0 โหลดเฉพาะ test administrator URL จากไฟล์ environment และเรียก Vitest ด้วย pinned Node; แก้ runbook port ทดสอบเป็น 5432 ตาม isolation guard | ผล provider tests ที่ skip ไม่ถือว่าผ่าน; ผล full regression รอบใหม่อยู่ในหลักฐานช่วง 1 |
+| G19 test runner | `scripts/testing/test.ts` ตรวจ Bun 1.2.17 / Node 24.20.0 โหลดเฉพาะ test administrator URL จากไฟล์ environment และเรียก Vitest ด้วย pinned Node; แก้ runbook port ทดสอบเป็น 5432 ตาม isolation guard | ผล provider tests ที่ skip ไม่ถือว่าผ่าน; ผล full regression รอบใหม่อยู่ในหลักฐานช่วง 1 |
 | G13 POS currency | ส่ง currency แยกจาก accounting configuration ให้แคชเชียร์; แสดงเอกสารด้วย sale currency; refund/report/payment mix ใช้ currency ของรายการ และรายงานแยกกลุ่ม currency | ยังใช้ amount contract สองตำแหน่งเดิม; ไม่ได้เพิ่ม multi-currency accounting หรือเปลี่ยนยอดประวัติ; อุปกรณ์และ receipt จริงยังต้องรับรอง |
 | G20 routing | เพิ่ม Work → Routing attention โดยใช้ source-authorized `flow.canManage`, current step และ blocker; เปิด record เดิมเพื่อ reassign พร้อมเหตุผล | ไม่ใช่ global scan ทุก record; ยังขาดเวลาเริ่มติด routing, escalation SLA, alert และ acceptance หลายบทบาทผ่าน browser; ไม่ได้เปลี่ยนผู้รับของรายการใน dev |
 | Manifest | รวม Legal และแยก gate จาก implementation; ทดสอบ uniqueness 183 capabilities และ coverage 21 scenarios | เจ้าของเป็นบทบาท ยังไม่มีผู้รับรองจริง; mapping ระดับ module ยังต้องละเอียดถึง acceptance case ของแต่ละ capability |
@@ -119,7 +119,7 @@
 รายละเอียด flow / API / runbook / gates อยู่ใน [S04 refund simulation](return-refund-simulation.md)
 
 - เพิ่ม migration `0203_return_refund_obligations.sql` แบบ additive: ไม่เปลี่ยนยอดเดิม ไม่สร้าง approval ย้อนหลัง
-- `src/server/refunds.ts` เป็น owner ของ obligation/instruction; source services ของ Commerce/Finance ยังคงเป็นเจ้าของ invoice, goods และ journal
+- `src/server/modules/finance/public/refunds.ts` เป็น owner ของ obligation/instruction; source services ของ Commerce/Finance ยังคงเป็นเจ้าของ invoice, goods และ journal
 - เพิ่ม API และหน้า Finance → Return refunds พร้อม Work/Inbox/Calendar; approval แยกคนกับ Treasury, export มี checksum/receipt ที่เรียกคืนได้, unknown ไม่ปล่อยยอดให้จ่ายซ้ำ
 - Bank confirmation บันทึก payment/GL/ยอดคงเหลือ/bank match พร้อมกัน; ป้องกัน amount/currency/account/date mismatch, over-refund, duplicate source/key, stale version, closed period และการจองยอดพร้อมกัน
 - เพิ่ม close guards สำหรับ return adjustments ที่ยังไม่ complete กับ refund export ที่ยังไม่รู้ผล และตรวจ draft/bank อีกครั้งตอน final close
@@ -582,7 +582,7 @@ Customer timeline เชื่อม owner records เพิ่มสองแ�
 
 Independent billing release จาก service order ที่ completed แล้วสร้าง immutable billing obligation และ draft receivable invoice ใน Finance ใน transaction เดียว. Invoice ผูก `source_type=field_service` กับ service order, customer, currency, amount, receivable control account และ revenue account; command ใช้ idempotency/version/audit เดิมของ Field Service และปฏิเสธการ release หาก Finance account setup ไม่ครบ. Finance reviewer ยังต้อง post และดำเนิน collection ตาม workflow แยก.
 
-[Automated evidence](evidence/2026-09-22-field-service-finance-handoff.txt) ผ่าน `tests/field-service.test.ts` 4 tests รวม invoice linkage และ account mapping. Warranty/chargeable policy, posting/collection, browser และ business acceptance ยังเหลือ.
+[Automated evidence](evidence/2026-09-22-field-service-finance-handoff.txt) ผ่าน `tests/integration/field_service/field-service.test.ts` 4 tests รวม invoice linkage และ account mapping. Warranty/chargeable policy, posting/collection, browser และ business acceptance ยังเหลือ.
 
 ## Release 1 Procurement / Finance — one supplier invoice across multiple POs (2026-09-22)
 
@@ -590,7 +590,7 @@ Supplier invoice matching now supports one reviewed invoice covering posted good
 
 Finance can start this workflow from the real Supplier invoice reviews page. The capture form lists eligible posted receipts across purchase orders, keeps incompatible supplier/scope rows disabled, and shows PO and receipt references in the review detail. The existing order page remains available for one-order matching.
 
-[Automated evidence](evidence/2026-09-22-consolidated-supplier-invoice-cross-po.txt) passed `tests/supplier-bill-matching.test.ts` and `tests/purchase-to-payment.test.ts` (10 tests). Independent browser business acceptance, live provider, statutory and production backup/restore gates remain separate.
+[Automated evidence](evidence/2026-09-22-consolidated-supplier-invoice-cross-po.txt) passed `tests/integration/procurement/supplier-bill-matching.test.ts` and `tests/integration/procurement/purchase-to-payment.test.ts` (10 tests). Independent browser business acceptance, live provider, statutory and production backup/restore gates remain separate.
 
 ## Release 1 Procurement / Finance — consolidated bill browser acceptance (2026-09-22)
 
@@ -626,7 +626,7 @@ Finance opening balances เลื่อนจาก `Implemented` เป็น 
 
 ระหว่างทดสอบ settlement พบและแก้ bug ใน `importOpeningTrialBalance`: invoice ของ opening subledger ไม่ได้บันทึก `base_total_minor` และ `base_outstanding_minor` ทำให้การรับชำระ THB เดียวกันอาจถูกคำนวณเป็น realized FX gain. ระบบบันทึก functional balances ตั้งแต่ import แล้ว และ regression ยืนยันว่า Treasury รับชำระจน invoice เป็น paid, ยอดคงเหลือเป็นศูนย์ และการ reverse opening journal หลัง settlement ถูกปฏิเสธด้วย `OPENING_SUBLEDGER_SETTLED` เพื่อรักษาประวัติและยอดบัญชีต้นทาง
 
-[Automated evidence](evidence/2026-09-22-finance-opening-settlement.txt) ผ่าน `tests/finance-opening-balances.test.ts` 6 tests. Live bank/provider, production operation, backup/restore และ company business sign-off ยังคงเป็น gate แยก.
+[Automated evidence](evidence/2026-09-22-finance-opening-settlement.txt) ผ่าน `tests/integration/finance/finance-opening-balances.test.ts` 6 tests. Live bank/provider, production operation, backup/restore และ company business sign-off ยังคงเป็น gate แยก.
 
 ## Release 1 Inventory — browser accepted staged transfer (2026-09-22)
 
@@ -713,7 +713,7 @@ Service/guide regression ผ่าน 17 tests (47.84s); browser desktop/mobile 
 
 เส้นทางเริ่มต้น Company ใน beta onboarding ตอนนี้สร้างกราฟขั้นต่ำใน Holding transaction เดียว: Company, สาขา, แผนกเริ่มต้น, policy, numbered staff levels 1–6, CEO position และการวางเจ้าของเป็น CEO. `company_provisioning` เก็บสถานะและ version พร้อม immutable started/completed events และรายละเอียดจำนวนกราฟ. Control-plane จะเปิด binding เป็น active หลังอ่าน receipt ที่เป็น active เท่านั้น จึง retry หลัง control write ล้มเหลวได้โดยไม่สร้าง Company หรือ access ซ้ำ.
 
-`tests/social-beta.test.ts` ผ่าน 30 tests รวม injected write failure, isolated slots, waitlist, six levels, CEO placement, receipt events และ retry idempotency. เก็บหลักฐานไว้ที่ `evidence/2026-09-22-company-provisioning.txt`. งานนี้ปิดช่องว่าง initial provisioning ระดับ implementation/simulation; archive/relocation, Company business-owner, provider และ production acceptance ยังเป็น gate แยก. งาน performance ยังคงอยู่กับ task อื่น.
+`tests/integration/collaboration/social-beta.test.ts` ผ่าน 30 tests รวม injected write failure, isolated slots, waitlist, six levels, CEO placement, receipt events และ retry idempotency. เก็บหลักฐานไว้ที่ `evidence/2026-09-22-company-provisioning.txt`. งานนี้ปิดช่องว่าง initial provisioning ระดับ implementation/simulation; archive/relocation, Company business-owner, provider และ production acceptance ยังเป็น gate แยก. งาน performance ยังคงอยู่กับ task อื่น.
 
 
 ### 2026-09-22 — Shared mobile header and Company context
@@ -730,24 +730,24 @@ Public recheck พบ session database connection timeout หนึ่งคร�
 
 เพิ่ม Company setup acceptance ในหน้า Business readiness และ API จริง. ระบบคำนวณ checklist จาก Company identity, active branch, numbered staff levels, CEO position และ staff placement; ถ้ายังไม่ครบจะบล็อกการส่งพร้อมเหตุผล. เมื่อครบ ผู้มีอำนาจ Company ส่งคำขอได้ ผู้มีอำนาจอีกคนต้อง Accept หรือ Return for correction และเจ้าของสามารถ Revoke ภายหลังได้. ทุก transition ใช้ idempotency, optimistic version, current Company authority, independent-person guard, audit/outbox และ immutable event history. สถานะที่ส่งแล้วแสดงต่อใน Work และ Inbox พร้อม deep link เดิม.
 
-`tests/organization.test.ts` ผ่าน 14 tests รวม blocker → submit → independent review → accept → revoke; typecheck และ scoped ESLint ผ่าน. `docs/testing/evidence/2026-09-22-company-business-acceptance.txt` เก็บผล service และ public readiness-page observation. งานนี้ปิดช่องว่าง Company business acceptance ของ Organization workflow ในระดับ implementation แต่ยังไม่ยกระดับ capability/provider/production gate และยังเหลือ initial provisioning กับ archive/relocation.
+`tests/integration/organization/organization.test.ts` ผ่าน 14 tests รวม blocker → submit → independent review → accept → revoke; typecheck และ scoped ESLint ผ่าน. `docs/testing/evidence/2026-09-22-company-business-acceptance.txt` เก็บผล service และ public readiness-page observation. งานนี้ปิดช่องว่าง Company business acceptance ของ Organization workflow ในระดับ implementation แต่ยังไม่ยกระดับ capability/provider/production gate และยังเหลือ initial provisioning กับ archive/relocation.
 
 ### 2026-09-22 — Organization archive and relocation
 
 เพิ่ม action `archive` และ `relocate` เข้า reviewed organization workflow. Archive เก็บ node และ history ไว้ในสถานะ archived พร้อม reactivation ที่ผ่าน independent review และยังบล็อกถ้ามี child, staff, position, assignment หรือ warehouse ที่ใช้งานอยู่. Relocation ของ department รักษา route เดิมเป็น archived history แล้วสร้าง node ที่ destination branch ใน transaction เดียว พร้อมย้าย active engagements, employee placement, positions และ department-scoped assignments โดยไม่เขียนทับ route เก่า.
 
-`tests/organization.test.ts` ผ่าน 14 tests รวม relocation พร้อม dependency handoff, archive/reactivate, blocked suspension, optimistic version, independent review และ immutable history. เก็บหลักฐานที่ `evidence/2026-09-22-organization-archive-relocation.txt`. งานนี้ปิดช่องว่าง archive/relocation ระดับ implementation/simulation; business-owner, provider, production และ downstream policy gates ยังแยกจากกัน. งาน performance ยังคงอยู่กับ task อื่น.
+`tests/integration/organization/organization.test.ts` ผ่าน 14 tests รวม relocation พร้อม dependency handoff, archive/reactivate, blocked suspension, optimistic version, independent review และ immutable history. เก็บหลักฐานที่ `evidence/2026-09-22-organization-archive-relocation.txt`. งานนี้ปิดช่องว่าง archive/relocation ระดับ implementation/simulation; business-owner, provider, production และ downstream policy gates ยังแยกจากกัน. งาน performance ยังคงอยู่กับ task อื่น.
 ### 2026-09-22 — Platform migration runs
 
 หน้า Platform operations แสดงจำนวน migration ที่ applied/pending แยกตาม Holding และมีคำสั่ง Run Holding migrations สำหรับ Platform administrator เท่านั้น. คำสั่งต้องมีเหตุผลและ Idempotency-Key, ใช้ PostgreSQL migration lock เดิม, บันทึก receipt ใน control plane พร้อม actor/assignment และ before/after counts, และ replay ด้วย payload เดิมจะคืนผลเดิม. Platform auditor ถูกปฏิเสธ และ payload คนละชุดที่ใช้ key เดิมถูกบล็อก.
 
-`tests/platform-operations.test.ts` ผ่าน 5 tests; `bun run db:migrate:local` ผ่าน 6 databases/2 slots; typecheck และ scoped ESLint ผ่าน. หลักฐานอยู่ที่ `evidence/2026-09-22-platform-migration-runs.txt`. งาน provisioning commands, temporary access commands, off-machine/production RPO/RTO และ Company business acceptance ยังเป็น gate แยก. งาน performance ยังคงอยู่กับ task อื่น.
+`tests/integration/platform_administration/platform-operations.test.ts` ผ่าน 5 tests; `bun run db:migrate:local` ผ่าน 6 databases/2 slots; typecheck และ scoped ESLint ผ่าน. หลักฐานอยู่ที่ `evidence/2026-09-22-platform-migration-runs.txt`. งาน provisioning commands, temporary access commands, off-machine/production RPO/RTO และ Company business acceptance ยังเป็น gate แยก. งาน performance ยังคงอยู่กับ task อื่น.
 
 ### 2026-09-23 — Platform Holding provisioning
 
 เพิ่มคำสั่ง provisioning ที่ใช้งานจริงใน Platform operations สำหรับ resource slot ที่ operator provision ไว้แล้ว. Platform administrator เลือก slot, slug, ชื่อ Holding และเหตุผล ระบบตรวจ database/file resources ที่ resolve ได้จาก registry ก่อนเปิด binding; control-plane transaction เดียวบันทึก receipt, เปิด `holding_bindings` และเก็บ immutable `started`, `validated`, `activated` events. คำสั่งใช้ idempotency key แบบ replay-safe, ปฏิเสธ auditor, ตรวจ slug/resource ซ้ำ และหน้า Platform แสดงรายการ receipt กับ empty state เมื่อไม่มี slot ว่าง. Company setup และ invitation ยังคงเป็น handoff ถัดไป.
 
-`tests/platform-operations.test.ts` ผ่าน 7 tests; `bun run db:migrate:local` ผ่าน 6 databases/2 slots; `bun run status:capabilities -- --check`, typecheck, scoped ESLint และ diff check ผ่าน. หน้า authenticated public Platform แสดง card `Provision a Holding` และแจ้งว่า local slots ทั้งสองถูกใช้งานแล้ว; local/public health HTTP 200 และ dev listener ยังอยู่ที่ 3100. หลักฐานอยู่ที่ `evidence/2026-09-23-platform-holding-provisioning.txt`. Physical database creation, temporary access commands, off-machine/production RPO/RTO, provider และ Company business acceptance ยังคงเป็น gates แยก. งาน performance ยังคงอยู่กับ task อื่น.
+`tests/integration/platform_administration/platform-operations.test.ts` ผ่าน 7 tests; `bun run db:migrate:local` ผ่าน 6 databases/2 slots; `bun run status:capabilities -- --check`, typecheck, scoped ESLint และ diff check ผ่าน. หน้า authenticated public Platform แสดง card `Provision a Holding` และแจ้งว่า local slots ทั้งสองถูกใช้งานแล้ว; local/public health HTTP 200 และ dev listener ยังอยู่ที่ 3100. หลักฐานอยู่ที่ `evidence/2026-09-23-platform-holding-provisioning.txt`. Physical database creation, temporary access commands, off-machine/production RPO/RTO, provider และ Company business acceptance ยังคงเป็น gates แยก. งาน performance ยังคงอยู่กับ task อื่น.
 
 ### 2026-09-23 — Quality escalation recovery in the working Demo
 

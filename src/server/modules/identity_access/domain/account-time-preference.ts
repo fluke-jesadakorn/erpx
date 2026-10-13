@@ -1,7 +1,7 @@
 import {z} from 'zod';
-import {validTimeZone} from '@/lib/ui-format';
-export type {TimePreference} from '@/lib/ui-format';
-export {defaultTimePreference} from '@/lib/ui-format';
+import {validTimeZone} from "@/lib/shared/ui-format";
+export type {TimePreference} from "@/lib/shared/ui-format";
+export {defaultTimePreference} from "@/lib/shared/ui-format";
 
 export const accountTimePreferenceInput = z.object({
   mode: z.enum(['system', 'manual']),

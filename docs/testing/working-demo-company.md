@@ -29,7 +29,7 @@ Scenario `temporary-task-delegation` ใน `demo-guide.json` ใช้ผู้
 สำหรับ Support ให้ใช้ quotation ใน scenario `sales-to-collection` เป็นเอกสารต้นทาง: `holding_owner` เปิด Support และสร้างเคสให้ `support_agent`; agent รับงาน บันทึกสถานะรอลูกค้า กลับมาทำต่อ และเสนอ resolution; `support_manager` ส่งกลับแก้ไขได้ก่อนยืนยันผล เจ้าหน้าที่ที่มี `sales_operator` สลับ role แล้วบันทึก Customer contact note หลังเสนอ resolution โดยช่องเวลารองรับวินาที ผู้จัดการอีกบัญชีเลือก note นั้นเพื่อยืนยันและปิดเคส จากนั้นทดลอง reopen และ cancel พร้อมเหตุผลได้ นี่เป็นหลักฐานที่พนักงานบันทึกแทนลูกค้า ไม่ใช่ Portal confirmation หรือการส่งอีเมลจริง
 
 ```bash
-ERPX_DEMO_RUN=<run-id> ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-task-delegation.spec.ts tests/e2e/demo-support-lifecycle.spec.ts --project=desktop
+ERPX_DEMO_RUN=<run-id> ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/operations/demo-task-delegation.spec.ts tests/e2e/support/demo-support-lifecycle.spec.ts --project=desktop
 ```
 
 ## ตัวอย่างการเปลี่ยนองค์กร
@@ -41,7 +41,7 @@ Scenario `reviewed-organization-setup` ใช้ `holding_owner` และ `hr_a
 การย้าย Department ใช้ `Relocate to another branch` และต้องผ่านผู้อนุมัติ Company HR อีกคน. ระบบเก็บ Department route เดิมเป็น archived history และสร้าง node ที่ Branch ใหม่พร้อมย้าย active staff, ตำแหน่ง และสิทธิ์แบบ Department ไปด้วยกัน. การ archive แสดง node ในประวัติและกด Reactivate ได้เมื่อผ่าน independent review; ถ้ายังมี dependency ใช้งาน ระบบบอกสิ่งที่ต้องย้ายหรือปิดก่อน.
 
 ```bash
-ERPX_DEMO_RUN=<run-id> ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-organization-lifecycle.spec.ts --project=desktop
+ERPX_DEMO_RUN=<run-id> ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/organization/demo-organization-lifecycle.spec.ts --project=desktop
 ```
 
 หลังจัดโครงสร้างครบ ให้เปิด Settings → Business readiness เพื่อตรวจ Company setup acceptance. ผู้ขอส่งหลักฐานให้ Company administrator อีกคนตรวจและกด Accept หรือ Return for correction ได้; ผู้ขอเดิม revoke การรับรองได้เมื่อโครงสร้างเปลี่ยน. สถานะและเหตุผลอยู่ใน Work, Inbox และ immutable acceptance history. ถ้า checklist ยังไม่ครบ ระบบจะบล็อกการส่งคำขอพร้อมบอกเจ้าของและสิ่งที่ต้องแก้.
@@ -51,7 +51,7 @@ ERPX_DEMO_RUN=<run-id> ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright t
 บัญชี HR ใน Demo สามารถเปิด breadcrumb/Search, สลับ Branch กลับ Company และเปลี่ยนบทบาท HR ↔ Treasury จาก Account menu ได้ ชื่อบริษัทและบทบาทปัจจุบันต้องตรงกับ workspace หลัง reload บนหน้าจอเล็กหัวหน้าจอแบ่งเส้นทางหน้าเป็นแถวที่สอง กดเมนู breadcrumb เพื่อดูเส้นทางเต็มได้
 
 ```bash
-ERPX_DEMO_RUN=<run-id> ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-workspace-header.spec.ts --project=desktop --project=mobile
+ERPX_DEMO_RUN=<run-id> ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/shared.ui/demo-workspace-header.spec.ts --project=desktop --project=mobile
 ```
 
 ## Reset อย่างปลอดภัย

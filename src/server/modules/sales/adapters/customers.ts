@@ -4,18 +4,18 @@ import {salesCustomerProfile,salesCustomerDirectory} from "../../finance/public/
 import "server-only";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { Row } from "@/server/modules/commerce/public/commerce";
-import type { WorkItem } from "@/lib/work-item";
-import { hasPermission } from "@/lib/permissions";
+import type { WorkItem } from "@/lib/work_projection/work-item";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { salesCustomerAccess, type HubQuery } from "../domain/navigation";
-import { availableNavigationAppIds } from "@/lib/workplace-catalogue";
+import { availableNavigationAppIds } from "@/lib/work_projection/workplace-catalogue";
 import { companyFeatureCatalogue } from "@/server/modules/pms/public/hospitality-rollout";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
 import { requirePermission } from "@/server/modules/identity_access/public/iam-permissions";
 import { resolveFlow } from "@/server/modules/workflow/public/flow-routing";
 import { crmWork } from "@/server/modules/crm/public/crm";
-import { customerFollowupWorkspace, customerFollowupWork } from "@/server/customer-followups";
+import { customerFollowupWorkspace, customerFollowupWork } from "@/server/modules/sales/adapters/followups";
 import { customerTimeline } from "@/server/modules/customer_360/public/customer-timeline";
-import { customerNotesForCustomer } from "@/server/customer-notes";
+import { customerNotesForCustomer } from "@/server/modules/sales/public/customer-notes";
 import { ApiError } from "@/server/modules/runtime/public/http";
 
 

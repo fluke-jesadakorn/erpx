@@ -9,7 +9,7 @@ import { calendarCommand } from "@/server/modules/work_projection/public/calenda
 import { createHash } from "node:crypto";
 import type { PoolClient } from "pg";
 import { z } from "zod";
-import { packageInput, type AccessPackage, type AccessPackageDefinition, type LifecycleCase, type LifecycleInput, type PeopleLifecycleData, type PreparationTask } from "@/lib/people-lifecycle";
+import { packageInput, type AccessPackage, type AccessPackageDefinition, type LifecycleCase, type LifecycleInput, type PeopleLifecycleData, type PreparationTask } from "@/lib/people_payroll/people-lifecycle";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import type { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
@@ -91,7 +91,7 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient): PeopleLifecycl
             }>();
         },
         readPeopleLifecycleDataRoster(companyId: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) {
-            return database.prepare(`SELECT p.id,p.legal_name "name",e.id "engagementId",e.position_id "positionId",e.manager_person_id "managerPersonId",e.status FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id WHERE p.company_id=? AND p.merged_into_id IS NULL AND (e.status!='ended' OR EXISTS(SELECT 1 FROM people_lifecycle_cases lc WHERE lc.engagement_id=e.id AND lc.company_id=e.company_id)) AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?) ORDER BY p.legal_name,e.id`)
+            return database.prepare(`SELECT p.id,p.legal_name "name",e.id "engagementId",e.position_id "positionId",e.manager_person_id "managerPersonId",e.status FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id WHERE p.company_id=? AND p.merged_into_id IS NULL AND e.worker_type='employee' AND (e.status!='ended' OR EXISTS(SELECT 1 FROM people_lifecycle_cases lc WHERE lc.engagement_id=e.id AND lc.company_id=e.company_id)) AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?) ORDER BY p.legal_name,e.id`)
                 .bind(companyId, branchId, branchId2, departmentId, departmentId2)
                 .all<PeopleLifecycleData["roster"][number]>();
         },
@@ -115,7 +115,7 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient): PeopleLifecycl
             }>();
         },
         readPeopleLifecycleDataManagers(companyId: string) {
-            return database.prepare("SELECT DISTINCT p.id,p.legal_name name FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id WHERE p.company_id=? AND p.status='active' AND e.status='active' ORDER BY p.legal_name,p.id")
+            return database.prepare("SELECT DISTINCT p.id,p.legal_name name FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id WHERE p.company_id=? AND p.status='active' AND e.worker_type='employee' AND e.status='active' ORDER BY p.legal_name,p.id")
                 .bind(companyId)
                 .all<{
                 id: string;

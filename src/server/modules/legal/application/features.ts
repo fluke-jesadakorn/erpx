@@ -2,7 +2,7 @@ import {z} from "zod";
 import type {WorkContext} from "../../identity_access/public/authorization";
 import type {Clock,IdentifierSource} from "../../shared/application/ports";
 import type {LegalWrite,LegalRows} from "./service";
-import {featureSpecs,featureKinds,parseFeature,privacyDecisionError,type FeatureRow,type FeatureSpec} from "@/lib/legal/features-domain";
+import {featureSpecs,featureKinds,parseFeature,privacyDecisionError,type FeatureRow,type FeatureSpec} from "@/lib/legal/legal/features-domain";
 import type {LegalItem} from "../domain/model";
 export type LegalFeaturesRepository={
 featureCount(facts:{id:string;search:string;search2:string;capability:(typeof featureKinds)[number];}):Promise<Record<string, unknown> | null>;

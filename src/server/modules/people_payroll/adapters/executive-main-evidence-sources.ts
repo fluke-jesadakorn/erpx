@@ -1,7 +1,7 @@
 import {peoplePayrollFinalOwnerProjections as financeFinalOwnerProjections} from "../../finance/public/people-payroll-final-owner-projections";
 const financeFinalSources=financeFinalOwnerProjections();
 import "server-only";
-import { type Filters } from "@/lib/executive/canvas";
+import { type Filters } from "@/lib/shared/executive/canvas";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { participantSql } from "@/server/modules/workflow/public/approvals";

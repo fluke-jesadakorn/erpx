@@ -1,0 +1,3090 @@
+{
+  "version": 1,
+  "provenance": {
+    "reviewedAt": "2026-10-06",
+    "scope": [
+      "e2e",
+      "journeys"
+    ],
+    "definitionFiles": 92,
+    "projectDefinitions": 492,
+    "requiredDefinitions": 483,
+    "originalProjectExclusions": 9,
+    "notes": "Explicit reviewed original identities. Runtime acceptance reads this register and never regenerates it from candidate discovery. Fourteen Engineering Business and Retail definitions required an unprepared simulation during definition-only collection; their exact identities already existed in the retained required register. No skip is accepted during actual execution.",
+    "extensions": [
+      {
+        "reviewedAt": "2026-10-10",
+        "reason": "Add required desktop/mobile identities for paid PMS worker recovery and the existing Finance sales workspace. Preserve every original required identity and exclusion; definition eligibility does not attest to execution.",
+        "cases": [
+          {
+            "runner": "playwright",
+            "file": "tests/e2e/pms/pms-booking-payment-recovery.spec.ts",
+            "title": "paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money",
+            "project": "desktop"
+          },
+          {
+            "runner": "playwright",
+            "file": "tests/e2e/pms/pms-booking-payment-recovery.spec.ts",
+            "title": "paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money",
+            "project": "mobile"
+          },
+          {
+            "runner": "playwright",
+            "file": "tests/e2e/finance/finance-sales-workspace.spec.ts",
+            "title": "English sales workspace opens drawers, calculates invoices and keeps direct forms available",
+            "project": "desktop"
+          },
+          {
+            "runner": "playwright",
+            "file": "tests/e2e/finance/finance-sales-workspace.spec.ts",
+            "title": "English sales workspace opens drawers, calculates invoices and keeps direct forms available",
+            "project": "mobile"
+          }
+        ]
+      },
+      {
+        "reviewedAt": "2026-10-10",
+        "reason": "Retain the explicitly registered gallery review/revocation and unpaid partial cancellation journeys; focused execution evidence is recorded separately.",
+        "cases": [
+          {
+            "runner": "playwright",
+            "file": "tests/e2e/pms/pms-booking.spec.ts",
+            "title": "reviewed hotel and room galleries publish sanitized images and disappear after revocation",
+            "project": "desktop"
+          },
+          {
+            "runner": "playwright",
+            "file": "tests/e2e/pms/pms-booking.spec.ts",
+            "title": "reviewed hotel and room galleries publish sanitized images and disappear after revocation",
+            "project": "mobile"
+          },
+          {
+            "runner": "playwright",
+            "file": "tests/e2e/pms/pms-booking.spec.ts",
+            "title": "cancels one of two booked rooms and preserves the other room and accepted price",
+            "project": "desktop"
+          },
+          {
+            "runner": "playwright",
+            "file": "tests/e2e/pms/pms-booking.spec.ts",
+            "title": "cancels one of two booked rooms and preserves the other room and accepted price",
+            "project": "mobile"
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/access-feedback.spec.ts",
+      "title": "missing pages fit mobile and desktop, support offline recovery and safe navigation",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/access-feedback.spec.ts",
+      "title": "missing pages fit mobile and desktop, support offline recovery and safe navigation",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/access-feedback.spec.ts",
+      "title": "scoped account gets a reason, working recovery and unchanged API restrictions",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/access-feedback.spec.ts",
+      "title": "scoped account gets a reason, working recovery and unchanged API restrictions",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/access-feedback.spec.ts",
+      "title": "signed-out workspace link explains sign-in and preserves its destination",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/access-feedback.spec.ts",
+      "title": "signed-out workspace link explains sign-in and preserves its destination",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/acme-organization-data.spec.ts",
+      "title": "expanded Acme accounts sign in with scoped charts and spending readiness",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/acme-organization-data.spec.ts",
+      "title": "expanded Acme accounts sign in with scoped charts and spending readiness",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/platform_administration/administration.spec.ts",
+      "title": "a profile owns level, activation and distinct access commands",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/platform_administration/administration.spec.ts",
+      "title": "a profile owns level, activation and distinct access commands",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/platform_administration/administration.spec.ts",
+      "title": "approval rerouting has one authorized editor and handles a changed version",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/platform_administration/administration.spec.ts",
+      "title": "approval rerouting has one authorized editor and handles a changed version",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.attachments/attachments-v2.spec.ts",
+      "title": "canonical Leave evidence supports resilient private files on desktop and mobile",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.attachments/attachments-v2.spec.ts",
+      "title": "canonical Leave evidence supports resilient private files on desktop and mobile",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/auth-smoke.spec.ts",
+      "title": "health endpoint is available and not cached",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/auth-smoke.spec.ts",
+      "title": "health endpoint is available and not cached",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/auth-smoke.spec.ts",
+      "title": "invalid credentials show an error and allow another attempt",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/auth-smoke.spec.ts",
+      "title": "invalid credentials show an error and allow another attempt",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/auth-smoke.spec.ts",
+      "title": "invalid reset links explain how to request a replacement",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/auth-smoke.spec.ts",
+      "title": "invalid reset links explain how to request a replacement",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/auth-smoke.spec.ts",
+      "title": "login opens password recovery",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/auth-smoke.spec.ts",
+      "title": "login opens password recovery",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/auth-smoke.spec.ts",
+      "title": "seeded employee signs in through the UI and keeps their session after reload",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/auth-smoke.spec.ts",
+      "title": "seeded employee signs in through the UI and keeps their session after reload",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/auth-smoke.spec.ts",
+      "title": "signed-out visitors to / reach login",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/auth-smoke.spec.ts",
+      "title": "signed-out visitors to / reach login",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/auth-smoke.spec.ts",
+      "title": "signed-out visitors to /holdings/acme/home reach login",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/auth-smoke.spec.ts",
+      "title": "signed-out visitors to /holdings/acme/home reach login",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/auth-smoke.spec.ts",
+      "title": "signed-out visitors to /holdings/acme/work reach login",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/auth-smoke.spec.ts",
+      "title": "signed-out visitors to /holdings/acme/work reach login",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.calendar/calendar-layout.spec.ts",
+      "title": "authorized roster events open the roster planner",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.calendar/calendar-layout.spec.ts",
+      "title": "authorized roster events open the roster planner",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.calendar/calendar-layout.spec.ts",
+      "title": "calendar attention stays compact and distinguishes loaded warning items",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.calendar/calendar-layout.spec.ts",
+      "title": "calendar attention stays compact and distinguishes loaded warning items",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.calendar/calendar-layout.spec.ts",
+      "title": "calendar opens in the month view with a selected day at every viewport",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.calendar/calendar-layout.spec.ts",
+      "title": "calendar opens in the month view with a selected day at every viewport",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.calendar/calendar-layout.spec.ts",
+      "title": "calendar presets preserve date and timezone, reset people search, and restore history",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.calendar/calendar-layout.spec.ts",
+      "title": "calendar presets preserve date and timezone, reset people search, and restore history",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.calendar/calendar-layout.spec.ts",
+      "title": "calendar view and filters follow URL history and event detail retains the view",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.calendar/calendar-layout.spec.ts",
+      "title": "calendar view and filters follow URL history and event detail retains the view",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.calendar/calendar-layout.spec.ts",
+      "title": "day view renders a horizontally scrollable people timeline and opens event details",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.calendar/calendar-layout.spec.ts",
+      "title": "day view renders a horizontally scrollable people timeline and opens event details",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.calendar/calendar-layout.spec.ts",
+      "title": "month previews cap at two and the selected date keeps its full loaded list",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.calendar/calendar-layout.spec.ts",
+      "title": "month previews cap at two and the selected date keeps its full loaded list",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.calendar/calendar-layout.spec.ts",
+      "title": "month selection updates the date URL and outside-month dates open their month",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.calendar/calendar-layout.spec.ts",
+      "title": "month selection updates the date URL and outside-month dates open their month",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.calendar/calendar-layout.spec.ts",
+      "title": "partial calendar sources share one retry notice and mark loaded results",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.calendar/calendar-layout.spec.ts",
+      "title": "partial calendar sources share one retry notice and mark loaded results",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.calendar/calendar-layout.spec.ts",
+      "title": "week and day navigation move by their calendar period",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.calendar/calendar-layout.spec.ts",
+      "title": "week and day navigation move by their calendar period",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/company-recovery.spec.ts",
+      "title": "stale company preference recovers holding access without allowing unauthorized company selection",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/company-recovery.spec.ts",
+      "title": "stale company preference recovers holding access without allowing unauthorized company selection",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/context-switching.spec.ts",
+      "title": "a failed account switch keeps the current account and page usable",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/context-switching.spec.ts",
+      "title": "a failed account switch keeps the current account and page usable",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/context-switching.spec.ts",
+      "title": "a pending or failed switch hides old data, blocks interaction and preserves the selected context",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/context-switching.spec.ts",
+      "title": "a pending or failed switch hides old data, blocks interaction and preserves the selected context",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/context-switching.spec.ts",
+      "title": "a scoped account chooses its workspace explicitly; dismissing the chooser keeps the denied URL",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/context-switching.spec.ts",
+      "title": "a scoped account chooses its workspace explicitly; dismissing the chooser keeps the denied URL",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/context-switching.spec.ts",
+      "title": "a signed-in account without roles keeps the denied page and account recovery available",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/context-switching.spec.ts",
+      "title": "a signed-in account without roles keeps the denied page and account recovery available",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/context-switching.spec.ts",
+      "title": "an account that keeps the workspace refreshes People in place and invalidates another tab",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/context-switching.spec.ts",
+      "title": "an account that keeps the workspace refreshes People in place and invalidates another tab",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/context-switching.spec.ts",
+      "title": "an applicable selected role returns from the picker route to the complete requested page",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/context-switching.spec.ts",
+      "title": "an applicable selected role returns from the picker route to the complete requested page",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/context-switching.spec.ts",
+      "title": "Platform role selection keeps the Manage ERPX page and checks any available alternate authority",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/context-switching.spec.ts",
+      "title": "Platform role selection keeps the Manage ERPX page and checks any available alternate authority",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/context-switching.spec.ts",
+      "title": "role refresh preserves the complete non-Home URL, document and scroll; downgrade can recover in place",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/context-switching.spec.ts",
+      "title": "role refresh preserves the complete non-Home URL, document and scroll; downgrade can recover in place",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/context-switching.spec.ts",
+      "title": "selecting the active role or account makes no switch request",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/context-switching.spec.ts",
+      "title": "selecting the active role or account makes no switch request",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/context-switching.spec.ts",
+      "title": "unsaved input asks before changing role and account, and cancel preserves the form",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/context-switching.spec.ts",
+      "title": "unsaved input asks before changing role and account, and cancel preserves the form",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/currency-selector.spec.ts",
+      "title": "signed-in ERP currency picker is searchable on desktop and mobile",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/currency-selector.spec.ts",
+      "title": "signed-in ERP currency picker is searchable on desktop and mobile",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/currency-selector.spec.ts",
+      "title": "signed-in POS and PMS Front show the shared currency picker",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/currency-selector.spec.ts",
+      "title": "signed-in POS and PMS Front show the shared currency picker",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/demo-client-form-hydration.spec.ts",
+      "title": "isolated normal-login client forms block rapid native GET before hydration then save while native search keeps working",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/demo-client-form-hydration.spec.ts",
+      "title": "isolated normal-login client forms block rapid native GET before hydration then save while native search keeps working",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/demo-collaboration-action-card.spec.ts",
+      "title": "isolated demo routes a record-linked action card to its owner",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/demo-collaboration-action-card.spec.ts",
+      "title": "isolated demo routes a record-linked action card to its owner",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/demo-collaboration-attachments.spec.ts",
+      "title": "isolated demo exchanges a conversation attachment between members",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/demo-collaboration-attachments.spec.ts",
+      "title": "isolated demo exchanges a conversation attachment between members",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/demo-collaboration-record-relations.spec.ts",
+      "title": "isolated demo links a support case to its sales source and records removal",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/demo-collaboration-record-relations.spec.ts",
+      "title": "isolated demo links a support case to its sales source and records removal",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/demo-collaboration-social.spec.ts",
+      "title": "isolated demo publishes a mentioned update and keeps thread actions after reload",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/demo-collaboration-social.spec.ts",
+      "title": "isolated demo publishes a mentioned update and keeps thread actions after reload",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/demo-company-setup-acceptance.spec.ts",
+      "title": "Company setup is submitted, independently returned and accepted, then revoked through the real workspace",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/demo-company-setup-acceptance.spec.ts",
+      "title": "Company setup is submitted, independently returned and accepted, then revoked through the real workspace",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/demo-controlled-payment.spec.ts",
+      "title": "isolated demo completes a three-person generic payment through exact bank evidence",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/demo-controlled-payment.spec.ts",
+      "title": "isolated demo completes a three-person generic payment through exact bank evidence",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/crm/demo-crm-activities.spec.ts",
+      "title": "isolated demo records CRM lead activities through Sales ownership and Work",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/crm/demo-crm-activities.spec.ts",
+      "title": "isolated demo records CRM lead activities through Sales ownership and Work",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/customer_authority/demo-customer-duplicate-review.spec.ts",
+      "title": "isolated demo independently reviews and merges duplicate customers",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/customer_authority/demo-customer-duplicate-review.spec.ts",
+      "title": "isolated demo independently reviews and merges duplicate customers",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/customer_360/demo-customer-timeline.spec.ts",
+      "title": "isolated demo exposes a scoped Customer 360 timeline to independent Sales roles",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/customer_360/demo-customer-timeline.spec.ts",
+      "title": "isolated demo exposes a scoped Customer 360 timeline to independent Sales roles",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+      "title": "native business engineering workflows checks out immutable online prices delivers with scanned evidence and closes its native customer return Quality and original-value credit",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+      "title": "native business engineering workflows checks out immutable online prices delivers with scanned evidence and closes its native customer return Quality and original-value credit",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+      "title": "native business engineering workflows closes project WBS dependencies real tasks approved time posted costs and independently accepted immutable handoffs",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+      "title": "native business engineering workflows closes project WBS dependencies real tasks approved time posted costs and independently accepted immutable handoffs",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+      "title": "native business engineering workflows dispatches a customer visit captures confirmation independently releases billing and collects its invoice through three-person bank evidence",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+      "title": "native business engineering workflows dispatches a customer visit captures confirmation independently releases billing and collects its invoice through three-person bank evidence",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+      "title": "native business engineering workflows independently activates preventive work issues valued spares posts their Finance handoff and closes the persisted occurrence",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+      "title": "native business engineering workflows independently activates preventive work issues valued spares posts their Finance handoff and closes the persisted occurrence",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+      "title": "native business engineering workflows plans actual Sales demand incoming supply and resource calendars then closes routed Manufacturing output with stock and WIP matching posted GL",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+      "title": "native business engineering workflows plans actual Sales demand incoming supply and resource calendars then closes routed Manufacturing output with stock and WIP matching posted GL",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.money-people-journeys/demo-engineering-money-people.spec.ts",
+      "title": "isolated normal-login Finance and workforce owner journeys completes Learning certification and independently releases a qualified Benefits election without mutating its handoff",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.money-people-journeys/demo-engineering-money-people.spec.ts",
+      "title": "isolated normal-login Finance and workforce owner journeys completes Learning certification and independently releases a qualified Benefits election without mutating its handoff",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.money-people-journeys/demo-engineering-money-people.spec.ts",
+      "title": "isolated normal-login Finance and workforce owner journeys consumes an accepted Talent offer once into HR identity engagement and draft compensation through the onboarding UI",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.money-people-journeys/demo-engineering-money-people.spec.ts",
+      "title": "isolated normal-login Finance and workforce owner journeys consumes an accepted Talent offer once into HR identity engagement and draft compensation through the onboarding UI",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.money-people-journeys/demo-engineering-money-people.spec.ts",
+      "title": "isolated normal-login Finance and workforce owner journeys creates an itemized supplier bill and independently withholds pays issues amends and financially cancels retained 50 tawi copies",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.money-people-journeys/demo-engineering-money-people.spec.ts",
+      "title": "isolated normal-login Finance and workforce owner journeys creates an itemized supplier bill and independently withholds pays issues amends and financially cancels retained 50 tawi copies",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.money-people-journeys/demo-engineering-money-people.spec.ts",
+      "title": "isolated normal-login Finance and workforce owner journeys creates edits recognizes depreciates and independently disposes an asset with retained balanced history",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.money-people-journeys/demo-engineering-money-people.spec.ts",
+      "title": "isolated normal-login Finance and workforce owner journeys creates edits recognizes depreciates and independently disposes an asset with retained balanced history",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.money-people-journeys/demo-engineering-money-people.spec.ts",
+      "title": "isolated normal-login Finance and workforce owner journeys independently issues comparative NPAEs statements and preserves the original export through a reviewed amended edition",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.money-people-journeys/demo-engineering-money-people.spec.ts",
+      "title": "isolated normal-login Finance and workforce owner journeys independently issues comparative NPAEs statements and preserves the original export through a reviewed amended edition",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.money-people-journeys/demo-engineering-thai-payroll.spec.ts",
+      "title": "isolated normal-login source-dated Thai payroll journey calculates reviewed Thai salary OT bonus and service charge then independently posts and settles exact net pay with retained exports",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.money-people-journeys/demo-engineering-thai-payroll.spec.ts",
+      "title": "isolated normal-login source-dated Thai payroll journey calculates reviewed Thai salary OT bonus and service charge then independently posts and settles exact net pay with retained exports",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/demo-finance-aging.spec.ts",
+      "title": "isolated demo renders receivables and payables aging from live finance data",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/demo-finance-aging.spec.ts",
+      "title": "isolated demo renders receivables and payables aging from live finance data",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/demo-finance-chart-setup.spec.ts",
+      "title": "isolated demo renders real chart and account setup controls",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/demo-finance-chart-setup.spec.ts",
+      "title": "isolated demo renders real chart and account setup controls",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/demo-finance-close.spec.ts",
+      "title": "isolated demo closes two reconciled periods with independent users",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/demo-finance-close.spec.ts",
+      "title": "isolated demo closes two reconciled periods with independent users",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/demo-finance-opening-import.spec.ts",
+      "title": "isolated demo imports and independently posts opening balances",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/demo-finance-opening-import.spec.ts",
+      "title": "isolated demo imports and independently posts opening balances",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/demo-finance-reports.spec.ts",
+      "title": "isolated demo traces finance report totals to the selected ledger",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/demo-finance-reports.spec.ts",
+      "title": "isolated demo traces finance report totals to the selected ledger",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/demo-hospitality-setup.spec.ts",
+      "title": "a typed transfer stays pending and the cashier can recover the bill",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/demo-hospitality-setup.spec.ts",
+      "title": "a typed transfer stays pending and the cashier can recover the bill",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/demo-hospitality-setup.spec.ts",
+      "title": "cashier and kitchen complete a restaurant bill on the existing hotel guest account",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/demo-hospitality-setup.spec.ts",
+      "title": "cashier and kitchen complete a restaurant bill on the existing hotel guest account",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/demo-hospitality-setup.spec.ts",
+      "title": "cashier records an external tax reference and independent Finance verifies it",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/demo-hospitality-setup.spec.ts",
+      "title": "cashier records an external tax reference and independent Finance verifies it",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/demo-hospitality-setup.spec.ts",
+      "title": "front desk and cashier settle checkout and recover Night Audit",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/demo-hospitality-setup.spec.ts",
+      "title": "front desk and cashier settle checkout and recover Night Audit",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/demo-hospitality-setup.spec.ts",
+      "title": "hotel cashier records a transfer and independent Finance matches bank evidence",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/demo-hospitality-setup.spec.ts",
+      "title": "hotel cashier records a transfer and independent Finance matches bank evidence",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/demo-hospitality-setup.spec.ts",
+      "title": "Night Audit shows restaurant blockers and rejects an early close",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/demo-hospitality-setup.spec.ts",
+      "title": "Night Audit shows restaurant blockers and rejects an early close",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/demo-hospitality-setup.spec.ts",
+      "title": "Riverside hotel and restaurant remain isolated and render for independent pilot roles",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/demo-hospitality-setup.spec.ts",
+      "title": "Riverside hotel and restaurant remain isolated and render for independent pilot roles",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/demo-hospitality-setup.spec.ts",
+      "title": "wrong-room, stale and revoked-cashier room charges leave the bill recoverable",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/demo-hospitality-setup.spec.ts",
+      "title": "wrong-room, stale and revoked-cashier room charges leave the bill recoverable",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/demo-identity-activation-revocation.spec.ts",
+      "title": "Demo invitation activates a separate account and revocation removes access immediately",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/demo-identity-activation-revocation.spec.ts",
+      "title": "Demo invitation activates a separate account and revocation removes access immediately",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/inventory/demo-inventory-lot-serial.spec.ts",
+      "title": "isolated demo receives lot and serial stock with independent approval and quarantine evidence",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/inventory/demo-inventory-lot-serial.spec.ts",
+      "title": "isolated demo receives lot and serial stock with independent approval and quarantine evidence",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/marketing/demo-marketing-to-crm-lead.spec.ts",
+      "title": "consented Marketing candidate hands its brief and attribution to an eligible CRM owner",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/marketing/demo-marketing-to-crm-lead.spec.ts",
+      "title": "consented Marketing candidate hands its brief and attribution to an eligible CRM owner",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/demo-organization-lifecycle.spec.ts",
+      "title": "isolated organization setup supports reviewed correction, safe suspension and retained history",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/demo-organization-lifecycle.spec.ts",
+      "title": "isolated organization setup supports reviewed correction, safe suspension and retained history",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/people_payroll/demo-overtime-to-payroll.spec.ts",
+      "title": "isolated demo sends reviewed overtime from employee to payroll preview",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/people_payroll/demo-overtime-to-payroll.spec.ts",
+      "title": "isolated demo sends reviewed overtime from employee to payroll preview",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/demo-payroll-runs.spec.ts",
+      "title": "isolated demo calculates and independently approves a payroll preview",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/demo-payroll-runs.spec.ts",
+      "title": "isolated demo calculates and independently approves a payroll preview",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/procurement/demo-purchase-request-rfq.spec.ts",
+      "title": "isolated demo carries an approved purchase request through split RFQs, receipts, one consolidated AP invoice and supplier payment",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/procurement/demo-purchase-request-rfq.spec.ts",
+      "title": "isolated demo carries an approved purchase request through split RFQs, receipts, one consolidated AP invoice and supplier payment",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/procurement/demo-purchase-rfq.spec.ts",
+      "title": "isolated demo creates, awards and hands off a supplier quotation to a draft PO",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/procurement/demo-purchase-rfq.spec.ts",
+      "title": "isolated demo creates, awards and hands off a supplier quotation to a draft PO",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/quality/demo-quality-alerts.spec.ts",
+      "title": "isolated demo routes due-soon and overdue Quality escalations with durable acknowledgement",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/quality/demo-quality-alerts.spec.ts",
+      "title": "isolated demo routes due-soon and overdue Quality escalations with durable acknowledgement",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/quality/demo-quality-inspection-release.spec.ts",
+      "title": "isolated demo records independent inspection and third-person quality release",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/quality/demo-quality-inspection-release.spec.ts",
+      "title": "isolated demo records independent inspection and third-person quality release",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+      "title": "native retail and customer authority engineering workflows independently approves one customer portal binding scans scoped support evidence revokes cached access and retains immutable authority history",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+      "title": "native retail and customer authority engineering workflows independently approves one customer portal binding scans scoped support evidence revokes cached access and retains immutable authority history",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+      "title": "native retail and customer authority engineering workflows sells counted retail stock collects cash independently approves a partial restock refund and reviews the exact cash session",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+      "title": "native retail and customer authority engineering workflows sells counted retail stock collects cash independently approves a partial restock refund and reviews the exact cash session",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/sales/demo-sales-to-collection.spec.ts",
+      "title": "isolated demo carries a quotation through sales delivery, customer invoice and collection",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/sales/demo-sales-to-collection.spec.ts",
+      "title": "isolated demo carries a quotation through sales delivery, customer invoice and collection",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/inventory/demo-stock-transit.spec.ts",
+      "title": "isolated demo carries an approved warehouse transfer through dispatch and partial receiving",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/inventory/demo-stock-transit.spec.ts",
+      "title": "isolated demo carries an approved warehouse transfer through dispatch and partial receiving",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/support/demo-support-lifecycle.spec.ts",
+      "title": "isolated demo completes a source-linked support case with independent confirmation",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/support/demo-support-lifecycle.spec.ts",
+      "title": "isolated demo completes a source-linked support case with independent confirmation",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/operations/demo-task-delegation.spec.ts",
+      "title": "isolated demo delegates task work, revokes access and independently reviews completion",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/operations/demo-task-delegation.spec.ts",
+      "title": "isolated demo delegates task work, revokes access and independently reviews completion",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+      "title": "isolated Agents independently approve immutable prompt policy and refuse disallowed source use",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+      "title": "isolated Agents independently approve immutable prompt policy and refuse disallowed source use",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+      "title": "isolated Brand publishes independently, locks the approved category and restores an earlier identity with retained history",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+      "title": "isolated Brand publishes independently, locks the approved category and restores an earlier identity with retained history",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+      "title": "isolated Commercial Console rates measured monthly shadow usage and preserves rating history without creating an invoice",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+      "title": "isolated Commercial Console rates measured monthly shadow usage and preserves rating history without creating an invoice",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+      "title": "isolated ERPX Realm grants temporary Platform access by independent MFA review and revokes it without hiding retained recovery evidence",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+      "title": "isolated ERPX Realm grants temporary Platform access by independent MFA review and revokes it without hiding retained recovery evidence",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+      "title": "isolated Holding IAM records unavailable directory readiness and completes independent access certification with immediate revocation",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+      "title": "isolated Holding IAM records unavailable directory readiness and completes independent access certification with immediate revocation",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+      "title": "isolated Marketing serves reviewed content and scanned public creative, captures visitor consent once and hands the immutable request to CRM before withdrawal",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+      "title": "isolated Marketing serves reviewed content and scanned public creative, captures visitor consent once and hands the immutable request to CRM before withdrawal",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+      "title": "isolated reviewed field proposal needs human correction and preserves private evidence after hold and expiry",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+      "title": "isolated reviewed field proposal needs human correction and preserves private evidence after hold and expiry",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+      "title": "isolated Social reports through a separate identity and moderation removes the current post after reload",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+      "title": "isolated Social reports through a separate identity and moderation removes the current post after reload",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+      "title": "isolated Workplace queue uses independently published policy and closes a source exception with retained decisions",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+      "title": "isolated Workplace queue uses independently published policy and closes a source exception with retained decisions",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/demo-workspace-header.spec.ts",
+      "title": "workspace header keeps context, navigation and role actions usable across widths",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/demo-workspace-header.spec.ts",
+      "title": "workspace header keeps context, navigation and role actions usable across widths",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/enterprise-ui.spec.ts",
+      "title": "a person row opens profile and employment in one detail panel",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/enterprise-ui.spec.ts",
+      "title": "a person row opens profile and employment in one detail panel",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/enterprise-ui.spec.ts",
+      "title": "Administration consolidates tools without granting staff approval management",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/enterprise-ui.spec.ts",
+      "title": "Administration consolidates tools without granting staff approval management",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/enterprise-ui.spec.ts",
+      "title": "breadcrumb returns to live business parents",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/enterprise-ui.spec.ts",
+      "title": "canonical workspace routes and legacy aliases retain their scope",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/enterprise-ui.spec.ts",
+      "title": "canonical workspace routes and legacy aliases retain their scope",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/enterprise-ui.spec.ts",
+      "title": "desktop and mobile navigation place live business destinations correctly",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/enterprise-ui.spec.ts",
+      "title": "desktop and mobile navigation place live business destinations correctly",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/enterprise-ui.spec.ts",
+      "title": "development module and generic record UI routes are unavailable without redirects",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/enterprise-ui.spec.ts",
+      "title": "development module and generic record UI routes are unavailable without redirects",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/enterprise-ui.spec.ts",
+      "title": "learn retains captioned lessons",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/enterprise-ui.spec.ts",
+      "title": "learn retains captioned lessons",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/enterprise-ui.spec.ts",
+      "title": "live workspace pages fit three widths and both themes",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/enterprise-ui.spec.ts",
+      "title": "POS opens directly from the sidebar, rail, and app launcher",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/enterprise-ui.spec.ts",
+      "title": "post drafts survive failures and collapsed UI; dialogs retain keyboard focus",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/enterprise-ui.spec.ts",
+      "title": "post drafts survive failures and collapsed UI; dialogs retain keyboard focus",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/enterprise-ui.spec.ts",
+      "title": "restricted staff sees only authorized live destinations",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/enterprise-ui.spec.ts",
+      "title": "restricted staff sees only authorized live destinations",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/expense-v2.spec.ts",
+      "title": "AI suggestions fill blanks, preserve human edits and require explicit replacement",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/expense-v2.spec.ts",
+      "title": "AI suggestions fill blanks, preserve human edits and require explicit replacement",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/expense-v2.spec.ts",
+      "title": "all four request drawers keep their actions accessible and preserve the queue",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/expense-v2.spec.ts",
+      "title": "all four request drawers keep their actions accessible and preserve the queue",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/expense-v2.spec.ts",
+      "title": "every member can preserve an incomplete claim and reach People setup",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/expense-v2.spec.ts",
+      "title": "every member can preserve an incomplete claim and reach People setup",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/expense-v2.spec.ts",
+      "title": "expense goes through four independent people and two slip-backed payments",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/expense-v2.spec.ts",
+      "title": "expense goes through four independent people and two slip-backed payments",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/expense-v2.spec.ts",
+      "title": "IT can save a masked custom provider draft while employees are denied",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/expense-v2.spec.ts",
+      "title": "IT can save a masked custom provider draft while employees are denied",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/expense-v2.spec.ts",
+      "title": "new leave uploads private evidence before submitting a half day",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/expense-v2.spec.ts",
+      "title": "new leave uploads private evidence before submitting a half day",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/expense-v2.spec.ts",
+      "title": "service settings preview validates coverage without publishing",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/expense-v2.spec.ts",
+      "title": "service settings preview validates coverage without publishing",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/front-quick-access.spec.ts",
+      "title": "Front POS shortcuts stay local and change the visible tab",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/front-quick-access.spec.ts",
+      "title": "Front POS shortcuts stay local and change the visible tab",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/home-feed-review.spec.ts",
+      "title": "Home feed controls and saved widget layout remain usable",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/home-feed-review.spec.ts",
+      "title": "Home feed controls and saved widget layout remain usable",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/home-visual-scenarios.spec.ts",
+      "title": "Home layout with empty, long and multi-image feed content",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/home-visual-scenarios.spec.ts",
+      "title": "Home layout with empty, long and multi-image feed content",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/iam.spec.ts",
+      "title": "IAM pages, provider selection, matrix explanation and keyboard navigation",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/iam.spec.ts",
+      "title": "IAM pages, provider selection, matrix explanation and keyboard navigation",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/iam.spec.ts",
+      "title": "People explorer search, pagination, one-context comparison, responsive panes and themes",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/iam.spec.ts",
+      "title": "People explorer search, pagination, one-context comparison, responsive panes and themes",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/iam.spec.ts",
+      "title": "People inline ERPX grant submits revision, scope and idempotency to reviewed IAM workflow",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/iam.spec.ts",
+      "title": "People inline ERPX grant submits revision, scope and idempotency to reviewed IAM workflow",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/iam.spec.ts",
+      "title": "user management previews, persistence, drag alternatives and responsive layouts",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/iam.spec.ts",
+      "title": "user management previews, persistence, drag alternatives and responsive layouts",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/inventory/inventory-lot-serial.spec.ts",
+      "title": "inventory screens expose traceability and separate stock positions",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/inventory/inventory-lot-serial.spec.ts",
+      "title": "inventory screens expose traceability and separate stock positions",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/leave-approval.spec.ts",
+      "title": "a device can add accounts and each account sees its combined responsibilities",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/leave-approval.spec.ts",
+      "title": "a device can add accounts and each account sees its combined responsibilities",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/leave-approval.spec.ts",
+      "title": "independent users see the persisted leave result",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/leave-approval.spec.ts",
+      "title": "independent users see the persisted leave result",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/local-review.spec.ts",
+      "title": "local draft review, failed request retry, evidence and independent approval",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/local-review.spec.ts",
+      "title": "local draft review, failed request retry, evidence and independent approval",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/login-no-js.spec.ts",
+      "title": "sign-in cannot put credentials in a URL before hydration",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/login-no-js.spec.ts",
+      "title": "sign-in cannot put credentials in a URL before hydration",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/member-profile.spec.ts",
+      "title": "another member's profile aligns the feed width with the profile card",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/member-profile.spec.ts",
+      "title": "another member's profile aligns the feed width with the profile card",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/member-profile.spec.ts",
+      "title": "generic time entry rejects a DST gap and requires an offset on a repeated hour",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/member-profile.spec.ts",
+      "title": "generic time entry rejects a DST gap and requires an offset on a repeated hour",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/member-profile.spec.ts",
+      "title": "profile media is scanned, served privately, and removable",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/member-profile.spec.ts",
+      "title": "profile media is scanned, served privately, and removable",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/member-profile.spec.ts",
+      "title": "profile opens from the account menu and respects the selected clock",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/member-profile.spec.ts",
+      "title": "profile opens from the account menu and respects the selected clock",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/messaging.spec.ts",
+      "title": "real accounts chat, reconnect, attach files, use teams and enforce private membership",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/messaging.spec.ts",
+      "title": "real accounts chat, reconnect, attach files, use teams and enforce private membership",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-access.spec.ts",
+      "title": "HR can review an employee transfer from the shared IT details without changing salary",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-access.spec.ts",
+      "title": "HR can review an employee transfer from the shared IT details without changing salary",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-access.spec.ts",
+      "title": "HR Level changes preserve draft manager choices when returning from preview",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-access.spec.ts",
+      "title": "HR Level changes preserve draft manager choices when returning from preview",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-access.spec.ts",
+      "title": "HR reviews all position holders and GPO impact before a Department move",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-access.spec.ts",
+      "title": "HR reviews all position holders and GPO impact before a Department move",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-access.spec.ts",
+      "title": "IT assigns a library GPO by keyboard from the responsive drawer and confirms the preview",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-access.spec.ts",
+      "title": "IT assigns a library GPO by keyboard from the responsive drawer and confirms the preview",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-access.spec.ts",
+      "title": "one workspace preserves old deep links, searches across the tree and supports keyboard selection",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-access.spec.ts",
+      "title": "one workspace preserves old deep links, searches across the tree and supports keyboard selection",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-chart.spec.ts",
+      "title": "compact groups retain multiple holders, duplicate titles and keyboard action menus",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-chart.spec.ts",
+      "title": "compact groups retain multiple holders, duplicate titles and keyboard action menus",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-chart.spec.ts",
+      "title": "compact rows and details fit light and dark layouts from 320px to a large desktop",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-chart.spec.ts",
+      "title": "department approvals remain available and the structure uses a large desktop's width",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-chart.spec.ts",
+      "title": "legacy organization selection survives refresh and browser Back in the single structure",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-chart.spec.ts",
+      "title": "legacy organization selection survives refresh and browser Back in the single structure",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-chart.spec.ts",
+      "title": "mocked draft moves update occupancy, group counts and Undo immediately",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-chart.spec.ts",
+      "title": "mocked draft moves update occupancy, group counts and Undo immediately",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-chart.spec.ts",
+      "title": "occupancy filters preserve selection, search, refresh and browser Back",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-chart.spec.ts",
+      "title": "occupancy filters preserve selection, search, refresh and browser Back",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-chart.spec.ts",
+      "title": "the keyboard destination chooser excludes positions in other companies",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-chart.spec.ts",
+      "title": "the keyboard destination chooser excludes positions in other companies",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-chart.spec.ts",
+      "title": "Without position and Archived exclude vacancy filters and empty position rows",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-chart.spec.ts",
+      "title": "Without position and Archived exclude vacancy filters and empty position rows",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-draft-panels.spec.ts",
+      "title": "a touch handle moves a position to a department whose id contains colons",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-draft-panels.spec.ts",
+      "title": "an old move link keeps its destination chooser open when the first private draft autosaves",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-draft-panels.spec.ts",
+      "title": "an old move link keeps its destination chooser open when the first private draft autosaves",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-draft-panels.spec.ts",
+      "title": "People has one structure, expandable details and no page overflow at supported widths",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-draft-panels.spec.ts",
+      "title": "People ignores superseded detail reads and an employee only sees public HR information",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-draft-panels.spec.ts",
+      "title": "People ignores superseded detail reads and an employee only sees public HR information",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-draft-panels.spec.ts",
+      "title": "review waits for schedule and policy impact, and a failed read must succeed before confirmation",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-draft-panels.spec.ts",
+      "title": "review waits for schedule and policy impact, and a failed read must succeed before confirmation",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-draft-panels.spec.ts",
+      "title": "saved items with no destination survive refresh and save failures keep the local change",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-draft-panels.spec.ts",
+      "title": "saved items with no destination survive refresh and save failures keep the local change",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-draft-panels.spec.ts",
+      "title": "three kinds of drag and keyboard moves share a saved private draft, Undo and review",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-draft-panels.spec.ts",
+      "title": "working time, roster requirements and effective compensation use their existing workflows",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-draft-panels.spec.ts",
+      "title": "working time, roster requirements and effective compensation use their existing workflows",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/page-layouts.spec.ts",
+      "title": "My work views remain reachable through sidebar or mobile submenu",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/page-layouts.spec.ts",
+      "title": "My work views remain reachable through sidebar or mobile submenu",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/page-layouts.spec.ts",
+      "title": "People layout previews width, order and visibility and cancel restores the page",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/page-layouts.spec.ts",
+      "title": "People layout previews width, order and visibility and cancel restores the page",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/page-layouts.spec.ts",
+      "title": "retired pages render fixed widgets without layout reads or controls",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/page-layouts.spec.ts",
+      "title": "retired pages render fixed widgets without layout reads or controls",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/people-settings-ui.spec.ts",
+      "title": "custom attributes live in Technology and old direct links redirect",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/people-settings-ui.spec.ts",
+      "title": "custom attributes live in Technology and old direct links redirect",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/people-settings-ui.spec.ts",
+      "title": "HR settings uses one flat topic list and edits inside the People detail panel",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/people-settings-ui.spec.ts",
+      "title": "HR settings uses one flat topic list and edits inside the People detail panel",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/people-settings-ui.spec.ts",
+      "title": "leave policy wizard preserves draft and submits one reviewed command",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/people-settings-ui.spec.ts",
+      "title": "leave policy wizard preserves draft and submits one reviewed command",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/people-settings-ui.spec.ts",
+      "title": "pay groups and holiday calendars use existing commands from the People settings panel",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/people-settings-ui.spec.ts",
+      "title": "pay groups and holiday calendars use existing commands from the People settings panel",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/people-team-schedule.spec.ts",
+      "title": "a team schedule adds shifts, publishes, copies a week and creates a Calendar appointment",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/people-team-schedule.spec.ts",
+      "title": "a team schedule adds shifts, publishes, copies a week and creates a Calendar appointment",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pms-booking.spec.ts",
+      "title": "guest portal is public without exposing internal PMS records",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pms-booking.spec.ts",
+      "title": "guest portal is public without exposing internal PMS records",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pms-booking.spec.ts",
+      "title": "searches, quotes and confirms a family stay in an isolated hotel",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pms-booking.spec.ts",
+      "title": "searches, quotes and confirms a family stay in an isolated hotel",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pms.spec.ts",
+      "title": "PMS commands require an authenticated work context",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pms.spec.ts",
+      "title": "PMS commands require an authenticated work context",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pms.spec.ts",
+      "title": "PMS protects /holdings/acme/pms before exposing guest or room data",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pms.spec.ts",
+      "title": "PMS protects /holdings/acme/pms before exposing guest or room data",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pms.spec.ts",
+      "title": "PMS protects /holdings/acme/pms/housekeeping before exposing guest or room data",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pms.spec.ts",
+      "title": "PMS protects /holdings/acme/pms/housekeeping before exposing guest or room data",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/position-gpo-ui.spec.ts",
+      "title": "HR can choose a Position independently of its Directory readiness",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/position-gpo-ui.spec.ts",
+      "title": "HR can choose a Position independently of its Directory readiness",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/position-gpo-ui.spec.ts",
+      "title": "IT closes an unmapped Position task with a reason by keyboard",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/position-gpo-ui.spec.ts",
+      "title": "IT closes an unmapped Position task with a reason by keyboard",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/position-gpo-ui.spec.ts",
+      "title": "IT opens old Directory links in the combined workspace and previews a direct GPO rule",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/position-gpo-ui.spec.ts",
+      "title": "IT opens old Directory links in the combined workspace and previews a direct GPO rule",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/position-roster-ui.spec.ts",
+      "title": "a signed-in backoffice manager sees team management without My shifts",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/position-roster-ui.spec.ts",
+      "title": "a signed-in backoffice manager sees team management without My shifts",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/position-roster-ui.spec.ts",
+      "title": "a signed-in shift worker sees My shifts",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/position-roster-ui.spec.ts",
+      "title": "a signed-in shift worker sees My shifts",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/preferred-role.spec.ts",
+      "title": "17-role account selects Employee, cannot use finance or HR APIs, and invalidates another tab",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/preferred-role.spec.ts",
+      "title": "17-role account selects Employee, cannot use finance or HR APIs, and invalidates another tab",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/preferred-role.spec.ts",
+      "title": "a single-assignment staff account starts automatically and keeps its role on reload",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/preferred-role.spec.ts",
+      "title": "a single-assignment staff account starts automatically and keeps its role on reload",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/preferred-role.spec.ts",
+      "title": "role switcher has no input or Automatic option and appearance stays compact",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/preferred-role.spec.ts",
+      "title": "role switcher has no input or Automatic option and appearance stays compact",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/remembered-workspace.spec.ts",
+      "title": "new logins restore database holding, company and role with no browser cookies",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/remembered-workspace.spec.ts",
+      "title": "new logins restore database holding, company and role with no browser cookies",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/self-service.spec.ts",
+      "title": "Backoffice roster and Purchase request retain their canonical destinations",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/self-service.spec.ts",
+      "title": "Backoffice roster and Purchase request retain their canonical destinations",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/self-service.spec.ts",
+      "title": "Home keeps its feed, one shared shelf, keyboard access and independent failure recovery",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/self-service.spec.ts",
+      "title": "Home keeps its feed, one shared shelf, keyboard access and independent failure recovery",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/self-service.spec.ts",
+      "title": "leave draft, half-day preview and interrupted private upload can be recovered",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/self-service.spec.ts",
+      "title": "leave draft, half-day preview and interrupted private upload can be recovered",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/self-service.spec.ts",
+      "title": "overtime server drafts survive reload, retain stale edits, preview and withdraw",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/self-service.spec.ts",
+      "title": "overtime server drafts survive reload, retain stale edits, preview and withdraw",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/shared-workspace.spec.ts",
+      "title": "equipment requires independent approval then records a handover without a financial posting",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/shared-workspace.spec.ts",
+      "title": "equipment requires independent approval then records a handover without a financial posting",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/shared-workspace.spec.ts",
+      "title": "handbook editors publish a revision while employees cannot read or search the next draft",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/shared-workspace.spec.ts",
+      "title": "handbook editors publish a revision while employees cannot read or search the next draft",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/shared-workspace.spec.ts",
+      "title": "owner configures coverage through Organization and members retain drafts without a profile",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/shared-workspace.spec.ts",
+      "title": "owner configures coverage through Organization and members retain drafts without a profile",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/shared-workspace.spec.ts",
+      "title": "purchase requests hand off once to the existing approved and received order workflow",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/shared-workspace.spec.ts",
+      "title": "purchase requests hand off once to the existing approved and received order workflow",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/shared-workspace.spec.ts",
+      "title": "service request moves through a shared team, questions, evidence, reopening and requester confirmation",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/shared-workspace.spec.ts",
+      "title": "service request moves through a shared team, questions, evidence, reopening and requester confirmation",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/shared-workspace.spec.ts",
+      "title": "shared workspace supports keyboard access and 390, 768 and 1440px light and dark layouts",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/shared-workspace.spec.ts",
+      "title": "shared workspace supports keyboard access and 390, 768 and 1440px light and dark layouts",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/social-ai-loading.spec.ts",
+      "title": "shows a distinct loading state while AI prepares a task",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/social-ai-loading.spec.ts",
+      "title": "shows a distinct loading state while AI prepares a task",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/social-beta.spec.ts",
+      "title": "composer removes the duplicate avatar and accepts pasted images",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/social-beta.spec.ts",
+      "title": "composer removes the duplicate avatar and accepts pasted images",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/social-beta.spec.ts",
+      "title": "keeps a failed image upload in the composer and retries it",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/social-beta.spec.ts",
+      "title": "keeps a failed image upload in the composer and retries it",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/social-beta.spec.ts",
+      "title": "lets an author delete a published post from the feed",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/social-beta.spec.ts",
+      "title": "lets an author delete a published post from the feed",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/social-beta.spec.ts",
+      "title": "pastes two images at the caret, restores their draft order, and publishes them",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/social-beta.spec.ts",
+      "title": "pastes two images at the caret, restores their draft order, and publishes them",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/social-beta.spec.ts",
+      "title": "publishes an image-only employee post",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/social-beta.spec.ts",
+      "title": "publishes an image-only employee post",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/social-beta.spec.ts",
+      "title": "social post \u2192 manual task \u2192 evidence \u2192 independent acceptance, with AI fallback",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/social-beta.spec.ts",
+      "title": "social post \u2192 manual task \u2192 evidence \u2192 independent acceptance, with AI fallback",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/procurement/split-requisition-uom.spec.ts",
+      "title": "purchase request and RFQ screens expose units and partial sourcing guidance",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/procurement/split-requisition-uom.spec.ts",
+      "title": "purchase request and RFQ screens expose units and partial sourcing guidance",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/operations/staff-work.spec.ts",
+      "title": "staff can publish routines, pause and resume schedules, and run an independent occurrence",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/operations/staff-work.spec.ts",
+      "title": "staff can publish routines, pause and resume schedules, and run an independent occurrence",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/operations/staff-work.spec.ts",
+      "title": "staff project and task approvals work across roles, departments and viewports",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/operations/staff-work.spec.ts",
+      "title": "staff project and task approvals work across roles, departments and viewports",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/procurement/supplier-invoice-policy.spec.ts",
+      "title": "company Finance authority can require supplier matching and restore the policy with immutable history",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/procurement/supplier-invoice-policy.spec.ts",
+      "title": "company Finance authority can require supplier matching and restore the policy with immutable history",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/pms/thai-hotel-v1-ai.spec.ts",
+      "title": "H002 AI drafts from authorized versions, cites hotel evidence, then falls back manually",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/pms/thai-hotel-v1-ai.spec.ts",
+      "title": "H002 AI drafts from authorized versions, cites hotel evidence, then falls back manually",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/people_payroll/thai-hotel-v1-final-pay.spec.ts",
+      "title": "H002 prepares and calculates person-scoped final-pay mock from retirement clearance",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/people_payroll/thai-hotel-v1-final-pay.spec.ts",
+      "title": "H002 prepares and calculates person-scoped final-pay mock from retirement clearance",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/pms/thai-hotel-v1-hotel.spec.ts",
+      "title": "H002 guest journey includes independent guest account correction, payment, checkout and Night Audit",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/pms/thai-hotel-v1-hotel.spec.ts",
+      "title": "H002 guest journey includes independent guest account correction, payment, checkout and Night Audit",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/people_payroll/thai-hotel-v1-hr-lifecycle.spec.ts",
+      "title": "H002 HR creates and edits an employee, approves access independently, then revokes it",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/people_payroll/thai-hotel-v1-hr-lifecycle.spec.ts",
+      "title": "H002 HR creates and edits an employee, approves access independently, then revokes it",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/people_payroll/thai-hotel-v1-overtime.spec.ts",
+      "title": "employee overtime is verified by a manager and independently handed off by HR",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/people_payroll/thai-hotel-v1-overtime.spec.ts",
+      "title": "employee overtime is verified by a manager and independently handed off by HR",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/people_payroll/thai-hotel-v1-payroll.spec.ts",
+      "title": "H002 synthetic payroll covers approved time, correction, review, GL and sandbox bank confirmation",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/people_payroll/thai-hotel-v1-payroll.spec.ts",
+      "title": "H002 synthetic payroll covers approved time, correction, review, GL and sandbox bank confirmation",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/pos/thai-hotel-v1-pos.spec.ts",
+      "title": "H002 restaurant posts a cash sale, records waste, reviews a refund and closes its cash session",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/pos/thai-hotel-v1-pos.spec.ts",
+      "title": "H002 restaurant posts a cash sale, records waste, reviews a refund and closes its cash session",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/pos/thai-hotel-v1-pos.spec.ts",
+      "title": "H002 restaurant transfer stays unsettled until independent Finance matches its imported bank row",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/pos/thai-hotel-v1-pos.spec.ts",
+      "title": "H002 restaurant transfer stays unsettled until independent Finance matches its imported bank row",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/procurement/thai-hotel-v1-procurement.spec.ts",
+      "title": "isolated demo carries an approved purchase request through split RFQs, receipts, one consolidated AP invoice and supplier payment",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/procurement/thai-hotel-v1-procurement.spec.ts",
+      "title": "isolated demo carries an approved purchase request through split RFQs, receipts, one consolidated AP invoice and supplier payment",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/ui-foundation.spec.ts",
+      "title": "canonical UI controls remain accessible across themes and widths",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/ui-foundation.spec.ts",
+      "title": "canonical UI controls remain accessible across themes and widths",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/ui-foundation.spec.ts",
+      "title": "foundation supports keyboard focus and reduced motion",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/ui-foundation.spec.ts",
+      "title": "foundation supports keyboard focus and reduced motion",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/ui-migration-contracts.spec.ts",
+      "title": "controlled dialogs retain dirty drafts, trap focus and restore the opener",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/ui-migration-contracts.spec.ts",
+      "title": "controlled dialogs retain dirty drafts, trap focus and restore the opener",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/ui-migration-contracts.spec.ts",
+      "title": "light, dark and system appearance share the UI tokens and remain responsive",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/ui-migration-contracts.spec.ts",
+      "title": "light, dark and system appearance share the UI tokens and remain responsive",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/ui-migration-contracts.spec.ts",
+      "title": "native form values, submitter and keyboard submit survive the UI migration",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/ui-migration-contracts.spec.ts",
+      "title": "native form values, submitter and keyboard submit survive the UI migration",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/ui-standard-popups.spec.ts",
+      "title": "shared popup keyboard behavior works inside a dirty form drawer",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/ui-standard-popups.spec.ts",
+      "title": "shared popup keyboard behavior works inside a dirty form drawer",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/visual-hierarchy.spec.ts",
+      "title": "keyboard entry reaches the main content",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/visual-hierarchy.spec.ts",
+      "title": "keyboard entry reaches the main content",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/visual-hierarchy.spec.ts",
+      "title": "priority cards distinguish blockers, overdue work and undated work",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/visual-hierarchy.spec.ts",
+      "title": "priority cards distinguish blockers, overdue work and undated work",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/visual-hierarchy.spec.ts",
+      "title": "Today priorities and feed at 1024px in dark",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/visual-hierarchy.spec.ts",
+      "title": "Today priorities and feed at 1024px in dark",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/visual-hierarchy.spec.ts",
+      "title": "Today priorities and feed at 1024px in light",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/visual-hierarchy.spec.ts",
+      "title": "Today priorities and feed at 1024px in light",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/visual-hierarchy.spec.ts",
+      "title": "Today priorities and feed at 1440px in dark",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/visual-hierarchy.spec.ts",
+      "title": "Today priorities and feed at 1440px in dark",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/visual-hierarchy.spec.ts",
+      "title": "Today priorities and feed at 1440px in light",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/visual-hierarchy.spec.ts",
+      "title": "Today priorities and feed at 1440px in light",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/visual-hierarchy.spec.ts",
+      "title": "Today priorities and feed at 390px in dark",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/visual-hierarchy.spec.ts",
+      "title": "Today priorities and feed at 390px in dark",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/visual-hierarchy.spec.ts",
+      "title": "Today priorities and feed at 390px in light",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/visual-hierarchy.spec.ts",
+      "title": "Today priorities and feed at 390px in light",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.work/work-cards.spec.ts",
+      "title": "an expense saved from a card appears once in the matching list and summary",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.work/work-cards.spec.ts",
+      "title": "an expense saved from a card appears once in the matching list and summary",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.work/work-cards.spec.ts",
+      "title": "cards fit 390, 768 and 1440px in both themes and retain keyboard focus",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.work/work-cards.spec.ts",
+      "title": "focus refresh updates preferences and incomplete summaries keep other work usable",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.work/work-cards.spec.ts",
+      "title": "focus refresh updates preferences and incomplete summaries keep other work usable",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.work/work-cards.spec.ts",
+      "title": "members without profiles use cards to create drafts and preserve filters, refresh and Back",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.work/work-cards.spec.ts",
+      "title": "members without profiles use cards to create drafts and preserve filters, refresh and Back",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.work/work-cards.spec.ts",
+      "title": "pin order syncs between devices and conflicts preserve the proposed arrangement",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.work/work-cards.spec.ts",
+      "title": "pin order syncs between devices and conflicts preserve the proposed arrangement",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.work/work-cards.spec.ts",
+      "title": "preference APIs reject forged authority and beta only offers supported actions",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.work/work-cards.spec.ts",
+      "title": "preference APIs reject forged authority and beta only offers supported actions",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.work/work-cards.spec.ts",
+      "title": "team and inventory cards follow company, branch and department scope",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.work/work-cards.spec.ts",
+      "title": "team and inventory cards follow company, branch and department scope",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.work/work-journeys.spec.ts",
+      "title": "REQ-001 request draft survives reload and failed save, retries once, then cancels",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.work/work-journeys.spec.ts",
+      "title": "REQ-001 request draft survives reload and failed save, retries once, then cancels",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.work/work-journeys.spec.ts",
+      "title": "WORK-001 filters survive queue changes and reload, then clear",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.work/work-journeys.spec.ts",
+      "title": "WORK-001 filters survive queue changes and reload, then clear",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.work/work-journeys.spec.ts",
+      "title": "WORK-002 legacy /requests opens the corresponding Work list",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.work/work-journeys.spec.ts",
+      "title": "WORK-002 legacy /requests opens the corresponding Work list",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.work/work-journeys.spec.ts",
+      "title": "WORK-003 legacy /staff-tasks?queue=completed&q=acceptance opens the corresponding Work list",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.work/work-journeys.spec.ts",
+      "title": "WORK-003 legacy /staff-tasks?queue=completed&q=acceptance opens the corresponding Work list",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.work/work-journeys.spec.ts",
+      "title": "WORK-004 New work closes with Escape and restores keyboard focus",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.work/work-journeys.spec.ts",
+      "title": "WORK-004 New work closes with Escape and restores keyboard focus",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.work/work-journeys.spec.ts",
+      "title": "WORK-005 failed summary refresh keeps filters and recovers through Retry work",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.work/work-journeys.spec.ts",
+      "title": "WORK-005 failed summary refresh keeps filters and recovers through Retry work",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/workplace-design.spec.ts",
+      "title": "shared attention shows full totals, survives filters, recovers from failure and clears revoked data",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/workplace-design.spec.ts",
+      "title": "shared attention shows full totals, survives filters, recovers from failure and clears revoked data",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/workplace-design.spec.ts",
+      "title": "System follows both color schemes and respects reduced motion",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/workplace-design.spec.ts",
+      "title": "System follows both color schemes and respects reduced motion",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/workplace-design.spec.ts",
+      "title": "three working surfaces at 1024 in dark",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/workplace-design.spec.ts",
+      "title": "three working surfaces at 1024 in dark",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/workplace-design.spec.ts",
+      "title": "three working surfaces at 1024 in light",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/workplace-design.spec.ts",
+      "title": "three working surfaces at 1024 in light",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/workplace-design.spec.ts",
+      "title": "three working surfaces at 1440 in dark",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/workplace-design.spec.ts",
+      "title": "three working surfaces at 1440 in dark",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/workplace-design.spec.ts",
+      "title": "three working surfaces at 1440 in light",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/workplace-design.spec.ts",
+      "title": "three working surfaces at 1440 in light",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/workplace-design.spec.ts",
+      "title": "three working surfaces at 390 in dark",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/workplace-design.spec.ts",
+      "title": "three working surfaces at 390 in dark",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/workplace-design.spec.ts",
+      "title": "three working surfaces at 390 in light",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/workplace-design.spec.ts",
+      "title": "three working surfaces at 390 in light",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/workplace-design.spec.ts",
+      "title": "work rows show a real current owner and next handoff, and preserve the return filters",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/workplace-design.spec.ts",
+      "title": "work rows show a real current owner and next handoff, and preserve the return filters",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/workspace-switching.spec.ts",
+      "title": "business-only staff sees its holding without Platform access",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/workspace-switching.spec.ts",
+      "title": "business-only staff sees its holding without Platform access",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/workspace-switching.spec.ts",
+      "title": "failed company selection leaves the active company usable, owner can open finance",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/workspace-switching.spec.ts",
+      "title": "failed company selection leaves the active company usable, owner can open finance",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/workspace-switching.spec.ts",
+      "title": "retired Platform catalogs stay unavailable and out of search",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/workspace-switching.spec.ts",
+      "title": "retired Platform catalogs stay unavailable and out of search",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/workspace-switching.spec.ts",
+      "title": "switches areas and preserves roles",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/workspace-switching.spec.ts",
+      "title": "switches areas and preserves roles",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pms-booking-payment-recovery.spec.ts",
+      "title": "paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pms-booking-payment-recovery.spec.ts",
+      "title": "paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/finance-sales-workspace.spec.ts",
+      "title": "English sales workspace opens drawers, calculates invoices and keeps direct forms available",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/finance-sales-workspace.spec.ts",
+      "title": "English sales workspace opens drawers, calculates invoices and keeps direct forms available",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pms-booking.spec.ts",
+      "title": "reviewed hotel and room galleries publish sanitized images and disappear after revocation",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pms-booking.spec.ts",
+      "title": "reviewed hotel and room galleries publish sanitized images and disappear after revocation",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pms-booking.spec.ts",
+      "title": "cancels one of two booked rooms and preserves the other room and accepted price",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pms-booking.spec.ts",
+      "title": "cancels one of two booked rooms and preserves the other room and accepted price",
+      "project": "mobile"
+    }
+  ],
+  "excludedCases": [
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/enterprise-ui.spec.ts",
+      "title": "breadcrumb returns to live business parents",
+      "project": "mobile",
+      "reason": "The full breadcrumb exists in the desktop shell; mobile uses the compact workspace menu covered by responsive navigation."
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/enterprise-ui.spec.ts",
+      "title": "live workspace pages fit three widths and both themes",
+      "project": "mobile",
+      "reason": "This case explicitly sweeps mobile, tablet and desktop widths in both themes once; device-specific navigation cases run in both projects."
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/enterprise-ui.spec.ts",
+      "title": "POS opens directly from the sidebar, rail, and app launcher",
+      "project": "mobile",
+      "reason": "The case verifies the desktop sidebar and collapsed rail; mobile app launcher access remains required in the navigation case."
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-chart.spec.ts",
+      "title": "compact rows and details fit light and dark layouts from 320px to a large desktop",
+      "project": "mobile",
+      "reason": "This case explicitly sweeps eight widths from 320px to 2560px in both themes once; mobile occupancy and detail cases remain required."
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-chart.spec.ts",
+      "title": "department approvals remain available and the structure uses a large desktop's width",
+      "project": "mobile",
+      "reason": "The case asserts a 2560px desktop structure width; department approval behavior is covered in both projects by organization-access."
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-draft-panels.spec.ts",
+      "title": "a touch handle moves a position to a department whose id contains colons",
+      "project": "mobile",
+      "reason": "The case tests touch input on the wide structure where source and destination rows are visible together; the mobile destination chooser is covered separately."
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-draft-panels.spec.ts",
+      "title": "People has one structure, expandable details and no page overflow at supported widths",
+      "project": "mobile",
+      "reason": "This case explicitly verifies the desktop organization rail before sweeping five mobile-to-desktop widths; device-specific detail cases remain required."
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/organization-draft-panels.spec.ts",
+      "title": "three kinds of drag and keyboard moves share a saved private draft, Undo and review",
+      "project": "mobile",
+      "reason": "The case requires a mouse pointer drag between desktop structure rows; keyboard moves, recovery and confirmation remain required on mobile."
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.work/work-cards.spec.ts",
+      "title": "cards fit 390, 768 and 1440px in both themes and retain keyboard focus",
+      "project": "mobile",
+      "reason": "This case explicitly sweeps narrow and wide viewports and hardware keyboard focus once; other card business cases remain required on mobile."
+    }
+  ]
+}

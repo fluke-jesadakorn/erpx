@@ -116,7 +116,7 @@ python3 -m unittest discover -s ops/ucs -p 'test_*.py'
 python3 verify_lab.py --config /etc/erpx-gpo/config.json \
   --target-ou 'OU=ERPX-Lab,DC=example,DC=test' --filter-group ERPX-TestGroup
 # From ERPX with an approved private .scratch/ucs-lab/profiles.json:
-ERPX_VERIFY_GPO_LAB=1 bun --env-file=.env.local run test:integration tests/directory-provider-live.test.ts
+ERPX_VERIFY_GPO_LAB=1 bun --env-file=.env.local run test:integration tests/provider/identity_access/directory-provider-live.test.ts
 ```
 
 Primary references: [Univention's separate UCS LDAP/Samba LDAP/SYSVOL architecture](https://docs.software-univention.de/manual/5.2/en/windows/samba-domain.html),

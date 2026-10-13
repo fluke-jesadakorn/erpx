@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "checkedAtUTC": "2026-10-11T04:23:54.008538+00:00",
+  "runtimeSourceExpected": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+  "mainRuntimeEdit": false,
+  "preparedCollector": {
+    "path": ".scratch/dev/optimization-ready-only-collector.mjs",
+    "sha256": "0fb5fd957607747d67431f9f4a66c143f1306875f313ef57679b44d2b13733c2",
+    "syntaxCheck": "passed pinned Node24.20.0",
+    "sanitizerChecks": 2,
+    "browserMeasurementExecuted": false,
+    "criterion": "Visible enabled Search workspace independent of document.complete, then actual dialog confirmation",
+    "eventTiming": "Network.requestWillBeSent/responseReceived/loadingFinished/loadingFailed timestamps retained; headers/request body/query/foreign paths excluded",
+    "resourceCaveat": "Before-click completed scripts are a bounded observation, not complete initial bundle proof",
+    "sourceFreeze": "Held until shared PMS acceptance driver terminal release; no independent load run",
+    "resourcePhases": "Same-origin fetch/request/response/connect/protocol fields captured; no active measurement",
+    "orchestrationChecks": 4,
+    "validity": "Actual exact Go to dialog and same-origin document200 required; HTTP failures retained; truncated captures invalid"
+  },
+  "nativeRoleProbe": {
+    "url": "https://dev-pos.jesadakorn.com/acme/acme-co/holding?tab=shifts",
+    "originalRole": "holding owner",
+    "originalOpeningDraft": "0",
+    "temporaryDraft": "1",
+    "requestedRole": "existing POS manager",
+    "dialogOpeningObserved": true,
+    "dialogMessage": "Change account or role and discard unsaved changes?",
+    "continuousDialogEventsTruncated": false,
+    "dialogHasBrowserHandler": true,
+    "selectOption": "UI synchronous confirmation caused3s timeout",
+    "dialogAccept": "Both normal dialog API and page handler blocked at browser focus-emulation command",
+    "nativeMacStatus": "Native App API still reports locked after human unlock answer",
+    "pendingHumanInput": true,
+    "committedRoleChangeAccepted": false,
+    "financialBusinessCommandExecuted": false,
+    "handoffTabRetained": true
+  },
+  "developmentRecovery": {
+    "reason": "Observed dev automatic memory restart during shared builds/tests and bounded UI work; concurrent load prevents isolated attribution",
+    "listenerBefore": 8390,
+    "listenerAfter": 21406,
+    "launcher": 8368,
+    "launcherParent": 1,
+    "nodeCLI": 8388,
+    "version": "16.3.4",
+    "localHealth": {
+      "status": 200,
+      "elapsedSeconds": 10.569772
+    },
+    "publicConsoleHealth": {
+      "status": 200,
+      "elapsedSeconds": 0.823851
+    },
+    "privateProductionHealth": {
+      "status": 200,
+      "elapsedSeconds": 0.295511
+    },
+    "postgres5432": "accepting connections",
+    "posTimeoutObserved": true,
+    "temporaryDraftRestoredOnceBeforeSecondProbe": true,
+    "performanceAcceptance": false
+  },
+  "goalComplete": false,
+  "finalAvailability": {
+    "checkedAtUTC": "2026-10-11T04:25:46.826637+00:00",
+    "health": [
+      {
+        "name": "localDev",
+        "url": "http://127.0.0.1:3100/api/health",
+        "status": 200,
+        "elapsedSeconds": 4.861135,
+        "exitCode": 0
+      },
+      {
+        "name": "publicDev",
+        "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+        "status": 200,
+        "elapsedSeconds": 1.635949,
+        "exitCode": 0
+      },
+      {
+        "name": "privateProduction",
+        "url": "http://127.0.0.1:3101/api/health",
+        "status": 200,
+        "elapsedSeconds": 0.086049,
+        "exitCode": 0
+      }
+    ],
+    "listener": "p21406\nf13",
+    "postgres5432Ready": true,
+    "pinnedProcessTree": "8368     1 /Users/fluke/Desktop/Work/erpx/.runtime/bun-1.2.17/bun-darwin-aarch64/bun\n 8388  8374 /Users/fluke/Desktop/Work/erpx/.runtime/node/node-v24.20.0-darwin-arm64/bin/node\n21406  8388 next-server (v16.3.4)",
+    "listenerWorkingDirectory": "p21406\nfcwd\nn/Users/fluke/Desktop/Work/erpx",
+    "publicBrowserStatus": "POS visibly recovered Owner/opening0 before second temporary draft; second actual discard confirmation remains awaiting native user input",
+    "goalComplete": false
+  },
+  "sourceFingerprintVerified": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+  "sharedFreezeBoundary": "Through PMS final reconciliation, not only driver terminal"
+}

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { SourceRecordReference } from '@/lib/source-record';
+import type { SourceRecordReference } from "@/lib/records/source-record";
 export type InboxCategory = "work" | "calendar" | "mention" | "notice" | "system";
 export type InboxEventInput = {
     key: string;

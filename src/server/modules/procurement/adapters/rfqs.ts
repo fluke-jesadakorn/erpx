@@ -5,8 +5,8 @@ import { platformOwnerProjectionSources as recordsPlatformSources } from "../../
 import "server-only";
 import type {WorkContext} from "../../identity_access/public/authorization";
 import type {SqlDatabase,SqlStatement} from "../../runtime/public/runtime/types";
-import {samePerson} from "@/lib/iam";
-import {hasPermission} from "@/lib/permissions";
+import {samePerson} from "@/lib/identity_access/iam";
+import {hasPermission} from "@/lib/identity_access/permissions";
 import {requirePermission} from "../../identity_access/public/iam-permissions";
 import {holdingResources} from "../../runtime/public/runtime";
 import {ApiError} from "../../runtime/public/http";

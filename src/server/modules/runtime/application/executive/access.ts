@@ -1,4 +1,4 @@
-import {hasPermission} from '@/lib/permissions';
+import {hasPermission} from "@/lib/identity_access/permissions";
 import type {WorkContext} from '../../../identity_access/public/authorization';
 import {BusinessRuleError,type Clock} from '../../../shared';
 export interface ExecutiveAccessRepository{authority(actor:WorkContext,now:number):Promise<boolean>;eligibleEngagement(actor:WorkContext):Promise<boolean>;sharedReport(actor:WorkContext,now:number):Promise<boolean>;}

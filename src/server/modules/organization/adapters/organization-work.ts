@@ -1,6 +1,6 @@
-import {hasPermission} from "@/lib/permissions";
-import {samePerson} from "@/lib/iam";
-import type {OrganizationNodeChange} from "@/lib/organization";
+import {hasPermission} from "@/lib/identity_access/permissions";
+import {samePerson} from "@/lib/identity_access/iam";
+import type {OrganizationNodeChange} from "@/lib/organization/organization";
 import type {WorkContext} from "../../identity_access/public/authorization";
 import type {SqlDatabase} from "../../runtime/public/runtime/types";
 import {organizationChangeAssignmentActive} from "../../identity_access/public/organization-change-assignment";

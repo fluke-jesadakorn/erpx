@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { talentCandidateSchema, talentApplicationSchema, talentProposalSchema, talentOfferSchema, talentActionSchema, talentTransition, talentNeedsCurrentCandidate, talentWorkItems, type TalentRow, type TalentKind, type TalentCandidateInput, type TalentApplicationInput, type TalentProposalInput, type TalentOfferInput, type TalentActionInput } from "../domain/talent";
 
 export type TalentMutation = { readonly native: unknown };

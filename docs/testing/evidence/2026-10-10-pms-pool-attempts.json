@@ -1,0 +1,76 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "status": "Full release load failed strict guest and reservation p95; all financial, operational, closing and history checks passed",
+  "source": {
+    "runtime": "a832e358eb6cda924e07c211cd6923262443a4aa651d84300222d567e4d3317f",
+    "verification": "5cdfc2ce6a703f4b1789399b0e5208f280e2cfa9475183cd095c178711fc75a1"
+  },
+  "worktree": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx",
+  "semantics": {
+    "samePoolPropertyLocalCapacityQueue": true,
+    "releasedEveryTransactionAttempt": true,
+    "authoritativePostgresLocksRetained": true,
+    "serializableIsolationRetained": true,
+    "originalRetryLimitsRetained": true,
+    "emptyPromisesOnly": true,
+    "localWaitTimeoutMs": 10000,
+    "staleVersionPreflightRemoved": true
+  },
+  "proofs": {
+    "fairnessRed": {
+      "failedCases": 1,
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-pool-attempts/red.log"
+    },
+    "fairnessGreen": {
+      "passedCases": 1,
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-pool-attempts/green.log"
+    },
+    "regression": {
+      "passed": true,
+      "cases": 288,
+      "unitCases": 69,
+      "postgresCases": 219,
+      "pmsCases": 74,
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-pool-attempts/native-focused.log"
+    },
+    "load": {
+      "run": "75feff5e2dd0",
+      "passed": false,
+      "readP95Ms": 475.810458,
+      "guestSaveP95Ms": 2403.640625,
+      "reservationCreateP95Ms": 2278.436625,
+      "readSamples": 840,
+      "writeSamples": 843,
+      "invalidResponses": 0,
+      "deadlocks": 0,
+      "ownedDatabasesDestroyed": 8
+    }
+  },
+  "pending": [
+    "Strict unchanged full release load",
+    "Whole native/security/static/browser acceptance",
+    "Final feature/mock-pilot proof and development availability"
+  ],
+  "release": {
+    "id": "2026-10-10T07-37-12-284Z",
+    "built": true
+  },
+  "static": {
+    "typecheck": true,
+    "lint": {
+      "errors": 0,
+      "preexistingWarnings": 3
+    },
+    "architecture": true,
+    "documentation": true
+  },
+  "officialQueryDiagnosticReference": "https://www.postgresql.org/docs/18/jit-decision.html",
+  "queryDiagnostic": {
+    "postgresJitAvailable": false,
+    "idleAuthoritativeQueryMs": 0.8,
+    "receiptMissingKeyTwoConnectionRed": "40001",
+    "separate32HashPartitionPrototype": "both committed",
+    "countsAsAcceptance": false
+  }
+}

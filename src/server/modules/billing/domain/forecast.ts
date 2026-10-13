@@ -1,6 +1,6 @@
 
 
-import type { TargetPrice } from "@/lib/billing-target-pricing";
+import type { TargetPrice } from "@/lib/billing/billing-target-pricing";
 export type SeatForecastBaseline = {
   generatedAt: number;
   forecastMonth: string;

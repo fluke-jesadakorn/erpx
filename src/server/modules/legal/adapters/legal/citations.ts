@@ -3,7 +3,7 @@ import type { SqlDatabase } from "../../../runtime/public/runtime/types";
 import type { WorkContext } from "../../../identity_access/public/authorization";
 import { ApiError } from "../../../runtime/public/http";
 import { access } from "./access";
-import { documentAccess } from "@/server/legal/documents";
+import { documentAccess } from "@/server/modules/legal/public/legal/documents";
 import { lawCitation, legalEvidenceDocumentAvailableSql } from "./knowledge";
 import { createLegalCitationQuery, type LegalDocumentCitationChunk } from "../../application/citations";
 export function legalCitation(db: SqlDatabase, actor: WorkContext, sourceId: string, asOf?: unknown) {

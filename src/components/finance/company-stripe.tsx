@@ -9,8 +9,8 @@ import { Button } from "@/components/ui/foundation";
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { workFetch } from "@/lib/work-fetch";
-import { currentStripeOnboardingUrl } from "@/lib/company-stripe";
+import { workFetch } from "@/lib/work_projection/work-fetch";
+import { currentStripeOnboardingUrl } from "@/lib/billing/company-stripe";
 import styles from "./company-stripe.module.css";
 
 type Connection = {

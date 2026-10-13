@@ -1,14 +1,13 @@
-import { FeaturePage } from "@/components/features/feature-page";
-import { PeopleNavigation } from "@/components/modules/people-navigation";
-import { PeopleOrganizationWorkspace } from "@/components/people/people-organization-workspace";
+import { FeaturePage } from "@/components/shared/features/feature-page";
+import { PeopleNavigation } from "@/components/people_payroll/people-navigation";
+import { PeopleOrganizationWorkspace } from "@/components/people_payroll/people-organization-workspace";
 import { PageHeader } from "@/components/ui/primitives";
-import { hasPermission } from "@/lib/permissions";
-import { workspaceBase } from "@/lib/workspace";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope, type WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { peopleWorkspaceData } from "@/server/modules/people_payroll/public/people-workspace";
 import styles from "./people-organization-page.module.css";
-import { RecordLink as Link } from "@/components/records/record-link";
 
 export async function PeopleOrganizationPage({ actor, search }: {
   actor: WorkContext;
@@ -21,7 +20,6 @@ export async function PeopleOrganizationPage({ actor, search }: {
   return <FeaturePage className={`content-stack ${styles.page}`} data-source="live">
     <PageHeader appearance="standard" eyebrow="Your team" title="People" description="Choose a unit to manage its positions, people, and team schedule." />
     <PeopleNavigation base={base} actor={actor} scopeKind={actor.scope.kind} active="directory" />
-    {canManage&&!actor.branchId&&!actor.departmentId&&<Link href={`${base}/people/hire-handoffs`}>Accepted Talent offers → HR onboarding</Link>}
     <PeopleOrganizationWorkspace
       base={base}
       holdingName={actor.holdingName}

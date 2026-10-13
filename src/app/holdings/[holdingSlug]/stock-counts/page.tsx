@@ -5,12 +5,12 @@ import {
   FeatureTabs,
   FeatureWidget,
   WidgetGrid,
-} from "@/components/features/feature-page";
+} from "@/components/shared/features/feature-page";
 import { ListPagination } from "@/components/ui/list-pagination";
 import { PageHeader, StatusBadge } from "@/components/ui/primitives";
 import { CountEditor } from "@/components/workplace/work-editors";
-import { minorToDecimal } from "@/lib/finance-money";
-import { workspaceBase } from "@/lib/workspace";
+import { minorToDecimal } from "@/lib/finance/finance-money";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { canPrepareCounts, countOptions, countsPage } from "@/server/modules/inventory/public/inventory-counts";
 import { RecordLink as Link } from "@/components/records/record-link";

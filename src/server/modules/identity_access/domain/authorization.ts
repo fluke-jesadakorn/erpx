@@ -1,7 +1,7 @@
-import type { PermissionActor } from "@/lib/iam";
+import type { PermissionActor } from "@/lib/identity_access/iam";
 import type { WorkAuthority } from "@/server/modules/work_projection/public/work-role-store";
 import type { HoldingId } from "@/server/modules/runtime/public/runtime";
-import type { WorkspaceScope } from "@/lib/workspace";
+import type { WorkspaceScope } from "@/lib/work_projection/workspace";
 export type AssignmentScopeKind = "platform" | "holding" | "branch" | "department";
 export type ResolvedWorkspaceScope = {
     kind: "platform";

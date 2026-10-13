@@ -6,7 +6,7 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 import { useRouter } from "next/navigation";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { useRecoverableDraft } from "@/components/ui/use-recoverable-draft";
-import { useStaffCommand } from "@/components/modules/staff-work-controls";
+import { useStaffCommand } from "@/components/work_projection/staff-work-controls";
 import type { HandbookRevision, handbookEditorOptions } from "@/server/modules/runtime/public/handbook";
 import styles from "./services.module.css";
 import { Card } from "@/components/ui/foundation";

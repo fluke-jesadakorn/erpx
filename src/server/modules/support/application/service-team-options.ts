@@ -1,6 +1,6 @@
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { companyMembers } from "@/server/modules/organization/public/member-directory";
-import { serviceCategories } from "@/lib/employee-services";
+import { serviceCategories } from "@/lib/people_payroll/employee-services";
 import type { ServiceTeam, ServiceTeamInput } from "../domain/service-teams";
 export interface ServiceTeamOptionPorts {
     owner(actor: WorkContext): Promise<boolean>;

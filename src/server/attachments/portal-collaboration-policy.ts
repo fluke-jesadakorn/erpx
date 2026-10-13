@@ -1,1 +1,0 @@
-export {portalCollaborationAttachmentPolicies,authorizePortalCollaborationAttachmentTarget,portalCollaborationAttachmentTargetVersionGuard,portalCollaborationAttachmentRecordVersionStep} from "@/server/modules/files/public/attachments/portal-collaboration-policy";

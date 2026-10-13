@@ -1,5 +1,5 @@
-import { hasPermission } from "@/lib/permissions";
-import { readiness } from "@/lib/pms-engine";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { readiness } from "@/lib/pms/pms-engine";
 import { pmsAccountKeys, records as pmsRecords, type Kind, type Snapshot } from "../domain/pms-model";
 import type { WorkContext } from "../../identity_access/public/authorization";
 import type { Clock } from "../../shared/application/ports";
@@ -120,7 +120,7 @@ export function createHospitalitySetup(ports: {
             steps, ready: steps.every(s => !s.blockers.length), hotel: snapshot ? { property: { ...snapshot.property, config: { ...snapshot.property.config, ...(!finance ? { accounts: Object.fromEntries(pmsAccountKeys.map(k => [k, ''])) as typeof snapshot.property.config.accounts, chartId: '' } : {}) } }, records: records.filter(r => ['room', 'room_type', 'rate'].includes(r.kind)) } : null,
             posConfigured: Boolean(settings), posCurrency: settings?.currency ?? null, warehouses, registers, products, tables, charts, accounts,
             suggestions: finance ? pmsAccountKeys.map(key => ({ key, code: ports.accountCode(key), category: ports.accountCategory(key) })) : [],
-            roomChargeRequirements: ['Same company and branch', 'Matching THB currency and business date', 'Checked-in stay with an open, uninvoiced folio', 'All kitchen items delivered', 'Entire bill unpaid'],
+            roomChargeRequirements: ['Same company and branch', 'Matching THB currency and business date', 'Checked-in stay with an open, uninvoiced guest account', 'All kitchen items delivered', 'Entire bill unpaid'],
             activationRestrictions: ports.environment() === 'production' ? ['Production release gates apply', ...(ports.roomChargePilot() !== 'true' ? ['Restaurant room charging requires pilot activation'] : [])] : ['Rehearsal readiness does not approve production activation'],
         };
     }

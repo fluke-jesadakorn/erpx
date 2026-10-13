@@ -1,6 +1,6 @@
-import type { FlowKind } from "@/lib/flow";
-import type { WorkItem } from "@/lib/work-item";
-export function flowWorkActionKind(flow: import("@/lib/flow").FlowView): "work" | "approval" {
+import type { FlowKind } from "@/lib/shared/flow";
+import type { WorkItem } from "@/lib/work_projection/work-item";
+export function flowWorkActionKind(flow: import("@/lib/shared/flow").FlowView): "work" | "approval" {
     const key = flow.current?.key;
     return flow.kind === "order" && key === "submitted" || flow.kind === "payroll" && ["in_review", "payment_draft"].includes(key ?? "") ? "approval" : "work";
 }

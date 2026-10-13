@@ -1,6 +1,6 @@
 import "server-only";
 import {createHash} from "node:crypto";
-import type {QuickAccessPreference} from "@/lib/quick-access";
+import type {QuickAccessPreference} from "@/lib/work_projection/quick-access";
 import {ApiError} from "../../runtime/public/http";
 import {getRuntime} from "../../runtime/public/runtime/env";
 import {isTransactionalSqlDatabase,type SqlDatabase} from "../../runtime/public/runtime/types";

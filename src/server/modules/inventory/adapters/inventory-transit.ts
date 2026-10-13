@@ -4,7 +4,7 @@ import 'server-only';
 import {z} from 'zod';
 import type {SqlDatabase,SqlStatement} from "@/server/modules/runtime/public/runtime/types";
 import type {WorkContext} from "@/server/modules/identity_access/public/authorization";
-import type {TransferRow as Row} from "@/server/inventory-transfers";
+import type {TransferRow as Row} from "@/server/modules/inventory/public/inventory-transfers";
 
 
 

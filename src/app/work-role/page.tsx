@@ -4,15 +4,15 @@ import { assignmentApplies, canEnterManageErpx } from "@/server/modules/identity
 import { WorkspaceMenu } from "@/components/workplace/workspace-menu";
 import { workspaceChoices } from "@/server/modules/organization/public/workspace-choices";
 import { redirect } from 'next/navigation';
-import { safeReturnPath } from '@/lib/access-problem';
-import { parseHoldingWorkspace,workspaceBase } from '@/lib/workspace';
+import { safeReturnPath } from "@/lib/shared/access-problem";
+import { parseHoldingWorkspace,workspaceBase } from "@/lib/work_projection/workspace";
 import { workRoleOptions } from "@/server/modules/work_projection/public/work-role-options";
 import { WorkRolePicker } from '@/components/workplace/work-role-picker';
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { accountQuickAccessItems } from "@/server/modules/identity_access/public/account-quick-access";
 import { readQuickAccessPreferences } from "@/server/modules/work_projection/public/quick-access-preferences";
-import { QuickAccessShelf } from '@/components/quick-access/shelf';
-import rail from '@/components/quick-access/area-rail.module.css';
+import { QuickAccessShelf } from "@/components/work_projection/quick-access/shelf";
+import rail from "@/components/work_projection/quick-access/area-rail.module.css";
 export const dynamic='force-dynamic';
 export default async function WorkRolePage({searchParams}:PageProps<'/work-role'>){
  const from=safeReturnPath((await searchParams).from);if(!from)redirect('/');

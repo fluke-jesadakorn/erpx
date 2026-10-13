@@ -1,0 +1,2949 @@
+{
+  "measuredAtUTC": "2026-10-10T20:34:02.407011+00:00",
+  "scope": "Two contained private3102 development Webpack sampling profiles; ten read-only routes, same current-source snapshot, normal Console authentication, no jobs. No public process or source configuration changed.",
+  "node": "24.20.0",
+  "bun": "1.2.17",
+  "next": "16.3.4",
+  "heapMiB": 8192,
+  "samplingIntervalBytes": 1048576,
+  "runs": [
+    {
+      "rawEvidence": ".scratch/dev/compiler-heap-2026-10-10T20-26-26-355Z/evidence.json",
+      "rawSha256": "e60bdcfe7addf78ffcbd150d245a1d036c6087b34b8f2a07af40da1afd36ca25",
+      "sourceFingerprint": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+      "requestCount": 28,
+      "allReads200": true,
+      "authorizedDocumentCount": 20,
+      "resources": [
+        {
+          "bundler": "webpack",
+          "cold": 1,
+          "restart": false,
+          "peakRssKiB": 7667840,
+          "peakCpu": 520.1,
+          "samples": 187,
+          "memoryThresholdRestarts": 0,
+          "log": ".scratch/dev/compiler-heap-2026-10-10T20-26-26-355Z/webpack-1.log"
+        }
+      ],
+      "failureCount": 0,
+      "privatePortClean": true,
+      "snapshotSourceStillMatches": true,
+      "profiles": [
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-26-26-355Z/Heap.20261011.032630.87808.0.001.heapprofile",
+          "sha256": "006ae6b9a6db3daef4a2e6185beda75e93144c9d8f57af245d4a86ea7d15a1fc",
+          "sampledLiveBytes": 6882000,
+          "processMarkers": [],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 3736024
+            },
+            {
+              "source": "node:internal/abort_controller",
+              "function": "",
+              "sampledBytes": 1048704
+            },
+            {
+              "source": "next/compiled/@edge-runtime",
+              "function": "add",
+              "sampledBytes": 1048664
+            },
+            {
+              "source": "package:next",
+              "function": "",
+              "sampledBytes": 1048608
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 0
+            },
+            {
+              "source": "node:internal/main/run_main_module",
+              "function": "",
+              "sampledBytes": 0
+            },
+            {
+              "source": "node:internal/modules/run_main",
+              "function": "executeUserEntryPoint",
+              "sampledBytes": 0
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapModuleLoad",
+              "sampledBytes": 0
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "",
+              "sampledBytes": 0
+            },
+            {
+              "source": "node:internal/modules/helpers",
+              "function": "require",
+              "sampledBytes": 0
+            },
+            {
+              "source": "package:next",
+              "function": "mod.require",
+              "sampledBytes": 0
+            },
+            {
+              "source": "next/compiled/commander",
+              "function": "",
+              "sampledBytes": 0
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-26-26-355Z/Heap.20261011.032633.87835.0.001.heapprofile",
+          "sha256": "b6f341c22dac99edc2cb0bc3be6fc2c9f61133b25c05512cec14f914361fcf5c",
+          "sampledLiveBytes": 14928272,
+          "processMarkers": [],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 6213112
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 3146424
+            },
+            {
+              "source": "node:internal/bootstrap/realm",
+              "function": "compileForInternalLoader",
+              "sampledBytes": 2097696
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 1373760
+            },
+            {
+              "source": "package:typescript",
+              "function": "diag",
+              "sampledBytes": 1048640
+            },
+            {
+              "source": "package:typescript",
+              "function": "createBinder",
+              "sampledBytes": 1048640
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 0
+            },
+            {
+              "source": "node:internal/main/run_main_module",
+              "function": "",
+              "sampledBytes": 0
+            },
+            {
+              "source": "node:internal/modules/run_main",
+              "function": "executeUserEntryPoint",
+              "sampledBytes": 0
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapModuleLoad",
+              "sampledBytes": 0
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "",
+              "sampledBytes": 0
+            },
+            {
+              "source": "package:typescript",
+              "function": "",
+              "sampledBytes": 0
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-26-26-355Z/Heap.20261011.032644.87915.0.001.heapprofile",
+          "sha256": "eec96e4d90b09e4efbc69a2751f17e377e98de9f5249584b630d991107db205c",
+          "sampledLiveBytes": 85200216,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 31404432
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 21847528
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 11840512
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 5297344
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 4320304
+            },
+            {
+              "source": "package:@smithy",
+              "function": "build",
+              "sampledBytes": 2097200
+            },
+            {
+              "source": "node:vm",
+              "function": "createContext",
+              "sampledBytes": 1050624
+            },
+            {
+              "source": "node:internal/bootstrap/realm",
+              "function": "compileForInternalLoader",
+              "sampledBytes": 1050544
+            },
+            {
+              "source": "node:internal/url",
+              "function": "URL",
+              "sampledBytes": 1048704
+            },
+            {
+              "source": "node:internal/modules/esm/utils",
+              "function": "compileSourceTextModule",
+              "sampledBytes": 1048632
+            },
+            {
+              "source": "next/compiled/next-server",
+              "function": "",
+              "sampledBytes": 1048608
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 1048600
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-26-26-355Z/Heap.20261011.032657.87991.0.001.heapprofile",
+          "sha256": "ccb46a3f46eab58077bb7e7652afeb2acef80e28d54d0781cf6e88ef56138497",
+          "sampledLiveBytes": 308805208,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 137614760
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 76780336
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 29067576
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 23652552
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 11553040
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 9051360
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 3160072
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "maybeCacheSourceMap",
+              "sampledBytes": 3146272
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "init",
+              "sampledBytes": 2097272
+            },
+            {
+              "source": "node:internal/bootstrap/realm",
+              "function": "compileForInternalLoader",
+              "sampledBytes": 2097216
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "Set",
+              "sampledBytes": 2097216
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "set",
+              "sampledBytes": 1147280
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-26-26-355Z/Heap.20261011.032709.88082.0.001.heapprofile",
+          "sha256": "1ca5607b825967ed55cb6d27cb59c350ff52c4df1d705176d65232785e3d7d60",
+          "sampledLiveBytes": 311200736,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 128109784
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 89701640
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 32676120
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 18219232
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 9876688
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 6291960
+            },
+            {
+              "source": "node:internal/bootstrap/realm",
+              "function": "compileForInternalLoader",
+              "sampledBytes": 3151048
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.d",
+              "sampledBytes": 2098392
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "add",
+              "sampledBytes": 2097840
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "maybeCacheSourceMap",
+              "sampledBytes": 2097664
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "set",
+              "sampledBytes": 1147280
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 1051200
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-26-26-355Z/Heap.20261011.032715.88110.0.001.heapprofile",
+          "sha256": "3a0b1ebb4ecfda190eec4bb16981b0e4e0402440e231589475ffee4f46649240",
+          "sampledLiveBytes": 340559568,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 132366728
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 87024576
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 33394576
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 29908304
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 13632112
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 10520160
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 4214320
+            },
+            {
+              "source": "package:@aws-sdk",
+              "function": "",
+              "sampledBytes": 3146072
+            },
+            {
+              "source": "node:internal/url",
+              "function": "URL",
+              "sampledBytes": 3145944
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "init",
+              "sampledBytes": 3145912
+            },
+            {
+              "source": "node:internal/bootstrap/realm",
+              "function": "compileForInternalLoader",
+              "sampledBytes": 2102304
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.d",
+              "sampledBytes": 2097440
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-26-26-355Z/Heap.20261011.032719.88152.0.001.heapprofile",
+          "sha256": "ddf0a767eab6f10b5954222c9ce36c49436f84b73827ffed7fd56875575b259d",
+          "sampledLiveBytes": 312293192,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 137008392
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 75849872
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 33546088
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 31306264
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 7139040
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 5251832
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 3145840
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.d",
+              "sampledBytes": 2097408
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "installChunk",
+              "sampledBytes": 1180032
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "exec",
+              "sampledBytes": 1087488
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "maybeCacheSourceMap",
+              "sampledBytes": 1048832
+            },
+            {
+              "source": "node:internal/deps/undici/undici",
+              "function": "other",
+              "sampledBytes": 1048680
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-26-26-355Z/Heap.20261011.032723.88178.0.001.heapprofile",
+          "sha256": "d9e9ce41d18f45dd4c9b09930ef139483399f5f5f5840714c38f63f8c29bbab8",
+          "sampledLiveBytes": 318039496,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 135917312
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 80312408
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 37023064
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 24908208
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 8365952
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 4194440
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.d",
+              "sampledBytes": 3145824
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "init",
+              "sampledBytes": 2097296
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "Set",
+              "sampledBytes": 2097288
+            },
+            {
+              "source": "node:internal/deps/undici/undici",
+              "function": "other",
+              "sampledBytes": 2097184
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "exec",
+              "sampledBytes": 1087488
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "set",
+              "sampledBytes": 1062344
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-26-26-355Z/Heap.20261011.032730.88228.0.001.heapprofile",
+          "sha256": "fc093c5c2e4891f5e05699df78a53e4e4ae77cee3aca4c34f85b1a853ee127d5",
+          "sampledLiveBytes": 319448920,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 139272920
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 90118152
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 26100800
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 25818392
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 10604888
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 8388872
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 2100936
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "Set",
+              "sampledBytes": 2097288
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "installChunk",
+              "sampledBytes": 1180032
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__",
+              "sampledBytes": 1180032
+            },
+            {
+              "source": "next/compiled/next-server",
+              "function": "__nccwpck_require__1",
+              "sampledBytes": 1051424
+            },
+            {
+              "source": "next/compiled/next-server",
+              "function": "__webpack_require__.d",
+              "sampledBytes": 1048992
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-26-26-355Z/Heap.20261011.032739.88277.0.001.heapprofile",
+          "sha256": "6edbc9ac69a73fb5d414fb44bc477e14eaf8a9b280de4ade0e22c6356a4d9912",
+          "sampledLiveBytes": 317865488,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 133199104
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 81981800
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 27725864
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 25647752
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 9217976
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 7340424
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 2112168
+            },
+            {
+              "source": "next/compiled/next-server",
+              "function": "__webpack_require__",
+              "sampledBytes": 2097280
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "clone",
+              "sampledBytes": 2097240
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.a",
+              "sampledBytes": 2097216
+            },
+            {
+              "source": "package:@aws-sdk",
+              "function": "",
+              "sampledBytes": 2097184
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "installChunk",
+              "sampledBytes": 1180032
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-26-26-355Z/Heap.20261011.032744.88307.0.001.heapprofile",
+          "sha256": "977d3c9390b46b87c528179fa32800ba0fdd5a58ade2d15af130954f268c49b5",
+          "sampledLiveBytes": 332933424,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 135526600
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 84751664
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 43609272
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 27692736
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 6655376
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 6339856
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 4223928
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "Set",
+              "sampledBytes": 3145888
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "",
+              "sampledBytes": 2097344
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.d",
+              "sampledBytes": 2097192
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "set",
+              "sampledBytes": 1062344
+            },
+            {
+              "source": "next/compiled/next-server",
+              "function": "__webpack_require__",
+              "sampledBytes": 1049528
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-26-26-355Z/Heap.20261011.032748.88334.0.001.heapprofile",
+          "sha256": "b721e7203317f41fc8dafc142a97aa3e91737643365935033c15f342dfbe9659",
+          "sampledLiveBytes": 311855272,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 126497368
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 84445152
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 33169024
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 16540936
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 9470904
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 7098576
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 5270960
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "Set",
+              "sampledBytes": 4194504
+            },
+            {
+              "source": "next/compiled/next-server",
+              "function": "__webpack_require__",
+              "sampledBytes": 2097392
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "init",
+              "sampledBytes": 2097248
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.a",
+              "sampledBytes": 2097216
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "bind",
+              "sampledBytes": 2097216
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-26-26-355Z/Heap.20261011.032753.88359.0.001.heapprofile",
+          "sha256": "8169861fac7df4502679ca7ba48a244f4cf1a649fc4d220520e6731ebbe6423c",
+          "sampledLiveBytes": 306556848,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 133111040
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 85827496
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 37143280
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 12905968
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 9211544
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "maybeCacheSourceMap",
+              "sampledBytes": 3146496
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 3145808
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 2100936
+            },
+            {
+              "source": "package:@aws-sdk",
+              "function": "",
+              "sampledBytes": 2097240
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "exec",
+              "sampledBytes": 1087488
+            },
+            {
+              "source": "node:internal/bootstrap/realm",
+              "function": "compileForInternalLoader",
+              "sampledBytes": 1049776
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.d",
+              "sampledBytes": 1048832
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-26-26-355Z/Heap.20261011.032756.88378.0.001.heapprofile",
+          "sha256": "810422f9eb799683f42243f715e84e1a04e9fef08291ff81b4adf3cc378a1689",
+          "sampledLiveBytes": 312629504,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 133085024
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 76470928
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 32436360
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 25696320
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 7352272
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 5997968
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 3145912
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "Set",
+              "sampledBytes": 2097288
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "_minLength",
+              "sampledBytes": 2097248
+            },
+            {
+              "source": "node:internal/deps/undici/undici",
+              "function": "other",
+              "sampledBytes": 2097208
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "add",
+              "sampledBytes": 2097200
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__",
+              "sampledBytes": 1180032
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-26-26-355Z/Heap.20261011.032757.88382.0.001.heapprofile",
+          "sha256": "3fadc83c66d9eb938647c7ca44098ea6e7c89784836b24866c06de6f5946a6f2",
+          "sampledLiveBytes": 327152280,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 130663104
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 92994136
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 30380840
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 26997776
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 6234960
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 5258712
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 3160408
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.a",
+              "sampledBytes": 3145800
+            },
+            {
+              "source": "package:@aws-sdk",
+              "function": "",
+              "sampledBytes": 2097400
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "init",
+              "sampledBytes": 2097264
+            },
+            {
+              "source": "node:internal/url",
+              "function": "URL",
+              "sampledBytes": 2097264
+            },
+            {
+              "source": "node:zlib",
+              "function": "",
+              "sampledBytes": 1052352
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-26-26-355Z/Heap.20261011.032757.88386.0.001.heapprofile",
+          "sha256": "2dcb28741a328ecae6373ce4222093fa6a98f0eb1147137c6d082e201761fa46",
+          "sampledLiveBytes": 315994672,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 130995160
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 86626736
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 28330592
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 17065888
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 8388976
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 6316272
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 5654680
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "maybeCacheSourceMap",
+              "sampledBytes": 3146496
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "add",
+              "sampledBytes": 3145800
+            },
+            {
+              "source": "node:internal/deps/undici/undici",
+              "function": "other",
+              "sampledBytes": 2100048
+            },
+            {
+              "source": "node:internal/bootstrap/realm",
+              "function": "internalBinding",
+              "sampledBytes": 2097376
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "attach",
+              "sampledBytes": 2097280
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-26-26-355Z/Heap.20261011.032758.88390.0.001.heapprofile",
+          "sha256": "6e660c6e56811663c34639bb3fb31d9a052d5372fcad4ca348fe155e812780f8",
+          "sampledLiveBytes": 306440656,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 129314920
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 76687672
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 34688560
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 22409792
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 5302424
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 5266864
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 4194408
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "init",
+              "sampledBytes": 3145904
+            },
+            {
+              "source": "node:internal/url",
+              "function": "URL",
+              "sampledBytes": 2097304
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.d",
+              "sampledBytes": 2097264
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "add",
+              "sampledBytes": 2097208
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "installChunk",
+              "sampledBytes": 1180032
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-26-26-355Z/Heap.20261011.032758.88396.0.001.heapprofile",
+          "sha256": "e900dfba2b560fa9e568f9cc6febec5c96a546b52087332607ea2736d63c5a59",
+          "sampledLiveBytes": 308852704,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 131415680
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 72552208
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 30283600
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 15352048
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 8390840
+            },
+            {
+              "source": "node:internal/url",
+              "function": "URL",
+              "sampledBytes": 6291952
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 5566208
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 4199584
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "maybeCacheSourceMap",
+              "sampledBytes": 2097664
+            },
+            {
+              "source": "node:internal/bootstrap/realm",
+              "function": "compileForInternalLoader",
+              "sampledBytes": 2097584
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.a",
+              "sampledBytes": 2097376
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "check",
+              "sampledBytes": 2097264
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-26-26-355Z/Heap.20261011.032759.88402.0.001.heapprofile",
+          "sha256": "02fd0fbffdd4bb5f9d49d77f7597fb8a1d3617ea51304827918ab37397102b00",
+          "sampledLiveBytes": 338818376,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 140338368
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 86810152
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 41729744
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 22197344
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 8388808
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 5690960
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 3152784
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "Set",
+              "sampledBytes": 2097360
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "add",
+              "sampledBytes": 2097200
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "set",
+              "sampledBytes": 1147280
+            },
+            {
+              "source": "next/compiled/next-server",
+              "function": "__webpack_require__.d",
+              "sampledBytes": 1049600
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "maybeCacheSourceMap",
+              "sampledBytes": 1048832
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-26-26-355Z/Heap.20261011.032759.88405.0.001.heapprofile",
+          "sha256": "391f70f0765f8bd2ea4029a47055b4840e34e59583fdf04cb12e860becc4f2c7",
+          "sampledLiveBytes": 331691944,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 135727704
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 83598128
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 35617112
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 28045280
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 13927552
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 8396920
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 4207616
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "",
+              "sampledBytes": 2097256
+            },
+            {
+              "source": "node:internal/bootstrap/realm",
+              "function": "compileForInternalLoader",
+              "sampledBytes": 2097216
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "installChunk",
+              "sampledBytes": 1180032
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "set",
+              "sampledBytes": 1062344
+            },
+            {
+              "source": "node:vm",
+              "function": "createContext",
+              "sampledBytes": 1053696
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-26-26-355Z/Heap.20261011.032759.88408.0.001.heapprofile",
+          "sha256": "9cb1a8cb196466ade292e2a0c4d6128a773ba6e22e5fa376e29971a4f06f36b9",
+          "sampledLiveBytes": 333408984,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 134229768
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 85551664
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 38561376
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 32337360
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 14283568
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 5243184
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "Set",
+              "sampledBytes": 2097360
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "clone",
+              "sampledBytes": 2097216
+            },
+            {
+              "source": "package:@smithy",
+              "function": "",
+              "sampledBytes": 2097216
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "installChunk",
+              "sampledBytes": 1180032
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 1048992
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "maybeCacheSourceMap",
+              "sampledBytes": 1048832
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rawEvidence": ".scratch/dev/compiler-heap-2026-10-10T20-29-59-509Z/evidence.json",
+      "rawSha256": "75644d1d33483f8f94a1237215e1b6d2528696b4ad7041823be282a139b59fca",
+      "sourceFingerprint": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+      "requestCount": 28,
+      "allReads200": true,
+      "authorizedDocumentCount": 20,
+      "resources": [
+        {
+          "bundler": "webpack",
+          "cold": 1,
+          "restart": false,
+          "peakRssKiB": 7797488,
+          "peakCpu": 599.8,
+          "samples": 263,
+          "processIds": [
+            89284,
+            89288,
+            89518,
+            89697,
+            89802,
+            89860,
+            89880,
+            89910,
+            89993,
+            90029,
+            90093,
+            90182,
+            90250,
+            90318,
+            90379,
+            90390,
+            90394,
+            90399,
+            90405,
+            90407,
+            90409,
+            90411,
+            90414
+          ],
+          "listenerPidsBeforeStop": [],
+          "memoryThresholdRestarts": 0,
+          "log": ".scratch/dev/compiler-heap-2026-10-10T20-29-59-509Z/webpack-1.log"
+        }
+      ],
+      "failureCount": 0,
+      "privatePortClean": true,
+      "snapshotSourceStillMatches": true,
+      "profiles": [
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-29-59-509Z/Heap.20261011.033002.89284.0.001.heapprofile",
+          "sha256": "babc47dc44f8edacb99c6305b581e6d890e9a772911f818644b7c9c686a8c7c1",
+          "sampledLiveBytes": 10006640,
+          "processMarkers": [],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 2663224
+            },
+            {
+              "source": "next/compiled/conf",
+              "function": "__nccwpck_require__",
+              "sampledBytes": 1051440
+            },
+            {
+              "source": "node:internal/bootstrap/realm",
+              "function": "compileForInternalLoader",
+              "sampledBytes": 1048768
+            },
+            {
+              "source": "node:internal/tls/wrap",
+              "function": "",
+              "sampledBytes": 1048768
+            },
+            {
+              "source": "node:internal/perf/observe",
+              "function": "",
+              "sampledBytes": 1048640
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "",
+              "sampledBytes": 1048608
+            },
+            {
+              "source": "next/compiled/@edge-runtime",
+              "function": "webidl.sequenceConverter",
+              "sampledBytes": 1048600
+            },
+            {
+              "source": "package:next",
+              "function": "",
+              "sampledBytes": 1048592
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 0
+            },
+            {
+              "source": "node:internal/process/task_queues",
+              "function": "processTicksAndRejections",
+              "sampledBytes": 0
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 0
+            },
+            {
+              "source": "package:next",
+              "function": "runDevServer",
+              "sampledBytes": 0
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-29-59-509Z/Heap.20261011.033002.89288.0.001.heapprofile",
+          "sha256": "1d04f5d6ef035d8b74fae928259105d28b4413ded34e201cd552c1837e500bef",
+          "sampledLiveBytes": 5333753664,
+          "processMarkers": [
+            "start-server"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 1254121104
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "set",
+              "sampledBytes": 721507224
+            },
+            {
+              "source": "node:buffer",
+              "function": "toString",
+              "sampledBytes": 361338672
+            },
+            {
+              "source": "node:buffer",
+              "function": "createFromString",
+              "sampledBytes": 206614824
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "add",
+              "sampledBytes": 170784712
+            },
+            {
+              "source": "next/compiled/webpack",
+              "function": "_handleExistingModuleFromUnsafeCache",
+              "sampledBytes": 163591256
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "Map",
+              "sampledBytes": 163587544
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "Set",
+              "sampledBytes": 160444136
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 157137472
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 109267392
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 103937896
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 103681216
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-29-59-509Z/Heap.20261011.033004.89309.0.001.heapprofile",
+          "sha256": "c4578d65fcea8e65705df97c00b404593905c99ac7444b507e2287a3dcb58dd7",
+          "sampledLiveBytes": 16030608,
+          "processMarkers": [],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 6213112
+            },
+            {
+              "source": "node:internal/process/per_thread",
+              "function": "exit",
+              "sampledBytes": 2141136
+            },
+            {
+              "source": "package:typescript",
+              "function": "",
+              "sampledBytes": 2097216
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 2097208
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 1373760
+            },
+            {
+              "source": "package:typescript",
+              "function": "createNodeFactory",
+              "sampledBytes": 1059520
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "indexOf",
+              "sampledBytes": 1048656
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 0
+            },
+            {
+              "source": "node:internal/main/run_main_module",
+              "function": "",
+              "sampledBytes": 0
+            },
+            {
+              "source": "node:internal/modules/run_main",
+              "function": "executeUserEntryPoint",
+              "sampledBytes": 0
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapModuleLoad",
+              "sampledBytes": 0
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "",
+              "sampledBytes": 0
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-29-59-509Z/Heap.20261011.033027.89518.0.001.heapprofile",
+          "sha256": "d098df84686ec01a6a4ad1df7c92df84cef905eacd422307e90f3d40530f652e",
+          "sampledLiveBytes": 86568520,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 33709432
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 20119192
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 10663024
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 7382720
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 3154520
+            },
+            {
+              "source": "node:internal/bootstrap/realm",
+              "function": "compileForInternalLoader",
+              "sampledBytes": 2099344
+            },
+            {
+              "source": "next/compiled/zod",
+              "function": "__nccwpck_require__",
+              "sampledBytes": 1050704
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 1049048
+            },
+            {
+              "source": "node:internal/deps/undici/undici",
+              "function": "other",
+              "sampledBytes": 1048800
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 1048648
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "$constructor",
+              "sampledBytes": 1048640
+            },
+            {
+              "source": "package:next",
+              "function": "",
+              "sampledBytes": 1048640
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-29-59-509Z/Heap.20261011.033046.89697.0.001.heapprofile",
+          "sha256": "4c478631aa1a4df69fd63e569192dc9caa4ab0a9e7eebd943c1c183faad26ca7",
+          "sampledLiveBytes": 310246896,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 133504752
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 78481176
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 25008816
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 19612352
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 9465344
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 7340248
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 4226656
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.a",
+              "sampledBytes": 4194504
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "init",
+              "sampledBytes": 4194504
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "maybeCacheSourceMap",
+              "sampledBytes": 3146496
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "Set",
+              "sampledBytes": 3145896
+            },
+            {
+              "source": "node:internal/bootstrap/realm",
+              "function": "compileForInternalLoader",
+              "sampledBytes": 3145808
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-29-59-509Z/Heap.20261011.033059.89802.0.001.heapprofile",
+          "sha256": "c67a76e392ccb368d6c3d3a3095bb4863cd8f4eea355565f052d11433ad476be",
+          "sampledLiveBytes": 323223176,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 133143432
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 93748960
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 28085008
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 22416272
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 9010328
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 6310040
+            },
+            {
+              "source": "node:internal/url",
+              "function": "URL",
+              "sampledBytes": 3145952
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.a",
+              "sampledBytes": 3145848
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 2097600
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "check",
+              "sampledBytes": 2097304
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__",
+              "sampledBytes": 2097208
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "add",
+              "sampledBytes": 2097200
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-29-59-509Z/Heap.20261011.033107.89860.0.001.heapprofile",
+          "sha256": "d9923ad8f654107cc8277938e63a350249be6ff3fe43515a8415e2745ddbbfb1",
+          "sampledLiveBytes": 346460656,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 134771024
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 87422104
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 53684192
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 20567928
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 8025888
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 7380704
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 6291936
+            },
+            {
+              "source": "node:internal/bootstrap/realm",
+              "function": "compileForInternalLoader",
+              "sampledBytes": 3148496
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.a",
+              "sampledBytes": 3145824
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "bind",
+              "sampledBytes": 3145824
+            },
+            {
+              "source": "package:@aws-sdk",
+              "function": "",
+              "sampledBytes": 2097440
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "Set",
+              "sampledBytes": 2097360
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-29-59-509Z/Heap.20261011.033111.89880.0.001.heapprofile",
+          "sha256": "b026a187c74ac20811b2acfb8959dca08e4ac092902362e099125266e51164a2",
+          "sampledLiveBytes": 328296608,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 135790440
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 88511424
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 44527424
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 14000944
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 10817176
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 4204656
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 3145824
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "Set",
+              "sampledBytes": 2097360
+            },
+            {
+              "source": "node:vm",
+              "function": "createContext",
+              "sampledBytes": 2097216
+            },
+            {
+              "source": "next/compiled/next-server",
+              "function": "__webpack_require__",
+              "sampledBytes": 2097216
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "add",
+              "sampledBytes": 2097200
+            },
+            {
+              "source": "node:internal/encoding",
+              "function": "decode",
+              "sampledBytes": 1080064
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-29-59-509Z/Heap.20261011.033115.89910.0.001.heapprofile",
+          "sha256": "a3fbbe830843fcf7080347e2462c0ae319fede71dd15d3b9123c631d6fc8aa2e",
+          "sampledLiveBytes": 338576800,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 135361696
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 97489848
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 32239216
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 28189816
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 12552792
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 8390160
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 3149584
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "init",
+              "sampledBytes": 3145872
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.d",
+              "sampledBytes": 2097216
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__",
+              "sampledBytes": 1180032
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "set",
+              "sampledBytes": 1147280
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "members",
+              "sampledBytes": 1049688
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-29-59-509Z/Heap.20261011.033124.89993.0.001.heapprofile",
+          "sha256": "2e1e95e4fd304a57d21b0a02c86046d9be6002d7f16870acde5512fd323b622a",
+          "sampledLiveBytes": 329763952,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 141421584
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 81346128
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 36838040
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 24719040
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 5243160
+            },
+            {
+              "source": "node:internal/url",
+              "function": "URL",
+              "sampledBytes": 4194592
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.d",
+              "sampledBytes": 4194504
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.a",
+              "sampledBytes": 4194432
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 3492392
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "maybeCacheSourceMap",
+              "sampledBytes": 3146272
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "check",
+              "sampledBytes": 2097288
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "Set",
+              "sampledBytes": 2097280
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-29-59-509Z/Heap.20261011.033129.90029.0.001.heapprofile",
+          "sha256": "2196759596aadbee5ab2b5f04fff3c4024559161081c46f26c7058d0e2ac6731",
+          "sampledLiveBytes": 332633256,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 136587696
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 89551240
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 36074488
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 25489904
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 7373808
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 7008528
+            },
+            {
+              "source": "node:internal/url",
+              "function": "URL",
+              "sampledBytes": 4194720
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 3151328
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.a",
+              "sampledBytes": 3145800
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "Set",
+              "sampledBytes": 2097360
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "init",
+              "sampledBytes": 2097264
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "",
+              "sampledBytes": 2097216
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-29-59-509Z/Heap.20261011.033138.90093.0.001.heapprofile",
+          "sha256": "c961f7034d766142ef9721e409e75f4dbb31bdfbe3c661bf0d063082908ed464",
+          "sampledLiveBytes": 325737736,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 127956512
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 82087088
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 35192256
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 28060248
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 10492976
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 5243016
+            },
+            {
+              "source": "node:internal/bootstrap/realm",
+              "function": "compileForInternalLoader",
+              "sampledBytes": 3147768
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "maybeCacheSourceMap",
+              "sampledBytes": 2097664
+            },
+            {
+              "source": "package:@aws-sdk",
+              "function": "",
+              "sampledBytes": 2097312
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "",
+              "sampledBytes": 2097264
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "init",
+              "sampledBytes": 2097248
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.d",
+              "sampledBytes": 2097216
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-29-59-509Z/Heap.20261011.033148.90182.0.001.heapprofile",
+          "sha256": "9e510272a41ed3aa4d11ece631d56d93f9d9c27c3c50f5395266a9bbfc4ad50e",
+          "sampledLiveBytes": 308961784,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 135977376
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 77809984
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 26290272
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 20385696
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 8641368
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 8389640
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 4201568
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "maybeCacheSourceMap",
+              "sampledBytes": 3146272
+            },
+            {
+              "source": "node:internal/deps/undici/undici",
+              "function": "__require",
+              "sampledBytes": 2097600
+            },
+            {
+              "source": "node:internal/url",
+              "function": "URL",
+              "sampledBytes": 2097216
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.a",
+              "sampledBytes": 2097216
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "add",
+              "sampledBytes": 2097200
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-29-59-509Z/Heap.20261011.033155.90250.0.001.heapprofile",
+          "sha256": "952d3dbdfecfa19abad369e7f3a00a71d8e43a3a4b742094e93fe85945635d8c",
+          "sampledLiveBytes": 341847872,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 135115104
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 92561664
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 41084512
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 20128152
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 9437480
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 7771728
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 4210720
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "add",
+              "sampledBytes": 3146600
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.d",
+              "sampledBytes": 3146272
+            },
+            {
+              "source": "package:@aws-sdk",
+              "function": "",
+              "sampledBytes": 2111040
+            },
+            {
+              "source": "node:internal/url",
+              "function": "URL",
+              "sampledBytes": 2097360
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "init",
+              "sampledBytes": 2097248
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-29-59-509Z/Heap.20261011.033202.90318.0.001.heapprofile",
+          "sha256": "9da3496572f4537fd5b945b74b16f0cee66d7cc6a3b9d9a24a3f1005a4abf8ed",
+          "sampledLiveBytes": 301411320,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 124342712
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 80405816
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 29435720
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 22667848
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 7827224
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 7340440
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 5272976
+            },
+            {
+              "source": "node:internal/bootstrap/realm",
+              "function": "compileForInternalLoader",
+              "sampledBytes": 3146008
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "clone",
+              "sampledBytes": 2097264
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.a",
+              "sampledBytes": 2097216
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.d",
+              "sampledBytes": 2097216
+            },
+            {
+              "source": "next/compiled/next-server",
+              "function": "__webpack_require__",
+              "sampledBytes": 1048784
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-29-59-509Z/Heap.20261011.033210.90379.0.001.heapprofile",
+          "sha256": "dee69d37a67f6beefac33b0547ba91ba14f9a2107cbee15fcf0460cfce7f8863",
+          "sampledLiveBytes": 314730264,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 134079824
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 68887496
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 39800640
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 32464992
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 12200824
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 6293912
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 5271992
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "add",
+              "sampledBytes": 2097200
+            },
+            {
+              "source": "package:@smithy",
+              "function": "",
+              "sampledBytes": 1049120
+            },
+            {
+              "source": "next/compiled/zod",
+              "function": "ZodNumber",
+              "sampledBytes": 1049096
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "maybeCacheSourceMap",
+              "sampledBytes": 1048832
+            },
+            {
+              "source": "node:internal/modules/package_json_reader",
+              "function": "deserializePackageJSON",
+              "sampledBytes": 1048832
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-29-59-509Z/Heap.20261011.033211.90390.0.001.heapprofile",
+          "sha256": "b080d8be44ab1093d55f44d15cea63e5b5552d1db6f51c73a86345a3dc31c79a",
+          "sampledLiveBytes": 301230488,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 135245096
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 68389144
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 38150272
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 13842944
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 7826776
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 7340336
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 3171640
+            },
+            {
+              "source": "node:internal/bootstrap/realm",
+              "function": "compileForInternalLoader",
+              "sampledBytes": 2097392
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.a",
+              "sampledBytes": 2097216
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "bind",
+              "sampledBytes": 2097216
+            },
+            {
+              "source": "package:@aws-sdk",
+              "function": "",
+              "sampledBytes": 2097216
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "defineBound",
+              "sampledBytes": 2097200
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-29-59-509Z/Heap.20261011.033211.90394.0.001.heapprofile",
+          "sha256": "ed40f4310e87166de113058d4e975a398628b605cc313123d502f3bb06a48986",
+          "sampledLiveBytes": 304219528,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 130627912
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 82721152
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 27869248
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 17779472
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 9432856
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 7341032
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 6311312
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.a",
+              "sampledBytes": 4194496
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "add",
+              "sampledBytes": 2097200
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "set",
+              "sampledBytes": 1147280
+            },
+            {
+              "source": "package:@aws-sdk",
+              "function": "",
+              "sampledBytes": 1062432
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "installChunk",
+              "sampledBytes": 1051296
+            }
+          ]
+        },
+        {
+          "file": ".scratch/dev/compiler-heap-2026-10-10T20-29-59-509Z/Heap.20261011.033212.90399.0.001.heapprofile",
+          "sha256": "146c01a1da967bc65d258197e5a765aa7e55383772c2c3fa82dd31afc349c347",
+          "sampledLiveBytes": 314718088,
+          "processMarkers": [
+            "jest-worker"
+          ],
+          "topFunctions": [
+            {
+              "source": "node:fs",
+              "function": "readFileSync",
+              "sampledBytes": 130591120
+            },
+            {
+              "source": "node:internal/modules/cjs/loader",
+              "function": "wrapSafe",
+              "sampledBytes": 86647688
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "other",
+              "sampledBytes": 41412416
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromDataUrl",
+              "sampledBytes": 19470688
+            },
+            {
+              "source": "node:internal/source_map/source_map_cache",
+              "function": "sourceMapFromFile",
+              "sampledBytes": 8281272
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "",
+              "sampledBytes": 5243176
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "push",
+              "sampledBytes": 4195736
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.d",
+              "sampledBytes": 2097440
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "Set",
+              "sampledBytes": 2097280
+            },
+            {
+              "source": "package:@aws-sdk",
+              "function": "",
+              "sampledBytes": 2097248
+            },
+            {
+              "source": "package:next",
+              "function": "loadManifest",
+              "sampledBytes": 1049152
+            },
+            {
+              "source": "runtime/anonymous",
+              "function": "__webpack_require__.a",
+              "sampledBytes": 1048696
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "secondRunShutdownGraceMs": 30000,
+  "mainServerProfilePid": 89288,
+  "firstRunMainProfileMissing": true,
+  "mainProfileMissingExplanation": "Installed Next CLI defaults to100ms before SIGKILL during shutdown; second run sets private-only NEXT_EXIT_TIMEOUT_MS=30000 and allows up to40s for its owned group to exit. This diagnoses collection, not a public-runtime fix.",
+  "findings": [
+    "Second main-server sampled live allocations total approximately5.0GiB at shutdown, including1196MiB readFileSync and507.1MiB Map.set under Webpack process calls. These are allocation stacks, not object-retainer paths.",
+    "Aggregate sampled process RSS peaks7.31 and7.44GiB, with no threshold restart in either bounded workload. Sampling adds overhead; RSS includes native and multiple child processes.",
+    "Next installed webpack-config already sets dev maxMemoryGenerations=0; webpackMemoryOptimizations already enabled. No unsupported cache override, heap increase or default compiler change is justified."
+  ],
+  "limitations": [
+    "Single workload twice is diagnostic, not browser readiness,20-navigation/50-API or p95 acceptance.",
+    "Profiles are saved during shutdown and may reflect cleanup/GC; not the peak retained heap.",
+    "Not every process emitted a profile. First run lacks main compiler profile, so its worker profiles cannot classify compiler retention.",
+    "Shared machine and database activity remain confounders; no memory leak or long-session stability claim."
+  ],
+  "sourceRecheckedAtEnd": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+  "endAvailability": {
+    "checkedAtUTC": "2026-10-10T20:33:05.837981+00:00",
+    "http": [
+      {
+        "url": "http://127.0.0.1:3100/api/health",
+        "exitCode": 0,
+        "response": "200 0.037344"
+      },
+      {
+        "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "response": "200 0.189308"
+      },
+      {
+        "url": "http://127.0.0.1:3101/api/health",
+        "exitCode": 0,
+        "response": "200 0.031212"
+      }
+    ],
+    "listeners": {
+      "3100": [
+        79875
+      ],
+      "3102": []
+    },
+    "processes": [
+      {
+        "process": "40637     1 /Users/fluke/Desktop/Work/erpx/.runtime/bun-1.2.17/bun-darwin-aarch64/bun",
+        "cwd": "/Users/fluke/Desktop/Work/erpx"
+      },
+      {
+        "process": "40657 40640 /Users/fluke/Desktop/Work/erpx/.runtime/node/node-v24.20.0-darwin-arm64/bin/node",
+        "cwd": "/Users/fluke/Desktop/Work/erpx"
+      },
+      {
+        "process": "79875 40657 next-server (v16.3.4)",
+        "cwd": "/Users/fluke/Desktop/Work/erpx"
+      }
+    ],
+    "stagingTouched": false,
+    "postgresAcceptingConnections": true,
+    "publicBrowser": {
+      "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/work",
+      "role": "holding owner",
+      "workCount": 12,
+      "drawerClosed": true,
+      "searchEnabled": true,
+      "screenshot": ".scratch/dev/optimization-heap-final-work.png",
+      "visuallyInspected": true
+    }
+  },
+  "stagingTouched": false,
+  "productionDeploymentChanged": false,
+  "goalComplete": false
+}

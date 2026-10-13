@@ -1,7 +1,7 @@
 import { findModule, moduleAvailability } from "@/data/module-registry";
 import type { RecordScopeSelection } from "../domain/records";
-import { samePerson } from "@/lib/iam";
-import { hasPermission } from "@/lib/permissions";
+import { samePerson } from "@/lib/identity_access/iam";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { z } from "zod";
 import { hasModuleAccess } from "@/data/module-access";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";

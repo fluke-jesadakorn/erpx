@@ -12,9 +12,9 @@ import { hasModuleAccess } from "@/data/module-access";
 import { assertion, executeCommand, replayCommand } from "@/server/modules/workflow/public/commands";
 import { ApiError } from "@/server/modules/runtime/public/http";
 
-import { marketingCampaigns, marketingCostSources } from "@/server/marketing-campaigns";
-import {hasPermission} from '@/lib/permissions';
-import {marketingFormReadiness,marketingPresentationAssertions} from "@/server/marketing-public-form";
+import { marketingCampaigns, marketingCostSources } from "@/server/modules/marketing/public/marketing-campaigns";
+import {hasPermission} from "@/lib/identity_access/permissions";
+import {marketingFormReadiness,marketingPresentationAssertions} from "@/server/modules/marketing/adapters/public-form";
 import {listAttachmentPublications} from "@/server/modules/files/public/attachments/service";
 import {attachmentsV2Readable} from "@/server/modules/files/public/attachments/feature";
 import {isTransactionalSqlDatabase} from "../../runtime/public/runtime/types";

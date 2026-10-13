@@ -2,7 +2,7 @@ import { finalRootOwnerProjectionSources as identity_accessProjectionSources } f
 import { finalRootOwnerProjectionSources as workflowProjectionSources } from "../../../workflow/public/final-root-owner-projection-sources";
 import "server-only";
 import {createHash} from "node:crypto";
-import {samePerson} from "@/lib/iam";
+import {samePerson} from "@/lib/identity_access/iam";
 import type {SqlDatabase,SqlStatement} from "../../../runtime/public/runtime/types";
 import {ApiError} from "../../../runtime/public/http";
 import type {WorkContext} from "../../../identity_access/public/authorization";

@@ -6,7 +6,7 @@ import type {WorkContext} from "../../identity_access/public/authorization";
 import type {SqlDatabase} from "../../runtime/public/runtime/types";
 import {holdingResources} from "../../runtime/public/runtime";
 import {requirePermission} from "../../identity_access/public/iam-permissions";
-import {hasPermission} from "@/lib/permissions";
+import {hasPermission} from "@/lib/identity_access/permissions";
 import {getOrder} from "../../commerce/public/commerce";
 import {stageSupplierPromiseOrderVersion} from "../../commerce/public/supplier-promise-version";
 import {stageSupplierPromiseNotifications} from "../../collaboration/public/supplier-promise-notifications";

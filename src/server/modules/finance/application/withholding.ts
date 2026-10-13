@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { samePerson } from '@/lib/iam';
-import { decimalToMinor, minorToDecimal } from '@/lib/finance-money';
-import { thaiFinanceTaxPack } from '@/lib/thai-finance-tax-pack';
+import { samePerson } from "@/lib/identity_access/iam";
+import { decimalToMinor, minorToDecimal } from "@/lib/finance/finance-money";
+import { thaiFinanceTaxPack } from "@/lib/finance/thai-finance-tax-pack";
 import type { WorkContext } from '@/server/modules/identity_access/public/authorization';
 import type { TaxIdentity, TaxPermission } from '../domain/tax-identities';
 import type { FinanceError, PersistedInvoiceLine } from '../domain/invoice-line-revision';

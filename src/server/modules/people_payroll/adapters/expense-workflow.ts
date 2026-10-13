@@ -54,15 +54,15 @@ export function nativeExpensePayers(db: SqlDatabase) {
   });
 }
 export async function expensePayers(db: SqlDatabase, row: ExpenseRow) { return nativeExpensePayers(db)(row); }
-export function nativeExpenseWorkflowFields(db: SqlDatabase) {
+export function nativeExpenseWorkflowFields(db: SqlDatabase, readApproval?: (actor:WorkContext,id:string)=>ReturnType<typeof approvalView>) {
   return createExpenseWorkflowFields({
-    approval: (actor, id) => approvalView(db, "expense", id, actor),
+    approval: readApproval ?? ((actor, id) => approvalView(db, "expense", id, actor)),
     payers: row => expensePayers(db, row),
     flow: (actor, id) => resolveFlow(db, actor, "expense", id),
   });
 }
-export async function expenseWorkflowFields(db: SqlDatabase, actor: WorkContext, row: ExpenseRow): Promise<ExpenseRow> {
-  return nativeExpenseWorkflowFields(db)(actor, row);
+export async function expenseWorkflowFields(db: SqlDatabase, actor: WorkContext, row: ExpenseRow, readApproval?: (actor:WorkContext,id:string)=>ReturnType<typeof approvalView>): Promise<ExpenseRow> {
+  return nativeExpenseWorkflowFields(db, readApproval)(actor, row);
 }
 export function nativeExpenseAccounting(write: SqlDatabase) {
   return createSaveExpenseAccounting({

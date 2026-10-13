@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { decimalToMinor, minorToDecimal } from '@/lib/finance-money';
+import { decimalToMinor, minorToDecimal } from "@/lib/finance/finance-money";
 import type { WorkContext } from '@/server/modules/identity_access/public/authorization';
 import type { FinanceError } from '../domain/invoice-line-revision';
 import { accrualScheduleSchema, accrualScheduleDecisionSchema, accrualRunPostSchema, createAccrualPolicy, type AccrualRow, type AccrualAccount, type AccrualInput, type AccrualDecision, type AccrualRunPost } from '../domain/accruals';

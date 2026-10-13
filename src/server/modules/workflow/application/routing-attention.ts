@@ -1,4 +1,4 @@
-import type { FlowKind } from '@/lib/flow';
+import type { FlowKind } from "@/lib/shared/flow";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { companyAuthority } from "@/server/modules/operations/public/staff-policy";
 import type { resolveFlow } from "@/server/modules/workflow/public/flow-routing";

@@ -6,9 +6,9 @@ import {betaManagementRequestSources} from '../../records/public/beta-management
 import { mentionsSchema, textSuggestions } from "@/server/modules/collaboration/public/social-text";
 import { retryAgentReply } from "@/server/modules/collaboration/public/social-agent";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { runtimeEnv, holdingResources } from "@/server/modules/runtime/public/runtime";
-import { betaBody } from "@/server/beta-http";
+import { betaBody } from "@/server/modules/manage_erpx/adapters/beta-http";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import {
   homePosts,
@@ -33,10 +33,10 @@ import {
   requireCompanyAuthority,
   authorityGuard,
 } from "@/server/modules/operations/public/staff-policy";
-import { addBetaBranch, inviteMember } from "@/server/beta-team";
+import { addBetaBranch, inviteMember } from "@/server/modules/manage_erpx/adapters/beta-team";
 import { executeCommand } from "@/server/modules/workflow/public/commands";
 import { sha256 } from "@/server/modules/runtime/public/crypto";
-import { sendBetaEmail } from "@/server/beta-email";
+import { sendBetaEmail } from "@/server/modules/manage_erpx/adapters/beta-email";
 import { billingLink } from "@/server/modules/billing/public/beta-billing";
 
 import type {SqlDatabase,SqlStatement} from '../../runtime/public/runtime/types';

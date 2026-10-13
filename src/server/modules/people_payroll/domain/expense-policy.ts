@@ -1,4 +1,4 @@
-import { samePerson, type PermissionActor } from "@/lib/iam";
+import { samePerson, type PermissionActor } from "@/lib/identity_access/iam";
 
 export type ExpenseActorFacts = { userId: string; iam?: PermissionActor["iam"] };
 export type ExpenseRecordFacts = Record<string, string | number | null>;

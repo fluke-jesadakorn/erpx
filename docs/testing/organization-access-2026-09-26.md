@@ -31,7 +31,7 @@ Both browser suites passed: **14 tests**, covering desktop/mobile, all supported
 | `bun run deploy:build` | Passed in an isolated output directory with pinned Node 24.20.0 and Bun 1.2.17 |
 | Changed-file whitespace checks | Passed |
 
-Final release: `.runtime/releases/2026-09-26T03-30-19-194Z`. The build retains the existing Turbopack dynamic-filesystem tracing warning in `src/server/runtime/env.ts`; the release was built successfully. The staging helper's read-only artifact/schema-checksum check passed for this release. Full staging database preflight and activation were not run.
+Final release: `.runtime/releases/2026-09-26T03-30-19-194Z`. The build retains the existing Turbopack dynamic-filesystem tracing warning in `src/server/modules/runtime/adapters/runtime/env.ts`; the release was built successfully. The staging helper's read-only artifact/schema-checksum check passed for this release. Full staging database preflight and activation were not run.
 
 ## Environment
 

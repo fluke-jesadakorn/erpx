@@ -1,7 +1,7 @@
 import type { CalendarAccess } from "../../domain/calendar/access";
 import { ApiError } from "../../../runtime/public/http";
 import "server-only";
-import type { CalendarQuery } from "@/lib/calendar";
+import type { CalendarQuery } from "@/lib/work_projection/calendar";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { calendarLifecyclePeoplePayrollFacts } from "../../../people_payroll/public/calendar-lifecycle-facts";
 import { createCalendarLifecycle, type CalendarLifecycleUnit } from "../../application/calendar/lifecycle";

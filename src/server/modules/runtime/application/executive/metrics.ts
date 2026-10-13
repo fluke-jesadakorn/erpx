@@ -1,7 +1,7 @@
 import { type Breakdown, type Filters, type MetricData, type MetricId, type MetricInfo } from "@/server/modules/runtime/public/rules/canvas-domain";
 import type { WorkContext } from '../../../identity_access/public/authorization';
 import { BusinessRuleError } from '../../../shared';
-import { formatMetric } from '@/lib/executive/numbers';
+import { formatMetric } from "@/lib/shared/executive/numbers";
 import { operationsMetrics } from '../../domain/executive/operations-metric-ids';
 import type { Clock } from '../../../shared';
 import { specs, metricCatalog, metricBreakdowns, metricUnavailable as unavailable, exactInteger, sumExact, percentHundredths, moneyRatioMinor } from '../../domain/executive/metrics';

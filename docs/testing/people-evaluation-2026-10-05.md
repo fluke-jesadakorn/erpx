@@ -1,6 +1,6 @@
 # People evaluation development verification — 2026-10-05
 
-The [People owner contract](../contracts/next/people-evaluation.md) implements Skills, Performance & Compensation in People, with [primary-source research](workforce-compensation-research-2026-10-05.md). Product weights and thresholds require Company confirmation. This is development verification; it does not record a production or staging deployment.
+The [People owner contract](../contracts/next/people-evaluation.md) implements Skills, Performance & Compensation in People, with [primary-source research](../research/workforce-compensation-research-2026-10-05.md). Product weights and thresholds require Company confirmation. This is development verification; it does not record a production or staging deployment.
 
 ## Delivered behavior
 

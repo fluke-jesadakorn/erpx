@@ -2,12 +2,12 @@ import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 export function pinnedBunBinary(root: string, environment: NodeJS.ProcessEnv = process.env) {
-  const local = join(root, ".runtime/bun-1.2.17/bun-darwin-aarch64/bun");
+  const local = join(root, ".runtime/bun-1.4.3/bun-darwin-aarch64/bun");
   return environment.ERPX_BUN_BIN ?? (existsSync(local) ? local : "bun");
 }
 
 export function pinnedNodeBinary(root: string, environment: NodeJS.ProcessEnv = process.env) {
-  return resolve(environment.ERPX_NODE_BIN ?? join(root, ".runtime/node/node-v24.20.0-darwin-arm64/bin/node"));
+  return resolve(environment.ERPX_NODE_BIN ?? join(root, ".runtime/node/node-v26.11.1-darwin-arm64/bin/node"));
 }
 
 export function attachmentToolEnvironment(root: string, environment: NodeJS.ProcessEnv = process.env) {

@@ -1,15 +1,15 @@
 import { RecordLink } from "@/components/records/record-link";
 
 import { PageContent } from "@/components/ui/patterns";
-import { PayrollDashboard } from "@/components/modules/payroll-workspace";
-import { hasPermission } from "@/lib/permissions";
-import { workspaceBase } from "@/lib/workspace";
+import { PayrollDashboard } from "@/components/people_payroll/payroll-workspace";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { listPayrollRuns, payrollRunsPage, payrollSummary } from "@/server/modules/people_payroll/public/people-payroll";
 import { payrollReadiness } from "@/server/modules/people_payroll/public/payroll-readiness";
 import {Table,TableFrame} from "@/components/ui/foundation";
-import {minorToDecimal} from "@/lib/finance-money";
+import {minorToDecimal} from "@/lib/finance/finance-money";
 import { Card } from "@/components/ui/foundation";
 
 export const dynamic = "force-dynamic";

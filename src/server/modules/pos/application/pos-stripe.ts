@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { WorkContext } from "../../identity_access/public/authorization";
 import type { Clock } from "../../shared/application/ports";
 import { businessDate as evaluateBusinessDate, type PosAccounts } from "../domain/pos";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { num, str, json, pair, type PosRow } from "../domain/pos-model";
 import { PosStripeApiError, type StripeOptions } from "../domain/stripe";
 export type PosRows<Row> = {

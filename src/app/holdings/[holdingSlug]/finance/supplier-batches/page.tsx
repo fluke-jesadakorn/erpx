@@ -1,13 +1,13 @@
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Table, TableFrame } from "@/components/ui/foundation";
-import { FeaturePage } from "@/components/features/feature-page";
+import { FeaturePage } from "@/components/shared/features/feature-page";
 import { FinanceWorkspace } from "@/components/finance/finance-workspace";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { listSupplierBatches, supplierBatchWorkspace } from "@/server/modules/procurement/public/supplier-payments";
-import { SupplierBatchConsole } from "@/components/modules/supplier-batch-console";
+import { SupplierBatchConsole } from "@/components/procurement/supplier-batch-console";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";

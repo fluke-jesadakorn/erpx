@@ -1,2 +1,2 @@
 /** Compatibility entry; its legacy implementation is tracked in ownership.json. */
-export { transitDispatchSchema, transitReceiveSchema, transitLossSchema, transitLossDecisionSchema, transitCancelSchema, getTransit, listTransit, transitDetail, prepareTransit, dispatchTransit, receiveTransit, requestTransitLoss, decideTransitLoss, cancelTransit, transitWork, transitWorkItem } from "../../../inventory-transit";
+export { transitDispatchSchema, transitReceiveSchema, transitLossSchema, transitLossDecisionSchema, transitCancelSchema, getTransit, listTransit, transitDetail, prepareTransit, dispatchTransit, receiveTransit, requestTransitLoss, decideTransitLoss, cancelTransit, transitWork, transitWorkItem } from "@/server/modules/inventory/adapters/inventory-transit";

@@ -1,5 +1,5 @@
 import { moduleRegistry } from '../../src/data/module-registry';
-import type { SqlDatabase } from '../../src/server/runtime/types';
+import type { SqlDatabase } from "../../src/server/modules/runtime/adapters/runtime/types";
 
 export async function bootstrapAdmin(db: SqlDatabase,email: string, holdingDb?: SqlDatabase) {
   const allowed=process.env.ERPX_ADMIN_EMAIL??'jesadakorn.kirtnu@gmail.com';

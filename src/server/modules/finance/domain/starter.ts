@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { thaiFinanceStarterAccounts } from '@/lib/finance-starter';
+import { thaiFinanceStarterAccounts } from "@/lib/finance/finance-starter";
 export const financeStarterSchema = z.object({ expectedVersion: z.literal(0), preset: z.literal('thai_services_v1'), name: z.string().trim().min(1).max(160), firstMonth: z.string().regex(/^[1-9]\d{3}-(0[1-9]|1[0-2])$/), organizationDimensions: z.boolean().default(true), reason: z.string().trim().min(3).max(2000) });
 export type StarterInput = z.infer<typeof financeStarterSchema>;
 export type StarterNode = {

@@ -1,16 +1,16 @@
 "use client";
 import { useContext, useState } from "react";
 import { EmbeddedRecord } from "@/components/records/record-context";
-import { recordCanonicalHref } from "@/lib/record-drawer";
+import { recordCanonicalHref } from "@/lib/records/record-drawer";
 import { useRouter } from "next/navigation";
 import type { z } from "zod";
 import type {
   groupReportEditionSchema,
   groupExpansionWorkspace,
 } from "@/server/modules/finance/public/finance-group-editions";
-import { financeCommandFetch as workFetch } from "@/lib/finance-command-fetch";
-import { minorToDecimal } from "@/lib/finance-money";
-import { financeReportPeriods } from "@/lib/finance-report-periods";
+import { financeCommandFetch as workFetch } from "@/lib/finance/finance-command-fetch";
+import { minorToDecimal } from "@/lib/finance/finance-money";
+import { financeReportPeriods } from "@/lib/finance/finance-report-periods";
 import {
   Button,
   Card,

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { thaiFinanceTaxPack, validThaiTaxId } from '@/lib/thai-finance-tax-pack';
+import { thaiFinanceTaxPack, validThaiTaxId } from "@/lib/finance/thai-finance-tax-pack";
 const reason = z.string().trim().min(10).max(2000);
 export const taxIdentitySchema = z.object({
     partyId: z.string().min(1).nullable().default(null), legalName: z.string().trim().min(2).max(300),

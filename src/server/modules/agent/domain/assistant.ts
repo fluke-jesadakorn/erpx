@@ -1,5 +1,5 @@
-import {assistantPage,type AssistantSource} from '@/lib/ai/workspace-assistant';
-import {hasPermission} from '@/lib/permissions';
+import {assistantPage,type AssistantSource} from "@/lib/work_projection/ai/workspace-assistant";
+import {hasPermission} from "@/lib/identity_access/permissions";
 import type {WorkContext} from '../../identity_access/public/authorization';
 import {BusinessRuleError} from '../../shared';
 export type Row = { id:string; question:string; paths_json:string; sources_json:string|null; answer_json:string|null; english_answer_json?:string|null; state:string; created_at:number; private_session_id?:string|null; governance_snapshot_json?:string|null };

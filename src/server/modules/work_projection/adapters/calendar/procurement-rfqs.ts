@@ -1,6 +1,6 @@
 import type { CalendarAccess } from "../../domain/calendar/access";
 import 'server-only';
-import type { CalendarQuery } from '@/lib/calendar';
+import type { CalendarQuery } from "@/lib/work_projection/calendar";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { calendarProcurementRfqsProcurementFacts } from "../../../procurement/public/calendar-procurement-rfqs-facts";
 import { createCalendarProcurementRfqs, type CalendarProcurementRfqsUnit } from "../../application/calendar/procurement-rfqs";

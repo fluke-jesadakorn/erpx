@@ -1,7 +1,7 @@
 import {calendarPeopleProjectionSources} from "../../people_payroll/public/calendar-people-projection-sources";
 import "server-only";
 import type { SqlDatabase } from "../../runtime/public/runtime/types";
-import { type RecurrenceRule } from "@/lib/calendar-recurrence";
+import { type RecurrenceRule } from "@/lib/work_projection/calendar-recurrence";
 import type { AppointmentRow } from "../../work_projection/domain/calendar/appointments";
 const inList = (expression: string) => `${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`;
 export function calendarAppointmentsWorkProjectionFacts(db: SqlDatabase) {

@@ -1,4 +1,4 @@
-import {z} from 'zod';import {decimalToMinor} from '@/lib/finance-money';export const reason = z.string().trim().min(3).max(3000),
+import {z} from 'zod';import {decimalToMinor} from "@/lib/finance/finance-money";export const reason = z.string().trim().min(3).max(3000),
   version = z.number().int().positive(),
   date = z.string().date(),
   qty = z.string().regex(/^\d+(\.\d{1,3})?$/);

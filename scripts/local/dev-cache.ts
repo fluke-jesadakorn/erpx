@@ -7,6 +7,7 @@ import { createClient } from 'redis';
 
 const envPath = join(process.cwd(), '.env.local');
 let env = await readFile(envPath, 'utf8');
+const developmentPool = /^ERPX_DEV_PG_POOL_MAX=(.*)$/m.exec(env)?.[1].trim() || '3';
 const credentials = JSON.parse(await readFile(process.env.ERPX_REDIS_ADMIN_CREDENTIALS ?? join(homedir(), '.config/dev-infra/credentials.json'), 'utf8'));
 const existing = /^ERPX_REDIS_URL=(.+)$/m.exec(env)?.[1];
 const password = existing ? decodeURIComponent(new URL(existing).password) : randomBytes(32).toString('hex');
@@ -19,7 +20,7 @@ try {
     '+get', '+set', '+del', '+unlink', '+ping', '+hello', '+client|setinfo', '+client|setname', '+select']);
   await admin.sendCommand(['ACL', 'SAVE']);
   const url = `redis://erpx_dev:${encodeURIComponent(password)}@127.0.0.1:6379/0`;
-  for (const [key, value] of Object.entries({ ERPX_REDIS_URL: url, ERPX_WORK_CACHE: 'redis', ERPX_DEV_PG_POOL_MAX: '6', ERPX_PERF_LOG: '1' })) {
+  for (const [key, value] of Object.entries({ ERPX_REDIS_URL: url, ERPX_WORK_CACHE: 'redis', ERPX_DEV_PG_POOL_MAX: developmentPool, ERPX_PERF_LOG: '1' })) {
     const line = `${key}=${value}`;
     env = new RegExp(`^${key}=.*$`, 'm').test(env) ? env.replace(new RegExp(`^${key}=.*$`, 'm'), line) : `${env.trimEnd()}\n${line}\n`;
   }

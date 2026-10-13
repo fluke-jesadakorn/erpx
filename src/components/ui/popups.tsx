@@ -7,7 +7,7 @@ import { Tabs as TabsPrimitive } from "@base-ui/react/tabs";
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 import { ChevronDown } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
-import { cn } from "@/lib/ui";
+import { cn } from "@/lib/shared/ui";
 
 export const Menu = MenuPrimitive.Root;
 export const MenuTrigger = MenuPrimitive.Trigger;

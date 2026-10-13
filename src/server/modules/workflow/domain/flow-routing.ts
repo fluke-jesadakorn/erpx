@@ -1,6 +1,6 @@
-import { hasWorkflowPermission } from "@/lib/permissions";
-import type { PermissionActor } from "@/lib/iam";
-import type { FlowKind, FlowStep } from "@/lib/flow";
+import { hasWorkflowPermission } from "@/lib/identity_access/permissions";
+import type { PermissionActor } from "@/lib/identity_access/iam";
+import type { FlowKind, FlowStep } from "@/lib/shared/flow";
 import type { RecordScope } from "@/server/modules/operations/public/staff-policy";
 export type Row = Record<string, string | number | null>;
 export type Definition = {

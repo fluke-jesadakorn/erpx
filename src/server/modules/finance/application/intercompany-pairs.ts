@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import {decimalToUnits} from '@/lib/finance-money';
+import {decimalToUnits} from "@/lib/finance/finance-money";
 import type {WorkContext} from '@/server/modules/identity_access/public/authorization';
 import type {FinanceError} from '../domain/invoice-line-revision';
 import {intercompanyPairSchema,intercompanyPairDecisionSchema,type PairFactRow,type PairSource} from '../domain/intercompany-pairs';

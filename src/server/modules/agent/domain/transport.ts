@@ -1,4 +1,4 @@
-import type {AiProtocol} from '@/lib/ai/providers';
+import type {AiProtocol} from "@/lib/shared/ai/providers";
 import type {AiGatewayFacts} from './gateway';
 import {BusinessRuleError} from '../../shared';
 export type AiEndpoint<Gateway = AiGatewayFacts> = {

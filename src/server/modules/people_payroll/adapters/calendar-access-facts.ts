@@ -1,6 +1,6 @@
 import "server-only";
 import type { SqlDatabase } from "../../runtime/public/runtime/types";
-import type { CalendarPerson } from "@/lib/calendar";
+import type { CalendarPerson } from "@/lib/work_projection/calendar";
 const idList = (ids: string[]) => JSON.stringify(ids), inList = (expression: string) => `${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`;
 export function calendarAccessPeoplePayrollFacts(db: SqlDatabase) {
     return { people: (input: {

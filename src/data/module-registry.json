@@ -2751,9 +2751,9 @@
         "capability": true
       },
       {
-        "id": "folios",
-        "label": "Folios & payments",
-        "description": "Folios & payments",
+        "id": "guest-accounts",
+        "label": "Guest Accounts & payments",
+        "description": "Guest Accounts & payments",
         "kind": "workflow",
         "capability": true
       },

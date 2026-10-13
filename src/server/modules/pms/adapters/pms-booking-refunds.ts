@@ -1,3 +1,4 @@
+import { assertPmsProviderAuthority } from "./provider-authority";
 import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { type Snapshot } from "@/server/modules/pms/public/rules/pms";
@@ -9,13 +10,14 @@ import { ApiError } from "@/server/modules/runtime/public/http";
 import { requirePermission } from "@/server/modules/identity_access/public/iam-permissions";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase, TransactionalSqlDatabase } from "@/server/modules/runtime/public/runtime/types";
-import type { Effects } from "@/lib/pms-engine";
+import type { Effects } from "@/lib/pms/pms-engine";
 import type { BookingEnv } from "../public/pms-booking";
 import { createPmsBookingRefund, type PmsBookingRefundUnit, type PmsBookingRefundRepository, type Request } from "../application/pms-booking-refunds";
 import { holdingResources as resolveResources } from "../../runtime/public/runtime";
 function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase): PmsBookingRefundUnit {
     void _whole;
     return {
+        authorize: (actor,permission)=>assertPmsProviderAuthority(db,actor,permission),
         readPmsBookingPayments: (facts: {
             paymentId: string;
             id: string;
@@ -25,9 +27,9 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase): PmsBookingRef
         }) => db.prepare('SELECT * FROM pms_booking_refund_requests WHERE id=?').bind(facts.requestId).first<Request>(),
         readPmsBookingAllocations: (facts: {
             paymentId: string;
-        }) => db.prepare('SELECT stay_id,folio_id,entry_id,amount_minor FROM pms_booking_allocations WHERE payment_id=? ORDER BY stay_id').bind(facts.paymentId).all<{
+        }) => db.prepare('SELECT stay_id,guest_account_id,entry_id,amount_minor FROM pms_booking_allocations WHERE payment_id=? ORDER BY stay_id').bind(facts.paymentId).all<{
             stay_id: string;
-            folio_id: string;
+            guest_account_id: string;
             entry_id: string;
             amount_minor: number;
         }>(),

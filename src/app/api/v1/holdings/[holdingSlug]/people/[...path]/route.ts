@@ -1,8 +1,8 @@
 import { organizationDraftApi } from "@/server/modules/organization/public/organization-drafts";
 import { rehireInput, createRehireEngagement, peopleLifecycleData, previewPackage, savePackage, bindPositionPackage, previewLifecycle, saveLifecycle, cancelLifecycle, requestLifecycleAccess, lifecycleSettingsInput, saveLifecycleSettings, completePreparationTask } from "@/server/modules/people_payroll/public/people-lifecycle";
-import { packageInput, lifecycleInput } from "@/lib/people-lifecycle";
+import { packageInput, lifecycleInput } from "@/lib/people_payroll/people-lifecycle";
 import { placementBatchInput, previewPlacementBatch, submitPlacementBatch } from "@/server/modules/people_payroll/public/people-placement-batch";
-import { positionMoveInput, positionMoveSubmitInput } from "@/lib/position-moves";
+import { positionMoveInput, positionMoveSubmitInput } from "@/lib/people_payroll/position-moves";
 import { previewPositionMove, submitPositionMove, positionMoves, cancelPositionMove } from "@/server/modules/organization/public/position-moves";
 import type { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
 import { directoryOperationsApi } from "@/server/modules/identity_access/public/directory-operations-api";
@@ -23,7 +23,7 @@ import { createPayrollAdjustment, editPayrollAdjustment, payrollAdjustmentCreate
 import {requestPayrollRecovery,consentPayrollRecovery,reviewPayrollRecovery,recognizePayrollRecovery,payrollRecoveryPage,payrollRecoveryAgreement,payrollRecoveryRequestSchema,payrollRecoveryConsentSchema,payrollRecoveryReviewSchema,payrollRecoveryRecognizeSchema} from "@/server/modules/people_payroll/public/payroll-recoveries";
 import { thaiPayrollConfiguration,createThaiPayrollProfile,decideThaiPayrollProfile,thaiPayrollProfileSchema,thaiPayrollProfileDecisionSchema } from "@/server/modules/people_payroll/public/payroll-statutory";
 import { consumeHireHandoff,hireConsumptionSchema,hireHandoffQueue } from "@/server/modules/people_payroll/public/people-handoffs";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { getPayrollSchedule, savePayrollSchedule, payrollScheduleSchema, payrollReadiness, submitPayrollReview, payrollSubmitReviewSchema } from "@/server/modules/people_payroll/public/payroll-readiness";
 import { getPayrollLiabilities, remitPayrollLiability, payrollRemittanceSchema } from "@/server/modules/people_payroll/public/payroll-remittance";
 import { positionPayInput, levelLeaveInput, savePositionPayDefault, saveLevelLeaveDefault } from "@/server/modules/organization/public/staff-defaults";

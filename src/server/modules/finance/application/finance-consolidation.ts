@@ -1,6 +1,6 @@
 import { translationRate, translateMinor } from '../domain/group-consolidation-math';
 import { z } from "zod";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { decimalToMinor } from "@/server/modules/finance/public/finance";
 import type { minorToDecimal } from "@/server/modules/finance/public/finance";

@@ -5,11 +5,11 @@ import { requireWorkContext, publicScope } from "@/server/modules/identity_acces
 
 
 
-import { DepartmentAuthorityWorkspace } from "@/components/modules/department-authority-workspace";
-import { hasPermission } from "@/lib/permissions";
-import { workspaceBase } from "@/lib/workspace";
-import { peopleContextHref, type PeopleRouteSearch } from "@/lib/people-route-context";
-import { FeaturePage } from "@/components/features/feature-page";
+import { DepartmentAuthorityWorkspace } from "@/components/organization/department-authority-workspace";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { workspaceBase } from "@/lib/work_projection/workspace";
+import { peopleContextHref, type PeopleRouteSearch } from "@/lib/people_payroll/people-route-context";
+import { FeaturePage } from "@/components/shared/features/feature-page";
 import { forbidden, redirect } from "next/navigation";
 
 export default async function OrganizationPage({

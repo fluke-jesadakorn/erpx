@@ -1,6 +1,6 @@
 import type { WorkContext } from '@/server/modules/identity_access/public/authorization';
-import type { ThaiDocumentSnapshot } from '@/lib/finance-thai-document';
-import { minorToDecimal } from '@/lib/finance-money';
+import type { ThaiDocumentSnapshot } from "@/lib/finance/finance-thai-document";
+import { minorToDecimal } from "@/lib/finance/finance-money";
 import type { Row, SourceRow, Source } from '../domain/withholding-month';
 import type { FinanceError } from '../domain/invoice-line-revision';
 export interface WithholdingMonthSourcePorts {

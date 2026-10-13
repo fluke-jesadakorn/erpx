@@ -1,11 +1,12 @@
+import { canonicalGuestAccount, legacyGuestAccount } from "@/lib/identity_access/guest-account-compat";
 import { z } from 'zod';
-import { availableReceiptSources } from '@/lib/pms-receipt-funding';
+import { availableReceiptSources } from "@/lib/pms/pms-receipt-funding";
 import { record, type Snapshot } from "../domain/pms";
-import { executePms } from '@/lib/pms-engine';
-import { samePerson } from '@/lib/iam';
-import { hasPermission } from '@/lib/permissions';
+import { executePms } from "@/lib/pms/pms-engine";
+import { samePerson } from "@/lib/identity_access/iam";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
-import type { Effects } from "@/lib/pms-engine";
+import type { Effects } from "@/lib/pms/pms-engine";
 import type { Clock } from "../../shared/application/ports";
 export type PmsProviderRows<Row> = {
     results: Row[];
@@ -14,6 +15,7 @@ export type PmsProviderWrite = {
     run(): Promise<PmsProviderRows<Record<string, unknown>>>;
 };
 export type PmsCounterPaymentUnit = {
+    authorize(actor: WorkContext, permission: string): Promise<void>;
     readPmsStripePayments(facts: {
         key: string;
     }): Promise<{
@@ -35,7 +37,7 @@ export type PmsCounterPaymentUnit = {
         key: string;
         digest: string;
         propertyId: string;
-        folioId: string;
+        guestAccountId: string;
         companyId: string;
         account_id: string;
         livemode: boolean;
@@ -224,7 +226,7 @@ export type PmsCounterPaymentUnit = {
     }): Promise<PmsProviderRows<{
         id: string;
         property_id: string;
-        folio_id: string;
+        guest_account_id: string;
         amount_minor: number;
         refund_amount_minor: number | null;
         refund_state: string;
@@ -288,7 +290,7 @@ export type Payment = {
     id: string;
     request_hash: string;
     property_id: string;
-    folio_id: string;
+    guest_account_id: string;
     company_id: string;
     account_id: string;
     livemode: boolean;
@@ -313,7 +315,7 @@ export type Payment = {
     refund_approved_by: string | null;
 };
 export function createPmsCounterPayment(ports: PmsCounterPaymentPorts) {
-    const inputSchema = z.object({ propertyId: z.string().min(1), folioId: z.string().min(1), kind: z.enum(['receipt', 'deposit']), amountMinor: z.number().int().positive(), payerEmail: z.union([z.email(), z.literal('')]).default('') });
+    const inputSchema = z.object({ propertyId: z.string().min(1), guestAccountId: z.string().min(1), kind: z.enum(['receipt', 'deposit']), amountMinor: z.number().int().positive(), payerEmail: z.union([z.email(), z.literal('')]).default('') });
     function visible(row: Payment) { return { id: row.id, state: row.state, kind: row.kind, amountMinor: Number(row.amount_minor), qrData: row.state === 'pending' ? row.qr_data : null, expiresAt: Number(row.expires_at), entryId: row.entry_id, refundState: row.refund_state, payerEmailProvided: Boolean(row.payer_email) }; }
     function scope(actor: WorkContext, s: Snapshot) { if (s.property.companyId !== actor.companyId || actor.branchId && s.property.branchId !== actor.branchId || actor.departmentId)
         throw ports.error(404, 'PMS_NOT_FOUND', 'Hotel not found in this workspace'); }
@@ -321,13 +323,13 @@ export function createPmsCounterPayment(ports: PmsCounterPaymentPorts) {
         if (!hasPermission(actor, 'pms.cashier'))
             throw ports.error(403, 'PMS_CASHIER_REQUIRED', 'Cashier access is required');
         z.string().uuid().parse(key);
-        const input = inputSchema.parse(raw), digest = ports.hash(JSON.stringify({ actor: actor.userId, company: actor.companyId, input }));
+        const input = inputSchema.parse(canonicalGuestAccount(raw)), digest = ports.hash(JSON.stringify({ actor: actor.userId, company: actor.companyId, input }));
         const id = await db.transaction(async (tx) => {
             const s = await tx.bookingSnapshot(input.propertyId, undefined, true);
             scope(actor, s);
             const old = await tx.readPmsStripePayments({ key: key });
             if (old) {
-                if (old.request_hash !== digest)
+                if (old.request_hash !== digest && old.request_hash !== ports.hash(JSON.stringify({actor:actor.userId,company:actor.companyId,input:legacyGuestAccount(input)})))
                     throw ports.error(409, 'PMS_PAYMENT_KEY_REUSED', 'Use a new payment request key');
                 return old.id;
             }
@@ -335,15 +337,15 @@ export function createPmsCounterPayment(ports: PmsCounterPaymentPorts) {
                 throw ports.error(409, 'PMS_ONLINE_ACCOUNTING_REQUIRED', 'Finance must approve the online liability mappings');
             if (s.property.state !== 'open' || s.property.config.currency !== 'THB')
                 throw ports.error(409, 'PMS_PAYMENT_NOT_READY', 'Hotel must be open and use THB');
-            const folio = record(s, 'folio', input.folioId);
-            if (folio.data.state !== 'open' && folio.data.state !== 'credit')
-                throw ports.error(409, 'PMS_FOLIO_CLOSED', 'Choose an open folio');
+            const guestAccount = record(s, 'guest_account', input.guestAccountId);
+            if (guestAccount.data.state !== 'open' && guestAccount.data.state !== 'credit')
+                throw ports.error(409, 'PMS_GUEST_ACCOUNT_CLOSED', 'Choose an open guest account');
             const connection = await tx.readPosConnections({ companyId: actor.companyId });
             if (!connection?.account_id || connection.livemode && ports.liveEnabled() !== 'true')
                 throw ports.error(503, 'PMS_PAYMENT_UNAVAILABLE', 'Company Stripe is not ready for PromptPay');
             const settings = await tx.readPosSettings({ companyId: actor.companyId });
             const clearing = settings ? (JSON.parse(settings.accounts_json).stripe || s.property.config.accounts.edc) : s.property.config.accounts.edc;
-            await tx.insertPmsStripePayments({ key: key, digest: digest, propertyId: input.propertyId, folioId: input.folioId, companyId: actor.companyId, account_id: connection.account_id, livemode: connection.livemode, kind: input.kind, amountMinor: input.amountMinor, fact9: input.payerEmail || null, fact10: now + 30 * 60 * 1000, userId: actor.userId, now: now, now2: now, clearing: clearing });
+            await tx.insertPmsStripePayments({ key: key, digest: digest, propertyId: input.propertyId, guestAccountId: input.guestAccountId, companyId: actor.companyId, account_id: connection.account_id, livemode: connection.livemode, kind: input.kind, amountMinor: input.amountMinor, fact9: input.payerEmail || null, fact10: now + 30 * 60 * 1000, userId: actor.userId, now: now, now2: now, clearing: clearing });
             const money = await tx.snapshotMoney(actor, { sourceType: 'pms_stripe_payment', sourceId: key, amountKind: 'requested', transactionDate: s.property.businessDate, currency: 'THB', amountUnits: String(input.amountMinor) });
             await money.statement.run();
             return key;
@@ -402,7 +404,7 @@ export function createPmsCounterPayment(ports: PmsCounterPaymentPorts) {
                 const before = new Map(s.records.map(r => [r.id, JSON.stringify(r)])), oldEdc = s.property.config.accounts.edc;
                 s.property.config.accounts.edc = current.clearing_account;
                 if (current.state === 'cancelled' || (current.provider_succeeded_at ?? now) >= Number(current.expires_at)) {
-                    const outcome = executePms(s, 'payment.unallocated', { folioId: current.folio_id, amount: Number(current.amount_minor), reference: String(current.provider_id) }, { userId: 'system:stripe', now, uuid: ports.uuid, independent: () => false });
+                    const outcome = executePms(s, 'payment.unallocated', { guestAccountId: current.guest_account_id, amount: Number(current.amount_minor), reference: String(current.provider_id) }, { userId: 'system:stripe', now, uuid: ports.uuid, independent: () => false });
                     record(s, 'entry', outcome.id).data.sourceKey = `counter-payment:${current.id}`;
                     await tx.persistPmsRecords(s, before);
                     await tx.persistEffects({ companyId: current.company_id, userId: 'system:stripe' } as WorkContext, s, outcome.effects);
@@ -411,7 +413,7 @@ export function createPmsCounterPayment(ports: PmsCounterPaymentPorts) {
                     await tx.updatePmsStripePayments5({ id: outcome.id, now: now, amount_minor: current.amount_minor, now2: now, id2: id });
                     return;
                 }
-                const outcome = executePms(s, current.kind === 'deposit' ? 'payment.stripe_deposit' : 'payment.stripe', { folioId: current.folio_id, amount: Number(current.amount_minor), reference: String(current.provider_id) }, { userId: 'system:stripe', now, uuid: ports.uuid, independent: () => false });
+                const outcome = executePms(s, current.kind === 'deposit' ? 'payment.stripe_deposit' : 'payment.stripe', { guestAccountId: current.guest_account_id, amount: Number(current.amount_minor), reference: String(current.provider_id) }, { userId: 'system:stripe', now, uuid: ports.uuid, independent: () => false });
                 record(s, 'entry', outcome.id).data.sourceKey = `counter-payment:${current.id}`;
                 await tx.persistPmsRecords(s, before);
                 await tx.persistEffects({ companyId: current.company_id, userId: 'system:stripe' } as WorkContext, s, outcome.effects);
@@ -455,7 +457,7 @@ export function createPmsCounterPayment(ports: PmsCounterPaymentPorts) {
     function remainingReceipt(s: Snapshot, row: Payment) {
         if (!row.entry_id)
             throw ports.error(409, 'PMS_ORIGINAL_RECEIPT_MISSING', 'Original receipt requires recovery');
-        return availableReceiptSources(s, row.folio_id, row.kind === 'deposit' ? 'deposit' : 'advance', false).find(p => p.entryId === row.entry_id)?.amount ?? 0;
+        return availableReceiptSources(s, row.guest_account_id, row.kind === 'deposit' ? 'deposit' : 'advance', false).find(p => p.entryId === row.entry_id)?.amount ?? 0;
     }
     async function requestPmsStripeRefund(db: PmsCounterPaymentRepository, actor: WorkContext, paymentId: string, amountMinor: number, reason: string) {
         if (!hasPermission(actor, 'pms.cashier'))
@@ -476,32 +478,32 @@ export function createPmsCounterPayment(ports: PmsCounterPaymentPorts) {
             if (amountMinor > Number(row.amount_minor) || amountMinor > remainingReceipt(s, row))
                 throw ports.error(422, 'PMS_REFUND_EXCEEDS_PAYMENT', 'Refund exceeds the unused original receipt');
             const before = new Map(s.records.map(r => [r.id, JSON.stringify(r)]));
-            executePms(s, 'payment.refund_reserve', { folioId: row.folio_id, amount: amountMinor, sourceEntryId: row.entry_id, pocket: row.kind === 'deposit' ? 'deposit' : 'advance' }, { userId: 'system:stripe', now: ports.clock.now(), uuid: ports.uuid, independent: () => false });
+            executePms(s, 'payment.refund_reserve', { guestAccountId: row.guest_account_id, amount: amountMinor, sourceEntryId: row.entry_id, pocket: row.kind === 'deposit' ? 'deposit' : 'advance' }, { userId: 'system:stripe', now: ports.clock.now(), uuid: ports.uuid, independent: () => false });
             await tx.persist(s, before);
             await tx.updatePmsStripePayments12({ amountMinor: amountMinor, fact1: reason.trim(), userId: actor.userId, fact3: ports.clock.now(), paymentId: paymentId });
             return { id: paymentId, state: 'requested' };
         });
     }
     async function approvePmsStripeRefund(db: PmsCounterPaymentRepository, actor: WorkContext, paymentId: string) {
-        if (!hasPermission(actor, 'finance.approve') || actor.branchId || actor.departmentId)
-            throw ports.error(403, 'PMS_FINANCE_REQUIRED', 'Company Finance approval is required');
+        if (!hasPermission(actor, 'pms.approve') || actor.departmentId) throw ports.error(403,'PMS_APPROVAL_REQUIRED','PMS refund approval is required');
         const found = await db.readPmsStripePayments9({ paymentId: paymentId, companyId: actor.companyId });
         if (!found)
             throw ports.error(404, 'PMS_PAYMENT_NOT_FOUND', 'Payment not found');
         return db.transaction(async (tx) => {
             const s = await tx.bookingSnapshot(found.property_id, undefined, true);
             scope(actor, s);
+            await tx.authorize(actor,'pms.approve');
             await tx.readWriteContext({});
             const row = await tx.readPmsStripePayments10({ paymentId: paymentId, companyId: actor.companyId });
             if (!row || row.refund_state !== 'requested' || samePerson(actor, row.refund_requested_by ?? ''))
-                throw ports.error(409, 'PMS_INDEPENDENT_REFUND_APPROVAL', 'A different Finance user must approve a pending refund');
+                throw ports.error(409, 'PMS_INDEPENDENT_REFUND_APPROVAL', 'A different PMS manager must approve a pending refund');
             if (row.state === 'succeeded' && !row.refund_liability_posted) {
                 const before = new Map(s.records.map(r => [r.id, JSON.stringify(r)])), n = Number(row.refund_amount_minor), pocket = row.kind === 'deposit' ? 'deposit' : 'advance';
                 if (n > remainingReceipt(s, row))
                     throw ports.error(409, 'PMS_REFUND_EXCEEDS_BALANCE', 'Original unused receipt changed');
                 if (!row.refund_reserved)
-                    executePms(s, 'payment.refund_reserve', { folioId: row.folio_id, amount: n, pocket, sourceEntryId: row.entry_id }, { userId: 'system:stripe', now: ports.clock.now(), uuid: ports.uuid, independent: () => false });
-                const outcome = executePms(s, 'payment.refund_liability', { folioId: row.folio_id, amount: n, pocket, sourceEntryId: row.entry_id, reference: row.id }, { userId: 'system:stripe', now: ports.clock.now(), uuid: ports.uuid, independent: () => false });
+                    executePms(s, 'payment.refund_reserve', { guestAccountId: row.guest_account_id, amount: n, pocket, sourceEntryId: row.entry_id }, { userId: 'system:stripe', now: ports.clock.now(), uuid: ports.uuid, independent: () => false });
+                const outcome = executePms(s, 'payment.refund_liability', { guestAccountId: row.guest_account_id, amount: n, pocket, sourceEntryId: row.entry_id, reference: row.id }, { userId: 'system:stripe', now: ports.clock.now(), uuid: ports.uuid, independent: () => false });
                 await tx.persist(s, before);
                 await tx.persistEffects(actor, s, outcome.effects);
             }
@@ -555,7 +557,7 @@ export function createPmsCounterPayment(ports: PmsCounterPaymentPorts) {
                 const before = new Map(s.records.map(r => [r.id, JSON.stringify(r)]));
                 const oldEdc = s.property.config.accounts.edc;
                 s.property.config.accounts.edc = current.clearing_account;
-                const outcome = executePms(s, 'payment.refund_settle', { folioId: current.folio_id, amount: Number(current.refund_amount_minor), reference: String(refundId), sourceEntryId: current.entry_id, pocket: current.kind === 'deposit' ? 'deposit' : 'advance' }, { userId: 'system:stripe', now, uuid: ports.uuid, independent: () => false });
+                const outcome = executePms(s, 'payment.refund_settle', { guestAccountId: current.guest_account_id, amount: Number(current.refund_amount_minor), reference: String(refundId), sourceEntryId: current.entry_id, pocket: current.kind === 'deposit' ? 'deposit' : 'advance' }, { userId: 'system:stripe', now, uuid: ports.uuid, independent: () => false });
                 await tx.persistPmsRecords(s, before);
                 await tx.persistEffects({ companyId: current.company_id, userId: 'system:stripe' } as WorkContext, s, outcome.effects);
                 s.property.config.accounts.edc = oldEdc;
@@ -566,13 +568,12 @@ export function createPmsCounterPayment(ports: PmsCounterPaymentPorts) {
         });
     }
     async function pmsStripeRefundsForFinance(actor: WorkContext) {
-        if (!hasPermission(actor, 'finance.approve') || actor.branchId || actor.departmentId)
-            return [];
+        if (!hasPermission(actor, 'finance.read') || actor.branchId || actor.departmentId) return [];
         const write = await ports.forActor(actor);
         return (await write.readPmsStripePayments15({ companyId: actor.companyId })).results;
     }
     async function recoverPmsStripeRefund(db: PmsCounterPaymentRepository, actor: WorkContext, id: string, reason: string, payerEmail?: string) {
-        if (!hasPermission(actor, 'finance.approve') || actor.branchId || actor.departmentId || reason.trim().length < 3)
+        if (!hasPermission(actor, 'pms.approve') || actor.departmentId || reason.trim().length < 3)
             throw ports.error(403, 'PMS_FINANCE_REQUIRED', 'Use company Finance and enter a recovery reason');
         if (payerEmail !== undefined)
             z.email().max(254).parse(payerEmail);
@@ -585,7 +586,8 @@ export function createPmsCounterPayment(ports: PmsCounterPaymentPorts) {
         if (found.refund_state === 'failed' && !['failed', 'canceled'].includes(String(provider?.status)))
             throw ports.error(409, 'PMS_REFUND_PROVIDER_PENDING', 'Recover the existing provider refund without creating another');
         return db.transaction(async (tx) => {
-            await tx.bookingSnapshot(found.property_id, undefined, true);
+            const s=await tx.bookingSnapshot(found.property_id, undefined, true);
+            scope(actor,s);await tx.authorize(actor,'pms.approve');
             const current = await tx.readPmsStripePayments6({ id: id });
             if (!current || current.refund_id !== found.refund_id || current.refund_state !== found.refund_state)
                 throw ports.error(409, 'PMS_REFUND_CHANGED', 'Reload before recovering this refund');

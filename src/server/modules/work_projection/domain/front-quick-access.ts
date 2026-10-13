@@ -1,5 +1,5 @@
-import type {QuickAccessItem} from "@/lib/quick-access";
-import {hasPermission} from "@/lib/permissions";
+import type {QuickAccessItem} from "@/lib/work_projection/quick-access";
+import {hasPermission} from "@/lib/identity_access/permissions";
 import type {WorkContext} from "../../identity_access/public/authorization";
 import type {FrontAppKind} from "./front-app";
 import {frontVisiblePath} from "./front-path";
@@ -24,7 +24,7 @@ const pmsActions: FrontAction[] = [
   { id: "front-desk", title: "Front desk", permission: ["pms.frontdesk"], tone: "teal", icon: "front-desk" },
   { id: "rooms", title: "Rooms", permission: ["pms.housekeeping", "pms.maintenance"], tone: "green", icon: "rooms" },
   { id: "housekeeping", title: "Housekeeping", permission: ["pms.housekeeping", "pms.inspect"], tone: "green", icon: "housekeeping" },
-  { id: "folios", title: "Payments", permission: ["pms.cashier"], tone: "amber", icon: "folios" },
+  { id: "guest-accounts", title: "Payments", permission: ["pms.cashier"], tone: "amber", icon: "guest-accounts" },
   { id: "cashier", title: "Cashier", permission: ["pms.cashier"], tone: "amber", icon: "cashier" },
   { id: "night-audit", title: "Night audit", permission: ["pms.audit"], tone: "violet", icon: "night-audit" },
 ];

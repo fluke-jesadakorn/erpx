@@ -1,6 +1,6 @@
 import type { AiEndpoint, AiMessage, AiProviderSnapshot } from '../../agent/public/transport-contract';
 import { z } from "zod";
-import { serviceCategories } from "@/lib/employee-services";
+import { serviceCategories } from "@/lib/people_payroll/employee-services";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { BetaEnvironment } from "@/server/modules/manage_erpx/public/beta-config";
 import type { aiRequestQuotaLock } from "@/server/modules/agent/public/ai-quota";

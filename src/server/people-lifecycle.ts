@@ -1,2 +1,0 @@
-/** Compatibility entry point; legacy implementation belongs to people_payroll. */
-export {applyLifecycleReview,bindPositionPackage,cancelLifecycle,completePreparationTask,createRehireEngagement,lifecycleSettingsInput,peopleLifecycleData,peopleLifecycleWork,previewLifecycle,previewPackage,rehireInput,requestLifecycleAccess,saveLifecycle,saveLifecycleSettings,savePackage} from "@/server/modules/people_payroll/adapters/people-lifecycle";

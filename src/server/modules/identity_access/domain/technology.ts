@@ -1,4 +1,4 @@
-import type {GrantInput} from '../domain/iam-service';import type {AccessPackageDefinition} from '@/lib/people-lifecycle';import type {ProvisioningInput,ProvisioningPreview,AppliedPackage} from '../domain/provisioning-input';import type {DirectoryChangeInput,DirectoryInventory} from '@/lib/directory-operations';import type {OperationEvidence} from '../domain/directory-operations';
+import type {GrantInput} from '../domain/iam-service';import type {AccessPackageDefinition} from "@/lib/people_payroll/people-lifecycle";import type {ProvisioningInput,ProvisioningPreview,AppliedPackage} from '../domain/provisioning-input';import type {DirectoryChangeInput,DirectoryInventory} from "@/lib/identity_access/directory-operations";import type {OperationEvidence} from '../domain/directory-operations';
 export type PersonPlan = {
   id: string;
   personId: string;

@@ -1,3 +1,4 @@
+import { posGuestAccountInterface } from "../../pms/public/pos-guest-account-interface";
 import { hospitalityOwnerProjectionSources as pmsProjectionSources } from "../../pms/public/hospitality-owner-projection-sources";
 import 'server-only';
 import { createHash, randomUUID } from 'node:crypto';
@@ -30,6 +31,22 @@ import { posCoreFilesFacts } from "../../files/public/pos-core-facts";
 import { posCoreOrganizationFacts } from "../../organization/public/pos-core-facts";
 function unit(db: SqlDatabase): PosUnit<SqlStatement> {
     return {
+        assertHotelDay: async (company,registerId,date) => {
+            const register=await one(db,'SELECT property_id,branch_id FROM pos_registers WHERE company_id=? AND id=?',company,registerId);
+            if(register) await posGuestAccountInterface(db).assertDay(company,register.property_id,register.branch_id,date);
+        },
+        assertFulfillmentHotelDay: async (company,fulfillmentId,date) => {
+            const rows=await all(db,'SELECT DISTINCT r.property_id,r.branch_id FROM pos_lines l JOIN pos_sales s ON s.id=l.sale_id JOIN pos_registers r ON r.id=s.register_id WHERE s.company_id=? AND l.fulfillment_id=?',company,fulfillmentId);
+            for(const row of rows) await posGuestAccountInterface(db).assertDay(company,row.property_id,row.branch_id,date);
+        },
+        reversalRequest: id => one(db, 'SELECT * FROM pos_room_charge_reversal_requests WHERE id=? FOR UPDATE', id),
+        pendingReversal: saleId => one(db, "SELECT id FROM pos_room_charge_reversal_requests WHERE sale_id=? AND state IN ('requested','pos_approved')", saleId),
+        saveReversalRequest: async row => { await run(db, "INSERT INTO pos_room_charge_reversal_requests(id,sale_id,company_id,branch_id,property_id,sale_version,property_version,amount_minor,reason,restock_line_ids_json,state,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,'requested',?,?,?)", row.id,row.sale_id,row.company_id,row.branch_id,row.property_id,row.sale_version,row.property_version,row.amount_minor,row.reason,row.restock_line_ids_json,row.requested_by,row.created_at,row.created_at); },
+        reviewReversalRequest: async (id,state,user,reason,now) => { await run(db, "UPDATE pos_room_charge_reversal_requests SET state=?,version=version+1,pos_approved_by=CASE WHEN ?='pos_approved' THEN ? ELSE pos_approved_by END,pms_approved_by=CASE WHEN ?='approved' THEN ? ELSE pms_approved_by END,rejected_by=CASE WHEN ?='rejected' THEN ? ELSE rejected_by END,review_reason=?,updated_at=? WHERE id=?", state,state,user,state,user,state,user,reason,now,id); },
+        prepareAccounting: async (company,accounts,user) => { await run(db, 'UPDATE pos_settings SET accounts_json=?,accounting_prepared_by=?,accounting_approved_by=NULL WHERE company_id=?', JSON.stringify(accounts),user,company); },
+        approveAccounting: async (company,user) => { await run(db, 'UPDATE pos_settings SET accounting_approved_by=?,version=version+1 WHERE company_id=?',user,company); },
+        saveOperationalSettings: async (company,enabled,discount) => { await run(db, 'UPDATE pos_settings SET enabled=?,cashier_discount_bps=?,version=version+1 WHERE company_id=?',enabled,discount,company); },
+        linkRegister: async (id,propertyId) => { await run(db, 'UPDATE pos_registers SET property_id=? WHERE id=?',propertyId,id); },
         readPosSales1: (facts: {
             saleId: string;
         }) => one(db, 'SELECT * FROM pos_sales WHERE id=? FOR UPDATE', facts.saleId),
@@ -485,7 +502,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         }) => run(db, 'UPDATE pos_sales SET version=version+1,updated_at=? WHERE id=?', facts.fact0, facts.id),
         readPosRegisters9: (facts: {
             register_id: string | number | boolean | null;
-        }) => one(db, "SELECT id FROM pos_registers WHERE id=? AND mode='restaurant'", facts.register_id),
+        }) => one(db, "SELECT id,property_id FROM pos_registers WHERE id=? AND mode='restaurant'", facts.register_id),
         readPosShifts4: (facts: {
             shift_id: string | number | boolean | null;
         }) => one(db, "SELECT id FROM pos_shifts WHERE id=? AND state='open'", facts.shift_id),
@@ -501,7 +518,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         readPmsProperties2: (facts: {
             propertyId: string;
             company: string;
-        }) => one(db, `SELECT branch_id,business_date FROM (${pmsProjectionSources.pms_properties}) pms_properties WHERE id=? AND company_id=?`, facts.propertyId, facts.company),
+        }) => one(db, `SELECT branch_id,business_date,version,state FROM (${pmsProjectionSources.pms_properties}) pms_properties WHERE id=? AND company_id=?`, facts.propertyId, facts.company),
         readPosFulfillments2: (facts: {
             itemId: string;
         }) => one(db, 'SELECT * FROM pos_fulfillments WHERE id=? FOR UPDATE', facts.itemId),

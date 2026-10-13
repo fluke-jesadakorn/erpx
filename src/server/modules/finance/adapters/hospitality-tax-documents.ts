@@ -2,7 +2,7 @@ import {financeOwnedSnapshotSources as pmsSnapshotSources} from "../../pms/publi
 import {financeOwnedSnapshotSources as posSnapshotSources} from "../../pos/public/finance-owned-snapshot-sources";
 import 'server-only';
 import { randomUUID } from 'node:crypto';
-import { hasPermission } from '@/lib/permissions';
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { executeCommand, replayCommand, assertion } from "@/server/modules/workflow/public/commands";
 import { assertProductionModuleEnabled } from "@/server/modules/pms/public/hospitality-rollout";
@@ -19,7 +19,7 @@ function nativeTaxDocuments(){let pending:Promise<SqlDatabase>|undefined;const r
     CASE WHEN i.source_type='pos' THEN s.branch_id WHEN i.source_type='pms' THEN p.branch_id ELSE NULL END branch_id
     FROM finance_invoices i
     LEFT ${posSnapshotSources().hospitality_tax_documents_pos_sales_s_join} ON i.source_type='pos' AND s.id=i.source_id AND s.invoice_id=i.id AND s.company_id=i.company_id AND s.state='completed'
-    LEFT ${pmsSnapshotSources().hospitality_tax_documents_pms_documents_d_join} ON i.source_type='pms' AND d.finance_id=i.id AND d.kind='invoice' AND d.folio_id=i.source_id
+    LEFT ${pmsSnapshotSources().hospitality_tax_documents_pms_documents_d_join} ON i.source_type='pms' AND d.finance_id=i.id AND d.kind='invoice' AND d.guest_account_id=i.source_id
     LEFT ${pmsSnapshotSources().hospitality_tax_documents_pms_properties_p_join} ON p.id=d.property_id AND p.company_id=i.company_id
     WHERE i.id=? AND i.company_id=?`).bind(invoiceId,actor.companyId).first<Invoice>();
 },

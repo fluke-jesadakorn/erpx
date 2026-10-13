@@ -7,14 +7,14 @@ import { requireCompanyAuthority } from "@/server/modules/operations/public/staf
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import { betaBody } from "@/server/modules/manage_erpx/public/beta-http";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
-import {billingCommand,billingView} from "@/server/billing";
-import { billingStripe } from "@/server/billing-stripe";
-import {readTargetBillingPeriod} from "@/server/billing-target";
+import {billingCommand,billingView} from "@/server/modules/billing/adapters/billing";
+import { billingStripe } from "@/server/modules/billing/adapters/billing-stripe";
+import {readTargetBillingPeriod} from "@/server/modules/billing/adapters/billing-target";
 
 import { attachmentUploadsFrozen, attachmentsV2ReadOnly } from "@/server/modules/files/public/attachments/feature";
 import { detectedAttachmentMediaType } from "@/server/modules/files/public/attachments/preview";
 import { attachmentScannerReadiness } from "@/server/modules/files/public/attachments/scanner";
-import { billingEvidenceStore } from "@/server/billing-attachments";
+import { billingEvidenceStore } from "@/server/modules/billing/adapters/billing-attachments";
 import {createBillingApi,type BillingApiRepository} from '../application/api';
 import type {RuntimeEnv} from '@/server/modules/runtime/public/runtime/env';
 import {billingHoldingFacts} from '@/server/modules/runtime/public/billing-holding-facts';

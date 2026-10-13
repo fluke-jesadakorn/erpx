@@ -2,7 +2,7 @@ import "server-only";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { ApiError } from "@/server/modules/runtime/public/http";
 import type { SqlDatabase, SqlStatement } from "@/server/modules/runtime/public/runtime/types";
-import type { AttachmentOperation, AttachmentPolicy } from "@/server/attachments/types";
+import type { AttachmentOperation, AttachmentPolicy } from "@/server/modules/files/public/attachments/types";
 import { createFinanceAttachmentPolicy, type FinanceAttachmentUnit } from "../../application/attachments/finance-operations-policy";
 import { getOvertime } from "../../../people_payroll/public/overtime";
 import { FinanceAttachmentFinanceFacts } from "../../../finance/public/attachments-finance-facts";

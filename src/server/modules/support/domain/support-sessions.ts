@@ -1,8 +1,8 @@
 import { z } from "zod";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
-import type { WorkItem } from "@/lib/work-item";
+import type { WorkItem } from "@/lib/work_projection/work-item";
 import type { SupportRow as Row } from "./support-facts";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 const reason = z.string().trim().min(3).max(2000), version = z.number().int().positive();
 export const supportSessionRequestSchema = z.object({ ticketId: z.string().min(1), ticketVersion: version, requestedFor: z.string().min(1), expiresAt: z.number().int().positive(), reason });
 export const supportSessionActionSchema = z.discriminatedUnion('action', [

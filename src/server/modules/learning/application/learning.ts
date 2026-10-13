@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { hasModuleAccess } from "@/data/module-access";
 import { courseActionSchema, learningAssignSchema, learningActionSchema, learningActionStatus, learningActionAllowed, learningWorkItems, type LearningRow, type LearningAssignment, type LearningCourseAction, type LearningAssignInput, type LearningActionInput } from "../domain/learning";
 

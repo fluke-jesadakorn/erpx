@@ -1,7 +1,7 @@
-import { clearancePermissions, type ClearanceKind } from "@/lib/retirement";
+import { clearancePermissions, type ClearanceKind } from "@/lib/people_payroll/retirement";
 import type { CalendarItem, CalendarQuery } from "@/server/modules/work_projection/public/rules/calendar-domain";
 import { addDays } from "@/server/modules/people_payroll/public/rules/people-roster-domain";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type {CalendarAccess} from "../../domain/calendar/access";
 const idList=(ids:string[])=>JSON.stringify(ids);
 import type {Clock} from "../../../shared/application/ports";

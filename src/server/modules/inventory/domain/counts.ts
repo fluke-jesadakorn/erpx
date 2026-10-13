@@ -1,4 +1,4 @@
-import {z} from 'zod';import {hasPermission} from '@/lib/permissions';import {samePerson} from '@/lib/iam';import type {WorkContext} from '../../identity_access/public/authorization';
+import {z} from 'zod';import {hasPermission} from "@/lib/identity_access/permissions";import {samePerson} from "@/lib/identity_access/iam";import type {WorkContext} from '../../identity_access/public/authorization';
 export type CountRow=Record<string,string|number|null>;
 export const countSchema=z.object({
   warehouseId:z.string().min(1),countDate:z.iso.date(),reason:z.string().trim().min(5).max(2000),

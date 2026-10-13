@@ -1,6 +1,6 @@
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { getWorkReview } from "@/server/modules/work_projection/public/work-review";
-import { workReviewKinds, type WorkReviewKind } from "@/lib/work-review";
+import { workReviewKinds, type WorkReviewKind } from "@/lib/work_projection/work-review";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 
 export async function GET(request: Request, context: { params: Promise<{ holdingSlug: string }> }) {

@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
-import type { HierarchyNode } from "@/lib/hierarchy";
+import type { HierarchyNode } from "@/lib/organization/hierarchy";
 
 /** Controlled selection/expansion, with WAI-ARIA tree keyboard navigation. */
 export function HierarchyTree({

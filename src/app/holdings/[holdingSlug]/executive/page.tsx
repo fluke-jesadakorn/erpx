@@ -2,8 +2,8 @@ import { runtimePresentationQueries } from "@/server/modules/runtime/public/pres
 import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
 
 
-import { workspaceBase } from "@/lib/workspace";
-import { ExecutiveLibrary } from "@/components/executive/library";
+import { workspaceBase } from "@/lib/work_projection/workspace";
+import { ExecutiveLibrary } from "@/components/runtime/executive/library";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 export default async function ExecutivePage({params}:{params:Promise<{holdingSlug:string}>}) {
   const {holdingSlug}=await params;

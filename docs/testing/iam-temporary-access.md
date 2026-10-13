@@ -8,7 +8,7 @@ Activation and revocation write immutable IAM audit evidence and an idempotency 
 
 ## Automated scenario
 
-`tests/iam.test.ts` creates an isolated recovery administrator, requires a fresh MFA session, and exercises concurrent activation retries, conflicting payloads, current-session listing, expiry filtering, concurrent revocation retries, immutable audit entries and immediate denial from `loadIamAuthority`. The test also leaves a different browser session's elevation intact. Captured automated output is recorded in [2026-09-23-iam-temporary-access.txt](evidence/2026-09-23-iam-temporary-access.txt).
+`tests/integration/identity_access/iam.test.ts` creates an isolated recovery administrator, requires a fresh MFA session, and exercises concurrent activation retries, conflicting payloads, current-session listing, expiry filtering, concurrent revocation retries, immutable audit entries and immediate denial from `loadIamAuthority`. The test also leaves a different browser session's elevation intact. Captured automated output is recorded in [2026-09-23-iam-temporary-access.txt](evidence/2026-09-23-iam-temporary-access.txt).
 
 ## Manual role walkthrough
 

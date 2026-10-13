@@ -1,0 +1,333 @@
+{
+  "schemaVersion": 1,
+  "auditedAtUTC": "2026-10-11T04:31:33.351300+00:00",
+  "runtimeSourceFingerprint": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+  "existingReceiptFacts": {
+    "checkedAtUTC": "2026-10-11T04:30:21.065Z",
+    "sourceFingerprint": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+    "fixtureCompany": "acme-pos-thb",
+    "authorizedExistingContext": true,
+    "selectedExistingOwner": true,
+    "historyStatus": 200,
+    "receiptStatus": 200,
+    "existingHistoryRows": 30,
+    "existingRefundRows": 11,
+    "selectedSaleState": "completed",
+    "selectedSaleCompanyId": "acme-pos-thb",
+    "receiptPresent": true,
+    "receiptCurrency": "THB",
+    "lineCount": 1,
+    "paymentCount": 1,
+    "selectedSaleMatches": true,
+    "authorizedFixtureMatches": true,
+    "businessCommandExecuted": false,
+    "newFixtureProvisioned": false,
+    "newAccessGranted": false,
+    "currentNativeReceiptAcceptance": false
+  },
+  "nativeReceiptAcceptance": false,
+  "sourceWindow": "Optional reads/UI held after PMS quiet-window notice; QR/main runtime unchanged through final reconciliation",
+  "nextNativeSteps": [
+    "After real pending role confirmation closes, restore original existing Owner/opening0 without a business save",
+    "After quiet-window release, use actual Change company picker to existing authorized fictional POS THB company",
+    "Verify receipt drawer/deep link/Back-Forward and reversible refund/editor drafts using existing fictional records; restore original company/role/draft/language"
+  ],
+  "collectorOfflineChecks": {
+    "syntax": "passed pinned Node24.20.0",
+    "sanitizerScenarios": 2,
+    "orchestrationScenarios": 4,
+    "cases": [
+      "Old ready document rejected by time-origin; new interactive document ready49ms accepted and dialog confirmed75ms",
+      "Invisible dialog cannot pass",
+      "Truncated event stream cannot pass",
+      "Non200 document remains invalid even when Search responds; exact Go to dialog is required"
+    ],
+    "realBrowserExecuted": false,
+    "actualReadinessGainProved": false
+  },
+  "freshSharedCheckReceipt": {
+    "path": ".scratch/dev/test-suites/full/2026-10-11T03-46-11-632Z/receipt.json",
+    "runtimeFingerprint": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+    "verificationFingerprint": "da3577cbc0866b9770ad0279a6a5b54fe7f71120501f1846d6d2cea38c2b43f5",
+    "scope": "internal-regression",
+    "aggregatePassed": false,
+    "passedPhases": [
+      {
+        "phase": "architecture",
+        "passed": true
+      },
+      {
+        "phase": "unit",
+        "passed": true
+      },
+      {
+        "phase": "integration",
+        "passed": true
+      },
+      {
+        "phase": "lint",
+        "passed": true
+      },
+      {
+        "phase": "typecheck",
+        "passed": true
+      },
+      {
+        "phase": "isolated-release",
+        "passed": true
+      }
+    ],
+    "passedVitestCaseCount": 4881,
+    "browserWholeSuiteAccepted": false
+  },
+  "goalComplete": false,
+  "recordBoundaries": {
+    "loaderCount": 94,
+    "clientDynamicDefaultSsrChecksAllPass": true,
+    "registeredManifest": ".runtime/releases/2026-10-11T03-31-25-954Z/.next/server/app/holdings/[holdingSlug]/home/page_client-reference-manifest.js",
+    "registeredClientModules": 145,
+    "registeredRecordLoaderModules": 94,
+    "directFullPosConsoleRegistered": false,
+    "registeredPosModule": "[project]/src/components/records/loaders/pos-record.tsx",
+    "scope": "Static boundaries and registered graph only; actual Home JS evidence remains the final measured cohort; native receipt matrix still pending"
+  },
+  "criticalScriptRequestAttribution": {
+    "before": {
+      "rounds": 20,
+      "criticalPaths": {
+        "/_next/static/chunks/076xjsi35j3oe.js": 2,
+        "/_next/static/chunks/0wxnol7hfamjc.js": 11,
+        "/_next/static/chunks/17ri15xju_bq6.js": 7
+      },
+      "metrics": {
+        "criticalRequestOffsetMs": {
+          "median": 384.67750005656853,
+          "p95": 1726.4870000071824
+        },
+        "criticalResourceDurationMs": {
+          "median": 562.1500000357628,
+          "p95": 1236.8999999761581
+        },
+        "firstRequestOffsetMs": {
+          "median": 238.43299999134615,
+          "p95": 351.4560000039637
+        }
+      }
+    },
+    "after": {
+      "rounds": 20,
+      "criticalPaths": {
+        "/_next/static/chunks/05cfcqjxktyng.js": 20
+      },
+      "metrics": {
+        "criticalRequestOffsetMs": {
+          "median": 1011.6079999716021,
+          "p95": 1343.35199999623
+        },
+        "criticalResourceDurationMs": {
+          "median": 562.8999999761581,
+          "p95": 1489.1000000238419
+        },
+        "firstRequestOffsetMs": {
+          "median": 326.5729999402538,
+          "p95": 479.08199997618794
+        }
+      }
+    }
+  },
+  "criticalRequestLimits": [
+    "Current estimated-last initial16KB holding error chunk requested at median1011.6ms versus first initial script326.6ms; duration median562.9ms close to baseline critical562.2ms. This suggests delayed discovery/request contributes, without attributing its server/stream/browser cause.",
+    "Not isolated hydration CPU or precise queue/TTFB/download decomposition; old sanitized samples lack response-start/loading-finish clocks.",
+    "Prepared collector now captures same-origin ResourceTiming fetch/request/response/connect/protocol fields and CDP finish timestamps; no active measurement during quiet window."
+  ],
+  "preparedCollectorSha256": "0fb5fd957607747d67431f9f4a66c143f1306875f313ef57679b44d2b13733c2",
+  "remainingActiveScreenSplit": {
+    "status": "Original step2 is incomplete; deferred tools alone do not prove shell plus active-screen-only JavaScript",
+    "sources": [
+      {
+        "source": "src/components/pos/pos-console.tsx",
+        "sha256": "14c03bd948b5b895827d31e7cf32d42e87e271a44aaebba4e0d61cf835c66ba0",
+        "lines": 2665,
+        "bytes": 127802,
+        "inlineTabs": [
+          "history",
+          "kitchen",
+          "reports",
+          "sale",
+          "settings",
+          "shifts"
+        ],
+        "inlineSections": [],
+        "dynamicBoundaryDeclarations": 11
+      },
+      {
+        "source": "src/components/pms/workspace.tsx",
+        "sha256": "005fe8f25a9e6c184fa24637fa38e7170f532908d14ec25e270d51f2d9df4a76",
+        "lines": 3824,
+        "bytes": 180025,
+        "inlineTabs": [],
+        "inlineSections": [
+          "cashier",
+          "dashboard",
+          "front-desk",
+          "guest-accounts",
+          "guests",
+          "housekeeping",
+          "inventory",
+          "night-audit",
+          "reports",
+          "reservations",
+          "rooms",
+          "settings"
+        ],
+        "dynamicBoundaryDeclarations": 15
+      }
+    ],
+    "nextRuntimeWork": "After shared final-reconciliation source freeze release, split front/back-office and active work screens with explicit persistent draft ownership; keep QR-library boundary as one small part, not acceptance of the whole step",
+    "validationRequired": [
+      "Current-source route/active-screen wire graph",
+      "Draft close/reopen/tab/company/role invariants",
+      "Relevant type/lint/regression/isolated release checks",
+      "Comparable20navigation/50API criteria and nonregressing p95"
+    ],
+    "mainRuntimeEdited": false
+  },
+  "preparedPosModeSplit": {
+    "preimageSource": "src/components/pos/pos-console.tsx",
+    "preimageSha256": "14c03bd948b5b895827d31e7cf32d42e87e271a44aaebba4e0d61cf835c66ba0",
+    "mainApplied": false,
+    "syntaxOnly": true,
+    "typecheck": "not run",
+    "lint": "not run",
+    "build": "not run",
+    "browser": "not run",
+    "sourceFreeze": "Held through shared final reconciliation; do not copy candidates into main yet",
+    "extraction": "Original function prefix, shared prelude and return bodies copied; top-level helper reachability retained conservatively",
+    "front": {
+      "bytes": 33461,
+      "sha256": "74f535a30804c3c0e6cd9b9a010dc230cd418a32d7b1a067cab0a12d344f751c",
+      "retainedHelpers": [
+        "Row",
+        "s",
+        "n",
+        "Button",
+        "FrontPosDaily",
+        "RoomChargeReversalReviews",
+        "PosSaleWorkspace",
+        "CashDenominationCount",
+        "kitchenCommands",
+        "kitchenPermission",
+        "fields",
+        "text",
+        "amount",
+        "Tag",
+        "KitchenInstructions",
+        "PosSend",
+        "labels",
+        "kitchenLabels"
+      ]
+    },
+    "backoffice": {
+      "bytes": 103205,
+      "sha256": "c90aa4116c04c945b1b720ef334e2aa0e51961f77e14f5fb75ad2d7d4d06881f",
+      "retainedHelpers": [
+        "Settings",
+        "RoomChargeReversalRequest",
+        "RoomChargeReversalReviews",
+        "TaxDocumentReference",
+        "PosReceipt",
+        "PosPromptPayEmailRecovery",
+        "PosPendingTransfer",
+        "PosDayClosePanel",
+        "CashDenominationCount",
+        "AttachmentPanel",
+        "Row",
+        "s",
+        "n",
+        "kitchenCommands",
+        "kitchenPermission",
+        "fields",
+        "text",
+        "amount",
+        "quantity",
+        "labels",
+        "CheckoutQr",
+        "PromptPayQr",
+        "Tag",
+        "KitchenInstructions",
+        "FeatureWidget",
+        "Button",
+        "kitchenLabels"
+      ]
+    },
+    "wrapper": {
+      "bytes": 768,
+      "sha256": "8a9a9608c0fca7539639fc02d0a5cc65864ed6717c17c15266817f43823d9e8c",
+      "clientBoundary": true,
+      "defaultSsrPreserved": true
+    },
+    "invariantsPending": [
+      "Unused import/local cleanup before strict lint",
+      "Controller/read identity and existing FrontPosDaily draft key remain unchanged",
+      "RecordOnly keeps original backoffice branch with the supplied frontMode",
+      "Native source-matched draft/role/receipt/deep-link checks",
+      "Actual loaded graph/timings; byte counts are source, not browser JavaScript"
+    ],
+    "originalActiveScreenSplitComplete": false,
+    "exactBodyChecks": {
+      "frontDailyFunctionExact": true,
+      "frontCommonPreludeExact": true,
+      "backofficeCommonPreludeExact": true,
+      "frontOriginalReturnExact": true,
+      "backofficeOriginalReturnExact": true,
+      "frontDailySha256": "092e0f9b2d1ad812b6a2dc118d0c43e78d7314afe7523c71ba2c768ca55181f0"
+    },
+    "patchSha256": "0fd1ba09a234235773320487e9f47f85a746d9594ef70274b868019ca93aeaef",
+    "gitApplyCheck": "passed; not applied",
+    "topLevelSideEffectAudit": "No unsupported/omitted top-level side-effect statements"
+  },
+  "finalAvailability": {
+    "checkedAtUTC": "2026-10-11T04:53:16.825564+00:00",
+    "health": [
+      {
+        "name": "localDev",
+        "url": "http://127.0.0.1:3100/api/health",
+        "status": 200,
+        "elapsedSeconds": 0.022725,
+        "exitCode": 0
+      },
+      {
+        "name": "publicDev",
+        "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+        "status": 200,
+        "elapsedSeconds": 0.24322,
+        "exitCode": 0
+      },
+      {
+        "name": "privateProduction",
+        "url": "http://127.0.0.1:3101/api/health",
+        "status": 200,
+        "elapsedSeconds": 0.027104,
+        "exitCode": 0
+      }
+    ],
+    "listener": "p21406\nf13",
+    "postgres5432Ready": true,
+    "pinnedProcessTree": "8368     1 /Users/fluke/Desktop/Work/erpx/.runtime/bun-1.2.17/bun-darwin-aarch64/bun\n 8388  8374 /Users/fluke/Desktop/Work/erpx/.runtime/node/node-v24.20.0-darwin-arm64/bin/node\n21406  8388 next-server (v16.3.4)",
+    "listenerWorkingDirectory": "p21406\nfcwd\nn/Users/fluke/Desktop/Work/erpx",
+    "requestPurpose": "Only the three mandatory AGENTS end-of-turn health checks; no optional API/UI or benchmark during shared quiet window",
+    "nativeBrowserAcceptance": "Prior recovered POS Owner0; actual second discard confirmation awaiting human native input, receipt UI unverified",
+    "stagingTouched": false,
+    "productionChanged": false,
+    "goalComplete": false
+  },
+  "finalSourceRecheck": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+  "sharedWait": {
+    "driverPid": 8852,
+    "shellPid": 8869,
+    "liveAtFinalProcessRecheck": true,
+    "latestPeerOriginalBrowserCompleted": 57,
+    "aggregateTerminal": false,
+    "sourceFreezeReleased": false
+  }
+}

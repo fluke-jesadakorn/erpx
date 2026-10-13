@@ -1,5 +1,5 @@
 import "server-only";
-import { type Filters } from "@/lib/executive/canvas";
+import { type Filters } from "@/lib/shared/executive/canvas";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { ApiError } from "@/server/modules/runtime/public/http";

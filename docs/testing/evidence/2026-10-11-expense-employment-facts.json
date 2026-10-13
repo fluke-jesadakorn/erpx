@@ -1,0 +1,564 @@
+{
+  "version": 1,
+  "goalStatus": "active",
+  "recordedAt": "2026-10-10T17:54:18.139062+00:00",
+  "scope": "Expense list employment facts coalesced per company/claimant within a bounded candidate list, original native policy and per-row requirements retained. Single-record and command readers remain fresh.",
+  "queryScaling": {
+    "environment": "isolated PostgreSQL fixture, same claimant, independent request policy snapshots",
+    "before": {
+      "oneDraftQueries": 5,
+      "twelveDraftQueries": 16,
+      "testFailed": true
+    },
+    "after": {
+      "oneDraftQueries": 5,
+      "twelveDraftQueries": 5,
+      "testPassed": true
+    },
+    "latencyMeasured": false
+  },
+  "parity": [
+    "six existing actors vs original batch:false reader",
+    "mixed owner-prepared drafts with two active claimants and one claimant without staff profile",
+    "per-row expense date outside engagement",
+    "changed level on next list and single-record read",
+    "claimant assignment revoked on next owner list; 12 affected drafts explicitly asserted"
+  ],
+  "verification": {
+    "expenseIntegration": {
+      "passed": 14,
+      "failed": 0
+    },
+    "expenseCommandUnit": {
+      "passed": 61,
+      "failed": 0
+    },
+    "typecheck": "passed",
+    "lint": {
+      "errors": 0,
+      "existingWarnings": 3
+    },
+    "architecture": "passed",
+    "isolatedRelease": "passed",
+    "documentation": "passed: 252 Markdown files, 1366 links/anchors, 213 ledger files",
+    "diffCheck": "passed"
+  },
+  "ownedFiles": {
+    "src/server/modules/people_payroll/adapters/expense-drafts.ts": {
+      "sha256": "3061701718c0672dc6bde086db5ad5d09ec632224e951a9481f4d6079b663ddc",
+      "bytes": 9369
+    },
+    "src/server/modules/people_payroll/adapters/expense-batch-facts.ts": {
+      "sha256": "212016468e484c91fbbf7d00e2717cdf5c8bff06135d0266fca85763dc04f073",
+      "bytes": 5667
+    },
+    "tests/expense-v2.test.ts": {
+      "sha256": "69f7a1a6a8c3c76b155f00610819cb6fed1a8827ee9780524f139c46c275375d",
+      "bytes": 24351
+    }
+  },
+  "developmentReadinessProbe": {
+    "kind": "read-only DOM observations after supported CDP Page.reload",
+    "observations": [
+      {
+        "error": "observation-context-unavailable"
+      },
+      {
+        "error": "observation-context-unavailable"
+      },
+      {
+        "error": "observation-context-unavailable"
+      },
+      {
+        "error": "observation-context-unavailable"
+      },
+      {
+        "error": "observation-context-unavailable"
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18520,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": false,
+        "searchEnabled": false
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18538.399999976158,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": true,
+        "searchEnabled": false
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18545.5,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": true,
+        "searchEnabled": false
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18551.899999976158,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": true,
+        "searchEnabled": false
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18563.399999976158,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": true,
+        "searchEnabled": false
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18571,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": true,
+        "searchEnabled": false
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18578.699999928474,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": true,
+        "searchEnabled": false
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18585.299999952316,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": true,
+        "searchEnabled": false
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18593.199999928474,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": true,
+        "searchEnabled": false
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18601.199999928474,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": true,
+        "searchEnabled": false
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18607.799999952316,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": true,
+        "searchEnabled": false
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18625.599999904633,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": true,
+        "searchEnabled": false
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18649.699999928474,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": true,
+        "searchEnabled": false
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18676.799999952316,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": true,
+        "searchEnabled": false
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18686.699999928474,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": true,
+        "searchEnabled": false
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18693.5,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": true,
+        "searchEnabled": false
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18708.699999928474,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": true,
+        "searchEnabled": false
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18717.199999928474,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": true,
+        "searchEnabled": false
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18727.599999904633,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": true,
+        "searchEnabled": false
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18737.299999952316,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": true,
+        "searchEnabled": false
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18746.199999928474,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": true,
+        "searchEnabled": false
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18755.899999976158,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": true,
+        "searchEnabled": false
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18765.199999928474,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": true,
+        "searchEnabled": false
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18771.5,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": true,
+        "searchEnabled": false
+      },
+      {
+        "timeOrigin": 1791654101633.4,
+        "now": 18780.5,
+        "path": "/holdings/acme/home",
+        "readyState": "loading",
+        "searchExists": true,
+        "searchEnabled": false
+      }
+    ]
+  },
+  "developmentReadDiagnostics": {
+    "phases": [
+      {
+        "phase": "navigation",
+        "queries": 190,
+        "durationMs": 2015.3279999999795,
+        "queryMs": 6987.318296000129,
+        "poolWaitMs": 6792.570575999562,
+        "queryErrors": 0,
+        "poolErrors": 0,
+        "failed": false
+      },
+      {
+        "phase": "navigation",
+        "queries": 190,
+        "durationMs": 581.9411669999827,
+        "queryMs": 1482.3647139994428,
+        "poolWaitMs": 4635.506200997857,
+        "queryErrors": 0,
+        "poolErrors": 0,
+        "failed": false
+      },
+      {
+        "phase": "navigation",
+        "queries": 190,
+        "durationMs": 715.8332079998218,
+        "queryMs": 1840.9629090009257,
+        "poolWaitMs": 3294.7494220002554,
+        "queryErrors": 0,
+        "poolErrors": 0,
+        "failed": false
+      },
+      {
+        "phase": "navigation",
+        "queries": 5,
+        "durationMs": 21.328082999913022,
+        "queryMs": 33.71162400022149,
+        "poolWaitMs": 3.85162500012666,
+        "queryErrors": 0,
+        "poolErrors": 0,
+        "failed": false
+      },
+      {
+        "phase": "navigation",
+        "queries": 190,
+        "durationMs": 691.6638750000857,
+        "queryMs": 2048.6056230026297,
+        "poolWaitMs": 9104.627338000108,
+        "queryErrors": 0,
+        "poolErrors": 0,
+        "failed": false
+      },
+      {
+        "phase": "navigation",
+        "queries": 190,
+        "durationMs": 1173.0821669998113,
+        "queryMs": 3624.6998780013528,
+        "poolWaitMs": 6803.872413001722,
+        "queryErrors": 0,
+        "poolErrors": 0,
+        "failed": false
+      },
+      {
+        "phase": "navigation",
+        "queries": 5,
+        "durationMs": 18.04395900014788,
+        "queryMs": 28.509331999812275,
+        "poolWaitMs": 2.2092080002184957,
+        "queryErrors": 0,
+        "poolErrors": 0,
+        "failed": false
+      },
+      {
+        "phase": "work_context",
+        "queries": 7,
+        "durationMs": 446.11933300015517,
+        "queryMs": 58.05437699961476,
+        "poolWaitMs": 2.143458000384271,
+        "queryErrors": 0,
+        "poolErrors": 0,
+        "failed": false
+      },
+      {
+        "phase": "layout",
+        "queries": 6,
+        "durationMs": 56.124292000196874,
+        "queryMs": 65.02879300015047,
+        "poolWaitMs": 159.79312500008382,
+        "queryErrors": 0,
+        "poolErrors": 0,
+        "failed": false
+      },
+      {
+        "phase": "navigation",
+        "queries": 5,
+        "durationMs": 2057.902500000084,
+        "queryMs": 93.82562599983066,
+        "poolWaitMs": 34.24958400032483,
+        "queryErrors": 0,
+        "poolErrors": 0,
+        "failed": false
+      },
+      {
+        "phase": "navigation",
+        "queries": 190,
+        "durationMs": 606.6658330000937,
+        "queryMs": 1515.6802110020071,
+        "poolWaitMs": 5060.738284000661,
+        "queryErrors": 0,
+        "poolErrors": 0,
+        "failed": false
+      },
+      {
+        "phase": "work_context",
+        "queries": 7,
+        "durationMs": 664.8248750001658,
+        "queryMs": 129.9724170002155,
+        "poolWaitMs": 77.02574999979697,
+        "queryErrors": 0,
+        "poolErrors": 0,
+        "failed": false
+      },
+      {
+        "phase": "layout",
+        "queries": 6,
+        "durationMs": 411.9600839999039,
+        "queryMs": 333.32387500000186,
+        "poolWaitMs": 1412.627500000177,
+        "queryErrors": 0,
+        "poolErrors": 0,
+        "failed": false
+      },
+      {
+        "phase": "navigation",
+        "queries": 5,
+        "durationMs": 1826.6205420000479,
+        "queryMs": 36.32575100008398,
+        "poolWaitMs": 122.39083399996161,
+        "queryErrors": 0,
+        "poolErrors": 0,
+        "failed": false
+      },
+      {
+        "phase": "navigation",
+        "queries": 190,
+        "durationMs": 2433.9391250000335,
+        "queryMs": 5421.668074997608,
+        "poolWaitMs": 10720.872956000036,
+        "queryErrors": 0,
+        "poolErrors": 0,
+        "failed": false
+      },
+      {
+        "phase": "navigation",
+        "queries": 190,
+        "durationMs": 642.6218329998665,
+        "queryMs": 1493.2131639975123,
+        "poolWaitMs": 4259.199662000174,
+        "queryErrors": 0,
+        "poolErrors": 0,
+        "failed": false
+      }
+    ],
+    "note": "Per-phase pool/query durations sum overlapping calls and can exceed wall duration. Cache misses/cold compile remain unisolated; no transaction/cache-TTL/heap change justified."
+  },
+  "browser": {
+    "origin": "https://console-dev-erpx.jesadakorn.com",
+    "checks": [
+      "Home Search opened with native semantic input",
+      "Expense-filtered Work shows three matching records and 12 attention tasks",
+      "East Repair Inc. opened in right drawer with acting Holding Owner context and draft editor"
+    ],
+    "screenshot": ".scratch/dev/optimization-employment-drawer.png",
+    "businessCommandsSaved": false,
+    "postRestart": {
+      "firstReload": {
+        "workItems": 3,
+        "attentionTasks": 12,
+        "documentReadyState": "complete",
+        "searchDisabledAt138670Ms": true,
+        "observedScriptCount": 7,
+        "observedRuntimeResourceDecodedBytes": 0,
+        "allObservedScriptResponseStatuses": 200,
+        "preciseCauseEstablished": false
+      },
+      "warmReload": {
+        "documentReadyState": "complete",
+        "searchDisabled": false,
+        "readyObservationUpperBoundMs": 12431.3,
+        "nativeSearchClickOpenedDialog": true,
+        "cacheRestoredToDefault": true
+      },
+      "finalScreenshot": ".scratch/dev/optimization-employment-final-work.png",
+      "note": "A complete document was not a ready-controls proof. Warm reload restored controls; first readiness failure remains retained. Runtime static asset probes at both origins returned200 /154020bytes; no HTTP asset failure proven."
+    }
+  },
+  "limitations": [
+    "native query-count result does not establish Home or API latency improvement",
+    "previous 20 browser/50 API timing cohorts remain bound to previous measured artifacts",
+    "30% controls and non-regressing p95 still open",
+    "Front PMS/POS sign-in approval still pending; credentials not entered there",
+    "one additional development memory-threshold restart during final availability verification"
+  ],
+  "availability": {
+    "checkedAt": "2026-10-10T17:58:53.568095+00:00",
+    "coldChecks": [
+      {
+        "name": "localDev",
+        "status": 200,
+        "durationMs": 9744.219
+      },
+      {
+        "name": "publicDev",
+        "status": 200,
+        "durationMs": 10108.872
+      },
+      {
+        "name": "privateProduction",
+        "status": 200,
+        "durationMs": 1027.275
+      }
+    ],
+    "postgres5432": "accepting connections",
+    "dev": {
+      "listener": 29218,
+      "cwd": "/Users/fluke/Desktop/Work/erpx",
+      "detachedLauncher": 17227,
+      "launcherParent": 1,
+      "bun": "1.2.17",
+      "node": "24.20.0",
+      "memoryThresholdRestartsSinceRestore": 1,
+      "previousListener": 17254,
+      "newWorkerHeapSizeLimitBytes": 17381195776,
+      "oldWorkerPreRestartHeapUsageRetained": false
+    },
+    "latencyNote": "Cold local route 9.7s: Next 8.1s, application 1649ms. Warm routes 1158-1162ms: Next 1065-1071ms, application 81ms. Health200 does not establish latency/stability acceptance. The original detached launcher/pinned CLI persisted, but Next then replaced worker17254 with29218 after an explicit memory-threshold warning. Final health above is after that restart; the restart fails stability acceptance. A normal warm browser reload restored Search after the first post-restart document remained unhydrated for over138seconds; this is recovery evidence, not a root-cause fix.",
+    "preRestartWarmChecks": [
+      {
+        "name": "localDev",
+        "url": "http://127.0.0.1:3100/api/health",
+        "status": 200,
+        "durationMs": 1369.363
+      },
+      {
+        "name": "publicDev",
+        "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+        "status": 200,
+        "durationMs": 1419.757
+      },
+      {
+        "name": "privateProduction",
+        "url": "http://127.0.0.1:3101/api/health",
+        "status": 200,
+        "durationMs": 116.937
+      }
+    ],
+    "finalChecks": [
+      {
+        "name": "localDev",
+        "url": "http://127.0.0.1:3100/api/health",
+        "status": 200,
+        "durationMs": 70.388
+      },
+      {
+        "name": "publicDev",
+        "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+        "status": 200,
+        "durationMs": 433.726
+      },
+      {
+        "name": "privateProduction",
+        "url": "http://127.0.0.1:3101/api/health",
+        "status": 200,
+        "durationMs": 41.07
+      }
+    ]
+  },
+  "source": {
+    "release": "2026-10-10T17-52-34-402Z",
+    "fingerprint": "a85d7ffca928d67893c108e6714d39690bc6a71ee06a9bf6910028444c533fcc",
+    "previousTimedRelease": "2026-10-10T16-57-47-955Z",
+    "previousTimedFingerprint": "5bc36b1cd76195b7a06c333898395571226bc2fd875e3816487d2ac73479f48e",
+    "matchesWorkspaceAtFinalCheck": true
+  }
+}

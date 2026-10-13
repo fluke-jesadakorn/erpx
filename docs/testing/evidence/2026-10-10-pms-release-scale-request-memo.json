@@ -1,0 +1,53 @@
+{
+  "run": "733fcf9f28ee",
+  "sourceFingerprint": "c6d349aa902abcd74be57472e02052c6a662aaf5907f94288525221bedbb7687",
+  "verificationFingerprint": "237969ab1c5642bf2b3d367e810c69e334c34336d562bea1a3750c1a887fb89f",
+  "release": {
+    "id": "2026-10-09T17-25-38-258Z",
+    "fileManifestSha256": "8f7b38007a192ba09b84c0f7b0865277c490c3c0067f01f4c9721343fbb31cff"
+  },
+  "scope": "Release HTTP: 3 \u00d7 200 rooms, 730-day synthetic closed stay/reservation/account metadata; 20 distinct normal staff accounts. Historic revenue is not invented.",
+  "applicationPoolMax": 8,
+  "controlPoolMax": 5,
+  "jobsHoldingPoolMax": 1,
+  "counts": [
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    }
+  ],
+  "accounts": 20,
+  "rounds": 10,
+  "durationMs": 54521,
+  "readCount": 840,
+  "writeCount": 400,
+  "readP95Ms": 310.88320900000144,
+  "writeP95Ms": 2157.589415999999,
+  "failedSamples": 0,
+  "sameProcesses": true,
+  "unchanged": true,
+  "samplesSha256": "44621aec54db21a3ce7f2d60813746e716334f572db2dd1e0fbab2b11019a5be",
+  "passed": false,
+  "acceptance": false,
+  "timingSamplesSha256": "3357f9573454a8bd3d3440dd9fec8eba8fe98708aece10a09dc3849abf51e39b",
+  "sessionReadVerification": {
+    "postRequests": 2214,
+    "sessionReads": 2214,
+    "maxPerPost": 1
+  },
+  "interpretation": "All 840 reads and 400 writes were valid with exact replay reconciliation and unchanged candidate/processes. Each PMS POST authenticated its session once; per-request memo did not cache mutation authority. Read p95 311 ms; logical write p95 2,158 ms still exceeds 2 seconds. This is scoped diagnostic evidence, not whole-PMS acceptance."
+}

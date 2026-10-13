@@ -1,3 +1,5 @@
+import { homeContextKey } from "@/server/modules/work_projection/public/home-cache";
+import { workspaceNavigation } from "@/server/modules/work_projection/public/navigation-snapshot";
 import { workProjectionPresentationQueries } from "@/server/modules/work_projection/public/presentation-queries";
 
 import { RecordScopeProvider } from "@/components/records/record-context";
@@ -6,14 +8,13 @@ import { Button } from "@/components/ui/foundation";
 import { measureReadPhase } from "@/server/modules/runtime/public/runtime/read-metrics";
 import { financeWorkspaceV2Enabled } from "@/server/modules/finance/public/finance-presentation";
 import { ProductBrand } from "@/components/brand/product-brand";
-import { appearancePreference } from "@/lib/appearance-preference";
+import { appearancePreference } from "@/lib/shared/appearance-preference";
 import { WorkspaceBrandMark } from "@/components/brand/workspace-brand";
-import { FeatureEnvironment } from "@/components/features/feature-page";
+import { FeatureEnvironment } from "@/components/shared/features/feature-environment";
 import { NavigationCountsProvider } from "@/components/workplace/navigation-counts";
 
-import { buildWorkCards, buildDestinationCards } from "@/server/modules/work_projection/public/work-cards";
-import { localShortcutKey } from "@/lib/local-shortcuts";
-import { CurrencyProvider } from "@/components/money/currency-provider";
+import { localShortcutKey } from "@/lib/work_projection/local-shortcuts";
+import { CurrencyProvider } from "@/components/finance/money/currency-provider";
 import { RememberWorkspace } from "@/components/workplace/remember-workspace";
 import styles from "@/components/workplace/shell.module.css";
 import { WorkContextBoundary } from "@/components/workplace/work-context-boundary";
@@ -25,13 +26,11 @@ import {
   type WorkspaceCrumb,
 } from "@/components/workplace/workspace-breadcrumb";
 import { WorkspaceMenu } from "@/components/workplace/workspace-menu";
-import { hasPermission } from "@/lib/permissions";
-import { workspaceBase } from "@/lib/workspace";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { administrationAccess } from "@/server/modules/runtime/public/administration";
 import {
-  listWorkspaceCompanies,
   publicScope,
-  requireWorkContext,
   canEnterManageErpx,
   requirePlatformContext,
 } from "@/server/modules/identity_access/public/authorization";
@@ -39,9 +38,10 @@ import {
 
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 
+import { listWorkspaceCompanyPresentationFacts } from "@/server/modules/identity_access/public/workspace-company-presentation";
 import { moneyContext } from "@/server/modules/finance/public/company-money";
 import { companyFeatureCatalogue } from "@/server/modules/pms/public/hospitality-rollout";
-import { availableNavigationAppIds } from "@/lib/workplace-catalogue";
+import { availableNavigationAppIds } from "@/lib/work_projection/workplace-catalogue";
 import { workspaceChoices } from "@/server/modules/organization/public/workspace-choices";
 import { Building2 } from "lucide-react";
 import { cookies } from "next/headers";
@@ -63,13 +63,16 @@ export default async function WorkplaceLayout({
   record,
   params,
 }: LayoutProps<"/holdings/[holdingSlug]"> & { record?: React.ReactNode }) {
+  const navigationPending = workspaceNavigation(params);
   const { holdingSlug } = await params;
-  let context;
+  let context, initialNavigation;
   try {
-    context = await measureReadPhase("work_context", () => requireWorkContext(holdingSlug));
+    ({ context, initialNavigation } = await navigationPending);
   } catch (error) {
     return pageError(error, holdingSlug);
   }
+  const moneyPending = moneyContext(context);
+  const cataloguePending = process.env.NODE_ENV === "production" ? companyFeatureCatalogue(context) : Promise.resolve([]);
   const theme = appearancePreference((await cookies()).get("erpx_appearance")?.value);
   const holdingName = context.holdingName;
   const base = workspaceBase(publicScope(context));
@@ -80,9 +83,28 @@ export default async function WorkplaceLayout({
         ? context.scope.branchName
         : "Holding";
   const presentation = await workProjectionPresentationQueries(context.holdingId);
-  const companySlug = (
-    await presentation.activeCompanySlug(context.companyId)
-  )?.slug;
+  const [company, workspaceBrand, companyFacts, admin, executiveVisible, money, featureCatalogue] = await measureReadPhase("layout", () => {
+    const companyFactsPending = context.scope.kind === "holding"
+      ? listWorkspaceCompanyPresentationFacts(context.holdingId)
+      : Promise.resolve([]);
+    const companyPending = companyFactsPending.then((facts) => {
+      const selected = facts.find((company) => company.id === context.companyId);
+      return selected
+        ? { slug: selected.slug, display_name: selected.name }
+        : presentation.activeCompanyIdentity(context.companyId);
+    });
+    return Promise.all([
+      companyPending,
+      presentation.resolveWorkspaceBrand(context),
+      companyFactsPending,
+      administrationAccess(context),
+      presentation.executiveVisible(context),
+      moneyPending,
+      cataloguePending,
+    ]);
+  });
+  const companies = companyFacts.map(({ id, name }) => ({ id, name }));
+  const companySlug = company?.slug;
   const frontLocation =
     context.scope.kind === "holding"
       ? "holding"
@@ -96,19 +118,6 @@ export default async function WorkplaceLayout({
     : undefined;
   const frontHref = (app: "pos" | "pms") =>
     frontBase ? `${frontBase}/${app}/${frontLocation}/` : undefined;
-  const [workspaceBrand, companies, admin, shortcutCapabilities] = await measureReadPhase("layout", () =>
-    Promise.all([
-      presentation.resolveWorkspaceBrand(context),
-      context.scope.kind === "holding"
-        ? listWorkspaceCompanies(context.holdingId)
-        : Promise.resolve([]),
-      administrationAccess(context),
-      presentation.getWorkCapabilities(context),
-    ]),
-  );
-  const money = await moneyContext(context);
-  const featureCatalogue =
-    process.env.NODE_ENV === "production" ? await companyFeatureCatalogue(context) : [];
   const navigation = {
     financeWorkspaceV2: financeWorkspaceV2Enabled(),
     manageErpxVisible:
@@ -118,7 +127,7 @@ export default async function WorkplaceLayout({
       (await requirePlatformContext()
         .then((platform) => platform.userId === context.userId)
         .catch(() => false)),
-    executiveVisible: await presentation.executiveVisible(context),
+    executiveVisible,
     workspaceBase: base,
     frontPosHref: frontHref("pos"),
     frontPmsHref: frontHref("pms"),
@@ -137,9 +146,7 @@ export default async function WorkplaceLayout({
   };
   const companyName =
     companies.find((company) => company.id === context.companyId)?.name ??
-    (
-      await presentation.activeCompanyName(context.companyId)
-    )?.display_name ??
+    company?.display_name ??
     "Company unavailable";
   const workspaceLabel =
     context.scope.kind === "holding" ? companyName : `${companyName} · ${scopeLabel}`;
@@ -166,13 +173,10 @@ export default async function WorkplaceLayout({
     ancestors.push(ancestor(context.scope.departmentName, base));
   return (
     <NavigationCountsProvider
-      key={`${base}:${context.userId}:${context.companyId}:${context.assignmentId}:${context.authority!.revision}`}
+      key={homeContextKey(context)}
       base={base}
+      initial={initialNavigation}
       shortcutStorageKey={localShortcutKey(context.userId, context.companyId, base)}
-      initialShortcutCards={[
-        ...buildWorkCards(base, { items: [], unavailableSources: [] }, shortcutCapabilities),
-        ...buildDestinationCards(navigation),
-      ]}
     >
       <CurrencyProvider initial={money} apiBase={`/api/v1${base}`}>
         <div className={styles.shell}>
@@ -287,7 +291,7 @@ export default async function WorkplaceLayout({
             </header>
             <div>
               <WorkContextBoundary appearance="standard"
-                key={`${context.userId}:${context.companyId}:${context.assignmentId}:${context.authority!.revision}`}
+                key={homeContextKey(context)}
                 base={base}
                 userId={context.userId}
                 companyId={context.companyId}

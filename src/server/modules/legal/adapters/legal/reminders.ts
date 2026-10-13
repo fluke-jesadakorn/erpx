@@ -1,6 +1,6 @@
 import "server-only";
 import type {SqlDatabase} from "../../../runtime/public/runtime/types";
-import {featureSpecs} from "@/lib/legal/features";
+import {featureSpecs} from "@/lib/legal/legal/features";
 import {legalFeatureNotices,legalSlaNotices,legalEscalationNotices,legalDeadlineNotificationInsert} from "../../../collaboration/public/legal-reminder-notifications";
 import {legalRuntimePredicate} from "./runtime-gate";
 import {createLegalReminderWorker} from "../../application/reminders";

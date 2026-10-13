@@ -1,2 +1,0 @@
-/** Compatibility entry point; legacy implementation belongs to people_payroll. */
-export {calculatePayrollAdjustmentItem,calculatePayrollAdjustmentRun,createPayrollAdjustment,editPayrollAdjustment,originalSource,payrollAdjustmentCreateSchema,payrollAdjustmentEditSchema,payrollAdjustmentGuards,payrollAdjustmentInputs,payrollAdjustmentPanel,payrollAdjustmentSourceFresh,payrollAdjustmentValuesSchema} from "@/server/modules/people_payroll/adapters/payroll-adjustments";

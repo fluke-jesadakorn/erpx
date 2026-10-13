@@ -1,6 +1,6 @@
 # docs/contracts/next — Route Table (Living, Next.js)
 
-> Current versioned REST route reference. Handlers in `src/app/api/` and the owner contracts are authoritative; archived Rust RPCs are recoverable through [CUTOVER](../../../CUTOVER.md).
+> Current versioned REST route reference. Handlers in `src/app/api/` and the owner contracts are authoritative; archived Rust RPCs are recoverable through [CUTOVER](../../../README.md#recovery).
 
 ## Implemented foundation routes
 
@@ -169,7 +169,7 @@ navigation contract.
 
 ## Links
 
-- Current workflow ownership: [catalogue](catalogue.md); Rust recovery: [CUTOVER](../../../CUTOVER.md)
+- Current workflow ownership: [catalogue](catalogue.md); Rust recovery: [CUTOVER](../../../README.md#recovery)
 - Spec hub: `docs/TOC.md` → `docs/production-plan.md` (current scope) → affected owner contract.
 - Policy: `CONTRACT_POLICY.md` + `docs/adr/ADR-020-nextjs-stack.md` + `docs/adr/ADR-024-local-postgresql-runtime.md` + `docs/adr/ADR-023-three-level-workspace-routing.md`
 

@@ -1,11 +1,11 @@
 /** Explicit byte-preserving development storage adjudication; preview by default. */
 import { userInfo } from "node:os";
 import { dirname, join } from "node:path";
-import { LocalFileStore } from "../../src/server/runtime/filesystem";
-import { getRuntime, closeRuntime } from "../../src/server/runtime/env";
-import { resourceSlots, registeredResources } from "../../src/lib/holding-registry";
-import { reconcileAttachmentStorage } from "../../src/server/attachments/migration";
-import { orphanObjectReferences, preserveUnreferencedFiles, sealUnreferencedStoredObjects } from "../../src/server/attachments/orphan-preservation";
+import { LocalFileStore } from "../../src/server/modules/runtime/adapters/runtime/filesystem";
+import { getRuntime, closeRuntime } from "../../src/server/modules/runtime/adapters/runtime/env";
+import { resourceSlots, registeredResources } from "../../src/lib/runtime/holding-registry";
+import { reconcileAttachmentStorage } from "../../src/server/modules/files/public/attachments/migration";
+import { orphanObjectReferences, preserveUnreferencedFiles, sealUnreferencedStoredObjects } from "../../src/server/modules/files/public/attachments/orphan-preservation";
 
 const apply=process.argv.includes("--apply"),env=getRuntime();
 if(env.ERPX_ENVIRONMENT!=="local")throw new Error("DEVELOPMENT_FILE_PRESERVATION_ONLY");

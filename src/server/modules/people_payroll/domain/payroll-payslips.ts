@@ -1,4 +1,4 @@
-import {z} from 'zod';import {minorToDecimal} from '@/lib/finance-money';export type Row=Record<string,unknown>;
+import {z} from 'zod';import {minorToDecimal} from "@/lib/finance/finance-money";export type Row=Record<string,unknown>;
 export type PayslipItem={id:string;engagement_id:string;person_id:string;recipient_user_id:string|null;input_snapshot_json:string;result_json:string;gross_minor:number;deductions_minor:number;employer_cost_minor:number;net_minor:number;currency:string};
 export type PayslipSnapshot={schema:"payroll.payslip.v1";company:{id:string;name:string};employee:{personId:string;engagementId:string;name:string;jobTitle:string};run:{id:string;revision:number;version:number;mode:string;periodStart:string;periodEnd:string;payDate:string;currency:string;inputDigest:string;journalId:string;issuedAt:number};grossMinor:number;deductionsMinor:number;employerCostMinor:number;netMinor:number;input:Row;result:Row;statutory:boolean;sourceDigest:string};
 export type Slip=Row&{id:string;run_id:string;person_id:string;recipient_user_id:string|null;snapshot_json:string;export_html:string;export_sha256:string;issued_at:number};

@@ -1,4 +1,4 @@
-import { hasPermission } from '@/lib/permissions';
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { hasModuleAccess } from '@/data/module-access';
 import { metricIds, type Breakdown, type MetricData, type MetricId, type MetricInfo } from "@/server/modules/runtime/public/rules/canvas-domain";
 import type { WorkContext } from '../../../identity_access/public/authorization';
@@ -223,10 +223,10 @@ export const specs: Record<MetricId, MetricAdapter> = {
         formula: "For completed Night Audit dates in the selected currency and business-date interval, sum net room revenue from PMS charge and adjustment entries whose original-entry chain reaches a night room charge, then divide by sellable room capacity nights. Group and overall values are weighted by sellable capacity nights. Malformed completed room metrics or linked room revenue mark the result partial.", unit: "money", dateBasis: "Completed PMS property business date", permission: "pms.read",
         sourceTables: ["pms_records", "pms_properties"], sourceFields: ["pms_records.kind", "pms_records.data_json.date", "pms_records.data_json.kind", "pms_records.data_json.net", "pms_records.data_json.sourceKey", "pms_records.data_json.originalId", "pms_records.data_json.roomMetrics.sold", "pms_records.data_json.roomMetrics.capacity", "pms_records.version", "pms_properties.company_id", "pms_properties.branch_id", "pms_properties.name", "pms_properties.config_json.currency"], joins: ["PMS entry originalId chain", "pms_records.property_id = pms_properties.id"], queryCost: "medium", freshness: "transactional", requiredPermissions: ["pms.reports"], departmentScopeUnsupported: true, betaScopeUnsupported: true, acceptancePending: true,
     },
-    "hotel-folio-balance": {
-        moduleId: "pms", label: "Open folio balances", description: "Current posted PMS receivable balances for non-closed folios, grouped by property or branch. The date range does not apply and currencies are never combined.",
-        formula: "Sum posted finance journal debit less credit lines on each property's configured receivable account, linked through PMS postings to folio entry records for non-closed folios. Draft, in-review, reversed and other non-posted journals are excluded. Apply the selected currency; the date filter does not apply to this current balance.", unit: "money", dateBasis: "Current posted PMS receivable balance", permission: "pms.read",
-        sourceTables: ["pms_properties", "pms_records", "pms_postings", "finance_journals", "finance_journal_lines"], sourceFields: ["pms_properties.company_id", "pms_properties.branch_id", "pms_properties.config_json.currency", "pms_properties.config_json.accounts.receivable", "pms_records.kind", "pms_records.data_json.folioId", "pms_records.data_json.state", "pms_records.version", "pms_postings.record_id", "finance_journals.status", "finance_journal_lines.account_id", "finance_journal_lines.debit_minor", "finance_journal_lines.credit_minor"], joins: ["pms_records property_id to pms_properties", "pms_postings record_id to posted PMS entry journal", "finance_journal_lines.account_id to the property's configured receivable account"], queryCost: "medium", freshness: "transactional", requiredPermissions: ["pms.reports"], departmentScopeUnsupported: true, betaScopeUnsupported: true, acceptancePending: true,
+    "hotel-guest-account-balance": {
+        moduleId: "pms", label: "Open guest account balances", description: "Current posted PMS receivable balances for non-closed guest accounts, grouped by property or branch. The date range does not apply and currencies are never combined.",
+        formula: "Sum posted finance journal debit less credit lines on each property's configured receivable account, linked through PMS postings to guest account entry records for non-closed guest accounts. Draft, in-review, reversed and other non-posted journals are excluded. Apply the selected currency; the date filter does not apply to this current balance.", unit: "money", dateBasis: "Current posted PMS receivable balance", permission: "pms.read",
+        sourceTables: ["pms_properties", "pms_records", "pms_postings", "finance_journals", "finance_journal_lines"], sourceFields: ["pms_properties.company_id", "pms_properties.branch_id", "pms_properties.config_json.currency", "pms_properties.config_json.accounts.receivable", "pms_records.kind", "pms_records.data_json.guestAccountId", "pms_records.data_json.state", "pms_records.version", "pms_postings.record_id", "finance_journals.status", "finance_journal_lines.account_id", "finance_journal_lines.debit_minor", "finance_journal_lines.credit_minor"], joins: ["pms_records property_id to pms_properties", "pms_postings record_id to posted PMS entry journal", "finance_journal_lines.account_id to the property's configured receivable account"], queryCost: "medium", freshness: "transactional", requiredPermissions: ["pms.reports"], departmentScopeUnsupported: true, betaScopeUnsupported: true, acceptancePending: true,
     },
     "hotel-night-audit-blockers": {
         moduleId: "pms", label: "Night audit blockers", description: "Blocked PMS Night Audit jobs by property business date and stored system error code.",
@@ -517,7 +517,7 @@ export function metricBreakdowns(id: MetricId): Breakdown[] {
         return ["default", "month", "branch", "property"];
     if (id === "hotel-adr" || id === "hotel-revpar")
         return ["default", "month", "branch", "property"];
-    if (id === "hotel-folio-balance")
+    if (id === "hotel-guest-account-balance")
         return ["default", "branch", "property"];
     if (id === "hotel-night-audit-blockers")
         return ["default", "month", "status", "property"];

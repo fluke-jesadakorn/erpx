@@ -8,15 +8,15 @@ import {
   FeatureTabs,
   FeatureWidget,
   WidgetGrid,
-} from "@/components/features/feature-page";
-import { MoneyAmount } from "@/components/money/currency-provider";
+} from "@/components/shared/features/feature-page";
+import { MoneyAmount } from "@/components/finance/money/currency-provider";
 import { ListPagination } from "@/components/ui/list-pagination";
 import { StatusBadge } from "@/components/ui/primitives";
 import { MasterEditor, OrderEditor } from "@/components/workplace/work-editors";
-import { minorToDecimal } from "@/lib/finance-money";
-import { hasPermission } from "@/lib/permissions";
-import { commerceNavigationViews } from "@/lib/workplace-navigation";
-import { workspaceBase } from "@/lib/workspace";
+import { minorToDecimal } from "@/lib/finance/finance-money";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { commerceNavigationViews } from "@/lib/work_projection/workplace-navigation";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { commercePage, commercePermissions } from "@/server/modules/commerce/public/commerce";
 
@@ -27,16 +27,16 @@ import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { redirect } from "next/navigation";
 import { salesCustomerLegacyDestination } from "@/server/modules/sales/public/rules/navigation";
-import { SalesPricingConsole } from "@/components/modules/sales-pricing-console";
+import { SalesPricingConsole } from "@/components/sales/sales-pricing-console";
 import { pricingWorkspace } from "@/server/modules/sales/public/sales-pricing";
-import { CustomerNotificationSettingsForm } from "@/components/modules/commerce-controls";
-import { InventoryReorderConsole } from "@/components/modules/inventory-reorder-console";
+import { CustomerNotificationSettingsForm } from "@/components/commerce/commerce-controls";
+import { InventoryReorderConsole } from "@/components/inventory/inventory-reorder-console";
 import { customerNotificationSettings } from "@/server/modules/sales/public/sales-customer-notifications";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { frontWorkspaceHref } from "@/server/modules/work_projection/public/front-app";
-import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
-import { MediaPublicationPanel } from "@/components/attachments/media-publication-panel";
-import { AttachmentFeatureSurface } from "@/components/attachments/attachment-feature-context";
+import { RecordDocumentPanel } from "@/components/files/record-document-panel";
+import { MediaPublicationPanel } from "@/components/files/media-publication-panel";
+import { AttachmentFeatureSurface } from "@/components/files/attachment-feature-context";
 import { Card, FilterBar } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function CommercePage({

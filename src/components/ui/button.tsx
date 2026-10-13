@@ -3,7 +3,7 @@
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { LoaderCircle } from "lucide-react";
 import { forwardRef, useSyncExternalStore, type ButtonHTMLAttributes } from "react";
-import { cn } from "@/lib/ui";
+import { cn } from "@/lib/shared/ui";
 import { buttonVariants, type UiButtonVariant, type UiSize } from "./button-variants";
 
 import type { UiAppearance } from "./appearance";

@@ -1,6 +1,6 @@
-import { assistantPage } from "@/lib/ai/workspace-assistant";
-import { guidedIntakeModelSchema, intakeMissing, type GuidedIntakeAction, type GuidedIntakeResult, type IntakeIntent } from "@/lib/ai/guided-intake-domain";
-import { workspaceBase } from "@/lib/workspace";
+import { assistantPage } from "@/lib/work_projection/ai/workspace-assistant";
+import { guidedIntakeModelSchema, intakeMissing, type GuidedIntakeAction, type GuidedIntakeResult, type IntakeIntent } from "@/lib/operations/ai/guided-intake-domain";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { BetaEnvironment } from "@/server/modules/manage_erpx/public/beta-config";
 import type { aiRequestQuotaLock } from "@/server/modules/agent/public/ai-quota";

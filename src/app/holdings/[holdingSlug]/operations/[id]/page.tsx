@@ -1,10 +1,10 @@
 import { RecordLink as Link } from "@/components/records/record-link";
-import {TimeText} from "@/components/time/time-preference-context";
+import {TimeText} from "@/components/people_payroll/time/time-preference-context";
 import {requireWorkContext,publicScope} from "@/server/modules/identity_access/public/authorization";
-import {workspaceBase} from "@/lib/workspace";
+import {workspaceBase} from "@/lib/work_projection/workspace";
 import {pageError} from "@/server/modules/work_projection/public/page-error";
 import {operationsExceptionDetail} from "@/server/modules/operations/public/operations-exceptions";
-import {OperationsConsole} from "@/components/modules/operations-console";
+import { OperationsConsole } from "@/components/records/loaders/modules--operations-console";
 import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic="force-dynamic";
 export default async function Page({params}:{params:Promise<{holdingSlug:string;id:string}>}){

@@ -1,6 +1,6 @@
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { organizationRoster } from "@/server/modules/organization/public/organization";
-import { reportingIssues, type OrganizationPerson } from "@/lib/organization";
+import { reportingIssues, type OrganizationPerson } from "@/lib/organization/organization";
 
 /** Native owner facts retain the exact current placement and reporting policy. */
 export async function reportingRosterFacts(db: SqlDatabase, companyId: string) {

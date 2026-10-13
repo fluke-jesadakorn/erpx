@@ -1,16 +1,16 @@
 import { RecordLink as Link } from "@/components/records/record-link";
-import { TimeText } from "@/components/time/time-preference-context";
-import { MoneyAmount } from "@/components/money/currency-provider";
+import { TimeText } from "@/components/people_payroll/time/time-preference-context";
+import { MoneyAmount } from "@/components/finance/money/currency-provider";
 import { PageContent, ActionLink } from "@/components/ui/foundation";
 import { StatusBadge } from "@/components/ui/primitives";
-import { CustomerNotes } from "@/components/modules/customer-notes";
-import { HubForm } from "@/components/sales-customers/hub-form";
-import styles from "@/components/sales-customers/hub.module.css";
+import { CustomerNotes } from "@/components/records/loaders/modules--customer-notes";
+import { HubForm } from "@/components/records/loaders/sales-customers--hub-form";
+import styles from "@/components/sales/customers/hub.module.css";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { customerWorkspaceProfile } from "@/server/modules/sales/public/sales-customers";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
-import { workspaceBase } from "@/lib/workspace";
-import { hasPermission } from "@/lib/permissions";
+import { workspaceBase } from "@/lib/work_projection/workspace";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { queryValue, type HubQuery } from "@/server/modules/sales/public/rules/navigation";
 export const dynamic = "force-dynamic";
 export default async function Page({ params, searchParams }: { params: Promise<{ holdingSlug: string; id: string }>; searchParams: Promise<HubQuery> }) {

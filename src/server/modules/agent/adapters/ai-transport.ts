@@ -1,7 +1,7 @@
 import { pinnedNodeRequest } from "@/server/modules/runtime/public/runtime/https";
 import { ApiError } from "@/server/modules/runtime/public/http";
 import type { BetaEnvironment } from "@/server/modules/manage_erpx/public/beta-config";
-import { finishAiGatewayRequest, reserveAiGatewayRequest, type AiGatewayScope } from "@/server/ai-gateway";
+import { finishAiGatewayRequest, reserveAiGatewayRequest, type AiGatewayScope } from "@/server/modules/agent/adapters/ai-gateway";
 
 import {BusinessRuleError} from '../../shared';
 import {createAiTransportApplication} from '../application/transport';

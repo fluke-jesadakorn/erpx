@@ -1,4 +1,4 @@
-import type {SqlDatabase} from '../../runtime/public/runtime/types';import type {FlowKind} from '@/lib/flow';
+import type {SqlDatabase} from '../../runtime/public/runtime/types';import type {FlowKind} from "@/lib/shared/flow";
 import * as people_payroll from '../../people_payroll/public/workflow-document-sources';
 import * as operations from '../../operations/public/workflow-document-sources';
 import * as records from '../../records/public/workflow-document-sources';

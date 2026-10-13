@@ -1,7 +1,7 @@
 import type { Row } from "../../commerce/public/commerce";
 import type { Clock } from "../../shared/application/ports";
 import { createWorkSchema, workActionSchema, maintenanceState, maintenanceStates, type Work, type MaintenanceWork, type MaintenanceState, type MaintenanceCreateInput, type MaintenanceAction, type MaintenanceDowntimeEvidenceRow } from "../domain/work";
-import type { WorkItem } from "@/lib/work-item";
+import type { WorkItem } from "@/lib/work_projection/work-item";
 
 export type MaintenanceCommand<Input = MaintenanceAction> = { key: string; operation: string; id: string; input: Input };
 export type DowntimeQuery = { from: number; to: number; query: string; limit: number; cursor?: { endedAt: number; id: string }; recordId?: string };

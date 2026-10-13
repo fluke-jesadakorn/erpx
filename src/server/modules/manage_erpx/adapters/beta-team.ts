@@ -18,7 +18,7 @@ import {
   branchStatements,
   memberStatements,
   type BetaUser,
-} from "@/server/beta-onboarding";
+} from "@/server/modules/manage_erpx/adapters/beta-onboarding";
 import { sha256 } from "@/server/modules/runtime/public/crypto";
 
 import type {SqlStatement} from '../../runtime/public/runtime/types';

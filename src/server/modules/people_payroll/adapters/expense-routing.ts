@@ -10,7 +10,7 @@ import { reportingRosterFacts, activeDepartmentFact } from "@/server/modules/org
 import { workflowStaffRoleUsers } from "@/server/modules/identity_access/public/workflow-role-facts";
 import { activeStaffLevelRanks } from "@/server/modules/operations/public/staff-facts";
 import { spendingTemplate } from "@/server/modules/people_payroll/public/spending-templates";
-import type { SpendingKind } from "@/lib/spending";
+import type { SpendingKind } from "@/lib/shared/spending";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { ApiError } from "@/server/modules/runtime/public/http";
 import {
@@ -39,10 +39,10 @@ export async function expenseAuthoritySnapshot(
   companyId: string,
 ) {
   const args = Array(7).fill(companyId) as string[];
-  const row = await db
+  const row = await policyRead(db, JSON.stringify(["expense-authority-snapshot",companyId]), () => db
     .prepare(authoritySnapshotSql)
     .bind(...args)
-    .first<{ snapshot: string }>();
+    .first<{ snapshot: string }>());
   const check = {
     query: `(${authoritySnapshotSql})=?`,
     args: [...args, row!.snapshot],
@@ -58,7 +58,7 @@ export {
   expenseStages,
   expenseStageLabels,
   type ExpenseStage,
-} from "@/lib/expense-workflow";
+} from "@/lib/people_payroll/expense-workflow";
 
 export async function expenseRoleUsers(db: SqlDatabase, scope: RecordScope, role: string | null) {
   return workflowStaffRoleUsers(db, scope, role);

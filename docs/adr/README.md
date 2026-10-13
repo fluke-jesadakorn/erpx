@@ -46,4 +46,10 @@ Reviewed 2026-10-03. Decisions retain their identifiers and original rationale; 
 
 Historical Rust terms and dated rollout evidence in older decisions apply to that archived implementation. Use [owner contracts](../contracts/next/README.md) and [catalogue workflows](../contracts/next/catalogue.md) for current coverage, not old phase or workspace counts.
 
-[Contract policy](../../CONTRACT_POLICY.md) requires a new ADR and [cutover](../../CUTOVER.md) entry for a breaking interface. Unrelated documentation changes do not require schema/traceability changes. Cutover retains verified recovery refs for the removed Rust maps and plans.
+[Contract policy](../../CONTRACT_POLICY.md) requires a new ADR and [cutover](../../README.md#recovery) entry for a breaking interface. Unrelated documentation changes do not require schema/traceability changes. Cutover retains verified recovery refs for the removed Rust maps and plans.
+
+- [ADR-040 — Hospitality module ownership and Guest Accounts](ADR-040-hospitality-module-ownership-and-guest-accounts.md)
+
+- [ADR-041 — Transaction-local command assertions](ADR-041-transaction-local-command-assertions.md)
+
+- [ADR-042 — Canonical command receipt partitions](ADR-042-canonical-command-receipt-partitions.md)

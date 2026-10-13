@@ -1,7 +1,7 @@
 import type {RecognitionItem} from "../domain/finance-contract-policy";
 import { z } from 'zod';
-import { samePerson } from '@/lib/iam';
-import { decimalToMinor, minorToDecimal } from '@/lib/finance-money';
+import { samePerson } from "@/lib/identity_access/iam";
+import { decimalToMinor, minorToDecimal } from "@/lib/finance/finance-money";
 import type { WorkContext } from '@/server/modules/identity_access/public/authorization';
 import type { FinanceError } from '../domain/invoice-line-revision';
 import type { JournalInput } from '../domain/finance';

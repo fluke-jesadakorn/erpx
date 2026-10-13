@@ -1,5 +1,5 @@
 import "server-only";
-import type { FlowKind } from "@/lib/flow";
+import type { FlowKind } from "@/lib/shared/flow";
 import type { WorkContext } from "../../identity_access/public/authorization";
 import { holdingResources } from "../../runtime/public/runtime";
 import { resolveFlow } from "../public/flow-routing";

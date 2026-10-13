@@ -7,7 +7,7 @@ import { RecordLink as Link } from "@/components/records/record-link";
 import { usePathname, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { ChevronDown, Settings2, Sparkles } from "lucide-react";
-import { useFeatureNavigation } from "@/components/features/feature-page";
+import { useFeatureNavigation } from "@/components/shared/features/feature-page";
 import {
   financeAreaForDestination,
   financeAreaItems,
@@ -16,13 +16,14 @@ import {
   financeDestinations,
   financeNavigation,
   financeRootItems,
-} from "@/lib/finance-navigation";
-import { resolveNavigation, workplaceNavigation } from "@/lib/workplace-navigation";
+} from "@/lib/finance/finance-navigation";
+import { resolveNavigation, workplaceNavigation } from "@/lib/work_projection/workplace-navigation";
 import { FinanceAiPanel } from "./finance-ai-panel";
 import styles from "./finance-workspace.module.css";
 
 const legacyIds = [
   "finance-overview",
+  "finance-sales",
   "finance-receivables",
   "finance-payables",
   "finance-bank",

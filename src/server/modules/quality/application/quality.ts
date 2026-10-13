@@ -1,9 +1,9 @@
 import {BusinessRuleError} from '../../shared';
 import type {Clock} from '../../shared';
-import type {WorkItem} from '@/lib/work-item';
+import type {WorkItem} from "@/lib/work_projection/work-item";
 import type {AttachmentBindingContext} from '../../files/public/attachments/types';
-import {decimalToMinor} from '@/lib/finance-money';
-import {scaledAmount} from '@/lib/commerce-math';
+import {decimalToMinor} from "@/lib/finance/finance-money";
+import {scaledAmount} from "@/lib/commerce/commerce-math";
 import {evaluateQualityMeasurements,qualityMeasurementPassed} from '../domain/measurements';
 import {qualityHoldSchema,qualityInspectionSchema,qualityCancellationSchema,qualityReleaseSchema,qualityDispositionSchema,qualitySpecSchema,qualitySpecActionSchema,type QualityRow as Row,type QualityHoldInput,type QualityInspectionInput,type QualityCancellationInput,type QualityReleaseInput,type QualityDispositionInput,type QualitySpecInput,type QualitySpecActionInput,type ReceiptQualityHold} from '../domain/quality';
 export type QualityEvidenceRequest={attachmentSetIds:string[];targetTypes:readonly string[];targetId:string;expectedTargetVersion:number;commandId:string;bindingType:string;bindingId:string;contexts:AttachmentBindingContext[]};

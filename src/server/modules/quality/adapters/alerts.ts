@@ -5,7 +5,7 @@ import "server-only";
 
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
 import { requirePermission } from "@/server/modules/identity_access/public/iam-permissions";
 import { ApiError } from "@/server/modules/runtime/public/http";

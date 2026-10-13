@@ -1,8 +1,8 @@
 import { createCompanyMoney } from '../application/company-money';
-import type { CarrySource, SnapshotSource } from '../domain/company-money';
+import type { CarrySource, SnapshotSource, SnapshotInput } from '../domain/company-money';
 import "server-only";
 import { z } from "zod";
-import { type ManualRate } from "@/lib/company-money";
+import { type ManualRate } from "@/lib/finance/company-money";
 import { executeCommand } from "@/server/modules/workflow/public/commands";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { requirePermission } from "@/server/modules/identity_access/public/iam-permissions";
@@ -51,6 +51,24 @@ export async function snapshotMoney(db: SqlDatabase, actor: Pick<WorkContext, "c
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
             .bind(actor.companyId, input.sourceType, input.sourceId, input.amountKind, input.transactionDate, input.currency, plan.currencyScale, plan.amountUnits, plan.usdUnits, plan.rateId, plan.usedLatestFallback, plan.capturedAt),
     };
+}
+/** Prepare independent quote rows together; the caller retains its original owner transaction. */
+export async function snapshotMoneyBatch(db: SqlDatabase, actor: Pick<WorkContext, "companyId">, inputs: readonly SnapshotInput[]) {
+    const plans = await moneyService(db).snapshotMoneyBatch(actor, inputs);
+    const statements = [];
+    // Bound parameters stay well below PostgreSQL's limit, including large group bookings.
+    for (let offset = 0; offset < inputs.length; offset += 500) {
+        const chunk = inputs.slice(offset, offset + 500);
+        const values = chunk.flatMap((input, index) => {
+            const plan = plans[offset + index];
+            return [actor.companyId, input.sourceType, input.sourceId, input.amountKind, input.transactionDate, input.currency,
+                plan.currencyScale, plan.amountUnits, plan.usdUnits, plan.rateId, plan.usedLatestFallback, plan.capturedAt];
+        });
+        statements.push(db.prepare(`INSERT INTO money_transaction_snapshots
+            (company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at)
+            VALUES ${chunk.map(() => '(?,?,?,?,?,?,?,?,?,?,?,?)').join(',')}`).bind(...values));
+    }
+    return { plans, statements };
 }
 /** An internal handoff preserves the source currency/scale/quote at its new date. */
 export async function snapshotMoneyCarry(db: SqlDatabase, actor: Pick<WorkContext, "companyId">, input: {

@@ -8,7 +8,7 @@ import { requirePermission } from "../../identity_access/public/iam-permissions"
 import { hasModuleAccess } from "@/data/module-access";
 import { assertion, executeCommand, replayCommand } from "../../workflow/public/commands";
 import { ApiError } from "../../runtime/public/http";
-import { decimalToMinor } from "@/lib/finance-money";
+import { decimalToMinor } from "@/lib/finance/finance-money";
 import { snapshotMoney } from "../../finance/public/company-money";
 import { isTransactionalSqlDatabase, type SqlDatabase } from "../../runtime/public/runtime/types";
 import { changeOrderReservation, getOrder, orderSchema, requestCommerceReturn, returnRequestSchema, saveOrder, transitionOrder } from "../../commerce/public/commerce";

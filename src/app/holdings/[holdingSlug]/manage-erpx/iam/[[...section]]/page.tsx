@@ -1,7 +1,7 @@
 import { iamPresentationQueries } from "@/server/modules/identity_access/public/presentation-context-queries";
 import { notFound } from "next/navigation";
 import { IamConsole } from "@/components/iam/iam-console";
-import { iamSections, type IamSection } from "@/lib/iam";
+import { iamSections, type IamSection } from "@/lib/identity_access/iam";
 import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
 
 

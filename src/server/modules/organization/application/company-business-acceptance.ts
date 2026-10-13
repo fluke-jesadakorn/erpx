@@ -1,8 +1,8 @@
 import type {z} from "zod";
-import {samePerson} from "@/lib/iam";
-import {hasPermission} from "@/lib/permissions";
+import {samePerson} from "@/lib/identity_access/iam";
+import {hasPermission} from "@/lib/identity_access/permissions";
 import type {WorkContext} from "../../identity_access/public/authorization";
-import type {WorkItem} from "@/lib/work-item";
+import type {WorkItem} from "@/lib/work_projection/work-item";
 import {companyAcceptanceSubmitSchema,companyAcceptanceDecisionSchema,companyAcceptanceRevokeSchema,type Check,type AcceptanceRow,type EventRow} from "../domain/company-business-acceptance";
 export interface OwnerCommands<Effect>{replay<Result=Record<string,unknown>>(actor:WorkContext,key:string,operation:string,id:string,input:unknown):Promise<Result|null>;commit<Result>(actor:WorkContext,key:string,operation:string,input:unknown,id:string,version:number,result:Result,effects:Effect[],scope?:Pick<WorkContext,'companyId'|'branchId'|'departmentId'>):Promise<Result>;}
 export type AcceptanceRepository<Effect>={company(companyId:string,companyId2:string):Promise<{ id: string; display_name: string; status: string }|null>;

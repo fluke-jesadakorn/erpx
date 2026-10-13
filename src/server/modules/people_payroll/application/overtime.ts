@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { overtimeDetailsSchema, overtimeCommandSchema, overtimeMinutes, overtimeLabels, type OvertimeDetails } from "@/lib/overtime";
-import type { WorkItem } from "@/lib/work-item";
+import { overtimeDetailsSchema, overtimeCommandSchema, overtimeMinutes, overtimeLabels, type OvertimeDetails } from "@/lib/people_payroll/overtime";
+import type { WorkItem } from "@/lib/work_projection/work-item";
 import type { activeStaff, notification, requireCompanyAuthority } from "@/server/modules/operations/public/staff-policy";
 import type { peopleRequestRoute } from "@/server/modules/organization/public/department-authority";
 import type { approvalView, openApproval, prepareDecision, closeApprovals } from "@/server/modules/workflow/public/approvals";

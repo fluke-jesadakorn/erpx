@@ -8,7 +8,7 @@ import { financeTransaction } from "@/server/modules/finance/public/finance-tran
 import { prepareJournal } from "@/server/modules/finance/public/finance";
 import { prepareOwnedJournalReversal } from "@/server/modules/finance/public/finance-owned-reversal";
 import { financeReviewSchema } from "@/server/modules/finance/public/finance-books";
-import { samePerson } from "@/lib/iam";
+import { samePerson } from "@/lib/identity_access/iam";
 import { sha256 } from "@/server/modules/runtime/public/crypto";
 import { ApiError } from "@/server/modules/runtime/public/http";
 import {createBookAdjustments,type BookAdjustmentRepository} from '../application/book-adjustments';

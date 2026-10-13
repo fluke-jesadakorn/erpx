@@ -2,7 +2,7 @@ import { drainOrganizationDrafts } from "@/server/modules/organization/public/or
 import "server-only";
 import { iamDb } from "@/server/modules/identity_access/public/iam-db";
 import type { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
-import type { LifecycleCase } from "@/lib/people-lifecycle";
+import type { LifecycleCase } from "@/lib/people_payroll/people-lifecycle";
 import { drainPositionMoves } from "@/server/modules/organization/public/position-moves";
 import type { PoolClient } from 'pg';
 import { type LifecycleEngagementFacts } from '../domain/people-lifecycle-jobs';

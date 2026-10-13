@@ -5,8 +5,8 @@ import {financeAiExpenseUsageSql,financeAiExpenseMonthlyReservationsSql,financeA
 import {financeAiRequestUsageSql} from '@/server/modules/workflow/public/finance-ai-request-sources';
 import {aiRequestQuotaLock} from "@/server/modules/agent/public/ai-quota";
 import "server-only";
-import { hasPermission } from "@/lib/permissions";
-import { financeAiDate } from "@/lib/finance-ai";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { financeAiDate } from "@/lib/finance/finance-ai";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { BetaEnvironment } from "@/server/modules/manage_erpx/public/beta-config";
 import type { SqlDatabase, SqlStatement } from "@/server/modules/runtime/public/runtime/types";

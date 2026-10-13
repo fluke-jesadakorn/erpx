@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { roleInput, grantInput, reviewInput, accessReviewCampaignInput, accessReviewDecisionInput, type IamAssignmentFact, type IamRoleFact, type IamReviewPayload, type IamReviewFact, type IamReviewItemFact, type IamCampaignFact, type IamScopeNodeFact, type IamMemberFact, type RoleInput, type GrantInput, type ReviewInput, type CampaignInput, type CampaignDecisionInput } from '../domain/iam-service';
 import type { IamActor } from '../domain/iam-actor';
 import { iamPermission } from '../domain/iam-actor';
-import { permissionCatalog } from '@/lib/permissions';
+import { permissionCatalog } from "@/lib/identity_access/permissions";
 import type { IdentityError } from './authorization';
 export interface IamServiceTransaction {
     activeReviewAssignments(facts: {

@@ -1,4 +1,4 @@
-import { getRuntime,closeRuntime } from '../../src/server/runtime/env';
+import { getRuntime,closeRuntime } from "../../src/server/modules/runtime/adapters/runtime/env";
 import { bootstrapAdmin } from './bootstrap-admin-service';
 export { bootstrapAdmin } from './bootstrap-admin-service';
 if(import.meta.main){try{

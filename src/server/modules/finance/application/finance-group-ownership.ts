@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { decimalToUnits, unitsToDecimal } from "@/lib/finance-money";
+import { decimalToUnits, unitsToDecimal } from "@/lib/finance/finance-money";
 import { halfAway } from "../domain/finance-instrument-policy";
 import { calculateFinance } from "../domain/finance-calculations";
-import { samePerson } from "@/lib/iam";
+import { samePerson } from "@/lib/identity_access/iam";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { requireFinanceTool } from "@/server/modules/finance/public/finance-company-tools";
 import type { requireFinanceMoneyScale } from "@/server/modules/finance/public/finance-money-policy";

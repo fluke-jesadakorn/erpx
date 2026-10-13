@@ -34,7 +34,7 @@ The launcher can clone the original source on an initial setup by passing its di
 > Recorded observations apply to their stated date/environment. Current coverage and remaining acceptance are in the [verification inventory](../../status/capability-delivery-matrix.md); old gaps do not override current owner behavior.
 
 ```sh
-ERPX_VERIFY_UCS_LAB=1 bun --env-file=.env.local run test:integration tests/directory-provider-live.test.ts
+ERPX_VERIFY_UCS_LAB=1 bun --env-file=.env.local run test:integration tests/provider/identity_access/directory-provider-live.test.ts
 ```
 
 This opt-in test makes real changes only in the lab OU: disabled account creation, repeated creation, group creation, supported field updates, stale-version rejection, group membership, enable, OU move/retry and disable read-back. Its direct adapter activation checks provider behavior; application activation additionally requires a verified identity and an effective, reviewed lifecycle case. Created test fixtures use unique names and end disabled. The test is skipped in the normal integration suite.

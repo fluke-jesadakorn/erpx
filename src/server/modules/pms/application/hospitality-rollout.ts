@@ -1,6 +1,6 @@
 import { moduleRegistry, moduleAvailability } from "@/data/module-registry";
 import { hasModuleAccess } from "@/data/module-access";
-import { isReleaseModule, resolveFeatureState, type RolloutState } from "@/lib/hospitality-rollout";
+import { isReleaseModule, resolveFeatureState, type RolloutState } from "@/lib/shared/hospitality-rollout";
 import { productionScope, legalProductionScope } from "@/data/production-scope";
 import { changeSchema } from "../domain/hospitality-rollout";
 import type { WorkContext } from "../../identity_access/public/authorization";

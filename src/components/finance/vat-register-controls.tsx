@@ -6,9 +6,9 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { workFetch } from "@/lib/work-fetch";
-import { minorToDecimal } from "@/lib/finance-money";
-import { vatTreatmentLabels } from "@/lib/finance-vat-labels";
+import { workFetch } from "@/lib/work_projection/work-fetch";
+import { minorToDecimal } from "@/lib/finance/finance-money";
+import { vatTreatmentLabels } from "@/lib/finance/finance-vat-labels";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import type { TaxRow } from "@/server/modules/finance/public/finance-tax-register";
 import { FormLayout, Card, Stack } from "@/components/ui/foundation";

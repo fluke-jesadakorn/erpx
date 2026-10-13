@@ -8,7 +8,7 @@ import {companyAuthority,authorityGuard} from "@/server/modules/operations/publi
 import type {BetaEnvironment} from "@/server/modules/manage_erpx/public/beta-config";
 import {assertion,executeCommand,replayCommand} from "@/server/modules/workflow/public/commands";
 import {ApiError} from "@/server/modules/runtime/public/http";
-import {generateProviderJson,openAiKey,providerRequest,sealAiKey,type AiEndpoint} from "@/server/ai-transport";
+import {generateProviderJson,openAiKey,providerRequest,sealAiKey,type AiEndpoint} from "@/server/modules/agent/adapters/ai-transport";
 import {isThaiHotelAiMockEnabled,thaiHotelAiMockId} from "@/server/modules/runtime/public/simulation-only-adapters";
 
 

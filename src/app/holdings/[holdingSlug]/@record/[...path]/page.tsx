@@ -1,12 +1,14 @@
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { Suspense } from "react";
 import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
-import { workspaceBase } from "@/lib/workspace";
-import { isRecordKind, recordRoutes, recordCanonicalHref, type RecordTarget } from "@/lib/record-drawer";
+import { workspaceBase } from "@/lib/work_projection/workspace";
+import { isRecordKind, recordRoutes, recordCanonicalHref, type RecordTarget } from "@/lib/records/record-drawer";
 import { recordOwnerPages } from "@/server/modules/records/public/record-owner-pages";
 import { RecordDrawer } from "@/components/records/record-drawer";
 import { RecordSupplement } from "@/components/records/record-supplement";
 import { posWorkspace } from "@/server/modules/pos/public/pos";
-import { PosConsole } from "@/components/pos/pos-console";
+import { PosRecordConsole } from "@/components/records/loaders/pos-record";
+import { PosRecordSummary } from "@/components/records/pos-record-summary";
 
 export const dynamic = "force-dynamic";
 type Query = Record<string, string | string[] | undefined>;
@@ -40,4 +42,4 @@ async function RecordContent({ holdingSlug, target, args }: { holdingSlug: strin
   }
 }
 
-async function PosContent(holdingSlug:string,id:string){const actor=await requireWorkContext(holdingSlug),base=workspaceBase(publicScope(actor)),initial=await posWorkspace(actor,id,'','sale');return <PosConsole base={base} initial={initial} recordOnly/>;}
+async function PosContent(holdingSlug:string,id:string){const actor=await requireWorkContext(holdingSlug),base=workspaceBase(publicScope(actor)),financial=!hasPermission(actor,'pos.read'),tab=financial?'reports':'sale',initial=await posWorkspace(actor,id,'',tab,undefined,false,financial);return <PosRecordConsole base={base} initial={initial} initialTab={tab} financeMode={financial} initialRead={{sale:id,tab,finance:financial}} initialSummary={<PosRecordSummary data={initial}/>}/>;}

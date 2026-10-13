@@ -1,8 +1,8 @@
 import { RecordLink as Link } from "@/components/records/record-link";
-import { FeaturePage } from "@/components/features/feature-page";
-import { ExpenseEditor } from "@/components/modules/expense-controls";
+import { FeaturePage } from "@/components/shared/features/feature-page";
+import { ExpenseEditor } from "@/components/people_payroll/expense-controls";
 import { PageHeader } from "@/components/ui/primitives";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { expenseOptions } from "@/server/modules/people_payroll/public/expenses";
 

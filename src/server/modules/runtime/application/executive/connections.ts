@@ -1,7 +1,7 @@
 import type {WorkContext,WorkAssignment} from "../../../identity_access/public/authorization";
 import type {loadIamAuthority} from "../../../identity_access/public/iam-store";
-import {modulesForRole} from "@/lib/business-roles";
-import {createConnectionSchema,type ConnectionScope,type ExternalConnection} from "@/lib/executive/connections";
+import {modulesForRole} from "@/lib/identity_access/business-roles";
+import {createConnectionSchema,type ConnectionScope,type ExternalConnection} from "@/lib/shared/executive/connections";
 import type {TokenRow,ExecutiveConnectionGrant} from "../../domain/executive/connections";
 import type {Clock,IdentifierSource} from "../../../shared/application/ports";
 type ConnectionRows<Row>={results:Row[]};

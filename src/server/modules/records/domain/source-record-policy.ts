@@ -1,4 +1,4 @@
-import type { SourceRecordReference } from "@/lib/source-record";
+import type { SourceRecordReference } from "@/lib/records/source-record";
 import { sourceRecordKind, sourceRecordInput } from '../../shared';
 import type { z } from 'zod';
 export { sourceRecordKind, sourceRecordInput };

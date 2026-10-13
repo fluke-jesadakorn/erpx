@@ -1,4 +1,4 @@
-import {hasPermission} from "@/lib/permissions";
+import {hasPermission} from "@/lib/identity_access/permissions";
 import type {WorkContext} from "../../../identity_access/public/authorization";
 import type {Clock,IdentifierSource} from "../../../shared/application/ports";
 import type {AttachmentEnvironment} from "../../domain/attachments/feature";

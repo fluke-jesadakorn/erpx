@@ -1,7 +1,7 @@
 import type { WorkContext } from '@/server/modules/identity_access/public/authorization';
 import type { FinanceRow, JournalInput } from '../domain/finance';
 import { createFinancePolicy } from '../domain/finance-policy';
-import { minorToDecimal } from '@/lib/finance-money';
+import { minorToDecimal } from "@/lib/finance/finance-money";
 import type { FinanceError } from '../domain/invoice-line-revision';
 export interface LegacyRevenuePorts {
     error: FinanceError;

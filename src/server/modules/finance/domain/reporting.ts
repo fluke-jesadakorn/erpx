@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { financialNoteTitles, financialPresentation, type FinancialPresentationCode } from '@/lib/finance-reporting';
-import { minorToDecimal } from '@/lib/finance-money';
+import { financialNoteTitles, financialPresentation, type FinancialPresentationCode } from "@/lib/finance/finance-reporting";
+import { minorToDecimal } from "@/lib/finance/finance-money";
 import type { FinanceError } from './invoice-line-revision';
 const date = z.iso.date(), reason = z.string().trim().min(10).max(4000), version = z.number().int().positive();
 const codes = Object.keys(financialPresentation) as [

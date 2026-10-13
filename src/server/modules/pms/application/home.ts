@@ -1,5 +1,5 @@
-import { hasPermission } from "@/lib/permissions";
-import type { WorkItem } from "@/lib/work-item";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import type { WorkItem } from "@/lib/work_projection/work-item";
 import type { Clock } from "../../shared/application/ports";
 import type { WorkContext } from "../../identity_access/public/authorization";
 import { taskView, type TaskRow, type PmsHomeView, type PmsHotelOverview } from "../domain/home";
@@ -115,7 +115,7 @@ export function createPmsHomeApplication(ports: {
         const page = await db.taskPage(actor, options);
         return { ...page, items: page.items.map(row => taskView(row, actor)) };
     }
-    /** Work reuses source IDs and policy, without loading historical folios/entries. */
+    /** Work reuses source IDs and policy, without loading historical guestAccounts/entries. */
     async function pmsOperationalWork(db: PmsHomeRepository, actor: WorkContext): Promise<WorkItem[]> {
         const rows = await db.tasks(actor);
         return rows.map(row => taskView(row, actor));
@@ -176,7 +176,7 @@ export function createPmsHomeApplication(ports: {
         if (hotel.businessDate !== businessDate)
             throw ports.error(409, 'PMS_BUSINESS_DATE_CHANGED', 'The hotel business date changed. Reload the overview.');
         const rows = (await write.hotelSources({ id: id, id2: id, id3: id, metric: metric, businessDate: businessDate, metric2: metric, businessDate2: businessDate, businessDate3: businessDate, metric3: metric, businessDate4: businessDate, offset: (page - 1) * 30 })).results;
-        return { hotel, metric, rows: rows.slice(0, 30).map(row => ({ id: row.id, kind: row.kind, version: row.version, data: Object.fromEntries(Object.entries(JSON.parse(row.data_json) as Record<string, unknown>).filter(([key]) => ['name', 'number', 'description', 'kind', 'state', 'cleanliness', 'active', 'roomId', 'folioId', 'arrival', 'departure', 'date', 'reference', 'quantity', 'net', 'service', 'tax', 'total'].includes(key))) })), page, hasNext: rows.length > 30 };
+        return { hotel, metric, rows: rows.slice(0, 30).map(row => ({ id: row.id, kind: row.kind, version: row.version, data: Object.fromEntries(Object.entries(JSON.parse(row.data_json) as Record<string, unknown>).filter(([key]) => ['name', 'number', 'description', 'kind', 'state', 'cleanliness', 'active', 'roomId', 'guestAccountId', 'arrival', 'departure', 'date', 'reference', 'quantity', 'net', 'service', 'tax', 'total'].includes(key))) })), page, hasNext: rows.length > 30 };
     }
     return { pmsTaskPage, pmsOperationalWork, pmsHotelOverview, pmsHome, pmsHotelSources };
 }

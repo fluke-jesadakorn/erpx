@@ -7,8 +7,8 @@ const generatedSourceEntry = (name: string) => name.split(/[\\/]/).includes("__p
 
 /** The same bytes identify the release, compiled worker, and engineering receipts. */
 export async function runtimeSourceFingerprint(root: string, environment: NodeJS.ProcessEnv = process.env) {
-  const hash = createHash("sha256").update("node24.20.0:bun1.2.17");
-  for (const directory of ["src", "public", "scripts", "fixtures", "tests/helpers", "migrations/postgres"]) {
+  const hash = createHash("sha256").update("node26.11.1:bun1.4.3");
+  for (const directory of ["src", "public", "scripts", "fixtures", "tests/support", "migrations/postgres"]) {
     const entries = await readdir(join(root, directory), { recursive: true, withFileTypes: true });
     const files = entries.filter(entry => entry.isFile()).map(entry => join(entry.parentPath, entry.name))
       .filter(file => !generatedSourceEntry(relative(root, file))).sort();
@@ -18,7 +18,7 @@ export async function runtimeSourceFingerprint(root: string, environment: NodeJS
       hash.update(name).update("\0").update(await readFile(file)).update("\0");
     }
   }
-  const configuration = ["bun.lock", "package.json", "next.config.ts", "tsconfig.json", "tsconfig.engineering-tests.json", "postcss.config.mjs"];
+  const configuration = ["bun.lock", "package.json", "next.config.ts", "tsconfig.json", "tests/config/tsconfig.json", "postcss.config.mjs"];
   for (const name of configuration) hash.update(name).update("\0").update(await readFile(join(root, name))).update("\0");
   const ops = ["ops/macos/install-attachment-runtime.py", "ops/macos/attachment-rollout.md",
     "ops/macos/erpxctl.py", "ops/macos/offsite.py", "ops/macos/recovery_status.py",
@@ -40,8 +40,8 @@ export async function verificationSourceFingerprint(root: string, runtimeFingerp
       .filter(file => !generatedSourceEntry(relative(root, file))).sort())
       hash.update(relative(root, file)).update("\0").update(await readFile(file)).update("\0");
   }
-  for (const name of ["docs/testing/engineering-scenarios.json", "docs/testing/legal-uat-engineering-cases.json",
-    "docs/testing/engineering-gate-scenarios.json", "docs/testing/engineering-attachment-owner-cases.json", "docs/testing/uat-route-inventory.json", "vitest.config.mts", "vitest.unit.config.mts", "vitest.integration.config.mts", "playwright.config.ts", "eslint.config.mjs"])
+  for (const name of ["tests/catalogue/engineering-scenarios.json", "tests/catalogue/legal-uat-engineering-cases.json",
+    "tests/catalogue/engineering-gate-scenarios.json", "tests/catalogue/engineering-attachment-owner-cases.json", "tests/catalogue/uat-route-inventory.json", "tests/config/vitest.config.mts", "tests/config/vitest.unit.config.mts", "tests/config/vitest.integration.config.mts", "tests/config/playwright.config.ts", "eslint.config.mjs"])
     hash.update(name).update("\0").update(await readFile(join(root, name))).update("\0");
   for (const directory of [".github/workflows", ".github/actions"]) {
     const entries = await readdir(join(root, directory), { recursive: true, withFileTypes: true });

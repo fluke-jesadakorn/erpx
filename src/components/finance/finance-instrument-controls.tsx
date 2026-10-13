@@ -1,10 +1,10 @@
 "use client";
 import {EmbeddedRecord} from "@/components/records/record-context";
-import {recordCanonicalHref} from "@/lib/record-drawer";
+import {recordCanonicalHref} from "@/lib/records/record-drawer";
 import { useContext,useState } from "react";
 import { useRouter } from "next/navigation";
-import { financeCommandFetch as workFetch } from "@/lib/finance-command-fetch";
-import { minorToDecimal } from "@/lib/finance-money";
+import { financeCommandFetch as workFetch } from "@/lib/finance/finance-command-fetch";
+import { minorToDecimal } from "@/lib/finance/finance-money";
 import {
   Button,
   Card,

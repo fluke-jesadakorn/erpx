@@ -1,0 +1,104 @@
+{
+  "checkedAt": "2026-10-11T23:42:24.438672+00:00",
+  "scope": "Exact180 unique actual passing cases on unchanged runtime517. Raw historical299 receipts remain dated. Entire changed test file rerun at6bec. Five business suites use their retained compiled release; shared UI retains original isolated development mapping. Not a fresh full180 invocation.",
+  "candidate": {
+    "runtime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+    "verification": "6bec217508702c495235e2a3740598d3132176d24be4d6af9cb1845bfe5c95c9",
+    "mainRuntime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+    "mainVerification": "6bec217508702c495235e2a3740598d3132176d24be4d6af9cb1845bfe5c95c9",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T19-44-51-044Z",
+    "releaseId": "2026-10-11T19-44-51-044Z",
+    "releaseReusedForIdenticalRuntime": true,
+    "verificationAmendment": "Only existing shared keyboard readiness and null-safe theme init; all runtime/native sources unchanged"
+  },
+  "exactRequiredCases": 180,
+  "originalCases": 178,
+  "additionalCases": 2,
+  "partition": {
+    "unchangedHistorical95": 95,
+    "freshRepair2": 2,
+    "freshShared10": 10,
+    "freshOriginalAI2": 2,
+    "freshResume71": 71
+  },
+  "compiledBusinessCases": 36,
+  "originalIsolatedDevelopmentCases": 144,
+  "freshFull180Invocation": false,
+  "changedTestFileAll12RerunAtCurrentVerification": true,
+  "untouchedHistoricalTestCasesRetained": 95,
+  "sourceAmendmentProvenance": {
+    "checkedAt": "2026-10-11T22:15:00.393Z",
+    "scope": "Official fingerprint of current verification inputs with only the exact two test repair hunks reversed equals original299. This is source provenance, not a fresh native/browser invocation.",
+    "runtime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+    "currentVerification": "6bec217508702c495235e2a3740598d3132176d24be4d6af9cb1845bfe5c95c9",
+    "reconstructedOriginalVerification": "299c85a71a3f9bd369189710e8dcf8db9da956177f559f49d4f857d6767dd362",
+    "onlyTwoRepairHunksDiffer": true,
+    "nativeAndUntouchedTestInputsUnchanged": true,
+    "rawHistoricalReceiptsNotRelabelled": true,
+    "passed": true
+  },
+  "rawAudit": {
+    "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-keyboard-repair-2026-10-12/browser180-composite-audit.json",
+    "sha256": "7f46bb14c7753362821ad4d255893632dfe892dda00ad5a2400ce0a17767559a"
+  },
+  "rawReceipts": [
+    {
+      "path": ".scratch/dev/test-suites/browser/2026-10-11T20-43-38-532Z/receipt.json",
+      "sha256": "658577966ce314cdc7e1646687d30972146a62ab284f9cb316de60091cb205e0"
+    },
+    {
+      "path": ".scratch/dev/test-suites/browser/2026-10-11T22-11-07-841Z/receipt.json",
+      "sha256": "5a4eaa88eb8746df81158e417fc8ee43baf08fe342396845f5ed9315fbb1ca1f"
+    },
+    {
+      "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-11T22-06-58-624Z/receipt.json",
+      "sha256": "3725cadce40484815f63f3f9a547bc3184b843a6dec044f44bb52866ff9a5594"
+    },
+    {
+      "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-11T22-40-27-626Z/receipt.json",
+      "sha256": "e23c0c976dff82db16245ceb4ec3b0969f04c92a4ac1b7ef33c89f842e9bf059"
+    },
+    {
+      "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-11T22-45-39-472Z/receipt.json",
+      "sha256": "4f0984f9309a616dd2e3c5d76e1ff9334462485ef8a0b14b678a5687eb64d51c"
+    }
+  ],
+  "allRequiredCaseTitlesProjectsMatched": true,
+  "allActualReportsExpected1NoSkippedFlakyUnexpectedErrors": true,
+  "all180OwnedDirectoriesActuallyAbsent": true,
+  "originalFourExclusionPolicyPreserved": true,
+  "historicalFailures": {
+    "keyboard299": 1,
+    "assistant6bec": [
+      {
+        "suite": "pms.thai-hotel-v1-ai.journeys",
+        "file": "thai-hotel-v1-ai.spec.ts",
+        "project": "desktop",
+        "title": "H002 AI drafts from authorized versions, cites hotel evidence, then falls back manually",
+        "run": "e7e0cd3ce64d",
+        "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-11T22-11-07-841Z/e7e0cd3ce64d/result.json",
+        "passed": false,
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      }
+    ],
+    "assistant500CauseEstablished": false
+  },
+  "scopeLimits": [
+    "Exact-case/source/cleanup aggregate, not a fresh full180 invocation",
+    "Five business suites have actual compiled release identity; shared144 retain their original development mapping",
+    "Original keyboard failure and assistant initialGET500 remain dated; assistant500 root cause not established",
+    "No live money, real hotel signoff, production publication, whole-plan or per-feature acceptance from this gate alone"
+  ],
+  "nextGates": [
+    "134routes",
+    "10rooming+30rate/report/maintenance HTTP",
+    "strict840reads843writes",
+    "metadata8",
+    "hosted provider7 sandbox",
+    "67feature/19requirement semantic acceptance and final environment/UI"
+  ],
+  "wholePlanAccepted": false
+}

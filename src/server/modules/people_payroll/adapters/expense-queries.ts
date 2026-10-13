@@ -2,19 +2,19 @@ import { runtimeAppSources } from "../../runtime/public/app-native-sources";
 import "server-only";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { holdingResources, runtimeEnv } from "@/server/modules/runtime/public/runtime";
-import { expenseDraftSchema } from "@/server/expense-drafts";
-import { expenseOptions, getExpense } from "@/server/expenses";
-import { expenseRoute } from "@/server/expense-routing";
+import { expenseDraftSchema } from "@/server/modules/people_payroll/adapters/expense-drafts";
+import { expenseOptions, getExpense } from "@/server/modules/people_payroll/adapters/expenses";
+import { expenseRoute } from "@/server/modules/people_payroll/adapters/expense-routing";
 import { activeStaff } from "@/server/modules/operations/public/staff-policy";
 import { staffSettings } from "@/server/modules/operations/public/staff-settings";
 import { namedRoute } from "@/server/modules/records/public/request-preview";
-import { expenseAiStatus, queueExpenseAi } from "@/server/expense-ai";
+import { expenseAiStatus, queueExpenseAi } from "@/server/modules/people_payroll/adapters/expense-ai";
 import { ApiError } from "@/server/modules/runtime/public/http";
 import { createExpensePreview } from "../application/expense-preview";
 import { createExpensePostingPreview } from "../application/expense-posting-preview";
 import { expenseJournalProjection, expensePostingAccounts } from "@/server/modules/finance/public/expense-posting-projection";
 import { expensePostingConfiguration } from "@/server/modules/commerce/public/expense-posting-configuration";
-import type { ExpenseRow } from "@/server/expenses";
+import type { ExpenseRow } from "@/server/modules/people_payroll/adapters/expenses";
 
 export async function expensePostingPreview(actor: WorkContext, expense: ExpenseRow) {
   return createExpensePostingPreview({ repository: async () => {

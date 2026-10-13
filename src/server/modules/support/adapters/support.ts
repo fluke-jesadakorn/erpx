@@ -8,7 +8,7 @@ import 'server-only';
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { Row } from "@/server/modules/commerce/public/commerce";
 import { assertion } from "@/server/modules/workflow/public/commands";
-import { supportRecipientEligibility } from "@/server/support-recipient";
+import { supportRecipientEligibility } from "@/server/modules/support/adapters/support-recipient";
 import { readSourceRecord, visibleSourceRecord, sourceRecordGuards } from "@/server/modules/records/public/source-record-policy";
 import type { SqlDatabase, SqlStatement } from "@/server/modules/runtime/public/runtime/types";
 import { nativeSupportRuntime } from "./command-runtime";

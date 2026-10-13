@@ -1,1 +1,0 @@
-export {messagingGuard,messagingRoom,messagingPeople,createMessagingRoom,createMessagingTeam,createMessagingChannel,messagingMembers,manageMessaging,messagingOverview,messagingHistory,sendMessagingMessage,readMessaging,messagingFile,roomSchema,teamSchema,channelSchema,manageSchema,messageSchema} from './modules/collaboration/public/messaging';

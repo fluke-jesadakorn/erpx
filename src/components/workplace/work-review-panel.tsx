@@ -8,14 +8,14 @@ import { Button } from "@/components/ui/foundation";
 
 import { useEffect, useRef, useState } from "react";
 import { Dialog } from "@/components/ui/dialog";
-import { workFetch } from "@/lib/work-fetch";
-import { workItemHref, type WorkItem } from "@/lib/work-item";
+import { workFetch } from "@/lib/work_projection/work-fetch";
+import { workItemHref, type WorkItem } from "@/lib/work_projection/work-item";
 import {
   workReviewCommand,
   type WorkReview,
   type WorkReviewKind,
   type ReviewDecision,
-} from "@/lib/work-review";
+} from "@/lib/work_projection/work-review";
 import { ReviewDecisionForm } from "./review-decision";
 import styles from "./work-review-panel.module.css";
 

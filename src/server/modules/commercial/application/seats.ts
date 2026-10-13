@@ -1,4 +1,4 @@
-import {monthBounds} from '@/lib/billing';
+import {monthBounds} from "@/lib/billing/billing";
 import type {Clock} from '../../shared';
 import {deriveHoldingSeatIntervals,summarizeControlSeats,type HoldingSeatMeter,type ActiveSeatSnapshot,type MonthlySeatSummary,type AssignmentEvent,type MemberEvent,type RoleEvent,type SeatSnapshotHeader,type SeatSummaryRow,type SeatControlAccount} from '../domain/seats';
 export interface SeatMeterRepository{

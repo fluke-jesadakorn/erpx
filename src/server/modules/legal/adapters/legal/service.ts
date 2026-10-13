@@ -3,8 +3,8 @@ import { finalRootOwnerProjectionSources as workflowProjectionSources } from "..
 import {legalHoldNotificationInsert} from "../../../collaboration/public/legal-hold-notifications";
 import "server-only";
 import {createHash} from "node:crypto";
-import {samePerson} from "@/lib/iam";
-import {hasPermission,permissionCatalog} from "@/lib/permissions";
+import {samePerson} from "@/lib/identity_access/iam";
+import {hasPermission,permissionCatalog} from "@/lib/identity_access/permissions";
 import {productionFeatureGuard} from "../../../pms/public/hospitality-rollout";
 import type {WorkContext} from "../../../identity_access/public/authorization";
 import {requirePermission} from "../../../identity_access/public/iam-permissions";

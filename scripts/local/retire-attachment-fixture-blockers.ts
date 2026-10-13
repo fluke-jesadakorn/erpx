@@ -11,12 +11,12 @@ import { promisify } from "node:util";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { Pool } from "pg";
-import { getRuntime, closeRuntime } from "../../src/server/runtime/env";
-import { resourceSlots, registeredResources } from "../../src/lib/holding-registry";
-import { backfillLegacyAttachments, backfillSpecializedAttachments, reconcileAttachmentStorage } from "../../src/server/attachments/migration";
-import { billingEvidenceStore, reconcileBillingEvidenceStorage } from "../../src/server/billing-attachments";
-import { attachmentUploadsFrozen, attachmentsV2Enabled } from "../../src/server/attachments/feature";
-import type { FileStore } from "../../src/server/runtime/types";
+import { getRuntime, closeRuntime } from "../../src/server/modules/runtime/adapters/runtime/env";
+import { resourceSlots, registeredResources } from "../../src/lib/runtime/holding-registry";
+import { backfillLegacyAttachments, backfillSpecializedAttachments, reconcileAttachmentStorage } from "../../src/server/modules/files/public/attachments/migration";
+import { billingEvidenceStore, reconcileBillingEvidenceStorage } from "../../src/server/modules/billing/public/billing-attachments";
+import { attachmentUploadsFrozen, attachmentsV2Enabled } from "../../src/server/modules/files/public/attachments/feature";
+import type { FileStore } from "../../src/server/modules/runtime/adapters/runtime/types";
 
 const exec = promisify(execFile);
 const apply = process.argv.includes("--apply");

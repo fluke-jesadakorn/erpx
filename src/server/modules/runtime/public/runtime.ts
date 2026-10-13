@@ -1,3 +1,3 @@
 /** Compatibility entry; its legacy implementation is tracked in ownership.json. */
-export { runtimeEnv, isHoldingId, holdingResources, holdingMigrationDatabase, holdingBindingBySlug, defaultHoldingBinding, activeHoldingBindings } from "../../../runtime";
-export type { HoldingId, HoldingBinding } from "../../../runtime";
+export { runtimeEnv, isHoldingId, holdingResources, holdingMigrationDatabase, holdingBindingBySlug, defaultHoldingBinding, activeHoldingBindings } from "@/server/modules/runtime/adapters/runtime";
+export type { HoldingId, HoldingBinding } from "@/server/modules/runtime/adapters/runtime";

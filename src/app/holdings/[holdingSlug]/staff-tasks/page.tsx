@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 export default async function Tasks({
   params,
   searchParams,

@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash, createHmac, randomUUID, randomBytes, createCipheriv, createDecipheriv, timingSafeEqual } from "node:crypto";
-import { type BookingSearch } from "@/lib/pms-booking";
+import { type BookingSearch } from "@/lib/pms/pms-booking";
 import { type Kind, type Property, type Snapshot } from "@/server/modules/pms/public/rules/pms";
 import { effects as persistPmsEffects, persistPmsRecords } from "@/server/modules/pms/public/pms";
 import { stripeCall } from "@/server/modules/pos/public/pos-stripe";
@@ -12,7 +12,7 @@ import { requirePermission } from "@/server/modules/identity_access/public/iam-p
 import { holdingBindingBySlug, holdingResources, runtimeEnv } from "@/server/modules/runtime/public/runtime";
 import { isTransactionalSqlDatabase, type SqlDatabase, type TransactionalSqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import type { SqlStatement } from "../../runtime/public/runtime/types";
-import type { Effects } from "@/lib/pms-engine";
+import type { Effects } from "@/lib/pms/pms-engine";
 import { createPmsBooking, type PmsBookingUnit, type PmsBookingRepository } from "../application/pms-booking";
 import { publicReservationSchema, type BookingEnv, type BookingPaymentRow, type PaymentAllocation } from "../domain/booking";
 import { processBookingRefund } from "../public/pms-booking-refunds";
@@ -195,11 +195,11 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingUnit
             fact0: `${string}-${string}-${string}-${string}-${string}`;
             id: string;
             stayId: string;
-            folioId: string;
+            guestAccountId: string;
             id2: string;
             amount: number;
             now: number;
-        }) => db.prepare('INSERT INTO pms_booking_allocations(id,payment_id,stay_id,folio_id,entry_id,amount_minor,created_at) VALUES(?,?,?,?,?,?,?)').bind(facts.fact0, facts.id, facts.stayId, facts.folioId, facts.id2, facts.amount, facts.now).run(),
+        }) => db.prepare('INSERT INTO pms_booking_allocations(id,payment_id,stay_id,guest_account_id,entry_id,amount_minor,created_at) VALUES(?,?,?,?,?,?,?)').bind(facts.fact0, facts.id, facts.stayId, facts.guestAccountId, facts.id2, facts.amount, facts.now).run(),
         writePmsBookingPayments6: (facts: {
             now: number;
             id: string;
@@ -265,7 +265,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingUnit
             id: string;
             id2: string;
             id3: string;
-        }) => db.prepare("SELECT id,kind,created_at FROM pms_documents WHERE property_id=? AND folio_id IN (SELECT id FROM pms_records WHERE property_id=? AND kind='folio' AND data_json::jsonb->>'reservationId'=?) ORDER BY created_at DESC LIMIT 100").bind(facts.id, facts.id2, facts.id3).all<{
+        }) => db.prepare("SELECT id,kind,created_at FROM pms_documents WHERE property_id=? AND guest_account_id IN (SELECT id FROM pms_records WHERE property_id=? AND kind='guest_account' AND data_json::jsonb->>'reservationId'=?) ORDER BY created_at DESC LIMIT 100").bind(facts.id, facts.id2, facts.id3).all<{
             id: string;
             kind: string;
             created_at: number;

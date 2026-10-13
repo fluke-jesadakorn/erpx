@@ -1,4 +1,4 @@
-import { billingMonth, monthBounds } from "@/lib/billing";
+import { billingMonth, monthBounds } from "@/lib/billing/billing";
 import {
   rateTargetAi,
   rateTargetBase,
@@ -7,7 +7,7 @@ import {
   targetServiceWindow,
   unionSeatIntervals,
   type TargetPrice,
-} from "@/lib/billing-target-pricing";
+} from "@/lib/billing/billing-target-pricing";
 import type {PriceRow,TargetMeasuredEvidence,MeterRow,TargetRatedLine,TargetBillingPeriodView,OperatingCostsRow,MeasuredSnapshotRow,CurrentSeatsRow,MeasuredMetersRow,MeasuredSeatIntervalsRow,AssignedOfferingRow,AssignedPriceRow,ApprovedRatingRow,ApprovedInvoiceRow,ApprovedStatementsRow,RolloutEligibilityRow,LegacyEnrollmentOverlapRow,MonthInvoicesRow,PaymentConsentRow,RatingSnapshotRow,RatingMetersRow,ProviderCostsRow,ProviderStatementsRow,ApprovedExtrasRow,RatingSeatIntervalsRow} from '../domain/target';
 
 export interface TargetBillingRepository{operatingCosts(holdingId:string,month:string):Promise<{rows:OperatingCostsRow[];rowCount:number|null}>;

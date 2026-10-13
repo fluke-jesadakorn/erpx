@@ -1,7 +1,7 @@
 import { commerceFinalOwnerProjectionSources as procurementProjectionSources } from "../../procurement/public/commerce-final-owner-projection-sources";
 import { commercialOwnerProjectionSources as financeProjectionSources } from "../../finance/public/commercial-owner-projection-sources";
 import type {SqlDatabase} from '../../runtime/public/runtime/types';
-export function createFlowRoutingSourceRepository(database:SqlDatabase){return {readWorkFulfillmentsRows(companyId:string){return database.prepare(`SELECT f.id,f.order_id,f.invoice_id,j.status journal_status,
+export function createFlowRoutingSourceRepository(database:SqlDatabase){return {readServiceOrder(companyId:string,id:string){return database.prepare("SELECT 1 FROM commerce_order_lines l JOIN commerce_orders o ON o.id=l.order_id WHERE o.id=? AND o.company_id=? AND l.item_type='service' LIMIT 1").bind(id,companyId).first();},readWorkFulfillmentsRows(companyId:string){return database.prepare(`SELECT f.id,f.order_id,f.invoice_id,j.status journal_status,
       (NOT EXISTS(SELECT 1 FROM (${procurementProjectionSources.procurement_bill_match_receipts}) br WHERE br.fulfillment_id=f.id AND br.active=TRUE)
        OR EXISTS(SELECT 1 FROM (${procurementProjectionSources.procurement_bill_match_receipts}) br JOIN (${procurementProjectionSources.procurement_bill_matches}) m ON m.id=br.match_id WHERE br.fulfillment_id=f.id AND br.active=TRUE AND m.status='approved')) ready
       FROM commerce_fulfillments f JOIN commerce_orders o ON o.id=f.order_id

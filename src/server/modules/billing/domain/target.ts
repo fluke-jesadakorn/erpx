@@ -1,5 +1,5 @@
 
-import {type TargetPrice} from "@/lib/billing-target-pricing";
+import {type TargetPrice} from "@/lib/billing/billing-target-pricing";
 export type AssignmentRow = {
   holding_id: string; effective_month: string; price_id: string;
   mode: "shadow" | "sandbox_invoice"; service_started_at: string;

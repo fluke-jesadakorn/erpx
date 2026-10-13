@@ -2,7 +2,7 @@
 import { DraftFormDrawer } from "@/components/ui/draft-form-drawer";
 import { useRouter } from "next/navigation";
 import { useEmbeddedRecord } from "@/components/records/record-context";
-import { recordDrawerHref } from "@/lib/record-drawer";
+import { recordDrawerHref } from "@/lib/records/record-drawer";
 import { RecordLink } from "@/components/records/record-link";
 import { DialogClose } from "@/components/ui/dialog";
 import { FormGrid, FormLayout } from "@/components/ui/patterns";
@@ -12,9 +12,9 @@ import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, Table, TextArea, TextInput, LocalTabs, TabsList, TabsTrigger, TabsPanel } from "@/components/ui/foundation";
 
-import { TimeText } from "@/components/time/time-preference-context";
+import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 import { BarChart3, BookOpen, Globe2, Plus, X, Scale } from "lucide-react";
-import { workFetch } from "@/lib/work-fetch";
+import { workFetch } from "@/lib/work_projection/work-fetch";
 import { LegalApproval, LegalEditor } from "./legal-review";
 import { LegalReports } from "./legal-reports";
 import { LegalGovernance } from "./legal-governance";
@@ -31,7 +31,7 @@ import { LegalWorkQueue } from "./legal-work-queue";
 import { LegalAssignment } from "./legal-assignment";
 import { LegalDocumentTextReview } from "./legal-document-text-review";
 import { useLegalPeople } from "./legal-person-select";
-import { createLegalCommandClient } from "@/lib/legal/command-client";
+import { createLegalCommandClient } from "@/lib/shared/legal/command-client";
 import { useState, useCallback, useEffect, useMemo, useRef, type FormEvent } from "react";
 import { OperationSummary } from "@/components/workplace/operation-summary";
 import {

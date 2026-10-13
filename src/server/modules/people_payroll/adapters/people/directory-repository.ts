@@ -11,19 +11,22 @@ import { peopleDirectoryAssignmentFacts } from '../../../identity_access/public/
 import { peopleDirectoryHierarchyFacts } from '../../../organization/public/directory-projection-facts';
 export type { DirectorySelection, DirectorySelectionRecord } from '../../domain/directory-projection';
 const currentPeoplePredicate = `p.status='active' AND p.merged_into_id IS NULL
+  AND e.worker_type='employee'
   AND e.status IN ('active','suspended')
   AND e.start_date<=CURRENT_DATE::text
   AND (e.end_date IS NULL OR e.end_date>=CURRENT_DATE::text)`;
 const archivedPeopleFrom = `FROM hr_people p
   LEFT JOIN LATERAL (
     SELECT x.id,x.company_id,x.branch_id,x.department_id,x.position_id,x.job_title,x.status
-    FROM hr_engagements x WHERE x.person_id=p.id AND x.company_id=p.company_id
+    FROM hr_engagements x WHERE x.person_id=p.id AND x.company_id=p.company_id AND x.worker_type='employee'
     ORDER BY CASE WHEN x.status IN ('active','onboarding','suspended') THEN 0 ELSE 1 END,
       x.start_date DESC,x.id LIMIT 1
   ) e ON true
   LEFT ${organizationFinalSources.people_directory_repository_organization_positions_op_join}
     ON op.id=e.position_id AND op.company_id=p.company_id AND op.active=1
   WHERE p.company_id=? AND p.merged_into_id IS NULL
+    AND (EXISTS(SELECT 1 FROM hr_engagements employee WHERE employee.person_id=p.id AND employee.company_id=p.company_id AND employee.worker_type='employee')
+      OR NOT EXISTS(SELECT 1 FROM hr_engagements any_engagement WHERE any_engagement.person_id=p.id AND any_engagement.company_id=p.company_id))
     AND (p.status='archived' OR e.status='ended')
     AND NOT EXISTS (SELECT 1 FROM hr_engagements current
       WHERE current.person_id=p.id AND current.company_id=p.company_id

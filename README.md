@@ -4,6 +4,8 @@ Start with the [current production plan](docs/production-plan.md): engineering c
 
 Active deployment: [Node.js/PostgreSQL on this Mac through Cloudflare Tunnel](ops/macos/README.md), per [ADR-024](docs/adr/ADR-024-local-postgresql-runtime.md). Cloudflare Workers configuration is historical. Use `bun run deploy:build` for an isolated release build; building does not authorize deployment.
 
+## Recovery
+
 Rust/Dioxus/Tonic/SQLx 137 crates (`:3004/:50051`) hard-cut to **Next.js 16** on `development` (`d15909bb`). Docs preserved, code not migrated. Recovery:
 
 ```bash
@@ -15,12 +17,12 @@ git show cc0887d --stat                    # baseline
 
 ## Stack
 
-Next.js 16 App Router + React 19 + TypeScript + Tailwind 4, built as a standalone Node.js 24.20.0 release. Bun 1.2.17 manages the toolchain; PostgreSQL 18.6 stores relational data and durable jobs, and private filesystem adapters store evidence. Cloudflare Tunnel provides HTTPS ingress. No Cargo.
+Next.js 16.4 App Router + React 19.3 + TypeScript + Tailwind 4, built as a standalone Node.js 26.11.1 release. Bun 1.4.3 manages the toolchain; PostgreSQL 18.6 stores relational data and durable jobs, and private filesystem adapters store evidence. The installed private production service remains on Node.js 24.20.0 until a reviewed release is deployed. Cloudflare Tunnel provides HTTPS ingress. No Cargo.
 
 ```bash
 bun install --frozen-lockfile
 # On a fresh checkout/source archive, generate Next's ignored type declarations.
-# Use the pinned Node 24.20.0 executable on PATH.
+# Use the pinned Node 26.11.1 executable on PATH.
 node node_modules/next/dist/bin/next typegen
 # Configure absolute data/manifest paths and a separate development PostgreSQL URL first.
 bun run seed:local           # development data only; never production
@@ -34,7 +36,14 @@ The rich local dataset and demo personas are documented in [docs/local-seed.md](
 
 ## Structure
 
-`src/app/` (workplace and APIs) · `src/server/` (policy/domain) · `scripts/local/` (jobs and operations) · `migrations/postgres/` · `ops/macos/` · `docs/` hub (`docs/TOC.md`) · `Designed/mockup/` reference · `fixtures/` · `ops/`
+- `src/app/`: Next.js routes and APIs; route filenames and URLs retain framework conventions.
+- `src/server/modules/<owner>/`: domain, application, adapters and named public APIs. Consumers enter through `public/`; implementation files have one canonical location.
+- `src/components/<owner>/` and `src/lib/<owner>/`: owner-specific presentation and helpers. UI primitives live in `components/ui/`, the shared shell in `components/workplace/`, and common helpers in `lib/shared/`.
+- `tests/{unit,integration,e2e,journeys,uat,provider}/<owner>/`: executable suites, assigned from the catalogue rather than filenames. `tests/support/` holds helpers/setup; `tests/catalogue/` holds required-case registers; `tests/config/` holds runner/typecheck configuration.
+- `scripts/{testing,performance,seed,docs,assets,ui,local}/`: executable tooling by purpose. `fixtures/<owner>/`: fixture data and builders shared by seeds and tests. Executable fixture preparation belongs in `scripts/testing/fixtures/`.
+- `migrations/postgres/`: existing database tracks; `ops/`: operations; `docs/TOC.md`: documentation hub, with research in `docs/research/` and verification in `docs/testing/`.
+
+Register every test in `tests/catalogue/suite-manifest.json`, place it under its declared lane and owner, and keep test support outside executable suite folders. Use the owner's public entry point rather than adding legacy forwarding modules. `bun run structure:check` verifies these placement rules. The sole retained legacy runtime entry supports the unchanged staging bootstrap.
 
 ## Business context
 
@@ -46,7 +55,7 @@ The rich local dataset and demo personas are documented in [docs/local-seed.md](
 
 ### Playwright end-to-end tests
 
-Use Node 24.20.0 and Bun 1.2.17. Install Chromium once with
+Use Node 26.11.1 and Bun 1.4.3. Install Chromium once with
 `bunx playwright install chromium`. Reuse the development server on port 3100,
 or start `bun run dev` after checking that the port is free. Playwright uses
 `http://127.0.0.1:3100` by default and does not manage the server lifecycle.
@@ -75,7 +84,7 @@ and cancels them while preserving audit history. It skips remote targets.
 Set `ERPX_E2E_BASE_URL` to test another running deployment. Remote authenticated
 smoke tests require explicit account environment variables; otherwise that test
 is skipped. Existing business suites have separate fixture requirements (see
-each spec and `scripts/seed-*-e2e.ts`), and some still depend on historical
+each spec and `scripts/seed/seed-*-e2e.ts`), and some still depend on historical
 Cloudflare fixtures; passing smoke tests does not certify those suites.
 Failure screenshots and traces are saved under ignored `test-results/`, with an
 HTML report under `playwright-report/`. Traces can contain session data; keep

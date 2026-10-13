@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { guestInputSchema } from "@/lib/pms-booking-domain";
+import { guestInputSchema } from "@/lib/pms/pms-booking-domain";
 export type BookingEnv = {
     secret: string;
     origin: string;
@@ -32,7 +32,7 @@ export type BookingPaymentRow = {
 };
 export type PaymentAllocation = {
     stayId: string;
-    folioId: string;
+    guestAccountId: string;
     amount: number;
 };
 export const publicReservationSchema = z.object({

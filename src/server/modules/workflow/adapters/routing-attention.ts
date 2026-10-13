@@ -1,11 +1,11 @@
 import { workflowRecordPage } from './document-sources';
 import type {SqlStatement, SqlDatabase } from "../../runtime/public/runtime/types";
 import 'server-only';
-import { type FlowKind } from '@/lib/flow';
+import { type FlowKind } from "@/lib/shared/flow";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { companyAuthority } from "@/server/modules/operations/public/staff-policy";
-import { requireFlowAccess } from "@/server/flow-access";
-import { resolveFlow } from "@/server/flow-routing";
+import { requireFlowAccess } from "@/server/modules/workflow/adapters/flow-access";
+import { resolveFlow } from "@/server/modules/workflow/adapters/flow-routing";
 import { holdingResources as nativeHoldingResources } from '../../runtime/public/runtime';
 import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '../../identity_access/public/iam-read-snapshot';
 import { replayCommand as nativeReplayCommand, executeCommand as nativeExecuteCommand } from '../../workflow/public/commands';

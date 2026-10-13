@@ -1,1 +1,1 @@
-export {availability} from '@/lib/pms-inventory';
+export {availability} from "@/lib/pms/pms-inventory";

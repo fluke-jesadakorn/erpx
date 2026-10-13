@@ -1,0 +1,92 @@
+{
+  "checkedAt": "2026-10-11T06:52:35.290610+00:00",
+  "status": "passed",
+  "candidate": {
+    "runtime": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+    "verification": "fb1e307c6be52ea3a280d65cc5c01e02782dcd01728295a1b02b07759a511b64",
+    "release": "2026-10-11T03-48-34-786Z",
+    "softwareVersion": "release-f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+    "fileManifestSHA256": "1e2d510986e638ec4346064dd0e0cfac3ec1c6397fc70d2a74977eebc77f84d0"
+  },
+  "scope": "Original catalogued one-case native encrypted recovery test augmented with genuine PMS-command-owned populated data. Same f13 compiled release controller/manifest, isolated restricted PostgreSQL18.6 and local FileStore. Native application service proof; no HTTP staff login or installed-environment restore asserted.",
+  "observedExitCode": 0,
+  "nativeCases": 1,
+  "originalNativeCountUnchanged": 1342,
+  "notAnAdditionalUnique1343rdCase": true,
+  "sourcePreservation": {
+    "file": "tests/engineering-recovery.test.ts",
+    "beforeSHA256": "8214881129023aa06e055ba3433cc0b48dfd95ea62dfc9bc94cfd7d798864ec8",
+    "afterSHA256": "eba0733f74e1a8569f7862361cc0905a45ec10366dcf5137622610d812b6fc8e",
+    "allOriginalBytesRecoveredByRemovingOnlyAdditions": true,
+    "originalCaseTitleAndTimeoutUnchanged": true,
+    "mainCandidateEqual": true,
+    "runtimeSourceChanged": false,
+    "execution": "Not executed; focused native test still required."
+  },
+  "sourceFileSHA256": "eba0733f74e1a8569f7862361cc0905a45ec10366dcf5137622610d812b6fc8e",
+  "originalAssertionsPreserved": true,
+  "pms": {
+    "propertyId": "property-6d1dd1a47513286ae33062312e49903b",
+    "reservationId": "bb049ed6-b0cd-49f2-8324-a542e5d443a4",
+    "stayId": "60de1d7d-3b0f-4ea2-96d2-d57e5b5894b6",
+    "guestAccountId": "3b047ba8-a38b-419f-bdc9-8c5d615e9fb0",
+    "roomId": "aecbe337-c760-4907-ad8c-c141f1dcd523",
+    "taskId": "6511a57f-3616-4713-9cee-c0feb7443fdb",
+    "issuedDocuments": 2,
+    "documentsSHA256": "4a6198ea32bf21b4a5693c2cf96fa5a4352e565409128a6aa9391a2f13621156",
+    "ledger": {
+      "journals": 3,
+      "debit": "16400",
+      "credit": "16400"
+    },
+    "privateFileSHA256": "854be8bd44ce1fd5d80c9bc4ecdbda0898c062e741b6c32ac2613254d1b47d9f",
+    "mutatedGuestAndHotelRestored": true,
+    "identicalPaymentReplay": true,
+    "originalPmsSnapshotRetained": true
+  },
+  "encryptedRecovery": {
+    "databaseCount": 8,
+    "tableCount": 2486,
+    "tracks": [
+      "CONTROL_DB",
+      "CONTROL_READ_DB",
+      "H001_DB",
+      "H001_READ_DB",
+      "H002_DB",
+      "H002_READ_DB",
+      "H003_DB",
+      "H003_READ_DB"
+    ],
+    "allHoldingFilesSha256": "22e760aca4a18a6c06d853a78a85c6af2c6bec3e47184c1f0226842de0a2eb7c",
+    "tableDigestSha256": "2aea8d3f87b1486d0f4b74097615d63ddd02586c281e9cd759573c6047fc38af",
+    "ciphertextSha256": "80de2836fbdc50151b9fbe105800fe730faacb41217f900f7f55d97f3049b763",
+    "restored": true,
+    "compatibleRollback": true,
+    "incompatibleRollbackRejected": true,
+    "ciphertextTamperingRejected": true
+  },
+  "proofScope": [
+    "Hotel, room type/rate, guest, booking and in-house stay created through PMS owner",
+    "Separate Finance reviewer approves accounting; separate inspector completes room readiness",
+    "Original cash receipt and security deposit generate two immutable PMS documents and three balanced journals",
+    "Deliberately changed hotel/guest restored to exact full original snapshot",
+    "PMS private hotel file restored byte-for-byte",
+    "Identical original payment command/key replay returns same receipt, full PMS state/documents/journals unchanged",
+    "All complete database table and FileStore digests remain exact; compatible rollback and tampered encrypted archive refusal retained"
+  ],
+  "rawReceipt": {
+    "path": ".scratch/dev/engineering-completion/runs/pms-specific-f13-restore-2026-10-11/encrypted-recovery.json",
+    "sha256": "362792bb5eb52969139890ff29c81b849e3ea6c32afe4e6d542587a12b25a1c8"
+  },
+  "log": {
+    "path": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/work-filter-harness/pms-recovery-native.log",
+    "sha256": "735f35e4eea876ba12049316b851c5530f671e0c9247db9be6bcc5084a3c3c88"
+  },
+  "cleanup": {
+    "nativeOwnedEightDatabaseLifecycleCompleted": true,
+    "temporaryNativeDirectoriesRemaining": 0
+  },
+  "realMoney": false,
+  "stagingAccessed": false,
+  "wholePlanAccepted": false
+}

@@ -1,0 +1,127 @@
+{
+  "run": "d3a128fc7d7d",
+  "sourceFingerprint": "d78524a42e7551686d8972004964b26f689e8024c0b43347810e380143daff71",
+  "verificationFingerprint": "0f6aaf80757e40347a5c377768a4763f264b4cab275894ba3b8cc7821eae30ea",
+  "release": {
+    "id": "2026-10-09T20-01-47-890Z",
+    "fileManifestSha256": "ba4088c55fd021cf0b5bc1f09f0d527bba0dd645e20a9f04127a2c7f02e2acc1"
+  },
+  "scope": "Release HTTP: 3 × 200 rooms, 730-day synthetic closed stay/reservation/account metadata; 20 distinct normal staff accounts. Historic revenue is not invented.",
+  "applicationPoolMax": 8,
+  "controlPoolMax": 5,
+  "jobsHoldingPoolMax": 1,
+  "counts": [
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    }
+  ],
+  "accounts": 20,
+  "rounds": 10,
+  "durationMs": 55022,
+  "readCount": 840,
+  "writeCount": 400,
+  "readP95Ms": 306.76941700000316,
+  "writeP95Ms": 2133.3886249999996,
+  "failedSamples": 0,
+  "sameProcesses": true,
+  "unchanged": true,
+  "samplesSha256": "2066f7d0668b7d2dfbf327f9191535f1b92f4534bbcdc30eea249ce2724c02e2",
+  "passed": false,
+  "acceptance": false,
+  "timingSamplesSha256": "eda71f28b43a584653cec135f6de88b126db4c4d3b1496edd084c0f01c98f67c",
+  "interpretation": "A fresh, invocation-local authoritative IAM SQL snapshot preserves published role, member, directory, person aliases, emergency session and HR appointment policy. Same-transaction mutation guards remain. All 840 reads and 400 logical writes, original-envelope replay and exact money snapshots pass with unchanged source/assertions and web/jobs processes. Read p95 307 ms; write p95 2133 ms still exceeds the unchanged two-second target. This is focused diagnostic evidence, not financial-operation scaling or overall PMS acceptance.",
+  "verification": {
+    "identityUnitCases": 50,
+    "iamIntegrationCases": 27,
+    "departmentAuthorityCases": 11,
+    "pmsIntegrationCases": 50,
+    "bookingIntegrationCases": 37,
+    "providerUnitCases": 11,
+    "iamThrottleCases": 2,
+    "totalCases": 188,
+    "typecheck": true,
+    "lint": {
+      "passed": true,
+      "warnings": 3
+    },
+    "architecture": true,
+    "isolatedReleaseBuild": true,
+    "documentation": true
+  },
+  "regressions": [
+    "Company-scoped fallback person aliases exclude foreign principals; a subsequent authority invocation immediately rejects newly suspended membership.",
+    "Existing native cases preserve immediate emergency revocation, directory evidence expiry, published role revisions, alias self-review rejection, HR appointment gain/loss and same-transaction write denial.",
+    "Money replay reconciliation retains exactly 200 new reservations and 200 room-total snapshots totalling 141240000 minor units."
+  ],
+  "logs": {
+    "final-tests": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-authority-snapshot-final-tests.log",
+      "sha256": "b3efc74ae7ac1fbbd941fcb56b3663eb1dab097a6cf1d662fc16975630209ffa"
+    },
+    "recovery-tests": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-authority-snapshot-recovery-tests.log",
+      "sha256": "2826fd485bbf95d71305fffc992943bd21a939149855b2a125c49f8f805b8302"
+    },
+    "final-typecheck": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-authority-snapshot-final-typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "lint": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-authority-snapshot-lint.log",
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    },
+    "architecture": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-authority-snapshot-architecture.log",
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    "build": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-authority-snapshot-build.log",
+      "sha256": "5964dc8ec3ae94d9ec3092b2f84a0d152d89c460864ab5fec854207b2fcdec8b"
+    },
+    "prepare": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-authority-snapshot-prepare.log",
+      "sha256": "9c13a4c07b2a7757c070a2a2d3628b25aa6faebabb4662dd9d1146071a2589a9"
+    },
+    "start": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-authority-snapshot-start.log",
+      "sha256": "1fb8ea5a7fe725bdd0a2f5314bb9500377612b6b7368bc4946adee58ea7f2fd1"
+    },
+    "performance": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-authority-snapshot-performance.log",
+      "sha256": "a611c3b15ed224d7dd5e54a0f3676e43288367bb219253f86019bbc23b84c693"
+    },
+    "destroy": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-authority-snapshot-destroy.log",
+      "sha256": "21ead44d5b7a03990a8d37ebeae0c770503ef4975541a00693e500b534294ce7"
+    },
+    "documentation": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-authority-snapshot-docs.log",
+      "sha256": "1e79f1e88d59750623bc4d8576ce04298e90071fa7f430e38b620db7c89d70d3"
+    }
+  },
+  "environment": {
+    "ownedCohortRemoved": true,
+    "localDevelopmentHealth": 200,
+    "publicDevelopmentHealth": 200,
+    "privateProductionHealthOnly": 200,
+    "postgresListener": 5432,
+    "publicStaffPage": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms",
+    "publicStaffPageObservation": "Normal expired-session login; public staff appearance remains unverified. Compiled cohort users authenticate normally.",
+    "productionOrStagingChanged": false
+  }
+}

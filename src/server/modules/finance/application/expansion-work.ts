@@ -1,6 +1,6 @@
-import type { WorkItem } from '@/lib/work-item';
-import { hasPermission } from '@/lib/permissions';
-import { samePerson } from '@/lib/iam';
+import type { WorkItem } from "@/lib/work_projection/work-item";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { samePerson } from "@/lib/identity_access/iam";
 import type { WorkContext } from '@/server/modules/identity_access/public/authorization';
 export type ExpansionWorkRow = {
     id: string;

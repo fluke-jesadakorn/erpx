@@ -1,13 +1,13 @@
 import { Table, TableFrame } from "@/components/ui/foundation";
-import { FeaturePage } from "@/components/features/feature-page";
+import { FeaturePage } from "@/components/shared/features/feature-page";
 import {
   CalculationDecision,
   CalculationRunForm,
 } from "@/components/finance/finance-engine-controls";
 import { AccrualScheduleConsole } from "@/components/finance/finance-accrual-controls";
 import { FinanceWorkspace, financeStyles as styles } from "@/components/finance/finance-workspace";
-import { workspaceBase } from "@/lib/workspace";
-import { hasPermission } from "@/lib/permissions";
+import { workspaceBase } from "@/lib/work_projection/workspace";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { financeEngineWorkspace } from "@/server/modules/finance/public/finance-engines";
 import { accrualSchedulePage } from "@/server/modules/finance/public/finance-accruals";

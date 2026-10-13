@@ -1,6 +1,6 @@
-import { samePerson } from "@/lib/iam";
+import { samePerson } from "@/lib/identity_access/iam";
 import { z } from "zod";
-import { serviceCategories, type RequestKind } from "@/lib/employee-services";
+import { serviceCategories, type RequestKind } from "@/lib/people_payroll/employee-services";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { RecordScope, ApprovalRoute } from "@/server/modules/operations/public/staff-policy";
 export const employeeRequestSchema = z.object({

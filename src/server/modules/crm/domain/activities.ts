@@ -1,6 +1,6 @@
 import {z} from "zod";
 import type {Row} from "../../commerce/public/commerce";
-import type {WorkItem} from "@/lib/work-item";
+import type {WorkItem} from "@/lib/work_projection/work-item";
 const text=z.string().trim().min(3).max(2000),version=z.number().int().positive(),id=z.string().min(1);
 export const crmActivityCreateSchema=z.object({leadId:id,expectedVersion:version,activityType:z.enum(['call','email','meeting','task']),subject:z.string().trim().min(3).max(200),details:text,ownerId:id,dueDate:z.iso.date()});
 export const crmActivityChangeSchema=z.discriminatedUnion('action',[

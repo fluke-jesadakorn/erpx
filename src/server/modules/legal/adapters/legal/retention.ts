@@ -1,5 +1,5 @@
 import "server-only";
-import {samePerson} from "@/lib/iam";
+import {samePerson} from "@/lib/identity_access/iam";
 import type {SqlDatabase,SqlStatement} from "../../../runtime/public/runtime/types";
 import type {WorkContext} from "../../../identity_access/public/authorization";
 import {requirePermission} from "../../../identity_access/public/iam-permissions";

@@ -1,7 +1,7 @@
 import { errorResponse } from "@/server/modules/runtime/public/http";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import { createAuth } from "@/server/modules/identity_access/public/auth";
-import { frontAppForHost, safeFrontReturnPath } from "@/lib/front-host";
+import { frontAppForHost, safeFrontReturnPath } from "@/lib/shared/front-host";
 
 export const dynamic = "force-dynamic";
 

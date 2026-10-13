@@ -5,7 +5,7 @@ export { canonicalInventory, approvedProviderUrl, validateObjectTarget };
 import "server-only";
 import { request } from "node:https";
 import { randomBytes, createHash } from "node:crypto";
-import type { DirectoryAction, DirectoryInventory, DirectoryObject, ConnectorField } from "@/lib/directory-operations";
+import type { DirectoryAction, DirectoryInventory, DirectoryObject, ConnectorField } from "@/lib/identity_access/directory-operations";
 import { directorySecret, assertEmptyUcsContainer, type ProviderConnection } from "@/server/modules/identity_access/public/iam-providers";
 import { ApiError } from "@/server/modules/runtime/public/http";
 type Secret = Awaited<ReturnType<typeof directorySecret>>;

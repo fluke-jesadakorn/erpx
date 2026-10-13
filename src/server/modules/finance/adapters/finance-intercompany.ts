@@ -1,6 +1,6 @@
 import "server-only";
 import type { z } from "zod";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { decimalToMinor } from "@/server/modules/finance/public/finance";
 import { assertion, executeCommand, replayCommand } from "@/server/modules/workflow/public/commands";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";

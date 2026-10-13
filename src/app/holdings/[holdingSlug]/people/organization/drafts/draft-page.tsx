@@ -1,9 +1,9 @@
 import { organizationPresentationQueries } from "@/server/modules/organization/public/presentation-queries";
 
-import styles from "@/components/people/organization-draft-workspace.module.css";
-import { FeaturePage } from "@/components/features/feature-page";
-import { OrganizationDraftWorkspace } from "@/components/people/organization-draft-workspace";
-import { workspaceBase } from "@/lib/workspace";
+import styles from "@/components/people_payroll/organization-draft-workspace.module.css";
+import { FeaturePage } from "@/components/shared/features/feature-page";
+import { OrganizationDraftWorkspace } from "@/components/people_payroll/organization-draft-workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
 import { draftAuthority } from "@/server/modules/organization/public/organization-drafts";
 

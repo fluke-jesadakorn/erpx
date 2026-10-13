@@ -1,12 +1,12 @@
 import { RecordLink as Link } from "@/components/records/record-link";
 import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { fieldServiceDetail } from "@/server/modules/field_service/public/field-service";
-import { FieldServiceConsole } from "@/components/modules/field-service-console";
-import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
-import { minorToDecimal } from "@/lib/finance-money";
-import { hasPermission } from "@/lib/permissions";
+import { FieldServiceConsole } from "@/components/records/loaders/modules--field-service-console";
+import { RecordDocumentPanel } from "@/components/records/loaders/attachments--record-document-panel";
+import { minorToDecimal } from "@/lib/finance/finance-money";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Page({

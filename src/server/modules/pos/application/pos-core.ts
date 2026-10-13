@@ -1,11 +1,12 @@
+import { canonicalGuestAccount, legacyGuestAccount } from "@/lib/identity_access/guest-account-compat";
 import { z } from 'zod';
 import { type PosAccounts, settingsSchema, catalogSchema, money, qty, saleAmounts, recipeQuantities, portion, businessDate as evaluateBusinessDate, accountKeys } from "../domain/pos";
-import { currencyDefinition } from '@/lib/company-money';
-import { scaledAmount } from '@/lib/commerce-math';
-import { samePerson } from '@/lib/iam';
-import { hasPermission } from '@/lib/permissions';
+import { currencyDefinition } from "@/lib/finance/company-money";
+import { scaledAmount } from "@/lib/commerce/commerce-math";
+import { samePerson } from "@/lib/identity_access/iam";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
-import { posCommerceAccountDefaults, posGeneratedAccountSpecs } from '@/lib/pos-bootstrap';
+import { posCommerceAccountDefaults, posGeneratedAccountSpecs } from "@/lib/pos/pos-bootstrap";
 import type { Clock } from "../../shared/application/ports";
 export type PosRow = Record<string, string | number | boolean | null>;
 export type PosRows<Row> = {
@@ -19,6 +20,16 @@ export type PosAttachmentBinding<Effect> = {
     steps: Effect[];
 };
 export type PosUnit<Effect extends PosEffect> = {
+    reversalRequest(id: string): Promise<PosRow | null>;
+    pendingReversal(saleId: string): Promise<PosRow | null>;
+    saveReversalRequest(row: PosRow): Promise<void>;
+    reviewReversalRequest(id: string, state: string, actorId: string, reason: string, now: number): Promise<void>;
+    prepareAccounting(companyId: string, accounts: PosAccounts, preparedBy: string): Promise<void>;
+    approveAccounting(companyId: string, approvedBy: string): Promise<void>;
+    saveOperationalSettings(companyId: string, enabled: boolean, discount: number): Promise<void>;
+    assertHotelDay(companyId: string, registerId: unknown, date: string): Promise<void>;
+    assertFulfillmentHotelDay(companyId: string, fulfillmentId: unknown, date: string): Promise<void>;
+    linkRegister(id: string, propertyId: string | null): Promise<void>;
     readPosSales1(facts: {
         saleId: string;
     }): Promise<PosRow | null>;
@@ -1502,6 +1513,7 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
         await db.writePosSales2({ fact0: ports.clock.now(), id: sale.id });
     }
     async function completeSale(db: PosUnit<Effect>, sale: PosRow, actorId: string, date?: string) {
+        await db.assertHotelDay(str(sale,'company_id'), sale.register_id, date ?? str(sale,'business_date'));
         if (sale.state === 'completed')
             return { id: sale.id, state: 'completed', invoiceId: sale.invoice_id };
         if (!['open', 'held', 'payment_pending'].includes(str(sale, 'state')))
@@ -1559,17 +1571,34 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
     }
     const keySchema = z.string().regex(/^[a-zA-Z0-9:_.-]{8,180}$/);
     const base = z.object({ id: z.string().min(1), expectedVersion: z.number().int().positive() });
-    const permissionFor = (op: string) => op === 'day.confirm' || op === 'payment.verify_transfer' || op === 'sale.reverse_room_charge' || op === 'settlement.refresh' ? 'finance.approve' : op === 'day.prepare' ? 'pos.approve' : op.startsWith('settings') || op.startsWith('register') || op.startsWith('catalog') || op.startsWith('table.') ? 'pos.configure' : op.startsWith('kitchen.') ? 'pos.kitchen' : op === 'refund.approve' || op === 'refund.reject' || op === 'sale.approve_discount' || op === 'shift.review' || op === 'cash.approve' || op.startsWith('exception.') || op.startsWith('settlement.') ? 'pos.approve' : op.startsWith('connection.') ? 'pos.payments.configure' : 'pos.sell';
+    const permissionFor = (op: string) =>
+        op === 'room_charge_reversal.approve_pms' || op === 'room_charge_reversal.reject_pms' ? 'pms.approve'
+        : op === 'room_charge_reversal.approve_pos' || op === 'room_charge_reversal.reject_pos' ? 'pos.approve'
+        : op === 'room_charge_reversal.request' ? 'pos.sell'
+        : op === 'accounting.prepare' || op === 'settings.bootstrap' || op === 'settings.save' ? 'pos.accounting.prepare'
+        : op === 'accounting.approve' ? 'pos.accounting.approve'
+        : op === 'sale.reverse_room_charge' ? 'finance.approve'
+        : op === 'day.confirm' || op === 'payment.verify_transfer' || op.startsWith('settlement.') || op === 'exception.attach_provider' ? 'finance.approve'
+        : op === 'day.prepare' ? 'pos.approve'
+        : op === 'settings.operations' || op.startsWith('register') || op.startsWith('catalog') || op.startsWith('table.') ? 'pos.configure'
+        : op === 'kitchen.send' || op === 'kitchen.deliver' ? 'pos.sell' : op.startsWith('kitchen.') ? 'pos.kitchen'
+        : op === 'refund.approve' || op === 'refund.reject' || op === 'sale.approve_discount' || op === 'shift.review' || op === 'cash.approve' || op.startsWith('exception.') || op.startsWith('settlement.') ? 'pos.approve'
+        : op.startsWith('connection.') ? 'pos.payments.configure' : 'pos.sell';
     async function posCommand(db: PosRepository<Effect>, actor: WorkContext, operation: string, input: unknown, key: string) {
+        input = canonicalGuestAccount(input);
         keySchema.parse(key);
+
         if (operation.startsWith('connection.')) {
             if (!hasPermission(actor, 'pos.payments.configure') && !hasPermission(actor, 'finance.approve'))
                 fail('POS_CONNECTION_FORBIDDEN', 'Company Finance access is required', 403);
         }
-        else
-            ports.require(actor, permissionFor(operation));
-        if (operation === 'settings.bootstrap')
+        else if (operation === 'exception.retry') {
+            if(!hasPermission(actor,'pos.approve') && !hasPermission(actor,'finance.approve')) ports.require(actor,'pos.approve');
+        } else ports.require(actor, permissionFor(operation));
+        if (operation === 'settings.bootstrap') {
+            ports.require(actor,'pos.configure');
             ports.require(actor, 'finance.write');
+        }
         if (actor.departmentId)
             fail('POS_BRANCH_REQUIRED', 'Select a company or branch for POS', 403);
         if (ports.environment("NODE_ENV") === 'production' && operation.startsWith('connection.') && ports.environment("POS_STRIPE_LIVE_ENABLED") !== 'true')
@@ -1588,10 +1617,10 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
                 await tx.writeContext1({ companyId: actor.companyId });
                 const old = await tx.readPosReceipts1({ key: key });
                 if (old) {
-                    if (old.request_hash !== hash)
+                    if (old.request_hash !== hash && old.request_hash !== ports.hash(JSON.stringify({ user: actor.userId, assignment: actor.assignmentId, company: actor.companyId, branch: actor.branchId, operation, input: legacyGuestAccount(input) })))
                         fail('IDEMPOTENCY_CONFLICT', 'Command number is already used for other data');
                     await tx.writeCommandAssertions1({ key: key });
-                    return json<Record<string, unknown>>(old.result_json);
+                    return canonicalGuestAccount(json<Record<string, unknown>>(old.result_json));
                 }
                 const attachmentInput = z.object({ id: z.string().min(1), expectedVersion: z.number().int().positive(), attachmentSetIds: z.array(z.string().min(1)).max(20).default([]) }).passthrough().safeParse(input);
                 const attachmentDescriptor = operation === 'sale.cancel' ? { targetType: 'pos_sale', purposeKey: 'void_evidence', bindingType: 'pos_void', componentRef: 'void' }
@@ -1732,10 +1761,80 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
         await db.writePosSettings1({ company: company, currency: currency, fact2: JSON.stringify(accounts) });
         if (!reuseRegister)
             await db.writePosRegisters1({ registerId: registerId, company: company, branchId: branchId, warehouseId: warehouseId, registerName: registerName, mode: p.mode });
+        await db.prepareAccounting(company, accounts as PosAccounts, actor.userId);
         return { id: company, mode: p.mode, registerId, registerName, warehouseId, bankAccountId: accounts.bank, registerReused: reuseRegister, accountsCreated: createdAccounts };
     }
     async function perform(db: PosUnit<Effect>, actor: WorkContext, op: string, input: unknown, commandKey: string): Promise<Record<string, unknown>> {
         const company = actor.companyId, user = actor.userId;
+        let approvedReversalId: string | null = null;
+        let approvedReversalReason: string | null = null;
+        if (op.startsWith('room_charge_reversal.')) {
+            if (!["room_charge_reversal.request","room_charge_reversal.approve_pos","room_charge_reversal.reject_pos","room_charge_reversal.approve_pms","room_charge_reversal.reject_pms"].includes(op)) fail('POS_ACTION_UNKNOWN','Reversal command not found',404);
+            if (op === 'room_charge_reversal.request') {
+                const q = base.extend({ propertyId: z.string().min(1), expectedPropertyVersion: z.number().int().positive(), reason: z.string().trim().min(3).max(1000), restockLineIds: z.array(z.string()).max(100).default([]) }).strict().parse(input);
+                const sale = await saleRow(db, actor, q.id);
+                version(sale, q);
+                const source = await db.readPmsSources1({ fact0: `pos:${sale.id}:${sale.id}`, company, branch_id: sale.branch_id });
+                const property = await db.readPmsProperties2({ propertyId: q.propertyId, company });
+                if (!source || source.property_id !== q.propertyId || !property || property.branch_id !== sale.branch_id)
+                    fail('POS_ROOM_CHARGE_MISSING', 'The linked hotel charge was not found', 404);
+                if (num(property, 'version') !== q.expectedPropertyVersion)
+                    fail('PMS_VERSION_CONFLICT', 'Hotel data changed. Reload and request again.');
+                if (sale.state !== 'completed' || await db.readPosRoomChargeReversals1({ id: sale.id }) || await db.readPosPayments6({ id: sale.id }))
+                    fail('POS_ROOM_CHARGE_REVERSED', 'Only an unreversed full room charge can be requested.');
+                if (await db.pendingReversal(q.id))
+                    fail('POS_REVERSAL_PENDING', 'Review or reject the existing reversal request first.');
+                const lines = await db.readPosLines2({ id: sale.id });
+                if (new Set(q.restockLineIds).size !== q.restockLineIds.length || q.restockLineIds.some(lineId => !lines.some(line => line.id === lineId && line.kind === 'stock' && line.fulfillment_state === 'delivered')))
+                    fail('POS_RETURN_NOT_STOCK', 'Select each delivered stock item at most once.', 422);
+                const requestId = id(), now = ports.clock.now();
+                await db.saveReversalRequest({ id: requestId, sale_id: q.id, company_id: company, branch_id: sale.branch_id, property_id: q.propertyId, sale_version: q.expectedVersion, property_version: q.expectedPropertyVersion, amount_minor: sale.total_minor, reason: q.reason, restock_line_ids_json: JSON.stringify(q.restockLineIds), requested_by: user, created_at: now });
+                return { id: requestId, saleId: q.id, state: 'requested', version: 1 };
+            }
+            const q = base.extend({ reason: z.string().trim().min(3).max(1000) }).strict().parse(input);
+            const request = scopeRow(actor, await db.reversalRequest(q.id));
+            version(request, q);
+            const pms = op.endsWith('_pms'), reject = op.includes('.reject_');
+            if ((!pms && request.state !== 'requested') || (pms && request.state !== 'pos_approved'))
+                fail('POS_REVERSAL_STAGE', 'Complete POS approval before PMS approval.');
+            const sale = await saleRow(db, actor, str(request, 'sale_id'));
+            const chargeAudit = await db.readPosAudit1({ id: sale.id });
+            if (samePerson(actor, request.requested_by) || samePerson(actor, sale.created_by) || chargeAudit && samePerson(actor, chargeAudit.actor_id) || pms && samePerson(actor, request.pos_approved_by))
+                fail('POS_INDEPENDENT_REVIEW', 'The requester, original operator and two approvers must be different people.');
+            if (reject) {
+                await db.reviewReversalRequest(q.id, 'rejected', user, q.reason, ports.clock.now());
+                return { id: q.id, saleId: sale.id, state: 'rejected', version: q.expectedVersion + 1 };
+            }
+            if (sale.version !== request.sale_version || sale.total_minor !== request.amount_minor)
+                fail('POS_REVERSAL_STALE', 'The bill changed. Reject this request and request again.');
+            const property = await db.readPmsProperties2({ propertyId: str(request, 'property_id'), company });
+            if (!property || property.version !== request.property_version || property.state !== 'open')
+                fail('POS_REVERSAL_STALE', 'Hotel data changed. Reject this request and request again.');
+            if (!pms) {
+                await db.reviewReversalRequest(q.id, 'pos_approved', user, q.reason, ports.clock.now());
+                return { id: q.id, saleId: sale.id, state: 'pos_approved', version: q.expectedVersion + 1 };
+            }
+            approvedReversalId = q.id;
+            approvedReversalReason = q.reason;
+            input = { id: sale.id, expectedVersion: request.sale_version, propertyId: request.property_id, expectedPropertyVersion: request.property_version, reason: request.reason, restockLineIds: json<string[]>(request.restock_line_ids_json) };
+            op = 'sale.reverse_room_charge';
+        }
+        if (op === 'accounting.approve') {
+            const q = z.object({ expectedVersion: z.number().int().positive() }).strict().parse(input), settings = await config(db, company);
+            if (actor.branchId) fail('POS_COMPANY_SETTINGS', 'Review accounting at Company scope', 403);
+            version(settings, q);
+            if (!settings.accounting_prepared_by || samePerson(actor, settings.accounting_prepared_by))
+                fail('POS_INDEPENDENT_REVIEW', 'Another accounting reviewer must approve the mapping.');
+            await db.approveAccounting(company, user);
+            return { id: company, state: 'approved', version: q.expectedVersion + 1 };
+        }
+        if (op === 'settings.operations') {
+            const q = z.object({ expectedVersion: z.number().int().positive(), enabled: z.boolean(), cashierDiscountBps: z.number().int().min(0).max(10000) }).strict().parse(input), settings = await config(db, company);
+            if (actor.branchId) fail('POS_COMPANY_SETTINGS', 'Configure company policy at Company scope', 403);
+            version(settings, q);
+            await db.saveOperationalSettings(company, q.enabled, q.cashierDiscountBps);
+            return { id: company, version: q.expectedVersion + 1 };
+        }
         if (op.startsWith('day.'))
             return db.posDayCommand(actor, op, input);
         if (op === 'customer.create')
@@ -1756,7 +1855,7 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
         }
         if (op === 'settings.bootstrap')
             return bootstrapRetail(db, actor, input);
-        if (op === 'settings.save') {
+        if (op === 'settings.save' || op === 'accounting.prepare') {
             if (actor.branchId)
                 fail('POS_COMPANY_SETTINGS', 'Configure accounts from the company area', 403);
             const p = settingsSchema.parse(input), old = await db.readPosSettings3({ company: company });
@@ -1771,13 +1870,18 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
             const commerce = await db.readCommerceSettings2({ company: company });
             if (commerce?.currency !== p.currency)
                 fail('POS_CURRENCY_MISMATCH', 'POS currency must match Commerce and the company accounts', 422);
-            await db.writePosSettings2({ company: company, enabled: p.enabled, currency: p.currency, timezone: p.timezone, fact4: JSON.stringify(p.accounts), cashierDiscountBps: p.cashierDiscountBps });
-            return { id: company };
+            await db.writePosSettings2({ company: company, enabled: hasPermission(actor,"pos.configure") ? p.enabled : Boolean(old?.enabled), currency: p.currency, timezone: p.timezone, fact4: JSON.stringify(p.accounts), cashierDiscountBps: hasPermission(actor,"pos.configure") ? p.cashierDiscountBps : num(old ?? {},"cashier_discount_bps") });
+            await db.prepareAccounting(company, p.accounts, user);
+            return { id: company, state: 'prepared' };
         }
         if (op === 'register.save') {
-            const p = z.object({ id: z.string().optional(), warehouseId: z.string(), name: z.string().trim().min(1).max(100), mode: z.enum(['retail', 'restaurant']), active: z.boolean().default(true), expectedVersion: z.number().int().min(0).default(0) }).parse(input);
+            const p = z.object({ id: z.string().optional(), propertyId: z.string().min(1).nullable().optional(), warehouseId: z.string(), name: z.string().trim().min(1).max(100), mode: z.enum(['retail', 'restaurant']), active: z.boolean().default(true), expectedVersion: z.number().int().min(0).default(0) }).parse(input);
             const warehouse = scopeRow(actor, await db.readCommerceWarehouses3({ warehouseId: p.warehouseId }));
             const rid = p.id ?? id();
+            if (p.propertyId) {
+                const property = await db.readPmsProperties2({ propertyId: p.propertyId, company });
+                if (p.mode !== 'restaurant' || !property || property.branch_id !== warehouse.branch_id) fail('POS_PROPERTY_SCOPE', 'Link a hotel in this restaurant branch.', 422);
+            }
             if (p.id) {
                 const previous = scopeRow(actor, await db.readPosRegisters3({ id: p.id }));
                 version(previous, p);
@@ -1787,6 +1891,7 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
             }
             else
                 await db.writePosRegisters3({ rid: rid, company: company, branch_id: warehouse.branch_id, warehouseId: p.warehouseId, name: p.name, mode: p.mode, active: p.active });
+            if (p.propertyId !== undefined) await db.linkRegister(rid, p.propertyId);
             return { id: rid };
         }
         if (op === 'table.create') {
@@ -1849,9 +1954,10 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
         }
         if (op === 'shift.open') {
             const p = z.object({ registerId: z.string(), openingMinor: money }).parse(input), register = scopeRow(actor, await db.readPosRegisters7({ registerId: p.registerId })), settings = await config(db, company);
+            if (!settings.accounting_approved_by) fail('POS_ACCOUNTING_REVIEW_REQUIRED', 'Finance must approve the posting accounts before selling.');
             if (!settings.enabled)
                 fail('POS_DISABLED', 'POS transactions are not enabled');
-            const hotel = await db.readPmsProperties1({ company: company, branch_id: register.branch_id });
+            const hotel = register.property_id ? await db.readPmsProperties1({ company: company, branch_id: register.branch_id }) : null;
             if (hotel && (hotel.state !== 'open' || hotel.business_date !== businessDate()))
                 fail('POS_HOTEL_DAY_CLOSED', 'Finish or recover the hotel day close before opening a restaurant cash session');
             await db.assertPosDayWritable(company, str(register, 'branch_id'), businessDate());
@@ -1916,6 +2022,7 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
         if (op === 'sale.create') {
             const p = z.object({ shiftId: z.string(), tableId: z.string().nullable().optional(), guests: z.number().int().min(1).max(100).default(1), partyId: z.string().nullable().optional(), serviceMode: z.enum(['retail', 'dine_in', 'takeaway']), currency: z.string().regex(/^[A-Z]{3}$/).refine(value => Boolean(currencyDefinition(value))).optional() }).parse(input);
             const shift = scopeRow(actor, await db.readPosShifts3({ shiftId: p.shiftId })), settings = await config(db, company);
+            if (!settings.accounting_approved_by) fail('POS_ACCOUNTING_REVIEW_REQUIRED', 'Finance must approve the posting accounts before selling.');
             if (!settings.enabled)
                 fail('POS_DISABLED', 'New transactions are temporarily paused');
             if (p.currency && p.currency !== settings.currency)
@@ -1923,6 +2030,7 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
             if (p.currency && p.currency !== 'USD' && !await db.readCompanyFxRates1({ company: company, currency: p.currency }))
                 fail('MANUAL_RATE_REQUIRED', `Confirm a manual USD/${p.currency} rate before starting this sale.`, 422);
             const register = (await db.readPosRegisters8({ register_id: shift.register_id }))!;
+            await db.assertHotelDay(company, shift.register_id, businessDate());
             await db.assertPosDayWritable(company, str(shift, 'branch_id'), businessDate());
             if (shift.business_date !== businessDate())
                 fail('POS_SHIFT_DATE', 'Close the previous business day cash session before selling');
@@ -1943,16 +2051,17 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
         if (op.startsWith('sale.')) {
             const p = base.passthrough().parse(input), sale = await saleRow(db, actor, p.id);
             version(sale, p);
+            if (op === 'sale.reverse_room_charge') {
+                if (!approvedReversalId) fail('POS_REVERSAL_WORKFLOW_REQUIRED','Independent POS and PMS approvals are required.');
+                if (await db.readPosDayCloses1({company_id:sale.company_id,branch_id:sale.branch_id,business_date:sale.business_date})) fail('POS_DAY_REVIEW_PENDING','Finance must confirm the original day close before correction.');
+            }
+            await db.assertHotelDay(company, sale.register_id, op === 'sale.reverse_room_charge' ? businessDate() : str(sale, 'business_date'));
             await db.assertPosDayWritable(company, str(sale, 'branch_id'), op === 'sale.reverse_room_charge' ? businessDate() : str(sale, 'business_date'));
             if (op === 'sale.reverse_room_charge') {
                 if (await db.readPosDayCloses1({ company_id: sale.company_id, branch_id: sale.branch_id, business_date: sale.business_date }))
                     fail('POS_DAY_REVIEW_PENDING', 'Finance must confirm the original day close before a room-charge correction can change its source records');
-                ports.require(actor, 'pos.approve');
-                ports.require(actor, 'pms.approve');
+
                 const q = base.extend({ propertyId: z.string().min(1), expectedPropertyVersion: z.number().int().positive(), reason: z.string().trim().min(3).max(1000), restockLineIds: z.array(z.string()).max(100).default([]) }).parse(input);
-                const chargeAudit = await db.readPosAudit1({ id: sale.id });
-                if (samePerson(actor, sale.created_by) || chargeAudit && samePerson(actor, chargeAudit.actor_id))
-                    fail('POS_INDEPENDENT_REVIEW', 'A different Finance approver must reverse this room charge');
                 if (sale.state !== 'completed' || await db.readPosRoomChargeReversals1({ id: sale.id }))
                     fail('POS_ROOM_CHARGE_REVERSED', 'This room charge is already reversed or the bill is not complete');
                 if (await db.readPosPayments6({ id: sale.id }))
@@ -1968,7 +2077,8 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
                 const reversal = await db.reversePosRoomCharge(actor, { propertyId: q.propertyId, sourceKey: `pos:${sale.id}:${sale.id}`, expectedPropertyVersion: q.expectedPropertyVersion, reason: q.reason, total: num(sale, 'total_minor') });
                 const accounts = json<PosAccounts>(sale.accounts_json), date = reversal.businessDate;
                 let restored = 0, wasted = 0;
-                await db.assertPosDayWritable(company, str(sale, 'branch_id'), date);
+                await db.assertHotelDay(company, sale.register_id, op === 'sale.reverse_room_charge' ? businessDate() : str(sale, 'business_date'));
+            await db.assertPosDayWritable(company, str(sale, 'branch_id'), date);
                 await openPeriod(db, company, date);
                 for (const line of lines) {
                     const prior = await db.readPosLines3({ fulfillment_id: line.fulfillment_id, id: line.id });
@@ -1988,7 +2098,8 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
                 await db.writePosRoomChargeReversals1({ id: sale.id, company: company, propertyId: q.propertyId, entryId: reversal.entryId, reversalEntryId: reversal.reversalEntryId, reason: q.reason, fact6: JSON.stringify(q.restockLineIds), restored: restored, wasted: wasted, user: user, fact10: ports.clock.now() });
                 await capturePosReversal(db, sale, 'pos_room_charge_reversal', str(sale, 'id'), 'total', date, String(sale.total_minor), { sourceType: 'pos_sale', sourceId: str(sale, 'id'), amountKind: 'total' });
                 await db.writePosSales6({ fact0: ports.clock.now(), id: sale.id });
-                return { id: sale.id, state: 'room_charge_reversed', reversalEntryId: reversal.reversalEntryId, restoredCostMinor: restored, wastedCostMinor: wasted };
+                await db.reviewReversalRequest(approvedReversalId!, 'approved', user, approvedReversalReason!, ports.clock.now());
+                return { id: approvedReversalId, saleId: sale.id, state: 'room_charge_reversed', reversalEntryId: reversal.reversalEntryId, restoredCostMinor: restored, wastedCostMinor: wasted };
             }
             if (op === 'sale.complete')
                 return completeSale(db, sale, user);
@@ -1998,12 +2109,14 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
                 const p = base.extend({ propertyId: z.string().min(1), stayId: z.string().min(1), expectedPropertyVersion: z.number().int().positive() }).parse(input);
                 if (sale.state !== 'open' && sale.state !== 'held')
                     fail('POS_SALE_LOCKED', 'Only an unpaid bill can be charged to a room');
-                if (!await db.readPosRegisters9({ register_id: sale.register_id }))
+                const linkedRegister = await db.readPosRegisters9({ register_id: sale.register_id });
+                if (!linkedRegister || linkedRegister.property_id !== p.propertyId)
                     fail('POS_ROOM_CHARGE_REGISTER', 'Only restaurant bills can be charged to a room');
                 if (!await db.readPosShifts4({ shift_id: sale.shift_id }))
                     fail('POS_SHIFT_CLOSED', 'Cash session is closed');
                 const settings = await config(db, company);
-                if (!settings.enabled)
+                if (!settings.accounting_approved_by) fail('POS_ACCOUNTING_REVIEW_REQUIRED', 'Finance must approve the posting accounts before selling.');
+            if (!settings.enabled)
                     fail('POS_DISABLED', 'New transactions are temporarily paused');
                 if (await db.readPosPayments7({ id: sale.id }))
                     fail('POS_PAYMENT_STARTED', 'Room charge requires the full unpaid bill');
@@ -2040,7 +2153,7 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
                 await capturePosMoney(db, sale, 'pos_sale', str(sale, 'id'), 'total', str(sale, 'business_date'), String(sale.total_minor));
                 await db.writePosSales7({ fact0: ports.clock.now(), id: sale.id });
                 await db.capturePosReceipt(str(sale, 'id'));
-                return { id: sale.id, state: 'completed', tender: 'room_charge', propertyId: p.propertyId, stayId: p.stayId, folioEntryId: result.entryId };
+                return { id: sale.id, state: 'completed', tender: 'room_charge', propertyId: p.propertyId, stayId: p.stayId, guestAccountEntryId: result.entryId };
             }
             if (op === 'sale.approve_discount') {
                 const q = z.object({ reason: z.string().trim().min(3).max(1000) }).parse(p);
@@ -2184,6 +2297,7 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
         if (op.startsWith('kitchen.')) {
             const p = base.extend({ reason: z.string().min(3).max(500).optional() }).parse(input), f = scopeRow(actor, await db.readPosFulfillments5({ id: p.id }));
             version(f, p);
+            await db.assertFulfillmentHotelDay(company, f.id, str(f, 'business_date'));
             await db.assertPosDayWritable(company, str(f, 'branch_id'), str(f, 'business_date'));
             if (f.kind !== 'recipe')
                 fail('POS_KITCHEN_ITEM', 'This item is not a prepared food item', 422);
@@ -2229,12 +2343,14 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
         if (op === 'payment.create') {
             const p = base.extend({ method: z.enum(['cash', 'transfer', 'edc', 'stripe_card', 'stripe_promptpay']), amountMinor: money.refine(n => n > 0), tenderedMinor: money, reference: z.string().max(150).default(''), payerEmail: z.union([z.email(), z.literal('')]).default('') }).parse(input), sale = await saleRow(db, actor, p.id);
             version(sale, p);
+            await db.assertHotelDay(company, sale.register_id, str(sale, 'business_date'));
             await db.assertPosDayWritable(company, str(sale, 'branch_id'), str(sale, 'business_date'));
             if (ports.environment("NODE_ENV") === 'production' && !['cash', 'transfer'].includes(p.method) && ports.environment("POS_STRIPE_LIVE_ENABLED") !== 'true')
                 fail('POS_TENDER_COMING_SOON', 'The pilot accepts cash and verified bank transfers only', 403);
             if (!['open', 'held', 'payment_pending'].includes(str(sale, 'state')))
                 fail('POS_SALE_LOCKED', 'Bill is not ready for payment');
             const settings = await config(db, company);
+            if (!settings.accounting_approved_by) fail('POS_ACCOUNTING_REVIEW_REQUIRED', 'Finance must approve the posting accounts before selling.');
             if (!settings.enabled)
                 fail('POS_DISABLED', 'New transactions are temporarily paused');
             await openPeriod(db, company, str(sale, 'business_date'));
@@ -2396,6 +2512,7 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
             const job = await db.readPosJobs2({ id: p.id, company: company });
             if (!job)
                 fail('POS_NOT_FOUND', 'Exception record not found', 404);
+            ports.require(actor,'finance.approve');
             await openPeriod(db, company, p.accountingDate);
             if (job.kind === 'refund' && (p.providerId.startsWith('re_') || p.providerId.startsWith('pyr_'))) {
                 const changed = await db.readPosRefundPayments2({ providerId: p.providerId, record_id: job.record_id });
@@ -2416,10 +2533,10 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
         if (op === 'exception.retry') {
             if (actor.branchId)
                 fail('POS_COMPANY_SETTINGS', 'Edit Stripe records from the company area', 403);
-            ports.require(actor, 'pos.approve');
             const p = z.object({ id: z.string(), accountingDate: z.iso.date(), reason: z.string().trim().min(3).max(1000), refundInstructionsEmail: z.email().max(254).optional(), expectedRefundVersion: z.number().int().positive().optional() }).parse(input), job = await db.readPosJobs2({ id: p.id, company: company });
             if (!job)
                 fail('POS_NOT_FOUND', 'Exception record not found', 404);
+            ports.require(actor,job.kind === 'refund' ? 'pos.approve' : 'finance.approve');
             await openPeriod(db, company, p.accountingDate);
             const payload = json<Record<string, unknown>>(job.payload_json);
             if (p.refundInstructionsEmail) {
@@ -2459,7 +2576,7 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
             if (await db.readPosDayCloses1({ company_id: sale.company_id, branch_id: sale.branch_id, business_date: sale.business_date }))
                 fail('POS_DAY_REVIEW_PENDING', 'Finance must confirm the original day close before a refund can change its source records');
             if (await db.readPmsSources2({ fact0: `pos:${sale.id}:${sale.id}` }))
-                fail('POS_ROOM_CHARGE_REVERSAL', 'Reverse this charge on the hotel folio; it has no POS payment to refund');
+                fail('POS_ROOM_CHARGE_REVERSAL', 'Reverse this charge on the hotel guest account; it has no POS payment to refund');
             if (!['completed', 'payment_pending'].includes(str(sale, 'state')))
                 fail('POS_REFUND_SALE', 'Bill has no payment');
             if (new Set(p.lines.map(l => l.lineId)).size !== p.lines.length)
@@ -2499,7 +2616,9 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
         }
         if (op !== 'refund.approve')
             fail('POS_ACTION_UNKNOWN', 'Refund command not found', 404);
-        const sale = await saleRow(db, actor, str(refund, 'sale_id')), a = json<PosAccounts>(sale.accounts_json), date = str(refund, 'accounting_date');
+        const sale = await saleRow(db, actor, str(refund, 'sale_id'));
+        await db.assertHotelDay(actor.companyId,sale.register_id,str(refund,'accounting_date'));
+        const a = json<PosAccounts>(sale.accounts_json), date = str(refund, 'accounting_date');
         const payments = await db.readPosPayments15({ id: sale.id });
         if (payments.reduce((n, r) => n + num(r, 'amount_minor') - num(r, 'refunded_minor'), 0) < num(refund, 'amount_minor'))
             fail('POS_REFUND_EXCEEDED', 'Refund exceeds the remaining payment amount');
@@ -2584,6 +2703,6 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
         await db.writePosFulfillments12({ saleId: saleId });
         await db.writePosSales21({ saleId: saleId });
     }
-    const posPermissions = (actor: WorkContext) => Object.fromEntries(['pos.read', 'pos.sell', 'pos.kitchen', 'pos.approve', 'pos.configure', 'pos.payments.configure', 'pos.reports', 'finance.read', 'finance.write', 'finance.approve', 'pms.approve'].map(p => [p, hasPermission(actor, p)]));
+    const posPermissions = (actor: WorkContext) => Object.fromEntries(['pos.read', 'pos.sell', 'pos.kitchen', 'pos.approve', 'pos.configure', 'pos.accounting.prepare', 'pos.accounting.approve', 'pos.payments.configure', 'pos.reports', 'finance.read', 'finance.write', 'finance.approve', 'pms.approve'].map(p => [p, hasPermission(actor, p)]));
     return { json, fail, scopeRow, saleRow, config, openPeriod, posting, audit, enqueue, reserve, receivePayment, completeSale, posCommand, completeRefundPayment, releaseUnpaidReservations, id, num, str, pair, posPermissions };
 }

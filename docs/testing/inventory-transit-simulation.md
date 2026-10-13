@@ -29,6 +29,6 @@
 
 ## การทดสอบและข้อจำกัด
 
-`tests/inventory-transit.test.ts` ใช้ source transfer commands และ Flow assignment/approval จริง ก่อนสร้าง transport; แทรกตรงเฉพาะ master/opening-stock fixtures ตรวจ conservation, rounding, partial receiving, duplicate/stale/race, loss approve/reject/GL, scope, revoked role, closed period, quarantine, Work/Inbox/Calendar และ direct-transfer compatibility
+`tests/integration/inventory/inventory-transit.test.ts` ใช้ source transfer commands และ Flow assignment/approval จริง ก่อนสร้าง transport; แทรกตรงเฉพาะ master/opening-stock fixtures ตรวจ conservation, rounding, partial receiving, duplicate/stale/race, loss approve/reject/GL, scope, revoked role, closed period, quarantine, Work/Inbox/Calendar และ direct-transfer compatibility
 
 ยังไม่ใช่ intercompany transfer, lot/serial tracking, carrier integration, customer shipment/POD หรือ supplier partial receiving รอบนี้ไม่ปลด external/provider/UAT/production gates และไม่ถือว่าปิดชุด C หรือ A–J ทั้งหมด

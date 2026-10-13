@@ -1,15 +1,15 @@
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
-import { TimeText } from "@/components/time/time-preference-context";
-import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
-import { permissionDefinition } from "@/lib/permissions";
+import { TimeText } from "@/components/people_payroll/time/time-preference-context";
+import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/shared/features/feature-page";
+import { permissionDefinition } from "@/lib/identity_access/permissions";
 import { currentSession } from "@/server/modules/identity_access/public/authorization";
 import { ownIamAccess } from "@/server/modules/identity_access/public/iam-my-access";
 import { workspaceChoices } from "@/server/modules/organization/public/workspace-choices";
 import { accountQuickAccessItems } from "@/server/modules/identity_access/public/account-quick-access";
 import { readQuickAccessPreferences } from "@/server/modules/work_projection/public/quick-access-preferences";
-import { QuickAccessShelf } from "@/components/quick-access/shelf";
-import rail from "@/components/quick-access/area-rail.module.css";
+import { QuickAccessShelf } from "@/components/work_projection/quick-access/shelf";
+import rail from "@/components/work_projection/quick-access/area-rail.module.css";
 import { redirect } from "next/navigation";
 import { Card } from "@/components/ui/foundation";
 export default async function MyAccessPage() {

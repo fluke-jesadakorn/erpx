@@ -3,7 +3,7 @@ import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Table as UiTable } from "@/components/ui/foundation";
 
-import { TimeText } from "@/components/time/time-preference-context";
+import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 import { useState } from "react";
 import s from "./legal.module.css";
 import { TableFrame } from "@/components/ui/foundation";

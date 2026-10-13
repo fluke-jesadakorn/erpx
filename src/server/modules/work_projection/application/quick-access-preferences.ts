@@ -1,4 +1,4 @@
-import type {QuickAccessPreference} from "@/lib/quick-access";
+import type {QuickAccessPreference} from "@/lib/work_projection/quick-access";
 import type {Clock} from "../../shared/application/ports";
 import {quickAccessPreferenceSchema,type SaveInput} from "../domain/quick-access-preferences";
 export type QuickPreferenceUnit={transactional:boolean;preference(userId:string,surface:string,contextKey:string):Promise<{pinned_ids_json:string|null;version:number}|null>;receipt(key:string):Promise<{user_id:string;surface:string;context_key:string;request_hash:string;result_json:string}|null>;savePreference(userId:string,surface:string,contextKey:string,result:QuickAccessPreference,now:number):Promise<unknown>;saveReceipt(key:string,userId:string,surface:string,contextKey:string,hash:string,result:QuickAccessPreference,now:number):Promise<unknown>;transaction<Result>(action:(unit:QuickPreferenceUnit)=>Promise<Result>):Promise<Result>;};

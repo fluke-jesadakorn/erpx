@@ -1,8 +1,8 @@
 import type {WorkContext,publicScope} from "../../identity_access/public/authorization";
-import type {WorkCapabilities,WorkCardPreferences} from "@/lib/work-cards";
+import type {WorkCapabilities,WorkCardPreferences} from "@/lib/work_projection/work-cards";
 import type {Clock} from "../../shared/application/ports";
-import {workspaceBase} from "@/lib/workspace";
-import {projectWorkPage,type WorkPageQuery} from "@/lib/work-page";
+import {workspaceBase} from "@/lib/work_projection/workspace";
+import {projectWorkPage,type WorkPageQuery} from "@/lib/work_projection/work-page";
 import {nextWorkSteps,type WorkSnapshot} from "../domain/work-items";
 import {buildWorkCards,buildDestinationCards} from "../domain/work-cards";
 import type {navigationContext} from "../public/navigation-context";

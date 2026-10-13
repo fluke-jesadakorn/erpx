@@ -1,6 +1,6 @@
 import type { generateProviderJson } from '../../agent/public/ai-transport';
-import { type AssistantSource } from "@/lib/ai/workspace-assistant";
-import { guidedIntakeModelSchema, intakeFields, type GuidedIntakeResult, type IntakeIntent, type guidedIntakeInputSchema } from "@/lib/ai/guided-intake-domain";
+import { type AssistantSource } from "@/lib/work_projection/ai/workspace-assistant";
+import { guidedIntakeModelSchema, intakeFields, type GuidedIntakeResult, type IntakeIntent, type guidedIntakeInputSchema } from "@/lib/operations/ai/guided-intake-domain";
 import type { z } from "zod";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 export type ModelOutput = z.infer<typeof guidedIntakeModelSchema>;

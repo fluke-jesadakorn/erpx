@@ -1,5 +1,5 @@
 import {addDays} from "@/server/modules/people_payroll/public/rules/people-roster-domain";
-import {localDateTimeCandidates,localMinuteAt} from "@/lib/calendar-timeline";
+import {localDateTimeCandidates,localMinuteAt} from "@/lib/work_projection/calendar-timeline";
 import {BusinessRuleError} from "../../shared";
 export function wallClock(instant:number,zone:string){const local=localMinuteAt(instant,zone);return `${local.date}T${local.time}`;}
 export function nextOccurrence(local:string,zone:string,days:number){

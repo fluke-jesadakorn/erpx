@@ -1,7 +1,7 @@
 import {z} from 'zod';
 import type {WorkContext} from '@/server/modules/identity_access/public/authorization';
-import {financeCsvRows} from '@/lib/finance-csv';
-import {minorToDecimal} from '@/lib/finance-money';
+import {financeCsvRows} from "@/lib/finance/finance-csv";
+import {minorToDecimal} from "@/lib/finance/finance-money";
 import {financeReviewSchema} from '../domain/review';
 import {bankCsvMappingSchema,bankCsvImportSchema,bankMatchGroupSchema,type BankRow,type LedgerRow,type BankAutomationQuery,type BankSourceFacts,type BankMatchGroup,type BankMatchAllocation,type BankCandidate,type BankPickerPage} from '../domain/bank-automation';
 import type {BankImportInput} from './bank';

@@ -17,5 +17,5 @@ export type StaffNotification = {
     created_at: number;
     read_at: number | null;
     href: string;
-    source?: import("@/lib/source-record").SourceRecordReference;
+    source?: import("@/lib/records/source-record").SourceRecordReference;
 };

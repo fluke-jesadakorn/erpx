@@ -70,7 +70,7 @@ Structured operational logs expose `approval_route_blocked`, `routine_blocked`, 
 3. Configure levels and department heads. Legacy engagements stay “Not set”; activating or updating an active engagement requires a valid level. Assign a level before resuming normal engagement administration.
 4. Review and publish routine templates, then explicitly resume schedules. New schedules are paused by default.
 
-For local fixtures, `bun scripts/seed-staff-work.ts` adds explicit demo heads without changing existing heads, granting HR access or assigning legacy levels. The normal `seed:local` command includes this step. Browser verification uses local schedules and leaves them paused. Deployments and production schedule activation follow the release steps above.
+For local fixtures, `bun scripts/seed/seed-staff-work.ts` adds explicit demo heads without changing existing heads, granting HR access or assigning legacy levels. The normal `seed:local` command includes this step. Browser verification uses local schedules and leaves them paused. Deployments and production schedule activation follow the release steps above.
 
 ## Project work structure and acceptance
 
@@ -82,6 +82,6 @@ The project owner prepares a handoff only after required tasks and packages are 
 
 The named recipient accepts or rejects with current project/handoff versions and a reason. The preparing owner may cancel a pending handoff. Acceptance makes the project `completed`; rejection or cancellation restores `active`. While pending or completed, the brief, membership, packages, tasks and actuals cannot be changed. The independent accepting recipient may approve reopening. Every issued source snapshot and earlier decision remains immutable after reopening and later handoffs. Reads of retained snapshots still apply the viewer's current time and Finance boundaries.
 
-Engineering proofs: `tests/project-structure.test.ts` exercises real task execution, reviewed time, posted Finance cost, WBS/dependency deadlock rollback, source-version and membership revocation, lost-response replay, competing commands, rejection, acceptance and reopening. Migration `0946_project_structure_and_handoffs.sql` is additive and preserves existing project/milestone history.
+Engineering proofs: `tests/integration/projects/project-structure.test.ts` exercises real task execution, reviewed time, posted Finance cost, WBS/dependency deadlock rollback, source-version and membership revocation, lost-response replay, competing commands, rejection, acceptance and reopening. Migration `0946_project_structure_and_handoffs.sql` is additive and preserves existing project/milestone history.
 
 Leave entitlements, benefits, meetings and team-balance calculations use their own owner interfaces.

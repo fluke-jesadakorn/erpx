@@ -1,7 +1,7 @@
 "use client";
 import { useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "@/lib/identity_access/auth-client";
 import { Alert, Button, Field, FormLayout, TextInput, type UiAppearance } from "@/components/ui/foundation";
 const subscribeHydration = () => () => {};
 const clientHydrated = () => true;

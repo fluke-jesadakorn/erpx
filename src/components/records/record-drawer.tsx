@@ -4,8 +4,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { EmbeddedRecord } from "./record-context";
-import { recordDrawerHref, withoutRecordDrawer, type RecordTarget } from "@/lib/record-drawer";
-import { registerUnsavedWork } from "@/lib/context-switch";
+import { recordDrawerHref, withoutRecordDrawer, type RecordTarget } from "@/lib/records/record-drawer";
+import { registerUnsavedWork } from "@/lib/work_projection/context-switch";
 import "./record-drawer.css";
 
 let originTrigger:HTMLElement|null=null;

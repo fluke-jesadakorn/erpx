@@ -4,7 +4,7 @@ import {prepareBillingCorrection,decideBillingCorrection,billingCorrectionSchema
 import {instrumentWorkspace,prepareInstrument,decideInstrument,prepareInstrumentRun,decideInstrumentRun,reverseInstrumentRun,instrumentEditionSchema,instrumentDecisionSchema,instrumentRunSchema,instrumentReversalSchema} from "@/server/modules/finance/public/finance-instruments";
 import {assetPolicyWorkspace,prepareAssetPolicy,decideAssetPolicy,prepareAssetPolicyRun,decideAssetPolicyRun,reverseAssetPolicyRun,assetPolicySchema,assetPolicyDecisionSchema,assetPolicyRunSchema,assetPolicyReversalSchema} from "@/server/modules/finance/public/finance-asset-policies";
 import { financeAiWorkspace, saveFinanceAiPolicy, queueFinanceAi, dismissFinanceAi, applyFinanceAiDraft } from "@/server/modules/finance/public/finance-ai";
-import { financeAiDecisionSchema } from "@/lib/finance-ai";
+import { financeAiDecisionSchema } from "@/lib/finance/finance-ai";
 import { holdingResources, runtimeEnv } from "@/server/modules/runtime/public/runtime";
 import { accountingProfiles,prepareAccountingProfile,decideAccountingProfile,accountingProfileSchema,accountingProfileDecisionSchema,financialEvents } from "@/server/modules/finance/public/accounting-profiles";
 import { vatWorkspace,vatPackageDetail,vatPackageExport,prepareVatEntry,reviewVatEntry,prepareVatCorrection,reviewVatCorrection,vatCorrectionDetail,taxEntryDetail,vatCorrectionSchema,prepareVatPackage,approveVatPackage,exportVatWorkpaper,recordVatFiling,supersedeVatPackage,vatEntrySchema,taxReviewSchema,vatPackageSchema,vatFilingSchema } from "@/server/modules/finance/public/finance-tax-register";

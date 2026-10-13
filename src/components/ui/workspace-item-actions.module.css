@@ -1,0 +1,5 @@
+ .itemActions { display:inline-flex; align-items:center; gap:4px; position:relative; }
+.actionTrigger { width:36px; min-height:44px; padding:4px; border:0; background:transparent; }
+.actionMenu { position:absolute; top:100%; right:0; z-index:30; display:grid; width:180px; padding:5px; background:var(--ui-card); border:1px solid var(--ui-line); border-radius:8px; box-shadow:var(--ui-shadow-sm); }
+.actionMenu button { width:100%; min-height:44px; text-align:left; justify-content:flex-start; white-space:normal; }
+.actionMenu button:hover,.actionMenu button:focus-visible { background:var(--ui-brand-soft); }

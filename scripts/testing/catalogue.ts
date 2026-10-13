@@ -18,6 +18,7 @@ export type Suite = {
   files: string[];
   fixture: FixtureProfile;
   requires: { jobs: boolean; scanner: boolean };
+  fictionalProvider?: "pms-stripe";
   provider?: { environment: Record<string, string>; required: string[] };
   uatAuth?: { mode: "case-annotations" | "self-authenticated" };
 };
@@ -25,7 +26,7 @@ export type Catalogue = { version: 1; modules: string[]; suites: Suite[] };
 export type Selection = { lane?: TestLane; modules?: string[]; suiteIds?: string[]; files?: string[] };
 
 export function loadCatalogue(root = repositoryRoot): Catalogue {
-  return JSON.parse(readFileSync(resolve(root, "tests/suite-manifest.json"), "utf8")) as Catalogue;
+  return JSON.parse(readFileSync(resolve(root, "tests/catalogue/suite-manifest.json"), "utf8")) as Catalogue;
 }
 
 export function selectSuites(catalogue: Catalogue, selection: Selection = {}): Suite[] {
@@ -85,7 +86,7 @@ export function resolveImport(from: string, specifier: string, files: ReadonlySe
 }
 
 export function reachesDatabaseFixture(file: string, root: string, visited = new Set<string>()): boolean {
-  if (file === "tests/runtime-env.ts" || file === "tests/runtime-setup.ts") return true;
+  if (file === "tests/support/runtime-env.ts" || file === "tests/support/runtime-setup.ts") return true;
   if (visited.has(file) || !existsSync(resolve(root, file))) return false;
   visited.add(file);
   const source = readFileSync(resolve(root, file), "utf8");
@@ -126,12 +127,12 @@ export function requiresEngineeringBusinessFixture(source: string, file: string)
     readFile: path => path === filename ? source : undefined,
   };
   const checker = ts.createProgram([filename], options, host).getTypeChecker();
-  const helper = new Set(["tests/e2e/helpers/engineering-business.ts"]);
+  const helper = new Set(["tests/support/browser/engineering-business.ts"]);
   function fromHelper(binding: ts.ImportSpecifier | ts.NamespaceImport): boolean {
     let parent: ts.Node | undefined = binding.parent;
     while (parent && !ts.isImportDeclaration(parent)) parent = parent.parent;
     if (!parent || !ts.isStringLiteral(parent.moduleSpecifier) || parent.importClause?.isTypeOnly || ts.isImportSpecifier(binding) && binding.isTypeOnly) return false;
-    return resolveImport(file, parent.moduleSpecifier.text, helper) === "tests/e2e/helpers/engineering-business.ts";
+    return resolveImport(file, parent.moduleSpecifier.text, helper) === "tests/support/browser/engineering-business.ts";
   }
   function callsFixture(expression: ts.Expression): boolean {
     while (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isNonNullExpression(expression)) expression = expression.expression;
@@ -167,6 +168,7 @@ export function validateCatalogue(catalogue: Catalogue, root = repositoryRoot): 
     ids.add(suite.id);
     if (!testLanes.includes(suite.lane) || !suite.owner || !Array.isArray(suite.modules) || !suite.modules.length || !Array.isArray(suite.files) || !suite.files.length || !fixtureProfiles.has(suite.fixture) || typeof suite.requires?.jobs !== "boolean" || typeof suite.requires?.scanner !== "boolean") throw new Error(`INVALID_TEST_SUITE:${suite.id}`);
     if (!suite.modules.every(module => catalogue.modules.includes(module))) throw new Error(`UNKNOWN_SUITE_MODULE:${suite.id}`);
+    if (suite.fictionalProvider !== undefined && (suite.fictionalProvider !== 'pms-stripe' || suite.fixture !== 'booking' || suite.lane !== 'e2e' || !suite.requires.jobs || !suite.requires.scanner)) throw new Error(`INVALID_FICTIONAL_PROVIDER_SUITE:${suite.id}`);
     for (const file of suite.files) {
       if (isAbsolute(file) || file.split("/").includes("..") || files.has(file) || !existsSync(resolve(root, file))) throw new Error(`INVALID_OR_DUPLICATE_TEST_FILE:${file}`);
       files.add(file);

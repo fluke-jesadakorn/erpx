@@ -1,7 +1,7 @@
-import { PayrollAdvanceConsole } from "@/components/modules/payroll-controls";
-import { PayrollPageIntro } from "@/components/modules/payroll-workspace";
-import { hasPermission } from "@/lib/permissions";
-import { workspaceBase } from "@/lib/workspace";
+import { PayrollAdvanceConsole } from "@/components/people_payroll/payroll-controls";
+import { PayrollPageIntro } from "@/components/people_payroll/payroll-workspace";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { payrollAdvancePage } from "@/server/modules/people_payroll/public/people-payroll";

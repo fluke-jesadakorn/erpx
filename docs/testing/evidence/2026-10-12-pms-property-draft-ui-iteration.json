@@ -1,0 +1,130 @@
+{
+  "recordedAt": "2026-10-11T18:47:52.616837+00:00",
+  "classification": "Actual compiled UI regression, not final acceptance",
+  "before": {
+    "runtime": "3a37b659e33ade4e14864e102fb595748fd89715b67e1c82cb18cf09e8e41fb8",
+    "release": {
+      "id": "2026-10-11T18-36-55-007Z",
+      "fileManifestSha256": "39ba9d706b5bbfcd08f5cff3b8b84eda98e5036414713bdcb199cef54eb62b7b"
+    },
+    "observed": {
+      "kind": "two-property-dirty-shift-draft",
+      "propertyA": "property-dc589411c9f4419a3067867d87dad7b7",
+      "propertyB": "property-2afbcfe2cd36be77c6f7786c28593187",
+      "name": "A private draft must stay with A",
+      "opening": "321.09"
+    },
+    "error": "Error: Property B must not inherit a private draft from Property A\n\nexpect(received).not.toBe(expected) // Object.is equality\n\nExpected: not \"A private draft must stay with A\"",
+    "rawEvidence": ".scratch/dev/pms-business-upgrade-group/ui-draft-before-visible.json",
+    "screenshot": ".scratch/dev/pms-business-upgrade-group/ui-draft-property-B.png",
+    "screenshotSha256": "b75fa9c03361b7b57f682c7a999f04a9b77a84d8bb70b59d7718ce1db11b79e8",
+    "screenshotActuallyInspected": true
+  },
+  "fix": {
+    "file": "src/components/pms/workspace.tsx",
+    "guardedPreparedSupplementApplied": true,
+    "identity": [
+      "userId",
+      "actual Property ID"
+    ],
+    "versionExcluded": true,
+    "afterCompiledWitnessPending": false
+  },
+  "acceptanceComplete": false,
+  "bootstrapLimitations": [
+    "Missing rendered work context correctly refused before fixture preparation",
+    "Reusing an occupied Company/Branch correctly failed unique Property constraint; corrected by independently reviewed second Branch",
+    "Finance approver cannot read full guest PMS snapshot; mock accounting approval uses the requester supplied reviewed Property version, with approver authorization enforced"
+  ],
+  "after": {
+    "desktop": {
+      "evidence": ".scratch/dev/pms-business-upgrade-group/ui-diagnostic-desktop-after.json",
+      "runtime": "dd24b6cedc106cc88cc22638527082c67f63c8aeaf49ac8ab8470454de9e04af",
+      "release": {
+        "id": "2026-10-11T18-47-43-849Z",
+        "fileManifestSha256": "f906aa29be1401afb2aa89440e56562abfbb0e0f7d01fd3347e2bec2e44eff23"
+      },
+      "complete": true,
+      "observations": [
+        {
+          "kind": "same-property-refresh-retains-dirty-draft-and-old-version",
+          "status": 409,
+          "code": "PMS_VERSION_CONFLICT",
+          "noSubmissionCommitted": true
+        },
+        {
+          "kind": "two-property-dirty-shift-draft",
+          "propertyA": "property-1400293282e4300df7f7739f2463ae90",
+          "propertyB": "property-9b8b472738decb58b2d59aff5195b0a5",
+          "name": "",
+          "opening": "0"
+        },
+        {
+          "kind": "actual-upgrade-drawer-submit-and-history",
+          "viewport": "desktop",
+          "drawerBounds": {
+            "x": 480,
+            "y": 0,
+            "width": 800,
+            "height": 720
+          },
+          "stayId": "92d139ca-32cb-4db4-9008-8f42a89f4571",
+          "targetRoomId": "1c0a31c8-fcf3-4c58-b16e-547bee5601b5",
+          "targetTypeId": "5c4f3a99-7b6b-473c-bacf-0e70a1db71eb",
+          "status": 200,
+          "oldRoomDirty": true,
+          "sourceReceiptPreservedByNativeEvidence": true
+        }
+      ],
+      "viewportScreenshot": ".scratch/dev/pms-business-upgrade-group/ui-upgrade-desktop-viewport.png",
+      "viewportScreenshotActuallyInspected": false
+    },
+    "mobile": {
+      "evidence": ".scratch/dev/pms-business-upgrade-group/ui-diagnostic-mobile-after.json",
+      "runtime": "dd24b6cedc106cc88cc22638527082c67f63c8aeaf49ac8ab8470454de9e04af",
+      "release": {
+        "id": "2026-10-11T18-47-43-849Z",
+        "fileManifestSha256": "f906aa29be1401afb2aa89440e56562abfbb0e0f7d01fd3347e2bec2e44eff23"
+      },
+      "complete": true,
+      "observations": [
+        {
+          "kind": "same-property-refresh-retains-dirty-draft-and-old-version",
+          "status": 409,
+          "code": "PMS_VERSION_CONFLICT",
+          "noSubmissionCommitted": true
+        },
+        {
+          "kind": "two-property-dirty-shift-draft",
+          "propertyA": "property-1400293282e4300df7f7739f2463ae90",
+          "propertyB": "property-9b8b472738decb58b2d59aff5195b0a5",
+          "name": "",
+          "opening": "0"
+        },
+        {
+          "kind": "actual-upgrade-drawer-submit-and-history",
+          "viewport": "mobile",
+          "drawerBounds": {
+            "x": 0,
+            "y": 0,
+            "width": 390,
+            "height": 844
+          },
+          "stayId": "92d139ca-32cb-4db4-9008-8f42a89f4571",
+          "targetRoomId": "2fbbfea7-c8c8-44b8-9007-dd0d22dfcc9d",
+          "targetTypeId": "ee9f3f7e-0155-468c-a3aa-9f79758cc24b",
+          "status": 200,
+          "oldRoomDirty": true,
+          "sourceReceiptPreservedByNativeEvidence": true
+        }
+      ],
+      "viewportScreenshot": ".scratch/dev/pms-business-upgrade-group/ui-upgrade-mobile-viewport.png",
+      "viewportScreenshotActuallyInspected": true
+    },
+    "limitations": [
+      "Supplemental diagnostic only; original full scope and capacity gates remain",
+      "Desktop diagnostic changes Deluxe to Standard; mobile changes Standard to Deluxe. New permanent case explicitly creates Standard stay and asserts higher Deluxe price in each independent cohort.",
+      "An unbounded supplemental mobile driver was interrupted; its bounded rerun passed. Original required journeys have not been replaced."
+    ]
+  }
+}

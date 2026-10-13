@@ -6,7 +6,7 @@ import { commercialOwnerProjectionSources as organizationProjectionSources } fro
 import { commercialOwnerProjectionSources as people_payrollProjectionSources } from "../../people_payroll/public/commercial-owner-projection-sources";
 import "server-only";
 import sharp from "sharp";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope, type WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { assertion, executeCommand } from "@/server/modules/workflow/public/commands";
 import { sha256 } from "@/server/modules/runtime/public/crypto";

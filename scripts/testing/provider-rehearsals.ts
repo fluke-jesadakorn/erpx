@@ -14,8 +14,8 @@ export type ProviderRehearsal = {
 };
 export type ProviderRehearsalInventory = { version: 1; rehearsals: ProviderRehearsal[] };
 const retainedRunners: Record<string, { source: string; command: string }> = {
-  "test:pms:stripe:sandbox": { source: "tests/pms-stripe-sandbox-rehearsal.ts", command: "bun --conditions=react-server tests/pms-stripe-sandbox-rehearsal.ts" },
-  "test:pos:stripe:sandbox": { source: "scripts/verify-pos-stripe-sandbox.ts", command: "bun --conditions=react-server scripts/verify-pos-stripe-sandbox.ts" },
+  "test:pms:stripe:sandbox": { source: "tests/provider/pms/pms-stripe-sandbox-rehearsal.ts", command: "bun --conditions=react-server tests/provider/pms/pms-stripe-sandbox-rehearsal.ts" },
+  "test:pos:stripe:sandbox": { source: "tests/provider/pos/verify-pos-stripe-sandbox.ts", command: "bun --conditions=react-server tests/provider/pos/verify-pos-stripe-sandbox.ts" },
 };
 
 /** Standalone interactive provider scripts are inventoried separately from framework cases. */
@@ -41,7 +41,7 @@ export function validateProviderRehearsals(inventory: ProviderRehearsalInventory
 }
 
 export function loadProviderRehearsals(root: string, modules: readonly string[]): ProviderRehearsal[] {
-  const inventory = JSON.parse(readFileSync(resolve(root, "tests/provider-rehearsals.json"), "utf8")) as ProviderRehearsalInventory;
+  const inventory = JSON.parse(readFileSync(resolve(root, "tests/catalogue/provider-rehearsals.json"), "utf8")) as ProviderRehearsalInventory;
   const scripts = (JSON.parse(readFileSync(resolve(root, "package.json"), "utf8")) as { scripts: Record<string, string> }).scripts;
   validateProviderRehearsals(inventory, scripts, source => existsSync(resolve(root, source)), modules);
   return inventory.rehearsals;

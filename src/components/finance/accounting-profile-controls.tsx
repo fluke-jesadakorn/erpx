@@ -5,9 +5,9 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { workFetch } from "@/lib/work-fetch";
+import { workFetch } from "@/lib/work_projection/work-fetch";
 import type { AccountingProfile } from "@/server/modules/finance/public/accounting-profiles";
-import type { FinanceChart } from "@/components/modules/finance-chart-controls";
+import type { FinanceChart } from "@/components/finance/finance-chart-controls";
 import { Card, FormLayout } from "@/components/ui/foundation";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 

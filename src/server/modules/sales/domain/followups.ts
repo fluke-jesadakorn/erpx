@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import type {Row} from '../../commerce/public/commerce';
-import type {WorkItem} from '@/lib/work-item';
+import type {WorkItem} from "@/lib/work_projection/work-item";
 const reason=z.string().trim().min(3).max(2000),version=z.number().int().positive();
 export const followupCreateSchema=z.object({orderId:z.string().min(1),expectedVersion:version,ownerId:z.string().min(1),dueDate:z.iso.date(),nextAction:reason});
 export const followupChangeSchema=z.discriminatedUnion('action',[z.object({action:z.literal('reassign'),expectedVersion:version,ownerId:z.string().min(1),dueDate:z.iso.date(),reason}),z.object({action:z.enum(['complete','cancel']),expectedVersion:version,reason})]);

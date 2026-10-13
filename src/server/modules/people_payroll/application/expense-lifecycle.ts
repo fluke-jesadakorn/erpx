@@ -1,7 +1,7 @@
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
-import { samePerson } from "@/lib/iam";
-import { hasPermission } from "@/lib/permissions";
-import { minorToDecimal } from "@/lib/finance-money";
+import { samePerson } from "@/lib/identity_access/iam";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { minorToDecimal } from "@/lib/finance/finance-money";
 import { expensePostingViolation, mayEditExpense, mayReviewExpense } from "../domain/expense-policy";
 import type { ExpenseCommandPort, ExpenseMutation, ExpensePostingInput, ExpenseRecord, ExpenseTransitionAction, ExpenseTransitionInput } from "./expense-commands";
 

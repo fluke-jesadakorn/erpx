@@ -1,0 +1,1263 @@
+{
+  "checkedAt": "2026-10-11T11:29:20.762410+00:00",
+  "candidate": {
+    "runtime": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+    "verification": "4690053d9c623dac5dd654126c19ed6b148b7ac969fd1948be8f0d599496c095",
+    "mainRuntime": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+    "mainVerification": "4690053d9c623dac5dd654126c19ed6b148b7ac969fd1948be8f0d599496c095",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T10-52-06-388Z",
+    "releaseId": "2026-10-11T10-52-06-388Z"
+  },
+  "references": [
+    {
+      "feature": "property-01",
+      "file": "tests/pms.test.ts",
+      "title": "blocks unauthorized, cross-company and revoked actors without business writes",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "property-01",
+      "file": "tests/pms.test.ts",
+      "title": "filters setup details and resumes from owner records without admitting other branches",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "property-01",
+      "file": "tests/pms-read-model.test.ts",
+      "title": "retains fresh permission, company and branch privacy for every query model",
+      "sourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "property-02",
+      "file": "tests/pms-read-model.test.ts",
+      "title": "filters room type, building and floor before pagination without losing a selected detail",
+      "sourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "property-02",
+      "file": "tests/pms-read-model.test.ts",
+      "title": "protects off-page room assignments, duplicate numbers and maintenance capacity under inventory command locks",
+      "sourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "property-03",
+      "file": "tests/pms-booking.test.ts",
+      "title": "shares exact nightly prices, child occupancy and policy snapshots",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "property-03",
+      "file": "tests/pms-booking.test.ts",
+      "title": "handles timezone cutoffs and rejects missing child pricing",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "property-04",
+      "file": "tests/pms.test.ts",
+      "title": "binds room-task photos in the PMS action transaction and leaves stale evidence draft",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "property-04",
+      "file": "tests/pms-booking.test.ts",
+      "title": "requires explicit publication and prevents selling private rates",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "rates-01",
+      "file": "tests/pms.test.ts",
+      "title": "uses daily prices and stop-sell without repricing an existing reservation",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "rates-03",
+      "file": "tests/pms-booking.test.ts",
+      "title": "shares exact nightly prices, child occupancy and policy snapshots",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "rates-03",
+      "file": "tests/pms-booking.test.ts",
+      "title": "handles timezone cutoffs and rejects missing child pricing",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "rates-04",
+      "file": "tests/pms.test.ts",
+      "title": "uses daily prices and stop-sell without repricing an existing reservation",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "rates-04",
+      "file": "tests/pms-booking.test.ts",
+      "title": "withdraws inventory after maintenance and rejects a previously available quote",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "rates-05",
+      "file": "tests/pms.test.ts",
+      "title": "preserves reviewed night prices and original deposit FX through concurrent partial refunds and reload",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "rates-05",
+      "file": "tests/pms-booking.test.ts",
+      "title": "rejects stale price, stale policy, forged and expired quotes",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "rates-05",
+      "file": "tests/pms-booking.test.ts",
+      "title": "applies a paid change with accepted prices even when a rate is edited during Checkout",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "reservations-01",
+      "file": "tests/pms-booking.test.ts",
+      "title": "holds two rooms, then confirms and allocates each guest account only after Stripe verifies the direct charge",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "reservations-01",
+      "file": "tests/pms-booking.test.ts",
+      "title": "collects a 30% room advance and combines pay-at-hotel rooms without inventing income",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "reservations-02",
+      "file": "tests/pms.test.ts",
+      "title": "rejects double booking, duplicate OTA references and stale versions",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "reservations-02",
+      "file": "tests/pms.test.ts",
+      "title": "settles a manually entered OTA reservation against approved credit and net bank proceeds",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "reservations-03",
+      "file": "tests/pms.test.ts",
+      "title": "keeps group pickup from consuming inventory twice and allows back-to-back stays",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "reservations-05",
+      "file": "tests/pms.test.ts",
+      "title": "cancels an unarrived room in a partially checked-in group and ignores stale housekeeping cycles",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "reservations-05",
+      "file": "tests/pms-booking.test.ts",
+      "title": "cancels all rooms once and restores inventory without fees",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "reservations-05",
+      "file": "tests/pms-booking.test.ts",
+      "title": "rejects cancellation at the exact cutoff and after partial arrival or financial activity",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "front-desk-01",
+      "file": "tests/pms-read-model.test.ts",
+      "title": "does not hide overdue stays or unreviewed cash shifts when paging day-close history",
+      "sourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "front-desk-01",
+      "file": "tests/pms.test.ts",
+      "title": "keeps overdue arrivals outside the current UI window as Night Audit blockers",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "front-desk-02",
+      "file": "tests/pms.test.ts",
+      "title": "completes deposit, stay, durable night audit, checkout and invoice without duplicate revenue",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "front-desk-02",
+      "file": "tests/pms.test.ts",
+      "title": "requires inspected rooms and independent inspection; maintenance cannot displace guests",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "front-desk-03",
+      "file": "tests/pms.test.ts",
+      "title": "moves an in-house guest, extends safely and preserves room history",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "front-desk-03",
+      "file": "tests/pms.test.ts",
+      "title": "room move supersedes every old-room task beyond a UI page without modifying unrelated closed-account history",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "front-desk-04",
+      "file": "tests/pms.test.ts",
+      "title": "releases unused future room nights on early departure without duplicate revenue or checkout",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "housekeeping-01",
+      "file": "tests/pms.test.ts",
+      "title": "requires inspected rooms and independent inspection; maintenance cannot displace guests",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "housekeeping-02",
+      "file": "tests/pms.test.ts",
+      "title": "honors DND for room work and resumes the same cycle only after its release",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "housekeeping-02",
+      "file": "tests/pms-read-model.test.ts",
+      "title": "uses authoritative room occupancy and all room tasks for housekeeping commands beyond a UI page",
+      "sourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "housekeeping-03",
+      "file": "tests/pms.test.ts",
+      "title": "binds room-task photos in the PMS action transaction and leaves stale evidence draft",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "housekeeping-03",
+      "file": "tests/pms.test.ts",
+      "title": "requires inspected rooms and independent inspection; maintenance cannot displace guests",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "housekeeping-03",
+      "file": "tests/pms-read-model.test.ts",
+      "title": "uses authoritative room occupancy and all room tasks for housekeeping commands beyond a UI page",
+      "sourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "housekeeping-04",
+      "file": "tests/pms.test.ts",
+      "title": "requires inspected rooms and independent inspection; maintenance cannot displace guests",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "housekeeping-04",
+      "file": "tests/pms-booking.test.ts",
+      "title": "withdraws inventory after maintenance and rejects a previously available quote",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "housekeeping-04",
+      "file": "tests/pms-read-model.test.ts",
+      "title": "protects off-page room assignments, duplicate numbers and maintenance capacity under inventory command locks",
+      "sourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "housekeeping-05",
+      "file": "tests/pms.test.ts",
+      "title": "binds lost-property handover evidence in the release transaction",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "accounts-01",
+      "file": "tests/pms.test.ts",
+      "title": "settles a manually entered OTA reservation against approved credit and net bank proceeds",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "accounts-01",
+      "file": "tests/pms.test.ts",
+      "title": "checkout includes all same-party credit exposure beyond a page and excludes unrelated parties without losing account funding",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "accounts-02",
+      "file": "tests/pms.test.ts",
+      "title": "splits and merges charges without repeating revenue and reverses the recipient entry once",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "accounts-03",
+      "file": "tests/pms.test.ts",
+      "title": "retains historical occupancy capacity and posts corrections in the open business date",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "accounts-03",
+      "file": "tests/pms.test.ts",
+      "title": "blocks closed accounting periods and keeps the payment and guest account atomic",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "accounts-04",
+      "file": "tests/pms.test.ts",
+      "title": "protects allocated receipt links and journal lines from deletion outside the subledger",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "accounts-04",
+      "file": "tests/pms.test.ts",
+      "title": "uses complete original receipt funding beyond a UI page while preserving unrelated closed account history",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "accounts-04",
+      "file": "tests/pms.test.ts",
+      "title": "checkout preserves original receipt allocations of another issued credit account for the same payer",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cashier-01",
+      "file": "tests/pms.test.ts",
+      "title": "settles a pending hotel transfer only after independent exact bank evidence",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cashier-01",
+      "file": "tests/pms.test.ts",
+      "title": "cancels an unverified hotel transfer without changing guest account or ledger",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cashier-01",
+      "file": "tests/pms.test.ts",
+      "title": "completes deposit, stay, durable night audit, checkout and invoice without duplicate revenue",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cashier-02",
+      "file": "tests/pms-booking.test.ts",
+      "title": "posts a counter PromptPay room payment and deposit only after Stripe confirms each intent",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cashier-02",
+      "file": "tests/pms-booking.test.ts",
+      "title": "requires an independent Finance approval and Stripe confirmation for a counter refund",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cashier-03",
+      "file": "tests/pms.test.ts",
+      "title": "separates security deposits, enforces refund independence and reverses advance VAT once",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cashier-03",
+      "file": "tests/pms.test.ts",
+      "title": "allocates new receipts after an earlier deposit was refunded",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cashier-03",
+      "file": "tests/pms-booking.test.ts",
+      "title": "collects a 30% room advance and combines pay-at-hotel rooms without inventing income",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cashier-04",
+      "file": "tests/pms-booking.test.ts",
+      "title": "reserves partial refunds cumulatively and rejects an approval by the requester",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cashier-04",
+      "file": "tests/pms-booking.test.ts",
+      "title": "retains counter partial refund generations and recovers a failed provider attempt without posting debt twice",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cashier-04",
+      "file": "tests/pms-booking.test.ts",
+      "title": "recovers a partial booking refund after the provider accepts it but its response is lost",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cashier-04",
+      "file": "tests/pms.test.ts",
+      "title": "serializes a damage-deposit refund against applying the same deposit to a charge",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cashier-05",
+      "file": "tests/pms.test.ts",
+      "title": "holds Night Audit for restaurant cash, variance and unverified transfer controls",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cashier-05",
+      "file": "tests/pms.test.ts",
+      "title": "settles the original opening receivable and invoices only new hotel service across two business days",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "direct-01",
+      "file": "tests/pms-booking.test.ts",
+      "title": "requires explicit publication and prevents selling private rates",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "direct-01",
+      "file": "tests/pms-booking.test.ts",
+      "title": "filters inventory reads and public responses away from guest and financial history",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "direct-02",
+      "file": "tests/pms-booking.test.ts",
+      "title": "holds two rooms, then confirms and allocates each guest account only after Stripe verifies the direct charge",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "direct-02",
+      "file": "tests/pms-booking.test.ts",
+      "title": "collects a 30% room advance and combines pay-at-hotel rooms without inventing income",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "direct-03",
+      "file": "tests/pms-booking.test.ts",
+      "title": "holds two rooms, then confirms and allocates each guest account only after Stripe verifies the direct charge",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "direct-03",
+      "file": "tests/pms-booking.test.ts",
+      "title": "collects a 30% room advance and combines pay-at-hotel rooms without inventing income",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "direct-04",
+      "file": "tests/pms-booking.test.ts",
+      "title": "changes an unpaid future stay at equal price and releases only selected cancelled rooms",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "direct-04",
+      "file": "tests/pms-booking.test.ts",
+      "title": "keeps the original stay while a more expensive change expires and holds only added capacity",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "direct-04",
+      "file": "tests/pms-booking.test.ts",
+      "title": "applies a paid change with accepted prices even when a rate is edited during Checkout",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "direct-04",
+      "file": "tests/pms-booking.test.ts",
+      "title": "confirms a timely provider payment after local hold expiry only when capacity is still available",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "direct-04",
+      "file": "tests/pms-booking.test.ts",
+      "title": "records unallocated money once when a timely late webhook loses the last room",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "direct-04",
+      "file": "tests/pms-booking.test.ts",
+      "title": "recovers a provider success after the local accounting transaction fails without taking another payment",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "direct-04",
+      "file": "tests/pms-booking.test.ts",
+      "title": "deduplicates signed booking payment callbacks through durable jobs and rejects tampered payloads",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "direct-05",
+      "file": "tests/pms-booking.test.ts",
+      "title": "retries email failures while keeping the booking confirmed",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "direct-05",
+      "file": "tests/pms-booking.test.ts",
+      "title": "delivers a queued confirmation in a release process without enabling live payments",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "direct-05",
+      "file": "tests/pms-booking.test.ts",
+      "title": "expires access links and provides non-enumerating email recovery",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "direct-05",
+      "file": "tests/pms-booking.test.ts",
+      "title": "serves only guest documents belonging to the management token and excludes private accounting fields",
+      "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "direct-05",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "guest document lookup is bound to the authorized hotel and booking",
+      "sourceSHA256": "3594661ac9c39b6edac062f747f3489974f232f1c8b1cb906b218610de2d1269",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "direct-05",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "guest document preserves its issued amounts and excludes Finance and personal identifiers",
+      "sourceSHA256": "3594661ac9c39b6edac062f747f3489974f232f1c8b1cb906b218610de2d1269",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "guests-01",
+      "file": "tests/pms.test.ts",
+      "title": "loads real workspace selectors and redacts financial and guest data for housekeeping",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "guests-01",
+      "file": "tests/pms-front-attachments.test.ts",
+      "title": "keeps private room evidence on Front through intake, scan and the hotel action binding",
+      "sourceSHA256": "5df55aed2215b7297f69b1ae883e4ef23a3da1f422584e86037071f38c5f8302",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "guests-02",
+      "file": "tests/pms.test.ts",
+      "title": "retains guest preferences and immutable service request history across legacy edits and retries",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "guests-03",
+      "file": "tests/crm-marketing-analytics.test.ts",
+      "title": "keeps a confirmed PMS win after cancellation and only counts posted journal revenue",
+      "sourceSHA256": "50bf3e0e5997c89937c83f64e73866fce17dd8e148f59956b04cf0d1e0b58267",
+      "freshCaseStatus": "passed",
+      "caseScope": "separateCRM9",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "guests-03",
+      "file": "tests/crm-marketing-analytics.test.ts",
+      "title": "keeps hotel history private until authority is reviewed and hides it after withdrawal",
+      "sourceSHA256": "50bf3e0e5997c89937c83f64e73866fce17dd8e148f59956b04cf0d1e0b58267",
+      "freshCaseStatus": "passed",
+      "caseScope": "separateCRM9",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "guests-04",
+      "file": "tests/crm-marketing-analytics.test.ts",
+      "title": "keeps hotel history private until authority is reviewed and hides it after withdrawal",
+      "sourceSHA256": "50bf3e0e5997c89937c83f64e73866fce17dd8e148f59956b04cf0d1e0b58267",
+      "freshCaseStatus": "passed",
+      "caseScope": "separateCRM9",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "guests-04",
+      "file": "tests/pms.test.ts",
+      "title": "blocks unauthorized, cross-company and revoked actors without business writes",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "guests-04",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "PMS source rules keep housekeeping away from guest account and refund money",
+      "sourceSHA256": "3594661ac9c39b6edac062f747f3489974f232f1c8b1cb906b218610de2d1269",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "pos-stock-01",
+      "file": "tests/pms.test.ts",
+      "title": "defines a POS room-charge contract that rejects foreign scope and already recognized revenue",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "pos-stock-01",
+      "file": "tests/pms.test.ts",
+      "title": "POS room charge allocates complete original advance sources beyond a UI page",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "pos-stock-02",
+      "file": "tests/pms.test.ts",
+      "title": "POS reversal detects an original reversal outside the charged account",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "pos-stock-02",
+      "file": "tests/pms.test.ts",
+      "title": "splits and merges charges without repeating revenue and reverses the recipient entry once",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "pos-stock-03",
+      "file": "tests/pms.test.ts",
+      "title": "posts minibar and inventory cost together, rolling back insufficient stock",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "pos-stock-04",
+      "file": "tests/pms.test.ts",
+      "title": "preserves linen custody and original stock cost through replay, laundry and loss",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "night-01",
+      "file": "tests/pms.test.ts",
+      "title": "completes deposit, stay, durable night audit, checkout and invoice without duplicate revenue",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "night-01",
+      "file": "tests/pms.test.ts",
+      "title": "settles the original opening receivable and invoices only new hotel service across two business days",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "night-02",
+      "file": "tests/pms.test.ts",
+      "title": "holds Night Audit for restaurant cash, variance and unverified transfer controls",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "night-02",
+      "file": "tests/pms.test.ts",
+      "title": "keeps overdue arrivals outside the current UI window as Night Audit blockers",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "night-02",
+      "file": "tests/pms.test.ts",
+      "title": "retains an older open shift behind reviewed history before closing a hotel day",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "night-02",
+      "file": "tests/pms.test.ts",
+      "title": "does not treat an older closed shift with unknown variance as reconciled",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "night-03",
+      "file": "tests/pms.test.ts",
+      "title": "durably blocks failed night audit and resumes under a valid auditor",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "night-03",
+      "file": "tests/pms.test.ts",
+      "title": "resumes a multi-chunk night from committed sources and serializes competing workers",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "night-04",
+      "file": "tests/pms.test.ts",
+      "title": "durably blocks failed night audit and resumes under a valid auditor",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "night-04",
+      "file": "tests/pms.test.ts",
+      "title": "resumes a multi-chunk night from committed sources and serializes competing workers",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "night-04",
+      "file": "tests/pms.test.ts",
+      "title": "locks closing-day commands and blocks workers whose originating authority was revoked",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "reports-01",
+      "file": "tests/pms-reports.test.ts",
+      "title": "uses corrected room-night revenue for ADR and includes other services only in net revenue",
+      "sourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "reports-01",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "PMS report aggregates integer revenue, occupancy and liability signs from provided facts",
+      "sourceSHA256": "3594661ac9c39b6edac062f747f3489974f232f1c8b1cb906b218610de2d1269",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "reports-02",
+      "file": "tests/pms-reports.test.ts",
+      "title": "uses corrected room-night revenue for ADR and includes other services only in net revenue",
+      "sourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "reports-02",
+      "file": "tests/pms.test.ts",
+      "title": "settles the original opening receivable and invoices only new hotel service across two business days",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "reports-03",
+      "file": "tests/pms-reports.test.ts",
+      "title": "attributes current room nights by channel using original creation evidence rather than edit time",
+      "sourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "reports-04",
+      "file": "tests/pms-reports.test.ts",
+      "title": "retains historical prices and room nights after date changes and partial cancellation",
+      "sourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "reports-04",
+      "file": "tests/pms-reports.test.ts",
+      "title": "reports unknown pace before coverage instead of inventing legacy observations",
+      "sourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "reports-04",
+      "file": "tests/pms-reports.test.ts",
+      "title": "retains completed reservation room nights in the historical booked stay period",
+      "sourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "reports-05",
+      "file": "tests/pms-reports.test.ts",
+      "title": "bounds ranges, drill-down pages and scope",
+      "sourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "reports-05",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "PMS report pagination keeps exactly fifty rows and signals the next page",
+      "sourceSHA256": "3594661ac9c39b6edac062f747f3489974f232f1c8b1cb906b218610de2d1269",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "group-01",
+      "file": "tests/pms.test.ts",
+      "title": "aggregates accessible hotels without choosing one and keeps guest amounts private from housekeeping",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "group-02",
+      "file": "tests/pms.test.ts",
+      "title": "blocks unauthorized, cross-company and revoked actors without business writes",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "group-02",
+      "file": "tests/pms-read-model.test.ts",
+      "title": "retains fresh permission, company and branch privacy for every query model",
+      "sourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "group-03",
+      "file": "tests/pms.test.ts",
+      "title": "blocks unauthorized, cross-company and revoked actors without business writes",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "group-03",
+      "file": "tests/pms.test.ts",
+      "title": "locks closing-day commands and blocks workers whose originating authority was revoked",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "group-03",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "PMS report permission withdrawal prevents all repository reads",
+      "sourceSHA256": "3594661ac9c39b6edac062f747f3489974f232f1c8b1cb906b218610de2d1269",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "group-04",
+      "file": "tests/pms.test.ts",
+      "title": "aggregates accessible hotels without choosing one and keeps guest amounts private from housekeeping",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "group-04",
+      "file": "tests/pms-read-model.test.ts",
+      "title": "measures scoped room reads and guest writes with three 200-room properties and two-year synthetic history",
+      "sourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cutover-01",
+      "file": "tests/pms.test.ts",
+      "title": "completes deposit, stay, durable night audit, checkout and invoice without duplicate revenue",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cutover-01",
+      "file": "tests/pms.test.ts",
+      "title": "protects PMS invoices and payments from generic finance mutations",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cutover-01",
+      "file": "tests/pms.test.ts",
+      "title": "settles the original opening receivable and invoices only new hotel service across two business days",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cutover-02",
+      "file": "tests/pms.test.ts",
+      "title": "previews import errors without writing hotel records and requires independent unchanged approval",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cutover-02",
+      "file": "tests/pms.test.ts",
+      "title": "traces imported advance and deposit to the approved opening journal and reconciles partial refunds",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cutover-02",
+      "file": "tests/pms.test.ts",
+      "title": "settles the original opening receivable and invoices only new hotel service across two business days",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cutover-03",
+      "file": "tests/pms.test.ts",
+      "title": "previews import errors without writing hotel records and requires independent unchanged approval",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cutover-03",
+      "file": "tests/pms.test.ts",
+      "title": "applies approved imported in-house stays atomically and resumes a repeated apply without past room revenue",
+      "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cutover-04",
+      "file": "tests/engineering-recovery.test.ts",
+      "title": "encrypts a complete isolated snapshot, restores immutable money and files, and rolls back only compatible releases",
+      "sourceSHA256": "eba0733f74e1a8569f7862361cc0905a45ec10366dcf5137622610d812b6fc8e",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cutover-04",
+      "file": "tests/engineering-migration-upgrade.test.ts",
+      "title": "upgrades populated pre-completion databases without changing posted money or files and replays canonical backfill once",
+      "sourceSHA256": "c9993f5b4616c2e905b9b24f204384b9bc51264afa04fa78b71402cb5c3bc3d7",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    },
+    {
+      "feature": "cutover-04",
+      "file": "tests/pms-cache-upgrade.test.ts",
+      "title": "preserves every original cache revision on the populated 1037 upgrade and replays 1038 once",
+      "sourceSHA256": "e6061ccbdacabef4ec6dffc5e2ac555736d098dfe06340602d1eebe4c66d927b",
+      "freshCaseStatus": "passed",
+      "caseScope": "original1342",
+      "actualNativeAudit": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-current-audit.json"
+    }
+  ],
+  "nativeAssertionReferences": 137,
+  "uniqueReferencedNativeCases": 98,
+  "nativeAuditSHA256": "89673c942fa003cccb99e9fa17db8a4e04fd1fe77d4bab918fdff74d186874ce",
+  "scope": "137source references matched exactly to98distinct actually passing native cases:134references from original1342,3references from separateCRM9. No additional unique cases or automatic feature acceptance. Assertions must still be semantically reconciled with compiled recovery/browser/HTTP/capacity/metadata and all19requirements.",
+  "wholePlanAccepted": false,
+  "freshNativeEvidence": "docs/testing/evidence/2026-10-11-pms-ac53-native.json",
+  "referenceScopeCounts": {
+    "original1342References": 134,
+    "separateCRM9References": 3
+  },
+  "originalCountsUnchanged": true,
+  "sourceFiles133AlignmentEvidence": "docs/testing/evidence/2026-10-11-pms-ac53-native.json",
+  "auditorInitialScopeMistake": {
+    "privateRepairReceipt": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/feature-native-auditor-scope-repair.json",
+    "repairSHA256": "aabbfd52ab57c1bef72b97fdb5b02f7002d1b075592100a05c167b4c9741bc95",
+    "testFailure": false
+  }
+}

@@ -1,4 +1,4 @@
-import { billingMonth } from "@/lib/billing";
+import { billingMonth } from "@/lib/billing/billing";
 import { requestedHoldingScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { readTargetBillingPeriod } from "@/server/modules/billing/public/billing-target";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";

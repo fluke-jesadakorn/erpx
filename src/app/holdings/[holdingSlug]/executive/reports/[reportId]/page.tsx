@@ -3,8 +3,8 @@ import { requireWorkContext, publicScope } from "@/server/modules/identity_acces
 
 
 
-import { workspaceBase } from "@/lib/workspace";
-import { ExecutiveCanvas } from "@/components/executive/canvas";
+import { workspaceBase } from "@/lib/work_projection/workspace";
+import { ExecutiveCanvas } from "@/components/runtime/executive/canvas";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 export default async function ReportPage({params}:{params:Promise<{holdingSlug:string;reportId:string}>}) {
   const {holdingSlug,reportId}=await params;

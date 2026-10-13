@@ -3,14 +3,14 @@ import { collaborationPresentationQueries } from "@/server/modules/collaboration
 import { PageContent } from "@/components/ui/patterns";
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
-import { FeaturePage, FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
+import { FeaturePage, FeatureWidget,WidgetGrid } from "@/components/shared/features/feature-page";
 import { ListFilters } from "@/components/ui/list-filters";
 import { ListPagination } from "@/components/ui/list-pagination";
 import { EmptyState,PageHeader } from "@/components/ui/primitives";
-import { pageGuides } from "@/lib/ai/workspace-assistant";
-import { workplaceNavigation } from "@/lib/workplace-navigation";
+import { pageGuides } from "@/lib/work_projection/ai/workspace-assistant";
+import { workplaceNavigation } from "@/lib/work_projection/workplace-navigation";
 import { navigationContext } from "@/server/modules/work_projection/public/navigation-context";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 
 

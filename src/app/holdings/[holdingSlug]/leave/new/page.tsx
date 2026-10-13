@@ -1,9 +1,9 @@
 import { InlineNotice } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { z } from "zod";
-import { LeaveEditor } from "@/components/self-service/leave-editor";
-import styles from "@/components/leave/leave-flow.module.css";
-import { workspaceBase } from "@/lib/workspace";
+import { LeaveEditor } from "@/components/people_payroll/self-service/leave-editor";
+import styles from "@/components/people_payroll/leave/leave-flow.module.css";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { leaveSummary } from "@/server/modules/people_payroll/public/leave-self-service";
 

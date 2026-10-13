@@ -1,7 +1,7 @@
 import {recordPeoplePlacementLevelHistory} from "../../organization/public/people-placement-level-history";
 import type {SqlDatabase} from '../../runtime/public/runtime/types';
 import type {ClaimedPositionMove,MoveMember} from '../../organization/public/position-move-contract';
-import type {PositionMoveInput,PositionMovePreview} from '@/lib/position-moves';
+import type {PositionMoveInput,PositionMovePreview} from "@/lib/people_payroll/position-moves";
 export async function applyOrganizationPositionMoveHolder(db:SqlDatabase,row:ClaimedPositionMove,input:PositionMoveInput,holder:PositionMovePreview['people'][number],original:MoveMember,now:number){
           await db.prepare("UPDATE hr_engagements SET branch_id=?,department_id=?,level_id=?,manager_person_id=?,version=version+1,updated_at=? WHERE company_id=? AND id=?")
             .bind(holder.after.branchId, holder.after.departmentId, holder.after.levelId, holder.after.managerPersonId, now, row.company_id, holder.engagementId).run();

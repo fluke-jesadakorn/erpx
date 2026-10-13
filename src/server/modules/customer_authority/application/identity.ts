@@ -1,6 +1,6 @@
 import type { Clock } from "../../shared/application/ports";
 import type { Row } from "../../commerce/public/commerce";
-import type { WorkItem } from "@/lib/work-item";
+import type { WorkItem } from "@/lib/work_projection/work-item";
 import { identityRequestSchema, identityChangeSchema, type ChangeRow, type IdentityRequest, type IdentityChange, type CustomerIdentity } from "../domain/identity";
 export type IdentityCommand<Input = IdentityRequest | IdentityChange> = { key: string; operation: string; id: string; input: Input };
 export type IdentityRepository = {

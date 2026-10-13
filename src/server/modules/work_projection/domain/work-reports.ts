@@ -1,4 +1,4 @@
 import {z} from "zod";
-import type {FlowKind} from "@/lib/flow";
+import type {FlowKind} from "@/lib/shared/flow";
 export const reportQuery=z.object({from:z.iso.date().optional(),to:z.iso.date().optional(),type:z.enum(["all","expense","leave","purchase","service"]).default("all"),status:z.string().max(80).default(""),branch:z.string().max(180).default(""),department:z.string().max(180).default(""),requester:z.string().max(180).default(""),owner:z.string().max(180).default(""),page:z.coerce.number().int().min(1).default(1),mode:z.enum(["period","open","drafts"]).default("period")});
 export type WorkReportCandidate={approval_json:string|null;items_json:string|null;id:string;kind:FlowKind;type:string;title:string;status:string;requester:string;branch:string|null;department:string|null;currency:string|null;amount:number|null;units:number|null;submitted_at:number|null;created_at:number;updated_at:number};

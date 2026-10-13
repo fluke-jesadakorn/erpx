@@ -1,7 +1,7 @@
 import type { Clock } from "../../shared/application/ports";
 import type { WorkContext } from "../../identity_access/public/authorization";
 import type { StaffActor } from "../../operations/public/staff-policy";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { decodePmsSource, pmsSourceAllowed, type PmsSource } from "../domain/source";
 export function createPmsSourceApplication(ports: {
     repository: {

@@ -1,4 +1,5 @@
 import "server-only";
+import { memoizeSyncInRequest } from "../../runtime/public/runtime/request-memo";
 import { engineeringCompanySource } from "../../organization/public/engineering-company-source";
 import { createHash } from "node:crypto";
 import { readFileSync, realpathSync } from "node:fs";
@@ -8,6 +9,19 @@ import type { SqlDatabase } from "../../runtime/public/runtime/types";
 import { createEngineeringVerificationApplication } from "../application/engineering-verification";
 import { isEngineeringVerificationOrigin as acceptsOrigin, type EngineeringAttestation, type EngineeringAttestationFacts } from "../domain/engineering-verification";
 
+const manifestDigestKey=Symbol.for("erpx.engineering.manifestDigest");
+function manifestDigest(path:string):string {
+  // Read the current bytes on every guard. Only identical bytes in this one
+  // HTTP invocation reuse a digest; tampering, symlinks and authority changes
+  // still flow through the original checks, including inside transactions.
+  const bytes=readFileSync(path);
+  const entries=memoizeSyncInRequest(manifestDigestKey,()=>new Map<string,{bytes:Buffer;digest:string}>());
+  const prior=entries.get(path);
+  if(prior?.bytes.equals(bytes))return prior.digest;
+  const digest=createHash("sha256").update(bytes).digest("hex");
+  entries.set(path,{bytes,digest}); return digest;
+}
+
 function readAttestation(input: string, run: string): EngineeringAttestationFacts | null {
   try {
     const directory = realpathSync(resolve(input)); if (!directory.endsWith(`/.runtime/browser/${run}`)) return null;
@@ -15,7 +29,7 @@ function readAttestation(input: string, run: string): EngineeringAttestationFact
     const attestationPath = realpathSync(join(directory, "engineering-attestation.json")); if (attestationPath !== join(directory, "engineering-attestation.json")) return null;
     const attestation = JSON.parse(readFileSync(attestationPath, "utf8")), releaseInfo = JSON.parse(readFileSync(join(release, "release.json"), "utf8"));
     const manifestPath = realpathSync(join(release, "release-files.json")); if (manifestPath !== join(release, "release-files.json")) return null;
-    return { directory, release, attestationPath, manifestPath, attestation, releaseInfo, digest: createHash("sha256").update(readFileSync(manifestPath)).digest("hex") };
+    return { directory, release, attestationPath, manifestPath, attestation, releaseInfo, digest: manifestDigest(manifestPath) };
   } catch { return null; }
 }
 function application(db?: SqlDatabase) { return createEngineeringVerificationApplication({ artifactVersion: artifact.softwareVersion, clock: { now: () => Date.now() }, readAttestation, repository: db ? {

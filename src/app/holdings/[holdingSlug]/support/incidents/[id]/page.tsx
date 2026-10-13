@@ -1,10 +1,10 @@
 import { InlineNotice } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
 import {requireWorkContext,publicScope} from "@/server/modules/identity_access/public/authorization";
-import {workspaceBase} from '@/lib/workspace';
+import {workspaceBase} from "@/lib/work_projection/workspace";
 import {pageError} from "@/server/modules/work_projection/public/page-error";
 import {incidentDetail} from "@/server/modules/support/public/support-incidents";
-import {SupportIncidentConsole} from '@/components/modules/support-incident-console';
+import { SupportIncidentConsole } from "@/components/records/loaders/modules--support-incident-console";
 import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic='force-dynamic';
 export default async function Page({params}:{params:Promise<{holdingSlug:string;id:string}>}) {

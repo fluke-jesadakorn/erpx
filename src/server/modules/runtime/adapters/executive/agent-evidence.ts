@@ -1,5 +1,5 @@
 import "server-only";
-import { type MetricId } from "@/lib/executive/canvas";
+import { type MetricId } from "@/lib/shared/executive/canvas";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { ApiError } from "@/server/modules/runtime/public/http";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";

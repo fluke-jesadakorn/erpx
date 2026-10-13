@@ -1,5 +1,7 @@
 # HR placement and Technology provisioning
 
+The shared People menu now also exposes [IT-owned Users & Access](people-external-access.md), including external organizations and teams without employee profiles. Its direct role/invitation/grant flow is separate from the legacy reviewed package operations described below. HR placement remains employee-only and never grants access.
+
 Implemented 2026-09-18. This supersedes the placement/access coupling and reviewed-only Directory flow in [the original lifecycle contract](people-lifecycle.md). Existing reviewed operations retain their original approval method.
 
 ## User flow
@@ -66,3 +68,11 @@ Migrations `0320`–`0321` introduce versioned organization GPO rules, immutable
 Directory operation steps record individual outcomes. Failed transient steps can resume under the same operation ID after current MFA/authority checks. Stale versions and uncertain provider writes require a new preview. Preparation tasks and independent role review status remain visible separately from Directory read-back.
 
 See [original verification evidence](../../testing/hr-it-technology-2026-09-18.md) and [Organization & Access verification](../../testing/organization-access-2026-09-26.md).
+
+## Shared console presentation
+
+People settings is a full workspace with authorized topics (Staff levels, Leave & overtime, Holiday calendars, Pay groups, Organization templates, Lifecycle handoff), list content and right-hand form drawers. Existing `people?panel=settings` links redirect without losing repeated filters, unit context or the policy editor.
+
+Technology uses `view=organization|resources|directory|settings`. Organization & Access shares the People Units tree and grouped Position/People list; selected details retain Policies, Directory and Delivery. Resources has `section=packages|accounts|groups|policies|tasks`, Directory has `section=objects|connections|mappings|work`, and Access settings has `section=attributes|roles|matrix|groups|reviews`. Their defaults are packages, objects and attributes. Directory configuration/objects/mappings/jobs have a single owner destination. Former People IT settings and `view=attributes` links redirect with their context intact. Selections in organization, resource lists, Roles and Directory connections remain in the URL, including repeated filters and return context, so Back/Forward and reload restore the selected record. Existing provider, HR placement, GPO, MFA, review, idempotency and version rules remain unchanged. Shared presentation receives only the existing permission-filtered directory facts.
+
+Detail panels dock above 1250px and become drawers on narrower viewports; phones at 650px use the full width. Navigation becomes a picker at 1024px. Long forms always use the shared form drawer, with retained drafts, visible command errors and focus return.

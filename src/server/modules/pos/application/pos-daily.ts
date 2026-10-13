@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { WorkContext } from "../../identity_access/public/authorization";
 import { num, str, scopeRow as domainScopeRow, type PosRow } from "../domain/pos-model";
-import { samePerson } from "@/lib/iam";
+import { samePerson } from "@/lib/identity_access/iam";
 import { businessDate as evaluateBusinessDate } from "../domain/pos";
 import type { Clock } from "../../shared/application/ports";
 export type PosReceiptSnapshot = {

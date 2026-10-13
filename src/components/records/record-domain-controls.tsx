@@ -1,12 +1,12 @@
 import type {recordDomainData} from "@/server/modules/records/public/record-domain-details";
-import {BrandIdentityConsole} from '@/components/modules/brand-identity-console';
-import {AgentGovernanceConsole} from '@/components/modules/agent-governance-console';
-import {ProductionConsole} from '@/components/modules/production-console';
-import {EcommerceConsole} from '@/components/modules/ecommerce-console';
-import {LearningConsole} from '@/components/modules/learning-console';
-import {BenefitsConsole} from '@/components/modules/benefits-console';
-import {TalentConsole} from '@/components/modules/talent-console';
-import {hasPermission} from '@/lib/permissions';
+import { BrandIdentityConsole } from "@/components/records/loaders/modules--brand-identity-console";
+import { AgentGovernanceConsole } from "@/components/records/loaders/modules--agent-governance-console";
+import { ProductionConsole } from "@/components/records/loaders/modules--production-console";
+import { EcommerceConsole } from "@/components/records/loaders/modules--ecommerce-console";
+import { LearningConsole } from "@/components/records/loaders/modules--learning-console";
+import { BenefitsConsole } from "@/components/records/loaders/modules--benefits-console";
+import { TalentConsole } from "@/components/records/loaders/modules--talent-console";
+import {hasPermission} from "@/lib/identity_access/permissions";
 import type {WorkContext} from "@/server/modules/identity_access/public/authorization";
 export function RecordDomainControls({detail,base,actor}:{detail:Awaited<ReturnType<typeof recordDomainData>>;base:string;actor:WorkContext}){
  if(detail.domain==='brand')return <BrandIdentityConsole base={base} data={detail.data} recordOnly/>;

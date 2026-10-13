@@ -1,6 +1,6 @@
 import type {SqlDatabase} from '../../runtime/public/runtime/types';
 import type {ClaimedDraftRequest} from '../../organization/public/draft-contract';
-import type {DraftDefinition} from '@/lib/organization-draft';
+import type {DraftDefinition} from "@/lib/organization/organization-draft";
 import type {WorkContext} from '../../identity_access/public/authorization';
 export async function appendOrganizationDraftEvents(db:SqlDatabase,row:ClaimedDraftRequest,actor:WorkContext,definition:DraftDefinition,affectedCount:number,now:number){
         await db.prepare("INSERT INTO audit_events(id,command_id,actor_id,assignment_id,action,record_type,record_id,record_version,purpose,created_at) VALUES(?,?,?,?,'organization.draft.applied','organization_draft_request',?,1,?,?)")

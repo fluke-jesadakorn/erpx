@@ -1,0 +1,492 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "experimentAccepted": false,
+  "experiment": "Local per-pool aggregate FIFO before borrowing the original PostgreSQL session-lock connection. Rejected and removed after worse unchanged workload core p95.",
+  "result": {
+    "run": "5d9b152199ad",
+    "sourceFingerprint": "b9921ca63d8bdf6c536028fb6e75cf90e6846f09b15082e7620b1d210f32f98b",
+    "verificationFingerprint": "cbbbfec05f5ae268432f1a1f3ce1d7e587d87cbeb2f783b16673ad937565d654",
+    "release": {
+      "id": "2026-10-09T23-04-55-039Z",
+      "fileManifestSha256": "bd1f7b3fbc12117e2710870ef49e2ed0fdb5839e7613e6fcc100fc5516b7860a"
+    },
+    "scope": "Release HTTP: 3 \u00d7 200 rooms, 730-day synthetic closed stay/reservation/account metadata; 20 distinct normal staff accounts. Historic revenue is not invented.",
+    "applicationPoolMax": 8,
+    "controlPoolMax": 5,
+    "jobsHoldingPoolMax": 1,
+    "counts": [
+      {
+        "rooms": 200,
+        "archived_stays": 73000,
+        "reservations": 73000,
+        "archived_accounts": 73000
+      },
+      {
+        "rooms": 200,
+        "archived_stays": 73000,
+        "reservations": 73000,
+        "archived_accounts": 73000
+      },
+      {
+        "rooms": 200,
+        "archived_stays": 73000,
+        "reservations": 73000,
+        "archived_accounts": 73000
+      }
+    ],
+    "accounts": 20,
+    "rounds": 10,
+    "durationMs": 87736,
+    "readCount": 840,
+    "writeCount": 843,
+    "readP95Ms": 311.6065839999992,
+    "writeP95Ms": 2461.5772920000018,
+    "coreReadCount": 840,
+    "coreWriteCount": 400,
+    "financialEnabled": true,
+    "financialWriteCount": 200,
+    "financialWriteP95Ms": 1656.6411669999943,
+    "financialOperations": [
+      {
+        "operation": "shift.open",
+        "count": 20,
+        "p95Ms": 1434.501458000006
+      },
+      {
+        "operation": "charge.add",
+        "count": 20,
+        "p95Ms": 1691.0599999999977
+      },
+      {
+        "operation": "payment.receive",
+        "count": 40,
+        "p95Ms": 1739.2749580000018
+      },
+      {
+        "operation": "payment.deposit",
+        "count": 20,
+        "p95Ms": 1643.9883330000011
+      },
+      {
+        "operation": "refund.request",
+        "count": 20,
+        "p95Ms": 1345.7559159999946
+      },
+      {
+        "operation": "refund.approve",
+        "count": 20,
+        "p95Ms": 207.95033300000068
+      },
+      {
+        "operation": "refund.pay",
+        "count": 20,
+        "p95Ms": 1656.6411669999943
+      },
+      {
+        "operation": "shift.close",
+        "count": 20,
+        "p95Ms": 1379.5930829999998
+      },
+      {
+        "operation": "shift.review",
+        "count": 20,
+        "p95Ms": 227.08845799999835
+      }
+    ],
+    "financialReconciliation": {
+      "history": {
+        "records": 657000,
+        "versions": "657000"
+      },
+      "balances": {
+        "accounts": 20,
+        "due": "0",
+        "advance": "200000",
+        "deposit": "40000"
+      },
+      "cash": {
+        "shifts": 20,
+        "cash": "475400",
+        "reviewed": true
+      },
+      "receipts": {
+        "receipts": 60,
+        "refunds": 20,
+        "received": "495400",
+        "refunded": "20000",
+        "settled": true
+      },
+      "journals": {
+        "debit": "999280",
+        "credit": "999280"
+      }
+    },
+    "operationalEnabled": true,
+    "operationalWriteCount": 220,
+    "operationalWriteP95Ms": 1565.8863750000019,
+    "operationalOperations": [
+      {
+        "operation": "reservation.create",
+        "count": 20,
+        "p95Ms": 1527.6567500000092
+      },
+      {
+        "operation": "stay.assign",
+        "count": 20,
+        "p95Ms": 1421.0436250000057
+      },
+      {
+        "operation": "stay.check_in",
+        "count": 20,
+        "p95Ms": 1412.324416000003
+      },
+      {
+        "operation": "stay.move",
+        "count": 20,
+        "p95Ms": 1465.0832079999964
+      },
+      {
+        "operation": "stay.change_dates",
+        "count": 20,
+        "p95Ms": 1484.7074589999975
+      },
+      {
+        "operation": "stay.preview_checkout",
+        "count": 20,
+        "p95Ms": 1701.4152089999989
+      },
+      {
+        "operation": "shift.open",
+        "count": 20,
+        "p95Ms": 1389.0522499999934
+      },
+      {
+        "operation": "payment.receive",
+        "count": 20,
+        "p95Ms": 1955.6401250000054
+      },
+      {
+        "operation": "stay.check_out",
+        "count": 20,
+        "p95Ms": 1455.199041999993
+      },
+      {
+        "operation": "shift.close",
+        "count": 20,
+        "p95Ms": 1371.5204999999987
+      },
+      {
+        "operation": "shift.review",
+        "count": 20,
+        "p95Ms": 264.7231249999895
+      }
+    ],
+    "operationalReconciliation": {
+      "occupancy": {
+        "stays": 20,
+        "completed": true
+      },
+      "balances": {
+        "accounts": 20,
+        "due": "0",
+        "advance": "0",
+        "deposit": "0"
+      },
+      "cash": {
+        "shifts": 20,
+        "cash": "7062000",
+        "reviewed": true
+      },
+      "rooms": {
+        "rooms": 40,
+        "dirty": true
+      },
+      "charges": {
+        "charges": 20,
+        "total": "7062000"
+      },
+      "receipts": {
+        "receipts": 20,
+        "received": "7062000",
+        "settled": true
+      },
+      "journals": {
+        "debit": "22185280",
+        "credit": "22185280"
+      },
+      "history": {
+        "records": 657000,
+        "versions": "657000"
+      }
+    },
+    "closingEnabled": true,
+    "closingWriteCount": 23,
+    "closingWriteP95Ms": 1412.3770409999997,
+    "closingOperations": [
+      {
+        "operation": "guest_account.close",
+        "count": 20,
+        "p95Ms": 1412.3770409999997
+      },
+      {
+        "operation": "night.start",
+        "count": 3,
+        "p95Ms": 206.9019580000022
+      }
+    ],
+    "closingReconciliation": {
+      "invoices": {
+        "invoices": 20,
+        "total": "7062000",
+        "outstanding": "0",
+        "paid": true
+      },
+      "days": {
+        "hotels": 3,
+        "advanced": true
+      },
+      "nights": {
+        "nights": 3,
+        "capacity": 600,
+        "sold": 20,
+        "completed": true
+      },
+      "journals": {
+        "debit": "22185280",
+        "credit": "22185280"
+      },
+      "history": {
+        "records": 657000,
+        "versions": "657000"
+      }
+    },
+    "failedSamples": 0,
+    "sameProcesses": true,
+    "unchanged": true,
+    "samplesSha256": "cd54bb0cc00cf8d00773b10f463f8a24694ddb97311f7fb058632ed792980c7a",
+    "passed": false
+  },
+  "coreOperations": [
+    {
+      "operation": "guest.save",
+      "count": 200,
+      "p95Ms": 2559.3052919999973,
+      "attemptsP95": 10
+    },
+    {
+      "operation": "reservation.create",
+      "count": 200,
+      "p95Ms": 2326.344083,
+      "attemptsP95": 10
+    }
+  ],
+  "native": {
+    "experimentalUnitFiles": 77,
+    "experimentalUnitCases": 774,
+    "experimentalIntegrationFiles": 49,
+    "experimentalIntegrationCases": 514,
+    "experimentalTotalCases": 1288,
+    "failedCases": 0,
+    "redWithoutQueue": "The new headroom case times out with pool size two; seven existing cases pass.",
+    "restoredIndependentPoolCases": 7,
+    "restoredCasesPassed": true,
+    "experimentalTestRemoved": true
+  },
+  "checks": {
+    "typecheck": true,
+    "lint": true,
+    "lintExistingWarnings": 3,
+    "architecture": true,
+    "isolatedReleaseBuild": true
+  },
+  "restoredSource": {
+    "runtime": "ae1151f8ca066275826f73e8a70d72f9a7d0cf9a7def61ccdaad5ce41e7100c7",
+    "verification": "f08c3904fbddd49d9dba19891cf4aa7dca8e64cd9684cdf1a5030e18fa01b4e2"
+  },
+  "restoredSourceMatchesPreviousRuntime": true,
+  "cleanup": {
+    "run": "5d9b152199ad",
+    "destroyed": true,
+    "ownedDatabases": 8,
+    "matchingProfile": "booking / 3104 / scale / Holding8 / Control5 / jobs / local attachments"
+  },
+  "logs": {
+    "architecture.log": {
+      "path": ".scratch/dev/pms-local-property-queue/architecture.log",
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    "budget-after.json": {
+      "path": ".scratch/dev/pms-local-property-queue/budget-after.json",
+      "sha256": "772a88505cd6bc5dba319ed947c74815d736908cf938e0744038ad81833a4bff"
+    },
+    "budget-before.json": {
+      "path": ".scratch/dev/pms-local-property-queue/budget-before.json",
+      "sha256": "b1040d1d5c369fe1b38339b60149602b1a05286c479ee83e151921ab2702200d"
+    },
+    "budget-load.json": {
+      "path": ".scratch/dev/pms-local-property-queue/budget-load.json",
+      "sha256": "b6c818aa1b4c5362f4fd1386f3ae0b24f738dc0d8aaf7ade5fb4db4fd1fc9e52"
+    },
+    "build.log": {
+      "path": ".scratch/dev/pms-local-property-queue/build.log",
+      "sha256": "b48d28dcce57e8318d3660832a06cc7bd25bbef7521ff2013dfe892cc8a16649"
+    },
+    "db-after.json": {
+      "path": ".scratch/dev/pms-local-property-queue/db-after.json",
+      "sha256": "50e5cc2dfaf54c28541aaa7b0cf4f9cb018d64980c6f4117851fc48749b2739f"
+    },
+    "db-before.json": {
+      "path": ".scratch/dev/pms-local-property-queue/db-before.json",
+      "sha256": "50e5cc2dfaf54c28541aaa7b0cf4f9cb018d64980c6f4117851fc48749b2739f"
+    },
+    "destroy.log": {
+      "path": ".scratch/dev/pms-local-property-queue/destroy.log",
+      "sha256": "1a8b928731373a4a90fdc0b00f359bc592246d1faecb094eb3c914ab52ebfd56"
+    },
+    "lint.log": {
+      "path": ".scratch/dev/pms-local-property-queue/lint.log",
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    },
+    "module-native.log": {
+      "path": ".scratch/dev/pms-local-property-queue/module-native.log",
+      "sha256": "cf6867ab26b29bd3015b28c7d02ac1a25979d9fa0d09e9da6c80ca57ce08c7d9"
+    },
+    "native-red.log": {
+      "path": ".scratch/dev/pms-local-property-queue/native-red.log",
+      "sha256": "52e4a9e475184b7e616eee2f96d091f04d9b3b2033a9de515ff2187ae81af0bf"
+    },
+    "native-runtime.test.ts": {
+      "path": ".scratch/dev/pms-local-property-queue/native-runtime.test.ts",
+      "sha256": "b899ec1c162942e56700491c321bcb8eeafc2fe8dbe0fc7255557b301b21235a"
+    },
+    "performance.log": {
+      "path": ".scratch/dev/pms-local-property-queue/performance.log",
+      "sha256": "5e5bc5248267df9f80bdcc301576564c0c597f75f7f7f125efb933dbc32da906"
+    },
+    "postgres-with-local-queue.ts": {
+      "path": ".scratch/dev/pms-local-property-queue/postgres-with-local-queue.ts",
+      "sha256": "4169b2811d76334f92ddd48ac195805abeeeb134ccc423bc8ee33da1a1dcd682"
+    },
+    "postgres.ts": {
+      "path": ".scratch/dev/pms-local-property-queue/postgres.ts",
+      "sha256": "2393a47e9b2f38723fd8c5a340e7168f630b9103b90b9989433a19a85dece616"
+    },
+    "prepare.log": {
+      "path": ".scratch/dev/pms-local-property-queue/prepare.log",
+      "sha256": "b99bbadfba64635ac81b6098e5c2d2582a393488c9bc53d4b98c331823cecf1a"
+    },
+    "restored-native.log": {
+      "path": ".scratch/dev/pms-local-property-queue/restored-native.log",
+      "sha256": "0f6eb002f051ae044b51e38f8115998a75d10d576157e7c6c29c9db2545073a4"
+    },
+    "restored-source.json": {
+      "path": ".scratch/dev/pms-local-property-queue/restored-source.json",
+      "sha256": "62bfd384bbe13c755fbfcf2e5ad1d2eb44e5687eca3bf427c6c3f1c8c2d5ffd3"
+    },
+    "scale-result/core-operations.json": {
+      "path": ".scratch/dev/pms-local-property-queue/scale-result/core-operations.json",
+      "sha256": "970505a4447552313b5e3d84ee2b5fbaf7eef923796dc95a924c651beec01c08"
+    },
+    "scale-result/requests.jsonl": {
+      "path": ".scratch/dev/pms-local-property-queue/scale-result/requests.jsonl",
+      "sha256": "0c79201691f2f8090fb43ec02c02616d5eb8f2165e223f11ecb8cc38d6dffdb4"
+    },
+    "scale-result/result.json": {
+      "path": ".scratch/dev/pms-local-property-queue/scale-result/result.json",
+      "sha256": "3049e0b82fbbe29e8ddd395f787be54a37372a77e49d6b1f127b70828aad5d76"
+    },
+    "scale-result/samples.jsonl": {
+      "path": ".scratch/dev/pms-local-property-queue/scale-result/samples.jsonl",
+      "sha256": "cd54bb0cc00cf8d00773b10f463f8a24694ddb97311f7fb058632ed792980c7a"
+    },
+    "scale-result/timings.jsonl": {
+      "path": ".scratch/dev/pms-local-property-queue/scale-result/timings.jsonl",
+      "sha256": "d905e4b1a7939988b81e23ca772b3d6baa80ec2773df8d9b90fe749c502110a8"
+    },
+    "start.log": {
+      "path": ".scratch/dev/pms-local-property-queue/start.log",
+      "sha256": "7b7345494fd680dc72b0be0d44d8d22b93938a6cddc5fddc8e007fa83ebcf795"
+    },
+    "suite-after.json": {
+      "path": ".scratch/dev/pms-local-property-queue/suite-after.json",
+      "sha256": "080632ca599103db62fa72704bd3fc3af85c307e0b1604bf00b20eedf75ee41f"
+    },
+    "suite-before.json": {
+      "path": ".scratch/dev/pms-local-property-queue/suite-before.json",
+      "sha256": "080632ca599103db62fa72704bd3fc3af85c307e0b1604bf00b20eedf75ee41f"
+    },
+    "typecheck.log": {
+      "path": ".scratch/dev/pms-local-property-queue/typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "finalHealth": {
+      "path": ".scratch/dev/pms-conflict-hint/final-health.json",
+      "sha256": "ec79c752d8b3a6495c6041391fe2ece5d9db462d2d1a88f58bd5b980454c7437"
+    },
+    "finalDocs": {
+      "path": ".scratch/dev/pms-conflict-hint/docs.log",
+      "sha256": "b00193618438c2b85aff2414c9f0628b497ce3e7bbadaf63146cd7d734a75af7"
+    },
+    "restoredTypecheck": {
+      "path": ".scratch/dev/pms-conflict-hint/restored-typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    }
+  },
+  "environment": {
+    "checkedAt": "2026-10-09T23:29:52.330269+00:00",
+    "listeners": {
+      "3100": "COMMAND   PID  USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME\nnode    58873 fluke   13u  IPv6 0xc4d6f8978281bcb4      0t0  TCP *:3100 (LISTEN)",
+      "3104": "",
+      "5432": "COMMAND  PID  USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME\npostgres 909 fluke    5u  IPv4 0xab194641205d693c      0t0  TCP 127.0.0.1:5432 (LISTEN)"
+    },
+    "initialUrllibChecks": [
+      {
+        "url": "http://127.0.0.1:3100/api/health",
+        "status": 200
+      },
+      {
+        "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+        "status": 403,
+        "error": "HTTPError"
+      },
+      {
+        "url": "http://127.0.0.1:3101/api/health",
+        "status": 200
+      }
+    ],
+    "checks": [
+      {
+        "url": "http://127.0.0.1:3100/api/health",
+        "status": 200,
+        "exitCode": 0,
+        "client": "curl"
+      },
+      {
+        "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+        "status": 200,
+        "exitCode": 0,
+        "client": "curl"
+      },
+      {
+        "url": "http://127.0.0.1:3101/api/health",
+        "status": 200,
+        "exitCode": 0,
+        "client": "curl"
+      }
+    ],
+    "developmentCwd": "/Users/fluke/Desktop/Work/erpx",
+    "developmentPid": 58873,
+    "developmentParentPid": 81955,
+    "postgresPid": 909,
+    "installedProductionHealthOnly": true,
+    "stagingAccessed": false
+  },
+  "documentation": {
+    "markdownFiles": 248,
+    "localLinks": 1298,
+    "ledgerFiles": 213,
+    "passed": true
+  },
+  "restoredTypecheckPassed": true
+}

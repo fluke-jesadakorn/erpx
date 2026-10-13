@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { calculateLeaveDays, dateRange, addLeaveDays, leaveCreateSchema, leavePreviewSchema, type LeaveCalculationDay } from "@/lib/leave-self-service";
+import { calculateLeaveDays, dateRange, addLeaveDays, leaveCreateSchema, leavePreviewSchema, type LeaveCalculationDay } from "@/lib/people_payroll/leave-self-service";
 import type { activeStaff, requireCompanyAuthority } from "@/server/modules/operations/public/staff-policy";
 import type { openApproval } from "@/server/modules/workflow/public/approvals";
 import type { peopleRequestRoute } from "@/server/modules/organization/public/department-authority";

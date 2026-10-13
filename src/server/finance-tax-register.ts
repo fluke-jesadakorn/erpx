@@ -1,3 +1,0 @@
-/** Compatibility entry point; implementation belongs to finance. */
-export {approveVatPackage,calculateVatCloseEvidence,exportVatWorkpaper,pendingVatReviewSql,prepareVatCorrection,prepareVatEntry,prepareVatPackage,recordVatFiling,reviewVatCorrection,reviewVatEntry,supersedeVatPackage,taxEntryDetail,taxReviewSchema,vatCloseGuards,vatCorrectionDetail,vatCorrectionSchema,vatEntrySchema,vatFilingSchema,vatPackageDetail,vatPackageExport,vatPackageSchema,vatWorkspace} from "@/server/modules/finance/adapters/finance-tax-register";
-export type {TaxRow,VatCloseEvidence,VatCorrectionDetail} from "@/server/modules/finance/adapters/finance-tax-register";

@@ -1,5 +1,5 @@
 import type {MetricData} from "@/server/modules/runtime/public/rules/canvas-domain";
-import {absoluteMaximum,chartUnits,formatMetric} from "@/lib/executive/numbers";
+import {absoluteMaximum,chartUnits,formatMetric} from "@/lib/shared/executive/numbers";
 export const escape = (value: unknown) => String(value).replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]!));
 export const amount = (value: string, data: MetricData) => formatMetric(value, data);
 const colors = Array.from({ length: 7 }, (_, index) => `var(--chart-${index + 1})`);

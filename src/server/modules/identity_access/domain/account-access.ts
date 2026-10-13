@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { businessRoles, type BusinessRole } from '@/lib/business-roles';
+import { businessRoles, type BusinessRole } from "@/lib/identity_access/business-roles";
 import type { WorkContext } from './authorization';
 type IdentityError = (status: number, code: string, message: string) => Error;
 export const grantSchema = z
@@ -17,7 +17,7 @@ export const grantSchema = z
 });
 export const acceptInvitationSchema = z.object({
     token: z.string().min(32).max(128),
-    password: z.string().min(12).max(128),
+    password: z.string().min(1).max(128),
 });
 export type Invitation = {
     id: string;

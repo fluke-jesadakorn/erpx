@@ -1,9 +1,9 @@
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
-import { FeaturePage } from "@/components/features/feature-page";
+import { FeaturePage } from "@/components/shared/features/feature-page";
 import { FinanceWorkspace, financeStyles as styles } from "@/components/finance/finance-workspace";
-import { formatMoneyUnits } from "@/lib/company-money";
-import { workspaceBase } from "@/lib/workspace";
+import { formatMoneyUnits } from "@/lib/finance/company-money";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { financeWorkbench } from "@/server/modules/finance/public/finance-workspace";
 import { RecordLink as Link } from "@/components/records/record-link";

@@ -1,5 +1,8 @@
 "use client";
 import { CollectionRecordLink, RecordCollectionDrawer, RecordFacts } from "@/components/records/record-collection";
+import { WorkspaceCollection, WorkspaceDetail, WorkspaceRecordList, type WorkspaceRecord } from "@/components/ui/workspace";
+import { FormDisclosure } from "@/components/ui/form-disclosure";
+import type { ReactNode } from "react";
 import { Card, FilterBar } from "@/components/ui/foundation";
 
 import { InlineNotice } from "@/components/ui/foundation";
@@ -14,21 +17,21 @@ import {
   TextInput,
 } from "@/components/ui/foundation";
 
-import { FeatureTabBar, FeatureWidget, WidgetGrid } from "@/components/features/feature-page";
-import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
-import { AttachmentFeatureSurface } from "@/components/attachments/attachment-feature-context";
+import { FeatureTabBar, FeatureWidget, WidgetGrid } from "@/components/shared/features/feature-page";
+import { RecordDocumentPanel } from "@/components/files/record-document-panel";
+import { AttachmentFeatureSurface } from "@/components/files/attachment-feature-context";
 
-import { flowKinds } from "@/lib/flow";
+import { flowKinds } from "@/lib/shared/flow";
 import {
   directoryProviderLabels,
   iamSections,
   type AccessDecision,
   type IamSection,
   type RoleRevision,
-} from "@/lib/iam";
-import { evaluateAccess } from "@/lib/permissions";
-import { workFetch } from "@/lib/work-fetch";
-import { TimeText } from "@/components/time/time-preference-context";
+} from "@/lib/identity_access/iam";
+import { evaluateAccess } from "@/lib/identity_access/permissions";
+import { workFetch } from "@/lib/work_projection/work-fetch";
+import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 import type { iamOverview } from "@/server/modules/identity_access/public/iam-service";
 import {
   Check,
@@ -44,7 +47,7 @@ import {
   X,
 } from "lucide-react";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./iam.module.css";
 type Data = Awaited<ReturnType<typeof iamOverview>>;
@@ -128,19 +131,42 @@ function Decision({ decision, onClick }: { decision: AccessDecision; onClick: ()
 function Empty({ children }: { children: React.ReactNode }) {
   return <div className={styles.empty}>{children}</div>;
 }
+function IamSurface({ flat, pageKey, title, id, children }: {flat: boolean; pageKey?: string; title: string; id: string; children: ReactNode}) {
+  return flat ? <section>{children}</section> : <WidgetGrid pageKey={pageKey}><FeatureWidget appearance="standard" id={id} title={title}>{children}</FeatureWidget></WidgetGrid>;
+}
+
+function IamRecords({ workspace, records, selected, onSelect, title, editorOpen, children }: { workspace: boolean; records: WorkspaceRecord[]; selected: string | null; onSelect: (id: string | null) => void; title: string; editorOpen: boolean; children: ReactNode }) {
+  if (!workspace) return <>{children}</>;
+  const open = !!selected && !editorOpen;
+  return <WorkspaceCollection detailOpen={open}><WorkspaceRecordList items={records} selected={selected} onSelect={onSelect} label={title}/><WorkspaceDetail open={open} title={records.find(record => record.id === selected)?.title ?? title} onClose={() => onSelect(null)}><div className={styles.workspaceDetails}>{children}</div></WorkspaceDetail></WorkspaceCollection>;
+}
+
 export function IamConsole({
   data,
   base,
   api,
   section,
   embedded = false,
+  presentation = "standalone",
 }: {
+  presentation?: "standalone" | "workspace";
   embedded?: boolean;
   data: Data;
   base: string;
   api: string;
   section: IamSection;
 }) {
+  const queryParams = useSearchParams();
+  const workspace = presentation === "workspace";
+  const selectedRole = queryParams.get("role");
+  const selectedDirectoryConnection = queryParams.get("connection");
+  const [roleEditorOpen, setRoleEditorOpen] = useState(false);
+  const [connectionEditorOpen, setConnectionEditorOpen] = useState(false);
+  function selectRecord(key: string, id: string | null) {
+    const params = new URLSearchParams(queryParams);
+    if (id) params.set(key, id); else params.delete(key);
+    window.history.pushState(null, "", `${window.location.pathname}?${params}`);
+  }
   const detailRef = useRef<HTMLElement>(null);
   const router = useRouter(),
     [busy, setBusy] = useState(false),
@@ -169,6 +195,8 @@ export function IamConsole({
     } | null>(null),
     [inspector, setInspector] = useState<unknown>(null),
     [editingConnection, setEditingConnection] = useState<Row | null>(null);
+  const [roleEditorSession, setRoleEditorSession] = useState(0);
+  const [connectionEditorSession, setConnectionEditorSession] = useState(0);
   useEffect(() => {
     if (detail) detailRef.current?.focus();
   }, [detail]);
@@ -176,6 +204,8 @@ export function IamConsole({
     companyScope = ["holding", "platform"].includes(data.scopeKind),
     end = Math.min(data.evaluatedAt + 90 * 86400000, data.validUntil);
   async function send(path: string, payload: unknown, account = false) {
+    const submittingForm = document.activeElement instanceof HTMLElement ? document.activeElement.closest("form") : null;
+    const formEditVersion = submittingForm?.getAttribute("data-erpx-edit-version");
     setBusy(true);
     setError("");
     setMessage("");
@@ -198,6 +228,7 @@ export function IamConsole({
           (body.data.status === "pending" ? "Submitted for independent review." : "Saved."),
       );
       setAuditResult(null);
+      if (submittingForm && formEditVersion) window.dispatchEvent(new CustomEvent("erpx:record-command-saved", {detail:{form:submittingForm,formEditVersion}}));
       router.refresh();
       return body.data;
     } catch (e) {
@@ -492,8 +523,7 @@ export function IamConsole({
           {error}
         </InlineNotice>
       )}
-      <WidgetGrid pageKey={base === "/platform" ? `platform-iam-${section}` : undefined}>
-        <FeatureWidget appearance="standard" id={`iam-${section}`} title={pageTitle}>
+      <IamSurface flat={presentation === "workspace"} pageKey={base === "/platform" ? `platform-iam-${section}` : undefined} id={`iam-${section}`} title={pageTitle}>
           <div className={styles.sectionHeading}>
             <h2>{pageTitle}</h2>
             <Button appearance="standard"
@@ -715,7 +745,7 @@ export function IamConsole({
                     Renewal creates a new assignment. An independent reviewer approves every grant.
                     Choose the permissions deliberately; grants expire within your authority.
                   </p>
-                  <form
+                  <FormDisclosure appearance="standard" drawerTitle="Grant or renew access" error={error}><summary>Grant or renew access</summary><form
                     className={styles.form}
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -742,7 +772,7 @@ export function IamConsole({
                     {renderScopeFields()}
                     {renderReason()}
                     {submit()}
-                  </form>
+                  </form></FormDisclosure>
                 </Card>
               )}
               {can("iam.manage") && companyScope && (
@@ -752,7 +782,7 @@ export function IamConsole({
                     Suspension immediately invalidates this company’s sessions and grants. It
                     preserves employee history.
                   </p>
-                  <form
+                  <FormDisclosure appearance="standard" drawerTitle="Suspend company access" error={error}><summary>Suspend company access</summary><form
                     className={styles.form}
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -778,17 +808,18 @@ export function IamConsole({
                     </Field>
                     {renderReason()}
                     {submit("Suspend access")}
-                  </form>
+                  </form></FormDisclosure>
                 </Card>
               )}
             </>
           )}
           {section === "roles" && (
             <>
+              <IamRecords workspace={workspace} records={data.roles.map(role => ({id:role.id,title:role.name,description:`${role.builtIn ? "Protected built-in role" : "Company custom role"} · ${role.permissions.length} permissions · revision ${role.revision}`}))} selected={selectedRole} onSelect={id => selectRecord("role", id)} title="Roles & permissions" editorOpen={roleEditorOpen}>
               <div className={styles.roleGrid}>
-                {data.roles.map((r) => (
+                {data.roles.filter(role => !workspace || role.id === selectedRole).map((r) => (
                   <Card as="section" appearance="standard" className={styles.panel} key={r.id}>
-                    <h3>{r.name}</h3>
+                    {!workspace && <h3>{r.name}</h3>}
                     <p>
                       {r.builtIn ? "Protected built-in role" : "Company custom role"} · revision{" "}
                       {r.revision}
@@ -812,6 +843,8 @@ export function IamConsole({
 
                           onClick={() => {
                             setEditing(null);
+                            setRoleEditorSession(value => value + 1);
+                            setRoleEditorOpen(true);
                             setChosenPermissions(
                               r.permissions.filter((p) => data.grantablePermissions.includes(p)),
                             );
@@ -827,6 +860,8 @@ export function IamConsole({
 
                             onClick={() => {
                               setEditing(r);
+                              setRoleEditorSession(value => value + 1);
+                            setRoleEditorOpen(true);
                               setChosenPermissions(r.permissions);
                               setChosenGrantable(r.grantablePermissions);
                             }}
@@ -839,10 +874,11 @@ export function IamConsole({
                   </Card>
                 ))}
               </div>
+              </IamRecords>
               {can("iam.roles.manage") && companyScope && (
                 <Card as="section" appearance="standard" className={styles.panel}>
                   <h3>{editing ? `Revise ${editing.name}` : "Create custom role"}</h3>
-                  <form
+                  <FormDisclosure key={roleEditorSession} open={roleEditorSession > 0} onToggle={event => setRoleEditorOpen(event.currentTarget.open)} appearance="standard" drawerTitle="Configure role" error={error}><summary>Configure role</summary><form
                     className={styles.form}
                     key={editing?.id ?? "new"}
                     onSubmit={(e) => {
@@ -958,7 +994,7 @@ export function IamConsole({
                     </section>
                     {renderReason()}
                     {submit("Submit revision for review")}
-                  </form>
+                  </form></FormDisclosure>
                 </Card>
               )}
             </>
@@ -1308,11 +1344,12 @@ export function IamConsole({
                   come from the external secret profile configured on the ERPX server.
                 </p>
               </Card>
-              {data.connections.map((c) => (
+              <IamRecords workspace={workspace} records={data.connections.map(connection => ({id:text(connection.id),title:text(connection.name),description:`${directoryProviderLabels[connection.provider as keyof typeof directoryProviderLabels]} · ${text(connection.status)} · ${text(connection.health)}`}))} selected={selectedDirectoryConnection} onSelect={id => selectRecord("connection", id)} title="Directory connections" editorOpen={connectionEditorOpen}>
+              {data.connections.filter(connection => !workspace || text(connection.id) === selectedDirectoryConnection).map((c) => (
                 <Card as="section" appearance="standard" className={styles.panel} key={text(c.id)}>
                   <div className={styles.sectionHeading}>
                     <div>
-                      <h3>{text(c.name)}</h3>
+                      {!workspace && <h3>{text(c.name)}</h3>}
                       <p>
                         {
                           directoryProviderLabels[
@@ -1336,6 +1373,8 @@ export function IamConsole({
 
                         onClick={() => {
                           setEditingConnection(c);
+                          setConnectionEditorSession(value => value + 1);
+                          setConnectionEditorOpen(true);
                           setDirectoryProvider(c.provider as keyof typeof directoryProviderLabels);
                           setMethod(text((c.config as Row).mode));
                         }}
@@ -1436,6 +1475,7 @@ export function IamConsole({
                   )}
                 </Card>
               ))}
+              </IamRecords>
               {!data.connections.length && (
                 <Empty>
                   No connections yet. Add AD, Entra ID, or Univention UCS when your company is
@@ -1457,7 +1497,7 @@ export function IamConsole({
                       Cancel editing
                     </Button>
                   )}
-                  <form
+                  <FormDisclosure key={connectionEditorSession} open={connectionEditorSession > 0} onToggle={event => setConnectionEditorOpen(event.currentTarget.open)} appearance="standard" drawerTitle="Configure directory connection" error={error}><summary>Configure directory connection</summary><form
                     key={text(editingConnection?.id) || "new-connection"}
                     className={styles.form}
                     onSubmit={(e) => {
@@ -1633,7 +1673,7 @@ export function IamConsole({
                       </>
                     )}
                     {submit("Save inactive connection")}
-                  </form>
+                  </form></FormDisclosure>
                 </Card>
               )}
               <Card as="section" appearance="standard" className={styles.panel}>
@@ -1710,7 +1750,7 @@ export function IamConsole({
                   </>
                 )}
                 {selectedIdentities.length > 0 && can("iam.manage") && (
-                  <form
+                  <FormDisclosure appearance="standard" drawerTitle="Selective employee migration" error={error}><summary>Selective employee migration</summary><form
                     className={styles.form}
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -1756,7 +1796,7 @@ export function IamConsole({
                     {renderScopeFields()}
                     {renderReason()}
                     {submit("Prepare migration for review")}
-                  </form>
+                  </form></FormDisclosure>
                 )}
                 {data.migrations.map((b) => (
                   <article className={styles.review} key={text(b.id)}>
@@ -1857,7 +1897,7 @@ export function IamConsole({
                   </article>
                 ))}
                 {can("iam.manage") && (
-                  <form
+                  <FormDisclosure appearance="standard" drawerTitle="Scoped role mapping" error={error}><summary>Scoped role mapping</summary><form
                     className={styles.form}
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -1887,7 +1927,7 @@ export function IamConsole({
                     {renderScopeFields()}
                     {renderReason()}
                     {submit("Propose group mapping")}
-                  </form>
+                  </form></FormDisclosure>
                 )}
               </Card>
             </>
@@ -1901,7 +1941,7 @@ export function IamConsole({
                     Capture every active assignment, then have a different administrator keep or
                     revoke each one against the frozen role, scope, source and expiry.
                   </p>
-                  <form
+                  <FormDisclosure appearance="standard" drawerTitle="Access certification" error={error}><summary>Access certification</summary><form
                     className={styles.form}
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -1936,7 +1976,7 @@ export function IamConsole({
                     </Field>
                     {renderReason()}
                     {submit("Start access review")}
-                  </form>
+                  </form></FormDisclosure>
                   {data.accessReviewCampaigns.length ? (
                     data.accessReviewCampaigns.map((c) => {
                       const items = data.accessReviewItems.filter((i) => i.campaign_id === c.id),
@@ -2101,7 +2141,7 @@ export function IamConsole({
                     Designate an existing local owner with an enrolled authenticator before
                     migrating employees. Another authorized reviewer must approve.
                   </p>
-                  <form
+                  <FormDisclosure appearance="standard" drawerTitle="Emergency administrator" error={error}><summary>Emergency administrator</summary><form
                     className={styles.form}
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -2131,7 +2171,7 @@ export function IamConsole({
                       </Select>
                     </Field>
                     {submit("Request recovery designation")}
-                  </form>
+                  </form></FormDisclosure>
                 </Card>
               )}
               <Card as="section" appearance="standard" className={styles.panel}>
@@ -2253,8 +2293,7 @@ export function IamConsole({
               ))}
             </Card>
           )}
-        </FeatureWidget>
-      </WidgetGrid>
+      </IamSurface>
     </section>
   );
 }

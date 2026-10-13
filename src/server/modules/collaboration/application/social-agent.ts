@@ -6,7 +6,7 @@ import type { StaffActor } from '../../operations/public/staff-policy';
 import type { BetaEnvironment } from '../../manage_erpx/public/beta-config';
 import type { PostContent } from '../public/social-home';
 import { ASSISTANT_ID } from '../domain/social-text';
-import { aiMarkdownRichContent, validateRichContent, type RichContent } from '@/lib/home-rich-content';
+import { aiMarkdownRichContent, validateRichContent, type RichContent } from "@/lib/shared/home-rich-content";
 import type { requireJobAuthority } from '../../identity_access/public/iam-jobs';
 import type { iamMutationGuards } from '../../identity_access/public/iam-store';
 import type { sourceGuard } from '../public/social-source';

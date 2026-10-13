@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { decimalToMinor } from "@/lib/finance-money";
+import { decimalToMinor } from "@/lib/finance/finance-money";
 import type { FinanceError } from "./invoice-line-revision";
 const moneySchema = z.string().regex(/^-?\d+(\.\d{1,6})?$/, "Use a decimal money amount.");
 export const assetSchema = z.object({

@@ -18,7 +18,7 @@ import { iamCommand } from "@/server/modules/identity_access/public/iam-transact
 import { requireFreshMfa } from "@/server/modules/identity_access/public/iam-mfa";
 import { proposeIamReview } from "@/server/modules/identity_access/public/iam-service";
 import { readAutomationInventory, validateObjectTarget, applyDirectoryAction } from "@/server/modules/identity_access/public/directory-provider";
-import { type DirectoryChangeInput } from "@/lib/directory-operations";
+import { type DirectoryChangeInput } from "@/lib/identity_access/directory-operations";
 import { ApiError } from "@/server/modules/runtime/public/http";
 const hash = (v: unknown) => createHash("sha256").update(JSON.stringify(canonical(v))).digest("hex");
 export async function directoryAutomationData(db: PostgresDatabase, actor: IamActor) { return operationService(db).directoryAutomationData(actor); }

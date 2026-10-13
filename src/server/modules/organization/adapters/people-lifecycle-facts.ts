@@ -1,7 +1,7 @@
 import { platformOwnerProjectionSources as people_payrollPlatformSources } from "../../people_payroll/public/platform-owner-projection-sources";
 import "server-only";
 import type { PoolClient } from "pg";
-import { type PeopleLifecycleData } from "@/lib/people-lifecycle";
+import { type PeopleLifecycleData } from "@/lib/people_payroll/people-lifecycle";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { type LifecyclePositionFact } from '../../people_payroll/public/people-lifecycle-contract';
 export function peopleLifecycleOrganizationFacts(database: SqlDatabase, client?: PoolClient) {

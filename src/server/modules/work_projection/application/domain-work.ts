@@ -1,4 +1,4 @@
-export type DomainWork = import("@/lib/work-item").WorkItem;
+export type DomainWork = import("@/lib/work_projection/work-item").WorkItem;
 import type { listTasks, taskWorkState } from "@/server/modules/operations/public/staff-tasks";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type {
@@ -18,9 +18,9 @@ import type {
   canEditTransfer,
   canReviewTransfer,
 } from "@/server/modules/inventory/public/inventory-transfers";
-import {hasPermission} from "@/lib/permissions";
-import {samePerson} from "@/lib/iam";
-import {minorToDecimal} from "@/lib/finance-money";
+import {hasPermission} from "@/lib/identity_access/permissions";
+import {samePerson} from "@/lib/identity_access/iam";
+import {minorToDecimal} from "@/lib/finance/finance-money";
 type Tail<Value extends unknown[]>=Value extends[unknown,...infer Rest]?Rest:never;
 export type DomainWorkPorts={listTasks(...args:Tail<Parameters<typeof listTasks>>):ReturnType<typeof listTasks>;taskWorkState(...args:Tail<Parameters<typeof taskWorkState>>):ReturnType<typeof taskWorkState>;listExpenses:typeof listExpenses;canEditExpense:typeof canEditExpense;canReviewExpense:typeof canReviewExpense;canPostExpenses:typeof canPostExpenses;listCounts:typeof listCounts;canReadCounts:typeof canReadCounts;canEditCount:typeof canEditCount;canReviewCount:typeof canReviewCount;listTransfers:typeof listTransfers;canEditTransfer:typeof canEditTransfer;canReviewTransfer:typeof canReviewTransfer;};
 export function createDomainWork(ports:DomainWorkPorts){

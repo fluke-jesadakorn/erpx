@@ -1,7 +1,7 @@
 "use client";
 
 import { useFrontLanguage } from "@/components/front/front-language";
-import { frontText } from "@/lib/front-language";
+import { frontText } from "@/lib/shared/front-language";
 
 /** Page copy resolves inside the guest language context, including RSC pages. */
 export function BookingCopy({

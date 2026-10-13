@@ -1,0 +1,165 @@
+{
+  "checkedAt": "2026-10-11T07:09:16.068199+00:00",
+  "candidate": {
+    "runtime": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+    "verification": "fb1e307c6be52ea3a280d65cc5c01e02782dcd01728295a1b02b07759a511b64",
+    "mainRuntime": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+    "mainVerification": "fb1e307c6be52ea3a280d65cc5c01e02782dcd01728295a1b02b07759a511b64",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T03-48-34-786Z",
+    "releaseId": "2026-10-11T03-48-34-786Z"
+  },
+  "status": "remaining-gates-running",
+  "scope": "Exact required scope and current-byte provenance checkpoint only; no final acceptance. Preserve the failed original aggregate and distinguish composite evidence from a single green invocation.",
+  "verificationDelta": {
+    "checkedAt": "2026-10-11T06:53:37.232Z",
+    "runtime": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+    "currentVerification": "fb1e307c6be52ea3a280d65cc5c01e02782dcd01728295a1b02b07759a511b64",
+    "priorVerification": "da3577cbc0866b9770ad0279a6a5b54fe7f71120501f1846d6d2cea38c2b43f5",
+    "canonicalAlgorithmOnCurrentBytesMatched": true,
+    "onlyTwoVerificationInputsChanged": true,
+    "changes": [
+      {
+        "file": "tests/e2e/work-journeys.spec.ts",
+        "beforeSHA256": "42f477c5ba7f2f748233938aa943b85a5a4a644a7ac25fd1cfb5ef3579183adb",
+        "currentSHA256": "3c12fa24fc106b71ced39c94c1c41a189edbc83e7f8ffef3706f495770b4f8b2"
+      },
+      {
+        "file": "tests/engineering-recovery.test.ts",
+        "beforeSHA256": "8214881129023aa06e055ba3433cc0b48dfd95ea62dfc9bc94cfd7d798864ec8",
+        "currentSHA256": "eba0733f74e1a8569f7862361cc0905a45ec10366dcf5137622610d812b6fc8e"
+      }
+    ],
+    "scope": "Read-only provenance. All runtime bytes, other tests, suite/required-case/scenario registers, configs and workflow sources match the original f13/da35 snapshot. This does not make the old failed aggregate pass or establish completion of unexecuted cases.",
+    "wholePlanAccepted": false
+  },
+  "nativeSourceAudit": {
+    "unchangedFiles": 132,
+    "changedExistingCases": [
+      {
+        "file": "tests/engineering-recovery.test.ts",
+        "before": "8214881129023aa06e055ba3433cc0b48dfd95ea62dfc9bc94cfd7d798864ec8",
+        "current": "eba0733f74e1a8569f7862361cc0905a45ec10366dcf5137622610d812b6fc8e",
+        "passed": 1
+      }
+    ],
+    "originalUniqueCases": 1342,
+    "augmentedExistingCaseProof": "docs/testing/evidence/2026-10-11-pms-populated-recovery.json",
+    "noAdditionalUniqueCases": true
+  },
+  "featureAssertionSourceAudit": {
+    "features": 67,
+    "references": 137,
+    "unchangedAssertionReferences": 136,
+    "strengthenedExistingRecoveryReferences": [
+      {
+        "feature": "cutover-04",
+        "file": "tests/engineering-recovery.test.ts",
+        "oldSHA256": "8214881129023aa06e055ba3433cc0b48dfd95ea62dfc9bc94cfd7d798864ec8",
+        "currentSHA256": "eba0733f74e1a8569f7862361cc0905a45ec10366dcf5137622610d812b6fc8e",
+        "currentPassingEvidence": "docs/testing/evidence/2026-10-11-pms-populated-recovery.json"
+      }
+    ],
+    "allOriginalTitlesPreserved": true,
+    "scope": "Source audit only. Scope reconciliation remains pending remaining gates.",
+    "wholePlanAccepted": false
+  },
+  "required178Scope": {
+    "oldActualPassingReports": 148,
+    "freshWorkFullPassingCases": 12,
+    "remainingOriginalRequiredCases": 18,
+    "exact178ScopeUnion": true,
+    "noDuplicates": true,
+    "remainingCasesNotYetAccepted": true,
+    "wholePlanAccepted": false
+  },
+  "supplementalScriptSourcePreservation": {
+    "scripts": [
+      {
+        "file": ".scratch/dev/pms-final-evidence-consolidation-2026-10-11/rooming-proof/workload.ts",
+        "original": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/rooming-proof/workload.ts",
+        "originalSHA256": "763e47229cc7f85d661e1c319da2bfce7836f1ac68a24f46c3fa6facd7fdae18",
+        "currentSHA256": "b06537aa4ddcaa8b7e792c3f552cedca73d185c701cf19f1ff595a46ca5a05a1",
+        "onlyIgnoredEvidenceBasePathChanged": true
+      },
+      {
+        "file": ".scratch/dev/pms-final-evidence-consolidation-2026-10-11/rooming-proof/acceptance.sh",
+        "original": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/rooming-proof/acceptance.sh",
+        "originalSHA256": "8c232e7a5fe53bbe6a3e00518849d4aefeab14bd4c4165713e8b5fa7437b146e",
+        "currentSHA256": "0a378e1d323c9fe21dd5e58207b84ea5538f273e51a3d7f4c1536e138427e2a7",
+        "onlyIgnoredEvidenceBasePathChanged": true
+      },
+      {
+        "file": ".scratch/dev/pms-final-evidence-consolidation-2026-10-11/rooming-proof/rates-build.ts",
+        "original": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/rooming-proof/rates-build.ts",
+        "originalSHA256": "d95e471b13584aee548c73177f9802c81f8b7704c7cb68fe4d5b4e4220cff9da",
+        "currentSHA256": "cfed0ec85741e62a851375379f3f53ffd4eb5300b9096f99a6239d2b33ad097a",
+        "onlyIgnoredEvidenceBasePathChanged": true
+      },
+      {
+        "file": ".scratch/dev/pms-final-evidence-consolidation-2026-10-11/rooming-proof/rates-workload.ts",
+        "original": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/rooming-proof/rates-workload.ts",
+        "originalSHA256": "4f14a4fe0c80d5b60d20725a1460987754d830629622766f2b7c4dfccd368ae3",
+        "currentSHA256": "56f0129c16ca9b6ea9a96c0565923f17592248e53ab3401ea9405dc256a802eb",
+        "onlyIgnoredEvidenceBasePathChanged": true
+      },
+      {
+        "file": ".scratch/dev/pms-final-evidence-consolidation-2026-10-11/rooming-proof/build.ts",
+        "original": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/rooming-proof/build.ts",
+        "originalSHA256": "77a7413d3be1c347e2ff0e27405e6536a57f8f22b981fae18f1bb5fccdec059b",
+        "currentSHA256": "71d7725a8100c50eb311da3a668d8b6e8b060b7cc3ccb1cfe336f4ae4b67abe7",
+        "onlyIgnoredEvidenceBasePathChanged": true
+      },
+      {
+        "file": ".scratch/dev/pms-final-evidence-consolidation-2026-10-11/capacity/strict-performance.py",
+        "original": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/capacity/strict-performance.py",
+        "originalSHA256": "43cc01c0c86d88ec6f6b258c660ffe0bb7e0fd6eee54824f2460bca2e8af0ad4",
+        "currentSHA256": "82c9f1b86cab24548f6bbdabe63f3d0727305a1dfb608f3dc36e1b8531c53ecb",
+        "onlyIgnoredEvidenceBasePathChanged": true
+      },
+      {
+        "file": ".scratch/dev/pms-final-evidence-consolidation-2026-10-11/capacity/build-workload.ts",
+        "original": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/capacity/build-workload.ts",
+        "originalSHA256": "15c6d5d6536835b908878b3d56906cea95a5edaa29fe933cd809d5d3a8688afb",
+        "currentSHA256": "e5532069969d3f707630f1b4648fd0a88318013b83f9309ea43f419660edf3cf",
+        "onlyIgnoredEvidenceBasePathChanged": true
+      },
+      {
+        "file": ".scratch/dev/pms-final-evidence-consolidation-2026-10-11/capacity/acceptance.sh",
+        "original": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/capacity/acceptance.sh",
+        "originalSHA256": "bee216f8f0a1fcefc736c3726d876a52ef3584d0ba7e2b7ba577cf0a515a6198",
+        "currentSHA256": "e72be8567cf1cfbc99faa083a6cfab75d23b06d68d0e9cee32a44efe8b34bb18",
+        "onlyIgnoredEvidenceBasePathChanged": true
+      },
+      {
+        "file": ".scratch/dev/pms-final-evidence-consolidation-2026-10-11/pms-route-browser.ts",
+        "original": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/pms-route-browser.ts",
+        "originalSHA256": "1906149a3f747eecb4f1a5c9dec044c95c40a3ea92d835bd5161e51740130e58",
+        "currentSHA256": "31810cb283380e54c214c566228f561003ee539ac8f207fb682d96c5e9d5a45f",
+        "onlyIgnoredEvidenceBasePathChanged": true
+      },
+      {
+        "file": ".scratch/dev/pms-final-evidence-consolidation-2026-10-11/fingerprint.ts",
+        "original": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/fingerprint.ts",
+        "originalSHA256": "2025b3424ad3bd5187fcd8ee7fe848d9ff879c0953cc12cfc248925ff9ea763f",
+        "currentSHA256": "1f03affae4aefd357dd019eb4c0d684bf70d5dc9b621a4dffb66a15c924216a9",
+        "onlyIgnoredEvidenceBasePathChanged": true
+      }
+    ],
+    "allAssertCountsThresholdsAndOriginalInputsPreserved": true,
+    "scope": "Fresh evidence directories only. Original scope 38routes/10rooming/30rates-report-maintenance/840reads843writes remains unchanged."
+  },
+  "running": {
+    "remaining18Session": 70066,
+    "driverSession": 6127,
+    "browserReceiptRoot": ".scratch/dev/test-suites/browser/2026-10-11T07-00-36-046Z"
+  },
+  "next": [
+    "Complete18 and validate all178 exact original case identities/reports/cleanup",
+    "Run compiled38routes and persisted40HTTP assertions, owned cleanup",
+    "Await quiet-host release then unchanged strict840reads843writes and owned cleanup",
+    "Manually reconcile all67capabilities and19original plan requirements"
+  ],
+  "realMoney": false,
+  "stagingAccessed": false,
+  "wholePlanAccepted": false
+}

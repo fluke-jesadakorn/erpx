@@ -9,18 +9,21 @@ export type Totals = {
 };
 export type HospitalityDayControlRepository = {
     openShifts(facts: {
+        propertyId: string;
         scope: [
             string,
             string
         ];
     }): Promise<number>;
     unreviewedVariances(facts: {
+        propertyId: string;
         scope: [
             string,
             string
         ];
     }): Promise<number>;
     openBills(facts: {
+        propertyId: string;
         scope: [
             string,
             string
@@ -28,6 +31,7 @@ export type HospitalityDayControlRepository = {
         businessDate: string;
     }): Promise<number>;
     pendingPayments(facts: {
+        propertyId: string;
         scope: [
             string,
             string
@@ -74,6 +78,7 @@ export type HospitalityDayControlRepository = {
         businessDate: string;
     }): Promise<number>;
     unresolvedRefunds(facts: {
+        propertyId: string;
         scope: [
             string,
             string
@@ -81,17 +86,19 @@ export type HospitalityDayControlRepository = {
         businessDate: string;
     }): Promise<number>;
     failedJobs(facts: {
+        propertyId: string;
         companyId: string;
     }): Promise<number>;
     missingRoomCharges(facts: {
+        propertyId: string;
         scope: [
             string,
             string
         ];
         businessDate: string;
-        propertyId: string;
     }): Promise<number>;
     missingDirectInvoices(facts: {
+        propertyId: string;
         scope: [
             string,
             string
@@ -99,6 +106,7 @@ export type HospitalityDayControlRepository = {
         businessDate: string;
     }): Promise<number>;
     unmatchedVerifiedTransfers(facts: {
+        propertyId: string;
         scope: [
             string,
             string
@@ -111,6 +119,7 @@ export type HospitalityDayControlRepository = {
         businessDate: string;
     }): Promise<number>;
     totals(facts: {
+        propertyId: string;
         scope: [
             string,
             string
@@ -118,6 +127,7 @@ export type HospitalityDayControlRepository = {
         businessDate: string;
     }): Promise<Totals | null>;
     stockMoves(facts: {
+        propertyId: string;
         scope: [
             string,
             string
@@ -125,6 +135,7 @@ export type HospitalityDayControlRepository = {
         businessDate: string;
     }): Promise<Count | null>;
     stockLedger(facts: {
+        propertyId: string;
         companyId: string;
         businessDate: string;
         branchId: string;
@@ -145,10 +156,10 @@ export async function hospitalityDayControls(repository: HospitalityDayControlRe
     ] = [companyId, branchId];
     // A Night Audit command supplies a single transaction-bound connection; keep
     // these reads sequential so node-postgres never queues concurrent queries on it.
-    const openShifts = await repository.openShifts({ scope: scope });
-    const unreviewedVariances = await repository.unreviewedVariances({ scope: scope });
-    const openBills = await repository.openBills({ scope: scope, businessDate: businessDate });
-    const pendingPayments = await repository.pendingPayments({ scope: scope, businessDate: businessDate });
+    const openShifts = await repository.openShifts({ propertyId, scope: scope });
+    const unreviewedVariances = await repository.unreviewedVariances({ propertyId, scope: scope });
+    const openBills = await repository.openBills({ propertyId, scope: scope, businessDate: businessDate });
+    const pendingPayments = await repository.pendingPayments({ propertyId, scope: scope, businessDate: businessDate });
     const pendingHotelTransfers = await repository.pendingHotelTransfers({ companyId: companyId, propertyId: propertyId, businessDate: businessDate });
     const pendingChargeCorrections = await repository.pendingChargeCorrections({ companyId: companyId, propertyId: propertyId });
     const property = await repository.property({ propertyId: propertyId, companyId: companyId });
@@ -159,15 +170,15 @@ export async function hospitalityDayControls(repository: HospitalityDayControlRe
     const failedBookingRefunds = await repository.failedBookingRefunds({ propertyId: propertyId, companyId: companyId, timezone: timezone, businessDate: businessDate });
     const unpostedCounterReceipts = await repository.unpostedCounterReceipts({ propertyId: propertyId, companyId: companyId, timezone: timezone, businessDate: businessDate });
     const failedCounterRefunds = await repository.failedCounterRefunds({ propertyId: propertyId, companyId: companyId, timezone: timezone, businessDate: businessDate });
-    const unresolvedRefunds = await repository.unresolvedRefunds({ scope: scope, businessDate: businessDate });
-    const failedJobs = await repository.failedJobs({ companyId: companyId });
-    const missingRoomCharges = await repository.missingRoomCharges({ scope: scope, businessDate: businessDate, propertyId: propertyId });
-    const missingDirectInvoices = await repository.missingDirectInvoices({ scope: scope, businessDate: businessDate });
-    const unmatchedVerifiedTransfers = await repository.unmatchedVerifiedTransfers({ scope: scope, businessDate: businessDate });
+    const unresolvedRefunds = await repository.unresolvedRefunds({ propertyId, scope: scope, businessDate: businessDate });
+    const failedJobs = await repository.failedJobs({ propertyId, companyId: companyId });
+    const missingRoomCharges = await repository.missingRoomCharges({ propertyId, scope: scope, businessDate: businessDate });
+    const missingDirectInvoices = await repository.missingDirectInvoices({ propertyId, scope: scope, businessDate: businessDate });
+    const unmatchedVerifiedTransfers = await repository.unmatchedVerifiedTransfers({ propertyId, scope: scope, businessDate: businessDate });
     const unmatchedVerifiedHotelTransfers = await repository.unmatchedVerifiedHotelTransfers({ companyId: companyId, propertyId: propertyId, businessDate: businessDate });
-    const totals = await repository.totals({ scope: scope, businessDate: businessDate });
-    const stockMoves = await repository.stockMoves({ scope: scope, businessDate: businessDate });
-    const stockLedger = await repository.stockLedger({ companyId: companyId, businessDate: businessDate, branchId: branchId, branchId2: branchId });
+    const totals = await repository.totals({ propertyId, scope: scope, businessDate: businessDate });
+    const stockMoves = await repository.stockMoves({ propertyId, scope: scope, businessDate: businessDate });
+    const stockLedger = await repository.stockLedger({ propertyId, companyId: companyId, businessDate: businessDate, branchId: branchId, branchId2: branchId });
     const stockValueMinor = Number(stockMoves?.n ?? 0), stockLedgerMinor = Number(stockLedger?.n ?? 0);
     const unbalancedJournals = await repository.unbalancedJournals({ companyId: companyId, businessDate: businessDate, branchId: branchId, propertyId: propertyId });
     const blockers = [
@@ -176,7 +187,7 @@ export async function hospitalityDayControls(repository: HospitalityDayControlRe
         openBills ? `${openBills} restaurant bill(s) still open for this business date` : null,
         pendingPayments ? `${pendingPayments} restaurant payment(s) awaiting a result or bank verification` : null,
         pendingHotelTransfers ? `${pendingHotelTransfers} hotel bank transfer(s) awaiting Finance verification` : null,
-        pendingChargeCorrections ? `${pendingChargeCorrections} hotel folio correction(s) awaiting independent review` : null,
+        pendingChargeCorrections ? `${pendingChargeCorrections} hotel guest account correction(s) awaiting independent review` : null,
         unpostedBookingReceipts ? `${unpostedBookingReceipts} verified online hotel receipt(s) still need accounting recovery` : null,
         failedBookingRefunds ? `${failedBookingRefunds} online hotel refund(s) need recovery` : null,
         unpostedCounterReceipts ? `${unpostedCounterReceipts} verified counter receipt(s) still need accounting recovery` : null,

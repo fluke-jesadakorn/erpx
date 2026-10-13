@@ -5,13 +5,15 @@ import { Button } from "./button";
 import type { UiAppearance } from "./appearance";
 
 /** The editor owns its values; dismissal never unmounts an unconfirmed draft. */
-export function DraftFormDrawer({ open, title, children, dirty, onClose, onDiscard = onClose, dismissDisabled, appearance = "standard", confirmationTitle = "Discard changes?", confirmationDescription = "Your draft has unsaved changes.", discardLabel = "Discard draft" }: {
+export function DraftFormDrawer({ open, title, children, dirty, onClose, finalFocus, onDiscard = onClose, dismissDisabled, appearance = "standard", confirmationTitle = "Discard changes?", confirmationDescription = "Your draft has unsaved changes.", discardLabel = "Discard draft", retainFormContents = false }: {
+  retainFormContents?: boolean;
+  finalFocus?: () => HTMLElement | null;
   open: boolean; title: string; children: ReactNode; dirty: boolean;
   onClose: () => void; onDiscard?: () => void; dismissDisabled?: boolean; appearance?: UiAppearance;
   confirmationTitle?: string; confirmationDescription?: string; discardLabel?: string;
 }) {
   const [confirming, setConfirming] = useState(false);
-  return <Dialog open={open} title={title} presentation="form-drawer" appearance={appearance} dismissDisabled={dismissDisabled} onClose={() => dirty ? setConfirming(true) : onClose()}>
+  return <Dialog retainFormContents={retainFormContents} finalFocus={finalFocus} open={open} title={title} presentation="form-drawer" appearance={appearance} dismissDisabled={dismissDisabled} onClose={() => dirty ? setConfirming(true) : onClose()}>
     {children}
     <Dialog open={confirming} title={confirmationTitle} appearance={appearance} onClose={() => setConfirming(false)}>
       <p>{confirmationDescription}</p>

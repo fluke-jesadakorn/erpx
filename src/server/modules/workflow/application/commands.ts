@@ -1,7 +1,8 @@
+import { canonicalGuestAccount, legacyGuestAccount, legacyGuestAccountOperation } from "@/lib/identity_access/guest-account-compat";
 import {BusinessRuleError,type Clock,type IdentifierSource} from '../../shared';
 import {financialConstraintError,type CommandActor} from '../domain/commands';
 export interface CommandRepository<Effect> {
-  receipt(id:string):Promise<{request_hash:string;result_json:string}|null>;
+  receipt(id:string):Promise<{request_hash:string;result_json:string;operation?:string;actor_id?:string;record_id?:string;authority_json?:string|null}|null>;
   clearAssertions(id:string):Effect;
   insertReceipt(actor:CommandActor,id:string,operation:string,digest:string,recordId:string,result:unknown,now:number):Effect;
   captureAssignmentAuthority(actor:CommandActor,id:string):Effect;
@@ -31,8 +32,22 @@ export function createCommandApplication<Effect>(ports:CommandPorts<Effect>) {
   }
   async function replayCommand<Result=Record<string,unknown>>(actor:CommandActor,id:string,operation:string,recordId:string,input:unknown):Promise<Result|null>{
     const row=await repository.receipt(id);if(!row)return null;
-    if(row.request_hash!==await fingerprint(actor,operation,recordId,input))throw new BusinessRuleError(409,'IDEMPOTENCY_CONFLICT','This command key belongs to a different request.');
-    await validateReplayAuthority(actor);return JSON.parse(row.result_json) as Result;
+    const historicalOperation=legacyGuestAccountOperation(operation),historicalInput=legacyGuestAccount(input);
+    let matches=row.request_hash===await fingerprint(actor,operation,recordId,input) || row.request_hash===await fingerprint(actor,historicalOperation,recordId,historicalInput);
+    // A terminology migration invalidates active context revisions. Reconstruct only
+    // the saved fingerprint of a legacy receipt; current authority is checked below.
+    if(!matches && historicalOperation!==operation && row.operation===historicalOperation && row.actor_id===actor.userId && row.record_id===recordId && row.authority_json && actor.authority) {
+      const saved=JSON.parse(row.authority_json) as Record<string,unknown>;
+      if(saved.role===actor.role && saved.assignmentId===actor.assignmentId && saved.companyId===actor.companyId && saved.branchId===actor.branchId && saved.departmentId===actor.departmentId) {
+        const keys=Object.keys(actor.authority) as Array<keyof NonNullable<CommandActor['authority']>>;
+        if(keys.every(key=>typeof saved[key]===typeof actor.authority![key])) {
+          const authority=Object.fromEntries(keys.map(key=>[key,saved[key]])) as NonNullable<CommandActor['authority']>;
+          matches=row.request_hash===await fingerprint({...actor,authority},historicalOperation,recordId,historicalInput);
+        }
+      }
+    }
+    if(!matches)throw new BusinessRuleError(409,'IDEMPOTENCY_CONFLICT','This command key belongs to a different request.');
+    await validateReplayAuthority(actor);return canonicalGuestAccount(JSON.parse(row.result_json)) as Result;
   }
   async function executeCommand<Result>(actor:CommandActor,id:string,operation:string,input:unknown,recordId:string,version:number,result:Result,effects:Effect[],eventScope:Pick<CommandActor,'companyId'|'branchId'|'departmentId'>=actor):Promise<Result>{
     if(!/^[a-zA-Z0-9:_.-]{8,180}$/.test(id))throw new BusinessRuleError(422,'COMMAND_KEY_REQUIRED','Use a valid Idempotency-Key for this action.');

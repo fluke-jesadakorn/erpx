@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { hasPermission } from '@/lib/permissions';
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { peopleRequestRoute } from "@/server/modules/organization/public/department-authority";
 import type { activeStaff, staffGuard } from "@/server/modules/operations/public/staff-policy";
 import type { approvalView, openApproval, prepareDecision, closeApprovals } from "@/server/modules/workflow/public/approvals";

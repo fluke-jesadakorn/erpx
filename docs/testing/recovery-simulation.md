@@ -2,7 +2,7 @@
 
 > Recorded report — findings, counts, gaps and hostname observations below belong to the original run. Current workflows: [owner catalogue](../contracts/next/catalogue.md); latest recorded engineering/provider/release boundaries: [verification inventory](../status/capability-delivery-matrix.md). This report is retained evidence, not an active plan.
 
-คำสั่ง: `bun run test:integration tests/recovery-simulation.test.ts`
+คำสั่ง: `bun run test:integration tests/integration/platform_administration/recovery-simulation.test.ts`
 
 ใช้ Bun 1.2.17 / Node 24.20.0 ตาม test wrapper และ `pg_dump` / `pg_restore` PostgreSQL 18.6 บน PATH. ต้องมี `ERPX_TEST_ADMIN_URL` ตามข้อกำหนด test environment เดิม; ไม่แสดง credential ใน arguments หรือ log.
 

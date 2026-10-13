@@ -1,8 +1,8 @@
 import { RecordLink as Link } from "@/components/records/record-link";
 import {FinanceWorkspace} from "@/components/finance/finance-workspace";
 import {TaxIdentityConsole,ThaiMonthlyWithholdingConsole} from "@/components/finance/finance-thai-tax-console";
-import {hasPermission} from "@/lib/permissions";
-import {workspaceBase} from "@/lib/workspace";
+import {hasPermission} from "@/lib/identity_access/permissions";
+import {workspaceBase} from "@/lib/work_projection/workspace";
 import {publicScope,requireWorkContext} from "@/server/modules/identity_access/public/authorization";
 import {taxIdentityWorkspace} from "@/server/modules/finance/public/finance-tax-identities";
 import {withholdingWorkspace} from "@/server/modules/finance/public/finance-withholding";

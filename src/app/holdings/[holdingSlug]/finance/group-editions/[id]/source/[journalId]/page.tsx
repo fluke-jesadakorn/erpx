@@ -1,10 +1,10 @@
-import { FeaturePage } from "@/components/features/feature-page";
+import { FeaturePage } from "@/components/shared/features/feature-page";
 import { FinanceWorkspace } from "@/components/finance/finance-workspace";
 import { Table } from "@/components/ui/foundation";
 import { RecordLink } from "@/components/records/record-link";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
-import { workspaceBase } from "@/lib/workspace";
-import { unitsToDecimal } from "@/lib/finance-money";
+import { workspaceBase } from "@/lib/work_projection/workspace";
+import { unitsToDecimal } from "@/lib/finance/finance-money";
 import { groupEditionSourceJournal } from "@/server/modules/finance/public/finance-group-editions";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 export const dynamic = "force-dynamic";

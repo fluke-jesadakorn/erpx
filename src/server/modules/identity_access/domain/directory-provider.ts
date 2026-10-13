@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { DirectoryAction, DirectoryInventory, DirectoryObject } from '@/lib/directory-operations';
+import type { DirectoryAction, DirectoryInventory, DirectoryObject } from "@/lib/identity_access/directory-operations";
 import type { DirectorySecret as Secret } from './providers';
 type Json = Record<string, unknown>;
 const inventorySchema = z.object({

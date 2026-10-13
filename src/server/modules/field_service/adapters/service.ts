@@ -11,7 +11,7 @@ import type {WorkContext} from "../../identity_access/public/authorization";
 import type {SqlDatabase} from "../../runtime/public/runtime/types";
 import {holdingResources} from "../../runtime/public/runtime";
 import {requirePermission} from "../../identity_access/public/iam-permissions";
-import {hasPermission} from "@/lib/permissions";
+import {hasPermission} from "@/lib/identity_access/permissions";
 import {hasModuleAccess} from "@/data/module-access";
 import {assertion,executeCommand,replayCommand} from "../../workflow/public/commands";
 import {ApiError} from "../../runtime/public/http";

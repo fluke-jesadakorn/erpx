@@ -1,7 +1,7 @@
 import { inventoryExecutiveOwnerProjections as commerceProjectionSources } from "../../commerce/public/inventory-executive-owner-projections";
 import { inventoryExecutiveOwnerProjections as financeProjectionSources } from "../../finance/public/inventory-executive-owner-projections";
 import "server-only";
-import { type Filters } from "@/lib/executive/canvas";
+import { type Filters } from "@/lib/shared/executive/canvas";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { ManufacturingCostEvidenceRow } from '@/server/modules/runtime/public/executive/evidence-contract';

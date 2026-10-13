@@ -1,9 +1,9 @@
 
 import { PageContent } from "@/components/ui/patterns";
-import { FeaturePage } from "@/components/features/feature-page";
-import { PushSettings } from "@/components/settings/push-settings";
+import { FeaturePage } from "@/components/shared/features/feature-page";
+import { PushSettings } from "@/components/platform_administration/settings/push-settings";
 import { PageHeader } from "@/components/ui/primitives";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 
 export default async function NotificationSettings({params}:PageProps<"/holdings/[holdingSlug]/settings/notifications">){

@@ -1,6 +1,6 @@
 import type { CalendarItem, CalendarQuery } from "@/server/modules/work_projection/public/rules/calendar-domain";
 import { addDays } from "@/server/modules/people_payroll/public/rules/people-roster-domain";
-import { hasPermission } from '@/lib/permissions';
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { CalendarAccess } from "../../domain/calendar/access";
 export type CalendarSupplierBatchesUnit = {
     read1(facts: {

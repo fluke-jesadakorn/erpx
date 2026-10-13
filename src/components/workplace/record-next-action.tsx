@@ -1,5 +1,5 @@
-import type { FlowView } from "@/lib/flow";
-import { operationFromFlow } from "@/lib/operation-presentation";
+import type { FlowView } from "@/lib/shared/flow";
+import { operationFromFlow } from "@/lib/shared/operation-presentation";
 import { OperationSummary } from "./operation-summary";
 /** A read model only; domain commands still enforce current authorization. */
 export function RecordNextAction({flow}: {flow: FlowView}) {

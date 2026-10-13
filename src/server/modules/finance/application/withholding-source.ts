@@ -1,6 +1,6 @@
 import { createWithholdingPolicy } from '../domain/withholding';
-import { decimalToMinor, minorToDecimal } from '@/lib/finance-money';
-import { thaiFinanceTaxPack, thaiWithholdingAmount } from '@/lib/thai-finance-tax-pack';
+import { decimalToMinor, minorToDecimal } from "@/lib/finance/finance-money";
+import { thaiFinanceTaxPack, thaiWithholdingAmount } from "@/lib/finance/thai-finance-tax-pack";
 import type { WorkContext } from '@/server/modules/identity_access/public/authorization';
 import type { TaxIdentity } from '../domain/tax-identities';
 import type { PersistedInvoiceLine } from '../domain/invoice-line-revision';

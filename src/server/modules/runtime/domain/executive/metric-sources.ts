@@ -1,4 +1,4 @@
-import type {RecordKind} from '@/lib/record-drawer';export type MetricSourceGroup={label:string;unit?:string;page:number;recordId?:string};
+import type {RecordKind} from "@/lib/records/record-drawer";export type MetricSourceGroup={label:string;unit?:string;page:number;recordId?:string};
 export type MetricSourceRow={id:string;facts:Record<string,unknown>;owner_id:string|null;owner_kind:RecordKind|null;owner_args:Record<string,string>|null};
 export type MetricSourcePage={row:{name:string;reported_total?:string;description:string};rows:MetricSourceRow[];page:number;hasNext:boolean};
 import {BusinessRuleError} from '../../../shared';

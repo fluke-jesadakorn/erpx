@@ -1,7 +1,7 @@
 import type { WorkContext } from '../domain/authorization';
 import { assertGrantScope, type Invitation, type PersonFact, type PersonGrant, type InvitationAcceptance } from '../domain/account-access';
 import type { IdentityError } from './authorization';
-import type { BusinessRole } from '@/lib/business-roles';
+import type { BusinessRole } from "@/lib/identity_access/business-roles";
 export type PersonGrantRequest = {
     userId: string;
     roleId: BusinessRole;
@@ -15,6 +15,7 @@ export interface AccountAccessPorts {
     person(actor: WorkContext, id: string): Promise<PersonFact>;
     error: IdentityError;
     now(): number;
+    throttleActivation?(row: Invitation, userId: string): Promise<void>;
     digest(value: string): Promise<string>;
     token(id: string): Promise<string>;
     emailExists(email: string): Promise<boolean>;
@@ -73,14 +74,14 @@ export function createAccountAccessService(ports: AccountAccessPorts) {
             throw ports.error(409, 'INVITATION_DELIVERY_NOT_RETRYABLE', 'Only a failed, current invitation can be retried.'); return { id: invitationId, status: 'queued' }; },
         revokeInvitation: async (actor: WorkContext, personId: string, invitationId: string, key: string) => { actor = ports.owner(actor); await ports.person(actor, personId); await ports.fresh(actor); await ports.prepare(actor); await ports.reserve(actor, key, 'invitation.revoke', { personId, invitationId }, invitationId); if (!await ports.revokeInvitation(actor, personId, invitationId) && await ports.invitationStatus(actor, personId, invitationId) !== 'revoked')
             throw ports.error(409, 'INVITATION_CHANGED', 'Only a pending invitation can be revoked.'); await ports.cancelDelivery(invitationId); return { id: invitationId, status: 'revoked' }; },
-        inspectInvitation: async (token: string) => { const row = await invitation(token); return { name: row.name, email: row.email }; },
+        inspectInvitation: async (token: string) => { const row = await invitation(token); return { name: row.name, email: row.email, existingAccount: Boolean(JSON.parse(row.role).existingUserId) }; },
         acceptInvitation: async (input: InvitationAcceptance) => { const row = await invitation(input.token), reviewed = await ports.reviewed(row); if (!reviewed)
-            throw ports.error(409, 'INVITATION_REVIEW_REQUIRED', 'An independent administrator must approve this invitation before activation.'); await ports.prepareActivation(row); const userId = 'usr_invite_' + row.id, now = ports.now(), grant = JSON.parse(row.role) as {
+            throw ports.error(409, 'INVITATION_REVIEW_REQUIRED', 'An independent administrator must approve this invitation before activation.'); await ports.prepareActivation(row); const existingUserId = JSON.parse(row.role).direct === true ? JSON.parse(row.role).existingUserId as string | undefined : undefined; if (!existingUserId && input.password.length < 12) throw ports.error(422, 'PASSWORD_TOO_SHORT', 'Use at least 12 characters for a new account.'); const userId = existingUserId ?? 'usr_invite_' + row.id, now = ports.now(), grant = JSON.parse(row.role) as {
             role: BusinessRole;
             expires: number;
         }, eligible = await ports.eligible(row, userId, now); if (!eligible || grant.expires <= now)
-            throw ports.error(409, 'INVITATION_NO_LONGER_ELIGIBLE', 'The employee or authorizing assignment is no longer active.'); const account = await ports.credential(userId); if (account && !await ports.verify(input.password, account.password))
-            throw ports.error(409, 'ACTIVATION_RETRY_PASSWORD', 'Use the password from your first activation attempt.'); if (!account)
+            throw ports.error(409, 'INVITATION_NO_LONGER_ELIGIBLE', 'The employee or authorizing assignment is no longer active.'); await ports.throttleActivation?.(row,userId); const account = await ports.credential(userId); if (existingUserId && !account) throw ports.error(409, 'ACCOUNT_VERIFICATION_REQUIRED', 'Use the verified account sign-in method.'); if (account && !await ports.verify(input.password, account.password))
+            throw ports.error(409, 'ACTIVATION_RETRY_PASSWORD', existingUserId ? 'Verify the existing account password.' : 'Use the password from your first activation attempt.'); if (!account)
             await ports.createAccount(row, userId, input.password, now); await ports.activate(row, reviewed.id, userId, now, grant, eligible.role); await ports.accepted(row, userId); return { activated: true }; }
     };
 }

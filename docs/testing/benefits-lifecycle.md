@@ -17,9 +17,9 @@
 
 ## หลักฐานจำลอง
 
-- `tests/benefits.test.ts` ตรวจ independent review, dependent eligibility, stale version, provider acknowledgement, independent payroll release, immutable history และ payroll totals/snapshot
-- `tests/payroll-core.test.ts` ยืนยัน regression ของ payroll core เดิม
-- `tests/staff-migration.test.ts` replay migration ทั้งหมดและรอบ idempotent
+- `tests/integration/benefits/benefits.test.ts` ตรวจ independent review, dependent eligibility, stale version, provider acknowledgement, independent payroll release, immutable history และ payroll totals/snapshot
+- `tests/integration/people_payroll/payroll-core.test.ts` ยืนยัน regression ของ payroll core เดิม
+- `tests/integration/operations/staff-migration.test.ts` replay migration ทั้งหมดและรอบ idempotent
 - ผลรัน: `docs/testing/evidence/2026-09-20-benefits-tests.txt`
 
 ## Gate ที่ยังเปิดอยู่

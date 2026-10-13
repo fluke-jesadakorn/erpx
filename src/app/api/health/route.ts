@@ -3,7 +3,7 @@ import {appAttachmentSources} from "@/server/modules/files/public/app-attachment
 import { attachmentsV2Enabled } from "@/server/modules/files/public/attachments/feature";
 import { attachmentRuntimeReadiness } from "@/server/modules/files/public/attachments/readiness";
 import { runtimeEnv } from "@/server/modules/runtime/public/runtime";
-import { registeredResources,resourceSlots } from "@/lib/holding-registry";
+import { registeredResources,resourceSlots } from "@/lib/runtime/holding-registry";
 import { billingEvidenceReadiness } from "@/server/modules/billing/public/billing-attachments";
 
 export const dynamic = "force-dynamic";

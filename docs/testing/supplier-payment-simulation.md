@@ -41,8 +41,8 @@
 
 ## หลักฐาน
 
-- `tests/supplier-payments.test.ts` ล่าสุด 4 tests ผ่าน รวม failed → เตรียมใหม่ → ชำระครบ → Work completed: multi-invoice partial settlement, independent approval/payer, replay/source mismatch, concurrent reservation, cancellation boundary, uncertain/failure review, bank mismatch/stale version, closed period, revoked role, Work/Inbox/Calendar scope และการชนกับ contractor batch เดิม
-- `tests/commerce-returns.test.ts`: reservation กัน supplier return จนยกเลิกชุดที่ยังไม่ export แล้ว return ดำเนินต่อได้
+- `tests/integration/procurement/supplier-payments.test.ts` ล่าสุด 4 tests ผ่าน รวม failed → เตรียมใหม่ → ชำระครบ → Work completed: multi-invoice partial settlement, independent approval/payer, replay/source mismatch, concurrent reservation, cancellation boundary, uncertain/failure review, bank mismatch/stale version, closed period, revoked role, Work/Inbox/Calendar scope และการชนกับ contractor batch เดิม
+- `tests/integration/sales/commerce-returns.test.ts`: reservation กัน supplier return จนยกเลิกชุดที่ยังไม่ export แล้ว return ดำเนินต่อได้
 - Regression 7 suites ที่เกี่ยวข้อง: 30 tests passed ก่อนเพิ่มกรณีล่าสุด; owner tests หลังเพิ่ม guard: 7 passed; ชุดล่าสุด supplier/payroll/work cache/refresh: 20 passed
 - Browser บน public dev ใช้ session holding owner เดิม: หน้า list/form แสดง posted invoice, สกุลเงินและบัญชีที่ configure ถูกต้อง, checkbox เปิดช่องกรอกตามรายการ, Calendar layer เปิดได้ ไม่มีการ submit ชุดจ่ายจาก Acme ในการตรวจนี้
 - Durable test summary: [supplier cross-owner tests](evidence/2026-09-20-supplier-tests.txt); เป็น observation แบบ partial ใน acceptance ledger ไม่ยกระดับ gate ทั้ง capability

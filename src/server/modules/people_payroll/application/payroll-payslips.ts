@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { hasPermission } from '@/lib/permissions';
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { WorkContext } from '../../identity_access/public/authorization';
 import { BusinessRuleError, type Clock } from '../../shared';
 import type { PayrollStatutoryCommands } from './payroll-statutory';

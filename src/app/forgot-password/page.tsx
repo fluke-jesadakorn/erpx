@@ -1,4 +1,4 @@
-import { BetaAuthForm } from "@/components/beta/auth-form";
+import { BetaAuthForm } from "@/components/collaboration/auth-form";
 import { AuthShell } from "@/components/workplace/auth-shell";
 export default function Forgot() {
   return (

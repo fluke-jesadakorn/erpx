@@ -1,5 +1,5 @@
 import {z} from "zod";
-import {pageLayoutSchema} from "@/lib/page-layouts";
+import {pageLayoutSchema} from "@/lib/work_projection/page-layouts";
 export const pageLayoutInputSchema = z
   .object({
     action: z.enum(["save", "reset", "publish"]),

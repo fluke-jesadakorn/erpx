@@ -16,10 +16,10 @@
 
 ## การตรวจ
 
-- `tests/stock-reservations.test.ts`: Sales สองรายการแย่งของ, source scope, duplicate command, changed payload, stale version, partial/full fulfillment, expiry, cancel และ DB stock guard.
-- `tests/pos.test.ts`: เพิ่ม Sales และ POS แข่งจองสินค้าชิ้นสุดท้ายผ่านคำสั่งเจ้าของข้อมูลจริง รวม regression POS เดิม.
-- `tests/commerce-returns.test.ts`: กลับสินค้า/บัญชี/คืนเงินยังผ่าน owner เดิม.
-- `tests/staff-migration.test.ts`: additive migration ทำซ้ำได้ ตารางใหม่เริ่มว่าง รวม 325 base tables.
+- `tests/integration/inventory/stock-reservations.test.ts`: Sales สองรายการแย่งของ, source scope, duplicate command, changed payload, stale version, partial/full fulfillment, expiry, cancel และ DB stock guard.
+- `tests/integration/pos/pos.test.ts`: เพิ่ม Sales และ POS แข่งจองสินค้าชิ้นสุดท้ายผ่านคำสั่งเจ้าของข้อมูลจริง รวม regression POS เดิม.
+- `tests/integration/sales/commerce-returns.test.ts`: กลับสินค้า/บัญชี/คืนเงินยังผ่าน owner เดิม.
+- `tests/integration/operations/staff-migration.test.ts`: additive migration ทำซ้ำได้ ตารางใหม่เริ่มว่าง รวม 325 base tables.
 - Browser public dev: session ปัจจุบันอ่าน Sales list และเอกสารเดิมได้; fixture ในรายการเป็น fulfilled จึงยังไม่ได้รับรอง reserve/release form หรือการส่งต่อหลายบทบาทผ่าน browser.
 
 ## ข้อจำกัดและงานที่ยังต้องปิด

@@ -1,4 +1,4 @@
-import { guidedIntakeInputSchema } from "@/lib/ai/guided-intake";
+import { guidedIntakeInputSchema } from "@/lib/shared/ai/guided-intake";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { holdingResources, runtimeEnv } from "@/server/modules/runtime/public/runtime";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";

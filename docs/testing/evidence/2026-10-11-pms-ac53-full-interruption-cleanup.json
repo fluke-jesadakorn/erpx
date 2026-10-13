@@ -1,0 +1,104 @@
+{
+  "observedAt": "2026-10-11T14:49:28.851699+00:00",
+  "fullRunDirectory": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/full/2026-10-11T13-45-01-751Z",
+  "browserRunDirectory": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-11T14-14-00-929Z",
+  "boundaryKind": "interrupted-without-terminal-receipt",
+  "actualProcessChecks": [
+    {
+      "pid": 5827,
+      "absent": true
+    },
+    {
+      "pid": 20910,
+      "absent": true
+    },
+    {
+      "pid": 20911,
+      "absent": true
+    },
+    {
+      "pid": 20914,
+      "absent": true
+    }
+  ],
+  "fullTerminalReceiptAbsent": true,
+  "browserTerminalReceiptAbsent": true,
+  "completedPartialCaseStats": {
+    "expected": 28,
+    "unexpected": 0,
+    "flaky": 0,
+    "skipped": 0
+  },
+  "partialCasesAreNotAggregateAcceptance": true,
+  "standardOwnedCleanup": [
+    {
+      "run": "72599d1857cf",
+      "ownedDirectoryAbsent": true
+    },
+    {
+      "run": "ea569d169d06",
+      "ownedDirectoryAbsent": true
+    },
+    {
+      "run": "720f88144e96",
+      "ownedDirectoryAbsent": true
+    }
+  ],
+  "remainingOwnedDatabases": 0,
+  "exactDatabasePrefixCheck": [
+    "erpx_browser_72599d1857cf_",
+    "erpx_browser_ea569d169d06_",
+    "erpx_browser_720f88144e96_"
+  ],
+  "guardedNormalCleanupCommandsExit0": true,
+  "cleanupLogs": [
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-11T14-14-00-929Z/template-ea569d169d06/root-owned-cleanup-0.log",
+      "SHA256": "191d505965975a5c0ded68ca451cdd2621aaa64d51d7cc246620224152874b2c",
+      "privateMode": "0o600"
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-11T14-14-00-929Z/template-720f88144e96/root-owned-cleanup-0.log",
+      "SHA256": "eede3b4111e2986ced21be585736a488bb4b93d5cba8dfe795c09db2f59c03c7",
+      "privateMode": "0o600"
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-11T14-14-00-929Z/72599d1857cf/root-owned-cleanup-0.log",
+      "SHA256": "99a2720eecf4c476b9944d78d2dfee1607c980f6adbd63ea44d54f6533d0ab10",
+      "privateMode": "0o600"
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/browser/2026-10-11T14-14-00-929Z/72599d1857cf/root-owned-cleanup-1.log",
+      "SHA256": "7b0c2ee314e9e78edc916fcfedd08daec020ee508a7e8c1a59a10bfc338c8df4",
+      "privateMode": "0o600"
+    }
+  ],
+  "retainedEvidenceBeforeCleanup": true,
+  "noHistoricalOrGlobalCohortsTouched": true,
+  "fullPassedClaimed": false,
+  "wholePlanAccepted": false,
+  "rootTestGateStarted": false,
+  "coordinationReleaseStillPending": true,
+  "publishedAt": "2026-10-11T15:10:21.514998+00:00",
+  "currentAlignedCandidateAfterOwnerRepairSync": {
+    "runtime": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+    "verification": "2b5548f6a40109638ade47957d999315dcfe0579627aa5879abc537632f257ce",
+    "mainRuntime": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+    "mainVerification": "2b5548f6a40109638ade47957d999315dcfe0579627aa5879abc537632f257ce",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T10-52-06-388Z",
+    "releaseId": "2026-10-11T10-52-06-388Z",
+    "sourceRecapturedAt": "2026-10-11T14:53:56.935Z"
+  },
+  "privateSourceEvidence": {
+    "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/interrupted-full-boundary-observation.json",
+    "SHA256": "46de60b56a957bf406cc74f251738b6c90199eb9686f21e5cd9fe1f73e84eb9c"
+  },
+  "coordinatedPMSBoundaryRelease": {
+    "boundaryKind": "interrupted-without-terminal-receipt",
+    "fullPassed": null,
+    "ownedCleanupVerified": true,
+    "coordinationEvidence": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/interrupted-full-owner-peer-coordination.json",
+    "coordinationSHA256": "60550c20db93e6ac69569fcbb1c23bb7f8e81628a5e7544e50b8195f2cf77ec8",
+    "noAggregateReceiptFabricated": true
+  }
+}

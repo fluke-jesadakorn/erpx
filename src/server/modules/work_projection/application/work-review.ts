@@ -1,7 +1,7 @@
 import type {WorkContext,publicScope} from "../../identity_access/public/authorization";
-import {workspaceBase} from "@/lib/workspace";
-import {sourceRecordLabel} from "@/lib/source-record";
-import type {WorkReview,WorkReviewKind,ReviewDecision} from "@/lib/work-review";
+import {workspaceBase} from "@/lib/work_projection/workspace";
+import {sourceRecordLabel} from "@/lib/records/source-record";
+import type {WorkReview,WorkReviewKind,ReviewDecision} from "@/lib/work_projection/work-review";
 import type {SavedApproval,employeeRequestDetail} from "../../records/public/employee-requests";
 import type {expenseDetail} from "../../people_payroll/public/expenses";
 import type {getLeave} from "../../people_payroll/public/leave";
@@ -9,8 +9,8 @@ import type {getLeaveEvidence} from "../public/work";
 import type {taskDetail} from "../../operations/public/staff-tasks";
 import type {resolveFlow} from "../../workflow/public/flow-routing";
 import type {ApprovalView} from "../../workflow/public/approvals";
-import type {attachmentContentUrl} from "@/lib/attachment-client";
-import {minorToDecimal} from "@/lib/finance-money";
+import type {attachmentContentUrl} from "@/lib/files/attachment-client";
+import {minorToDecimal} from "@/lib/finance/finance-money";
 export type WorkReviewUnit={
  expense(actor:WorkContext,id:string):ReturnType<typeof expenseDetail>;
  leave(actor:WorkContext,id:string):ReturnType<typeof getLeave>;

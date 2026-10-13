@@ -3,11 +3,11 @@ import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, TextInput } from "@/components/ui/foundation";
 
-import { workFetch } from "@/lib/work-fetch";
+import { workFetch } from "@/lib/work_projection/work-fetch";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FormLayout } from "@/components/ui/foundation";
-export function ActivationForm({ token }: { token: string }) {
+export function ActivationForm({ token, existingAccount = false }: { token: string; existingAccount?: boolean }) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -17,7 +17,7 @@ export function ActivationForm({ token }: { token: string }) {
       onSubmit={async (e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
-        if (f.get("password") !== f.get("confirm")) {
+        if (!existingAccount && f.get("password") !== f.get("confirm")) {
           setError("Passwords must match.");
           return;
         }
@@ -40,17 +40,17 @@ export function ActivationForm({ token }: { token: string }) {
       }}
     >
       <Field appearance="standard">
-        Password
+        {existingAccount ? "Existing account password" : "Password"}
         <TextInput appearance="standard"
           name="password"
           type="password"
-          minLength={12}
+          minLength={existingAccount ? 1 : 12}
           maxLength={128}
-          autoComplete="new-password"
+          autoComplete={existingAccount ? "current-password" : "new-password"}
           required
         />
       </Field>
-      <Field appearance="standard">
+      {!existingAccount && <Field appearance="standard">
         Confirm password
         <TextInput appearance="standard"
           name="confirm"
@@ -60,7 +60,7 @@ export function ActivationForm({ token }: { token: string }) {
           autoComplete="new-password"
           required
         />
-      </Field>
+      </Field>}
       <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending}>
         Activate account
       </Button>

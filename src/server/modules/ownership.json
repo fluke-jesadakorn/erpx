@@ -43,8 +43,8 @@
       ],
       "source": [
         "src/server/modules/brand/**",
-        "src/server/brand-identity.ts",
-        "src/server/branding.ts"
+        "src/server/modules/brand/public/brand-identity.ts",
+        "src/server/modules/brand/public/branding.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -59,8 +59,8 @@
             "src/server/modules/brand/adapters/identity.ts"
           ],
           "regression": [
-            "tests/brand-identity.test.ts",
-            "tests/unit/brand-application.test.ts"
+            "tests/integration/brand/brand-identity.test.ts",
+            "tests/unit/brand/brand-application.test.ts"
           ]
         },
         {
@@ -74,9 +74,9 @@
             "src/server/modules/brand/adapters/identity.ts"
           ],
           "regression": [
-            "tests/branding.test.ts",
-            "tests/brand-identity.test.ts",
-            "tests/unit/brand-application.test.ts"
+            "tests/integration/brand/branding.test.ts",
+            "tests/integration/brand/brand-identity.test.ts",
+            "tests/unit/brand/brand-application.test.ts"
           ]
         }
       ]
@@ -88,9 +88,9 @@
       ],
       "source": [
         "src/server/modules/commercial/**",
-        "src/server/seat-meter.ts",
-        "src/server/usage-projection.ts",
-        "src/server/usage.ts"
+        "src/server/modules/commercial/public/seat-meter.ts",
+        "src/server/modules/commercial/public/usage-projection.ts",
+        "src/server/modules/commercial/public/usage.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -103,7 +103,7 @@
             "src/server/modules/commercial/application/usage.ts"
           ],
           "regression": [
-            "tests/unit/owner-command-applications.test.ts"
+            "tests/unit/shared.architecture/owner-command-applications.test.ts"
           ]
         },
         {
@@ -123,10 +123,10 @@
             "src/server/modules/commercial/adapters/seats.ts"
           ],
           "regression": [
-            "tests/usage-projection.test.ts",
-            "tests/seat-meter.test.ts",
-            "tests/usage-routes.test.ts",
-            "tests/unit/commercial-services.test.ts"
+            "tests/integration/commercial/usage-projection.test.ts",
+            "tests/unit/commercial/seat-meter.test.ts",
+            "tests/unit/commercial/usage-routes.test.ts",
+            "tests/unit/commercial/commercial-services.test.ts"
           ]
         }
       ]
@@ -138,45 +138,45 @@
       ],
       "source": [
         "src/server/modules/identity_access/**",
-        "src/server/access-diagnosis.ts",
-        "src/server/account-access.ts",
-        "src/server/account-invitation-delivery.ts",
-        "src/server/account-quick-access.ts",
-        "src/server/account-recovery.ts",
-        "src/server/account-work-context.ts",
-        "src/server/auth.ts",
-        "src/server/authorization.ts",
-        "src/server/beta-access.ts",
-        "src/server/directory-field-mapping.ts",
-        "src/server/directory-operations-api.ts",
-        "src/server/directory-operations.ts",
-        "src/server/directory-provider.ts",
-        "src/server/gpo-rules.ts",
-        "src/server/iam-access-review-alerts.ts",
-        "src/server/iam-api.ts",
-        "src/server/iam-auth.ts",
-        "src/server/iam-context.ts",
-        "src/server/iam-db.ts",
-        "src/server/iam-directories.ts",
-        "src/server/iam-directory-refresh.ts",
-        "src/server/iam-inspector.ts",
-        "src/server/iam-jobs.ts",
-        "src/server/iam-mfa.ts",
-        "src/server/iam-migrations.ts",
-        "src/server/iam-my-access.ts",
-        "src/server/iam-permissions.ts",
-        "src/server/iam-person.ts",
-        "src/server/iam-providers.ts",
-        "src/server/iam-read-snapshot.ts",
-        "src/server/iam-recovery.ts",
-        "src/server/iam-service.ts",
-        "src/server/iam-store.ts",
-        "src/server/iam-throttle.ts",
-        "src/server/iam-transactions.ts",
-        "src/server/position-gpo.ts",
-        "src/server/user-management.ts",
-        "src/server/technology.ts",
-        "src/lib/technology.ts"
+        "src/server/modules/identity_access/public/access-diagnosis.ts",
+        "src/server/modules/identity_access/public/account-access.ts",
+        "src/server/modules/identity_access/public/account-invitation-delivery.ts",
+        "src/server/modules/identity_access/public/account-quick-access.ts",
+        "src/server/modules/identity_access/public/account-recovery.ts",
+        "src/server/modules/identity_access/public/account-work-context.ts",
+        "src/server/modules/identity_access/public/auth.ts",
+        "src/server/modules/identity_access/public/authorization.ts",
+        "src/server/modules/identity_access/public/beta-access.ts",
+        "src/server/modules/identity_access/public/directory-field-mapping.ts",
+        "src/server/modules/identity_access/public/directory-operations-api.ts",
+        "src/server/modules/identity_access/public/directory-operations.ts",
+        "src/server/modules/identity_access/public/directory-provider.ts",
+        "src/server/modules/identity_access/public/gpo-rules.ts",
+        "src/server/modules/identity_access/public/iam-access-review-alerts.ts",
+        "src/server/modules/identity_access/public/iam-api.ts",
+        "src/server/modules/identity_access/public/iam-auth.ts",
+        "src/server/modules/identity_access/public/iam-context.ts",
+        "src/server/modules/identity_access/public/iam-db.ts",
+        "src/server/modules/identity_access/public/iam-directories.ts",
+        "src/server/modules/identity_access/public/iam-directory-refresh.ts",
+        "src/server/modules/identity_access/public/iam-inspector.ts",
+        "src/server/modules/identity_access/public/iam-jobs.ts",
+        "src/server/modules/identity_access/public/iam-mfa.ts",
+        "src/server/modules/identity_access/public/iam-migrations.ts",
+        "src/server/modules/identity_access/public/iam-my-access.ts",
+        "src/server/modules/identity_access/public/iam-permissions.ts",
+        "src/server/modules/identity_access/public/iam-person.ts",
+        "src/server/modules/identity_access/public/iam-providers.ts",
+        "src/server/modules/identity_access/public/iam-read-snapshot.ts",
+        "src/server/modules/identity_access/public/iam-recovery.ts",
+        "src/server/modules/identity_access/public/iam-service.ts",
+        "src/server/modules/identity_access/public/iam-store.ts",
+        "src/server/modules/identity_access/public/iam-throttle.ts",
+        "src/server/modules/identity_access/public/iam-transactions.ts",
+        "src/server/modules/identity_access/public/position-gpo.ts",
+        "src/server/modules/identity_access/public/user-management.ts",
+        "src/server/modules/identity_access/public/technology.ts",
+        "src/server/modules/identity_access/public/rules/technology.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -190,8 +190,8 @@
             "src/server/modules/identity_access/adapters/invitation-delivery.ts"
           ],
           "regression": [
-            "tests/account-invitation-delivery.test.ts",
-            "tests/unit/first-wave-applications.test.ts"
+            "tests/integration/identity_access/account-invitation-delivery.test.ts",
+            "tests/unit/shared.architecture/first-wave-applications.test.ts"
           ]
         },
         {
@@ -203,8 +203,8 @@
             "src/server/modules/identity_access/adapters/account-recovery.ts"
           ],
           "regression": [
-            "tests/account-recovery.test.ts",
-            "tests/unit/account-recovery-application.test.ts"
+            "tests/integration/identity_access/account-recovery.test.ts",
+            "tests/unit/identity_access/account-recovery-application.test.ts"
           ]
         },
         {
@@ -216,8 +216,8 @@
             "src/server/modules/identity_access/adapters/throttle.ts"
           ],
           "regression": [
-            "tests/iam-throttle.test.ts",
-            "tests/unit/member-directory-throttle.test.ts"
+            "tests/integration/identity_access/iam-throttle.test.ts",
+            "tests/unit/shared.architecture/member-directory-throttle.test.ts"
           ]
         },
         {
@@ -235,8 +235,8 @@
             "src/server/modules/people_payroll/adapters/gpo-sources.ts"
           ],
           "regression": [
-            "tests/position-gpo.test.ts",
-            "tests/unit/gpo-services.test.ts"
+            "tests/integration/organization/position-gpo.test.ts",
+            "tests/unit/identity_access/gpo-services.test.ts"
           ]
         },
         {
@@ -248,10 +248,10 @@
             "src/server/modules/identity_access/adapters/user-management.ts"
           ],
           "regression": [
-            "tests/unit/iam-user-management.test.ts",
-            "tests/user-management.test.ts",
-            "tests/directory-operations.test.ts",
-            "tests/people-lifecycle.test.ts"
+            "tests/unit/identity_access/iam-user-management.test.ts",
+            "tests/integration/identity_access/user-management.test.ts",
+            "tests/integration/identity_access/directory-operations.test.ts",
+            "tests/integration/people_payroll/people-lifecycle.test.ts"
           ]
         },
         {
@@ -263,10 +263,10 @@
             "src/server/modules/identity_access/adapters/directory-field-mapping.ts"
           ],
           "regression": [
-            "tests/unit/iam-user-management.test.ts",
-            "tests/user-management.test.ts",
-            "tests/directory-operations.test.ts",
-            "tests/people-lifecycle.test.ts"
+            "tests/unit/identity_access/iam-user-management.test.ts",
+            "tests/integration/identity_access/user-management.test.ts",
+            "tests/integration/identity_access/directory-operations.test.ts",
+            "tests/integration/people_payroll/people-lifecycle.test.ts"
           ]
         },
         {
@@ -299,11 +299,11 @@
             "src/server/modules/identity_access/adapters/account-quick-access.ts"
           ],
           "regression": [
-            "tests/unit/identity-access-services.test.ts",
-            "tests/unit/identity-directory-services.test.ts",
-            "tests/account-work-context.test.ts",
-            "tests/access-diagnosis.test.ts",
-            "tests/iam-page-permissions.test.ts"
+            "tests/unit/identity_access/identity-access-services.test.ts",
+            "tests/unit/identity_access/identity-directory-services.test.ts",
+            "tests/integration/identity_access/account-work-context.test.ts",
+            "tests/integration/identity_access/access-diagnosis.test.ts",
+            "tests/unit/identity_access/iam-page-permissions.test.ts"
           ]
         },
         {
@@ -328,8 +328,8 @@
             "src/server/modules/identity_access/adapters/iam-directory-refresh.ts"
           ],
           "regression": [
-            "tests/unit/identity-access-services.test.ts",
-            "tests/iam.test.ts"
+            "tests/unit/identity_access/identity-access-services.test.ts",
+            "tests/integration/identity_access/iam.test.ts"
           ]
         },
         {
@@ -355,12 +355,12 @@
             "src/server/modules/identity_access/adapters/iam-inspector.ts"
           ],
           "regression": [
-            "tests/unit/identity-access-services.test.ts",
-            "tests/unit/identity-directory-services.test.ts",
-            "tests/iam.test.ts",
-            "tests/organization.test.ts",
-            "tests/ai-providers.test.ts",
-            "tests/account-invitation-delivery.test.ts"
+            "tests/unit/identity_access/identity-access-services.test.ts",
+            "tests/unit/identity_access/identity-directory-services.test.ts",
+            "tests/integration/identity_access/iam.test.ts",
+            "tests/integration/organization/organization.test.ts",
+            "tests/integration/agent/ai-providers.test.ts",
+            "tests/integration/identity_access/account-invitation-delivery.test.ts"
           ]
         },
         {
@@ -381,10 +381,10 @@
             "src/server/modules/identity_access/adapters/directory-operations.ts"
           ],
           "regression": [
-            "tests/unit/identity-directory-services.test.ts",
-            "tests/iam-providers.test.ts",
-            "tests/iam.test.ts",
-            "tests/directory-operations.test.ts"
+            "tests/unit/identity_access/identity-directory-services.test.ts",
+            "tests/unit/identity_access/iam-providers.test.ts",
+            "tests/integration/identity_access/iam.test.ts",
+            "tests/integration/identity_access/directory-operations.test.ts"
           ]
         },
         {
@@ -405,9 +405,9 @@
             "src/server/modules/workflow/adapters/technology-provisioning-effects.ts"
           ],
           "regression": [
-            "tests/unit/technology-services.test.ts",
-            "tests/people-lifecycle.test.ts",
-            "tests/directory-operations.test.ts"
+            "tests/unit/identity_access/technology-services.test.ts",
+            "tests/integration/people_payroll/people-lifecycle.test.ts",
+            "tests/integration/identity_access/directory-operations.test.ts"
           ]
         },
         {
@@ -419,8 +419,8 @@
             "src/server/modules/identity_access/public/account-time-preference.ts"
           ],
           "regression": [
-            "tests/member-profiles.test.ts",
-            "tests/unit/identity-access-services.test.ts"
+            "tests/integration/identity_access/member-profiles.test.ts",
+            "tests/unit/identity_access/identity-access-services.test.ts"
           ],
           "migration": "clean"
         },
@@ -626,29 +626,29 @@
             "src/server/modules/identity_access/domain/workspace-access.ts"
           ],
           "regression": [
-            "tests/account-invitation-delivery.test.ts",
-            "tests/unit/first-wave-applications.test.ts",
-            "tests/account-recovery.test.ts",
-            "tests/unit/account-recovery-application.test.ts",
-            "tests/iam-throttle.test.ts",
-            "tests/unit/member-directory-throttle.test.ts",
-            "tests/position-gpo.test.ts",
-            "tests/unit/gpo-services.test.ts",
-            "tests/unit/iam-user-management.test.ts",
-            "tests/user-management.test.ts",
-            "tests/directory-operations.test.ts",
-            "tests/people-lifecycle.test.ts",
-            "tests/unit/identity-access-services.test.ts",
-            "tests/unit/identity-directory-services.test.ts",
-            "tests/account-work-context.test.ts",
-            "tests/access-diagnosis.test.ts",
-            "tests/iam-page-permissions.test.ts",
-            "tests/iam.test.ts",
-            "tests/organization.test.ts",
-            "tests/ai-providers.test.ts",
-            "tests/iam-providers.test.ts",
-            "tests/unit/technology-services.test.ts",
-            "tests/member-profiles.test.ts"
+            "tests/integration/identity_access/account-invitation-delivery.test.ts",
+            "tests/unit/shared.architecture/first-wave-applications.test.ts",
+            "tests/integration/identity_access/account-recovery.test.ts",
+            "tests/unit/identity_access/account-recovery-application.test.ts",
+            "tests/integration/identity_access/iam-throttle.test.ts",
+            "tests/unit/shared.architecture/member-directory-throttle.test.ts",
+            "tests/integration/organization/position-gpo.test.ts",
+            "tests/unit/identity_access/gpo-services.test.ts",
+            "tests/unit/identity_access/iam-user-management.test.ts",
+            "tests/integration/identity_access/user-management.test.ts",
+            "tests/integration/identity_access/directory-operations.test.ts",
+            "tests/integration/people_payroll/people-lifecycle.test.ts",
+            "tests/unit/identity_access/identity-access-services.test.ts",
+            "tests/unit/identity_access/identity-directory-services.test.ts",
+            "tests/integration/identity_access/account-work-context.test.ts",
+            "tests/integration/identity_access/access-diagnosis.test.ts",
+            "tests/unit/identity_access/iam-page-permissions.test.ts",
+            "tests/integration/identity_access/iam.test.ts",
+            "tests/integration/organization/organization.test.ts",
+            "tests/integration/agent/ai-providers.test.ts",
+            "tests/unit/identity_access/iam-providers.test.ts",
+            "tests/unit/identity_access/technology-services.test.ts",
+            "tests/integration/identity_access/member-profiles.test.ts"
           ],
           "migration": "clean"
         }
@@ -661,21 +661,21 @@
       ],
       "source": [
         "src/server/modules/organization/**",
-        "src/server/department-authority.ts",
-        "src/server/department-decisions.ts",
-        "src/server/holding-people-directory.ts",
-        "src/server/member-directory.ts",
-        "src/server/member-profiles.ts",
-        "src/server/organization-access.ts",
-        "src/server/organization-channels.ts",
-        "src/server/organization-drafts.ts",
-        "src/server/organization-work.ts",
-        "src/server/organization.ts",
-        "src/server/position-moves.ts",
-        "src/server/staff-defaults.ts",
-        "src/server/workspace-choices.ts",
-        "src/server/company-business-acceptance.ts",
-        "src/lib/organization-domain.ts"
+        "src/server/modules/organization/public/department-authority.ts",
+        "src/server/modules/organization/public/department-decisions.ts",
+        "src/server/modules/organization/public/holding-people-directory.ts",
+        "src/server/modules/organization/public/member-directory.ts",
+        "src/server/modules/organization/public/member-profiles.ts",
+        "src/server/modules/organization/public/organization-access.ts",
+        "src/server/modules/organization/public/organization-channels.ts",
+        "src/server/modules/organization/public/organization-drafts.ts",
+        "src/server/modules/organization/public/organization-work.ts",
+        "src/server/modules/organization/public/organization.ts",
+        "src/server/modules/organization/public/position-moves.ts",
+        "src/server/modules/organization/public/staff-defaults.ts",
+        "src/server/modules/organization/public/workspace-choices.ts",
+        "src/server/modules/organization/public/company-business-acceptance.ts",
+        "src/lib/organization/organization-domain.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -689,8 +689,8 @@
             "src/server/modules/organization/adapters/access.ts"
           ],
           "regression": [
-            "tests/organization-access.test.ts",
-            "tests/unit/first-wave-applications.test.ts"
+            "tests/integration/organization/organization-access.test.ts",
+            "tests/unit/shared.architecture/first-wave-applications.test.ts"
           ]
         },
         {
@@ -702,9 +702,9 @@
             "src/server/modules/organization/adapters/member-directory.ts"
           ],
           "regression": [
-            "tests/member-directory.test.ts",
-            "tests/people-lifecycle.test.ts",
-            "tests/unit/member-directory-throttle.test.ts"
+            "tests/integration/organization/member-directory.test.ts",
+            "tests/integration/people_payroll/people-lifecycle.test.ts",
+            "tests/unit/shared.architecture/member-directory-throttle.test.ts"
           ]
         },
         {
@@ -716,8 +716,8 @@
             "src/server/modules/organization/adapters/holding-people-directory.ts"
           ],
           "regression": [
-            "tests/holding-people-directory.test.ts",
-            "tests/unit/organization-services.test.ts"
+            "tests/integration/organization/holding-people-directory.test.ts",
+            "tests/unit/organization/organization-services.test.ts"
           ]
         },
         {
@@ -728,8 +728,8 @@
             "src/server/modules/organization/adapters/organization-channels.ts"
           ],
           "regression": [
-            "tests/organization-channels.test.ts",
-            "tests/unit/organization-services.test.ts"
+            "tests/integration/organization/organization-channels.test.ts",
+            "tests/unit/organization/organization-services.test.ts"
           ]
         },
         {
@@ -741,8 +741,8 @@
             "src/server/modules/organization/adapters/member-profiles.ts"
           ],
           "regression": [
-            "tests/member-profiles.test.ts",
-            "tests/unit/organization-services.test.ts"
+            "tests/integration/identity_access/member-profiles.test.ts",
+            "tests/unit/organization/organization-services.test.ts"
           ]
         },
         {
@@ -754,8 +754,8 @@
             "src/server/modules/organization/adapters/organization-work.ts"
           ],
           "regression": [
-            "tests/organization.test.ts",
-            "tests/unit/organization-services.test.ts"
+            "tests/integration/organization/organization.test.ts",
+            "tests/unit/organization/organization-services.test.ts"
           ]
         },
         {
@@ -767,8 +767,8 @@
             "src/server/modules/organization/adapters/staff-defaults.ts"
           ],
           "regression": [
-            "tests/staff-defaults.test.ts",
-            "tests/unit/organization-services.test.ts"
+            "tests/integration/organization/staff-defaults.test.ts",
+            "tests/unit/organization/organization-services.test.ts"
           ]
         },
         {
@@ -780,8 +780,8 @@
             "src/server/modules/organization/adapters/workspace-choices.ts"
           ],
           "regression": [
-            "tests/workspace-choices.test.ts",
-            "tests/unit/organization-services.test.ts"
+            "tests/unit/identity_access/workspace-choices.test.ts",
+            "tests/unit/organization/organization-services.test.ts"
           ]
         },
         {
@@ -793,8 +793,8 @@
             "src/server/modules/organization/adapters/department-decisions.ts"
           ],
           "regression": [
-            "tests/department-authority.test.ts",
-            "tests/unit/organization-services.test.ts"
+            "tests/integration/organization/department-authority.test.ts",
+            "tests/unit/organization/organization-services.test.ts"
           ]
         },
         {
@@ -806,8 +806,8 @@
             "src/server/modules/organization/adapters/department-authority.ts"
           ],
           "regression": [
-            "tests/department-authority.test.ts",
-            "tests/unit/organization-services.test.ts"
+            "tests/integration/organization/department-authority.test.ts",
+            "tests/unit/organization/organization-services.test.ts"
           ]
         },
         {
@@ -821,8 +821,8 @@
             "src/server/modules/organization/public/people-app-entrypoint-facts.ts"
           ],
           "regression": [
-            "tests/organization.test.ts",
-            "tests/unit/organization-services.test.ts"
+            "tests/integration/organization/organization.test.ts",
+            "tests/unit/organization/organization-services.test.ts"
           ]
         },
         {
@@ -834,8 +834,8 @@
             "src/server/modules/organization/adapters/position-moves.ts"
           ],
           "regression": [
-            "tests/position-moves.test.ts",
-            "tests/unit/organization-services.test.ts"
+            "tests/integration/organization/position-moves.test.ts",
+            "tests/unit/organization/organization-services.test.ts"
           ]
         },
         {
@@ -847,8 +847,8 @@
             "src/server/modules/organization/adapters/organization-drafts.ts"
           ],
           "regression": [
-            "tests/organization-drafts.test.ts",
-            "tests/unit/organization-services.test.ts"
+            "tests/integration/organization/organization-drafts.test.ts",
+            "tests/unit/organization/organization-services.test.ts"
           ]
         },
         {
@@ -873,13 +873,13 @@
             "src/server/modules/organization/public/company-business-acceptance.ts",
             "src/server/modules/people_payroll/adapters/company-acceptance-facts.ts",
             "src/server/modules/people_payroll/public/company-acceptance-facts.ts",
-            "src/lib/organization-domain.ts",
+            "src/lib/organization/organization-domain.ts",
             "src/server/modules/organization/public/rules/organization-domain.ts"
           ],
           "regression": [
-            "tests/organization.test.ts",
-            "tests/scoped-browser-staff.test.ts",
-            "tests/unit/company-acceptance-services.test.ts"
+            "tests/integration/organization/organization.test.ts",
+            "tests/integration/shared.evidence/scoped-browser-staff.test.ts",
+            "tests/unit/organization/company-acceptance-services.test.ts"
           ]
         },
         {
@@ -893,8 +893,8 @@
             "src/server/modules/files/public/profile-media-storage.ts"
           ],
           "regression": [
-            "tests/member-profiles.test.ts",
-            "tests/unit/organization-services.test.ts"
+            "tests/integration/identity_access/member-profiles.test.ts",
+            "tests/unit/organization/organization-services.test.ts"
           ],
           "migration": "clean"
         }
@@ -907,11 +907,11 @@
       ],
       "source": [
         "src/server/modules/platform_administration/**",
-        "src/server/engineering-verification.ts",
-        "src/server/platform-executive.ts",
-        "src/server/platform-operations.ts",
-        "src/server/release-acceptance.ts",
-        "src/server/system-evidence.ts"
+        "src/server/modules/platform_administration/public/engineering-verification.ts",
+        "src/server/modules/platform_administration/public/platform-executive.ts",
+        "src/server/modules/platform_administration/public/platform-operations.ts",
+        "src/server/modules/platform_administration/public/release-acceptance.ts",
+        "src/server/modules/platform_administration/public/system-evidence.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -925,8 +925,8 @@
             "src/server/modules/platform_administration/adapters/operations.ts"
           ],
           "regression": [
-            "tests/platform-operations.test.ts",
-            "tests/unit/first-wave-applications.test.ts"
+            "tests/integration/platform_administration/platform-operations.test.ts",
+            "tests/unit/shared.architecture/first-wave-applications.test.ts"
           ]
         },
         {
@@ -950,12 +950,12 @@
             "src/server/modules/platform_administration/adapters/engineering-verification.ts"
           ],
           "regression": [
-            "tests/engineering-verification.test.ts",
-            "tests/platform-operations.test.ts",
-            "tests/release-acceptance.test.ts",
-            "tests/legal-release-gates.test.ts",
-            "tests/engineering-workplace-platform-attachments.test.ts",
-            "tests/unit/platform-administration-application.test.ts"
+            "tests/integration/shared.evidence/engineering-verification.test.ts",
+            "tests/integration/platform_administration/platform-operations.test.ts",
+            "tests/integration/shared.evidence/release-acceptance.test.ts",
+            "tests/integration/legal/legal-release-gates.test.ts",
+            "tests/integration/shared.workplace-journeys/engineering-workplace-platform-attachments.test.ts",
+            "tests/unit/platform_administration/platform-administration-application.test.ts"
           ]
         }
       ]
@@ -967,9 +967,9 @@
       ],
       "source": [
         "src/server/modules/customer_360/**",
-        "src/server/customer-portal-attachments.ts",
-        "src/server/customer-portal.ts",
-        "src/server/customer-timeline.ts"
+        "src/server/modules/customer_360/public/customer-portal-attachments.ts",
+        "src/server/modules/customer_360/public/customer-portal.ts",
+        "src/server/modules/customer_360/public/customer-timeline.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -983,7 +983,7 @@
             "src/server/modules/customer_360/domain/timeline.ts"
           ],
           "regression": [
-            "tests/customer-timeline.test.ts"
+            "tests/integration/customer_360/customer-timeline.test.ts"
           ]
         },
         {
@@ -1001,9 +1001,9 @@
             "src/server/modules/customer_360/domain/timeline.ts"
           ],
           "regression": [
-            "tests/customer-access.test.ts",
-            "tests/customer-timeline.test.ts",
-            "tests/unit/customer-portal-application.test.ts"
+            "tests/integration/customer_authority/customer-access.test.ts",
+            "tests/integration/customer_360/customer-timeline.test.ts",
+            "tests/unit/shared.business-contracts/customer-portal-application.test.ts"
           ]
         }
       ]
@@ -1015,9 +1015,9 @@
       ],
       "source": [
         "src/server/modules/customer_authority/**",
-        "src/server/customer-access.ts",
-        "src/server/customer-duplicates.ts",
-        "src/server/customer-identity-changes.ts"
+        "src/server/modules/customer_authority/public/customer-access.ts",
+        "src/server/modules/customer_authority/public/customer-duplicates.ts",
+        "src/server/modules/customer_authority/public/customer-identity-changes.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -1031,8 +1031,8 @@
             "src/server/modules/customer_authority/domain/duplicate-request.ts"
           ],
           "regression": [
-            "tests/customer-duplicates.test.ts",
-            "tests/unit/remaining-owner-applications.test.ts"
+            "tests/integration/customer_authority/customer-duplicates.test.ts",
+            "tests/unit/shared.architecture/remaining-owner-applications.test.ts"
           ]
         },
         {
@@ -1055,10 +1055,10 @@
             "src/server/modules/customer_authority/adapters/duplicates.ts"
           ],
           "regression": [
-            "tests/customer-access.test.ts",
-            "tests/customer-duplicates.test.ts",
-            "tests/customer-identity-changes.test.ts",
-            "tests/unit/customer-authority-application.test.ts"
+            "tests/integration/customer_authority/customer-access.test.ts",
+            "tests/integration/customer_authority/customer-duplicates.test.ts",
+            "tests/integration/customer_authority/customer-identity-changes.test.ts",
+            "tests/unit/customer_authority/customer-authority-application.test.ts"
           ]
         }
       ]
@@ -1070,18 +1070,18 @@
       ],
       "source": [
         "src/server/modules/support/**",
-        "src/server/service-access.ts",
-        "src/server/service-http.ts",
-        "src/server/service-team-options.ts",
-        "src/server/service-teams.ts",
-        "src/server/support-evidence.ts",
-        "src/server/support-incidents.ts",
-        "src/server/support-recipient.ts",
-        "src/server/support-sessions.ts",
-        "src/server/support-sla-alerts.ts",
-        "src/server/support-sla.ts",
-        "src/server/support.ts",
-        "src/lib/support-clock.ts"
+        "src/server/modules/support/public/service-access.ts",
+        "src/server/modules/support/public/service-http.ts",
+        "src/server/modules/support/public/service-team-options.ts",
+        "src/server/modules/support/public/service-teams.ts",
+        "src/server/modules/support/public/support-evidence.ts",
+        "src/server/modules/support/public/support-incidents.ts",
+        "src/server/modules/support/public/support-recipient.ts",
+        "src/server/modules/support/public/support-sessions.ts",
+        "src/server/modules/support/public/support-sla-alerts.ts",
+        "src/server/modules/support/public/support-sla.ts",
+        "src/server/modules/support/public/support.ts",
+        "src/server/modules/support/public/rules/support-clock.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -1094,7 +1094,7 @@
             "src/server/modules/support/public/rules/support-clock.ts"
           ],
           "regression": [
-            "tests/support-sla.test.ts"
+            "tests/integration/support/support-sla.test.ts"
           ]
         },
         {
@@ -1135,13 +1135,13 @@
             "src/server/modules/support/domain/support.ts"
           ],
           "regression": [
-            "tests/unit/support-services.test.ts",
-            "tests/support.test.ts",
-            "tests/support-sla.test.ts",
-            "tests/support-sessions.test.ts",
-            "tests/support-evidence.test.ts",
-            "tests/support-incidents.test.ts",
-            "tests/employee-services.test.ts"
+            "tests/unit/support/support-services.test.ts",
+            "tests/integration/support/support.test.ts",
+            "tests/integration/support/support-sla.test.ts",
+            "tests/integration/support/support-sessions.test.ts",
+            "tests/integration/support/support-evidence.test.ts",
+            "tests/integration/support/support-incidents.test.ts",
+            "tests/integration/people_payroll/employee-services.test.ts"
           ]
         }
       ]
@@ -1153,63 +1153,63 @@
       ],
       "source": [
         "src/server/modules/finance/**",
-        "src/server/accounting-profiles.ts",
-        "src/server/company-money.ts",
-        "src/server/finance-accruals.ts",
-        "src/server/finance-ai-source.ts",
-        "src/server/finance-ai.ts",
-        "src/server/finance-asset-carrying.ts",
-        "src/server/finance-asset-policies.ts",
-        "src/server/finance-assets.ts",
-        "src/server/finance-bank-automation.ts",
-        "src/server/finance-billing-corrections.ts",
-        "src/server/finance-book-adjustments.ts",
-        "src/server/finance-books.ts",
-        "src/server/finance-business-contracts.ts",
-        "src/server/finance-collections.ts",
-        "src/server/finance-company-tools.ts",
-        "src/server/finance-consolidation.ts",
-        "src/server/finance-due-drafts.ts",
-        "src/server/finance-engines.ts",
-        "src/server/finance-expansion-close.ts",
-        "src/server/finance-expansion-evidence.ts",
-        "src/server/finance-expansion-records.ts",
-        "src/server/finance-expansion-work.ts",
-        "src/server/finance-fiscal-close-source.ts",
-        "src/server/finance-group-editions.ts",
-        "src/server/finance-group-ownership.ts",
-        "src/server/finance-history.ts",
-        "src/server/finance-instruments.ts",
-        "src/server/finance-intercompany-pairs.ts",
-        "src/server/finance-intercompany.ts",
-        "src/server/finance-invoice-lines.ts",
-        "src/server/finance-manual-drafts.ts",
-        "src/server/finance-money-policy.ts",
-        "src/server/finance-owned-reversal.ts",
-        "src/server/finance-planning.ts",
-        "src/server/finance-presentation.ts",
-        "src/server/finance-record-details.ts",
-        "src/server/finance-reporting.ts",
-        "src/server/finance-starter.ts",
-        "src/server/finance-tax-identities.ts",
-        "src/server/finance-tax-register.ts",
-        "src/server/finance-thai-documents.ts",
-        "src/server/finance-transactions.ts",
-        "src/server/finance-withholding-remittance.ts",
-        "src/server/finance-withholding.ts",
-        "src/server/finance-workspace.ts",
-        "src/server/finance.ts",
-        "src/server/hospitality-accounting.ts",
-        "src/server/hospitality-tax-document-request.ts",
-        "src/server/hospitality-tax-documents.ts",
-        "src/server/invoice-payment-evidence.ts",
-        "src/server/ledger.ts",
-        "src/server/refund-notifications.ts",
-        "src/server/refunds.ts",
-        "src/lib/finance-calculations.ts",
-        "src/lib/finance-instrument-policy.ts",
-        "src/lib/finance-contract-policy.ts",
-        "src/lib/finance-invoice-lines.ts"
+        "src/server/modules/finance/public/accounting-profiles.ts",
+        "src/server/modules/finance/public/company-money.ts",
+        "src/server/modules/finance/public/finance-accruals.ts",
+        "src/server/modules/finance/public/finance-ai-source.ts",
+        "src/server/modules/finance/public/finance-ai.ts",
+        "src/server/modules/finance/public/finance-asset-carrying.ts",
+        "src/server/modules/finance/public/finance-asset-policies.ts",
+        "src/server/modules/finance/public/finance-assets.ts",
+        "src/server/modules/finance/public/finance-bank-automation.ts",
+        "src/server/modules/finance/public/finance-billing-corrections.ts",
+        "src/server/modules/finance/public/finance-book-adjustments.ts",
+        "src/server/modules/finance/public/finance-books.ts",
+        "src/server/modules/finance/public/finance-business-contracts.ts",
+        "src/server/modules/finance/public/finance-collections.ts",
+        "src/server/modules/finance/public/finance-company-tools.ts",
+        "src/server/modules/finance/public/finance-consolidation.ts",
+        "src/server/modules/finance/public/finance-due-drafts.ts",
+        "src/server/modules/finance/public/finance-engines.ts",
+        "src/server/modules/finance/public/finance-expansion-close.ts",
+        "src/server/modules/finance/public/finance-expansion-evidence.ts",
+        "src/server/modules/finance/public/finance-expansion-records.ts",
+        "src/server/modules/finance/public/finance-expansion-work.ts",
+        "src/server/modules/finance/public/finance-fiscal-close-source.ts",
+        "src/server/modules/finance/public/finance-group-editions.ts",
+        "src/server/modules/finance/public/finance-group-ownership.ts",
+        "src/server/modules/finance/public/finance-history.ts",
+        "src/server/modules/finance/public/finance-instruments.ts",
+        "src/server/modules/finance/public/finance-intercompany-pairs.ts",
+        "src/server/modules/finance/public/finance-intercompany.ts",
+        "src/server/modules/finance/public/finance-invoice-lines.ts",
+        "src/server/modules/finance/public/finance-manual-drafts.ts",
+        "src/server/modules/finance/public/finance-money-policy.ts",
+        "src/server/modules/finance/public/finance-owned-reversal.ts",
+        "src/server/modules/finance/public/finance-planning.ts",
+        "src/server/modules/finance/public/finance-presentation.ts",
+        "src/server/modules/finance/public/finance-record-details.ts",
+        "src/server/modules/finance/public/finance-reporting.ts",
+        "src/server/modules/finance/public/finance-starter.ts",
+        "src/server/modules/finance/public/finance-tax-identities.ts",
+        "src/server/modules/finance/public/finance-tax-register.ts",
+        "src/server/modules/finance/public/finance-thai-documents.ts",
+        "src/server/modules/finance/public/finance-transactions.ts",
+        "src/server/modules/finance/public/finance-withholding-remittance.ts",
+        "src/server/modules/finance/public/finance-withholding.ts",
+        "src/server/modules/finance/public/finance-workspace.ts",
+        "src/server/modules/finance/public/finance.ts",
+        "src/server/modules/finance/public/hospitality-accounting.ts",
+        "src/server/modules/finance/public/hospitality-tax-document-request.ts",
+        "src/server/modules/finance/public/hospitality-tax-documents.ts",
+        "src/server/modules/finance/public/invoice-payment-evidence.ts",
+        "src/server/modules/finance/public/ledger.ts",
+        "src/server/modules/finance/public/refund-notifications.ts",
+        "src/server/modules/finance/public/refunds.ts",
+        "src/server/modules/finance/public/rules/finance-calculations.ts",
+        "src/server/modules/finance/public/rules/finance-instrument-policy.ts",
+        "src/server/modules/finance/public/rules/finance-contract-policy.ts",
+        "src/server/modules/finance/public/rules/finance-invoice-lines.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -1222,7 +1222,7 @@
             "src/server/modules/finance/public/rules/finance-calculations.ts"
           ],
           "regression": [
-            "tests/finance-calculation-engines.test.ts"
+            "tests/integration/finance/finance-calculation-engines.test.ts"
           ]
         },
         {
@@ -1233,7 +1233,7 @@
             "src/server/modules/finance/public/rules/finance-instrument-policy.ts"
           ],
           "regression": [
-            "tests/finance-instruments.test.ts"
+            "tests/integration/finance/finance-instruments.test.ts"
           ]
         },
         {
@@ -1244,7 +1244,7 @@
             "src/server/modules/finance/public/rules/finance-contract-policy.ts"
           ],
           "regression": [
-            "tests/finance-business-contracts.test.ts"
+            "tests/integration/finance/finance-business-contracts.test.ts"
           ]
         },
         {
@@ -1255,7 +1255,7 @@
             "src/server/modules/finance/public/rules/finance-invoice-lines.ts"
           ],
           "regression": [
-            "tests/finance-invoice-lines.test.ts"
+            "tests/integration/finance/finance-invoice-lines.test.ts"
           ]
         },
         {
@@ -1299,14 +1299,14 @@
             "src/server/modules/finance/adapters/finance-money-policy.ts"
           ],
           "regression": [
-            "tests/unit/finance-core-services.test.ts",
-            "tests/finance-generic-payments.test.ts",
-            "tests/finance-invoice-lines.test.ts",
-            "tests/finance-opening-balances.test.ts",
-            "tests/finance-fx-revaluation.test.ts",
-            "tests/finance-close-reconciliation.test.ts",
-            "tests/finance-reporting.test.ts",
-            "tests/finance-calculation-engines.test.ts"
+            "tests/unit/finance/finance-core-services.test.ts",
+            "tests/integration/finance/finance-generic-payments.test.ts",
+            "tests/integration/finance/finance-invoice-lines.test.ts",
+            "tests/integration/finance/finance-opening-balances.test.ts",
+            "tests/integration/finance/finance-fx-revaluation.test.ts",
+            "tests/integration/finance/finance-close-reconciliation.test.ts",
+            "tests/integration/finance/finance-reporting.test.ts",
+            "tests/integration/finance/finance-calculation-engines.test.ts"
           ]
         },
         {
@@ -1318,9 +1318,9 @@
             "src/server/modules/finance/adapters/company-money.ts"
           ],
           "regression": [
-            "tests/unit/finance-company-money.test.ts",
-            "tests/company-money-service.test.ts",
-            "tests/company-money.test.ts"
+            "tests/unit/finance/finance-company-money.test.ts",
+            "tests/integration/finance/company-money-service.test.ts",
+            "tests/unit/finance/company-money.test.ts"
           ]
         },
         {
@@ -1338,9 +1338,9 @@
             "src/server/modules/finance/adapters/finance-thai-documents.ts"
           ],
           "regression": [
-            "tests/unit/finance-statutory-services.test.ts",
-            "tests/thai-accounting-foundation.test.ts",
-            "tests/finance-withholding.test.ts"
+            "tests/unit/finance/finance-statutory-services.test.ts",
+            "tests/integration/finance/thai-accounting-foundation.test.ts",
+            "tests/integration/finance/finance-withholding.test.ts"
           ]
         },
         {
@@ -1353,8 +1353,8 @@
             "src/server/modules/finance/adapters/finance-withholding.ts"
           ],
           "regression": [
-            "tests/unit/finance-statutory-services.test.ts",
-            "tests/finance-withholding.test.ts"
+            "tests/unit/finance/finance-statutory-services.test.ts",
+            "tests/integration/finance/finance-withholding.test.ts"
           ]
         },
         {
@@ -1367,8 +1367,8 @@
             "src/server/modules/finance/adapters/finance-withholding-remittance.ts"
           ],
           "regression": [
-            "tests/unit/finance-withholding-month.test.ts",
-            "tests/finance-withholding.test.ts"
+            "tests/unit/finance/finance-withholding-month.test.ts",
+            "tests/integration/finance/finance-withholding.test.ts"
           ]
         },
         {
@@ -1380,9 +1380,9 @@
             "src/server/modules/finance/adapters/finance-tax-register.ts"
           ],
           "regression": [
-            "tests/unit/finance-vat-services.test.ts",
-            "tests/finance-vat-register.test.ts",
-            "tests/finance-billing-corrections.test.ts"
+            "tests/unit/finance/finance-vat-services.test.ts",
+            "tests/integration/finance/finance-vat-register.test.ts",
+            "tests/integration/finance/finance-billing-corrections.test.ts"
           ]
         },
         {
@@ -1394,8 +1394,8 @@
             "src/server/modules/finance/adapters/finance-accruals.ts"
           ],
           "regression": [
-            "tests/unit/finance-accrual-tools.test.ts",
-            "tests/finance-accruals.test.ts"
+            "tests/unit/finance/finance-accrual-tools.test.ts",
+            "tests/integration/finance/finance-accruals.test.ts"
           ]
         },
         {
@@ -1407,8 +1407,8 @@
             "src/server/modules/finance/adapters/finance-company-tools.ts"
           ],
           "regression": [
-            "tests/unit/finance-accrual-tools.test.ts",
-            "tests/finance-planning.test.ts"
+            "tests/unit/finance/finance-accrual-tools.test.ts",
+            "tests/integration/finance/finance-planning.test.ts"
           ]
         },
         {
@@ -1421,9 +1421,9 @@
             "src/server/modules/finance/adapters/refund-notifications.ts"
           ],
           "regression": [
-            "tests/unit/finance-refund-services.test.ts",
-            "tests/finance-refund-fx.test.ts",
-            "tests/finance-billing-corrections.test.ts"
+            "tests/unit/finance/finance-refund-services.test.ts",
+            "tests/integration/finance/finance-refund-fx.test.ts",
+            "tests/integration/finance/finance-billing-corrections.test.ts"
           ]
         },
         {
@@ -1436,8 +1436,8 @@
             "src/server/modules/finance/adapters/finance-billing-corrections.ts"
           ],
           "regression": [
-            "tests/unit/finance-billing-corrections.test.ts",
-            "tests/finance-billing-corrections.test.ts"
+            "tests/unit/finance/finance-billing-corrections.test.ts",
+            "tests/integration/finance/finance-billing-corrections.test.ts"
           ]
         },
         {
@@ -1449,9 +1449,9 @@
             "src/server/modules/finance/adapters/finance-assets.ts"
           ],
           "regression": [
-            "tests/finance-assets.test.ts",
-            "tests/finance-asset-policies.test.ts",
-            "tests/unit/finance-asset-services.test.ts"
+            "tests/integration/finance/finance-assets.test.ts",
+            "tests/integration/finance/finance-asset-policies.test.ts",
+            "tests/unit/finance/finance-asset-services.test.ts"
           ]
         },
         {
@@ -1463,8 +1463,8 @@
             "src/server/modules/finance/adapters/finance-manual-drafts.ts"
           ],
           "regression": [
-            "tests/unit/finance-manual-draft-services.test.ts",
-            "tests/finance-manual-drafts.test.ts"
+            "tests/unit/finance/finance-manual-draft-services.test.ts",
+            "tests/integration/finance/finance-manual-drafts.test.ts"
           ]
         },
         {
@@ -1477,10 +1477,10 @@
             "src/server/modules/finance/adapters/finance-due-drafts.ts"
           ],
           "regression": [
-            "tests/unit/finance-due-draft-services.test.ts",
-            "tests/finance-business-contracts.test.ts",
-            "tests/finance-asset-policies.test.ts",
-            "tests/finance-instruments.test.ts"
+            "tests/unit/finance/finance-due-draft-services.test.ts",
+            "tests/integration/finance/finance-business-contracts.test.ts",
+            "tests/integration/finance/finance-asset-policies.test.ts",
+            "tests/integration/finance/finance-instruments.test.ts"
           ]
         },
         {
@@ -1492,12 +1492,12 @@
             "src/server/modules/finance/adapters/finance-expansion-close.ts"
           ],
           "regression": [
-            "tests/unit/finance-expansion-work-services.test.ts",
-            "tests/finance-business-contracts.test.ts",
-            "tests/finance-asset-policies.test.ts",
-            "tests/finance-instruments.test.ts",
-            "tests/finance-work.test.ts",
-            "tests/finance-work-source.test.ts"
+            "tests/unit/finance/finance-expansion-work-services.test.ts",
+            "tests/integration/finance/finance-business-contracts.test.ts",
+            "tests/integration/finance/finance-asset-policies.test.ts",
+            "tests/integration/finance/finance-instruments.test.ts",
+            "tests/unit/finance/finance-work.test.ts",
+            "tests/integration/finance/finance-work-source.test.ts"
           ]
         },
         {
@@ -1509,8 +1509,8 @@
             "src/server/modules/finance/adapters/finance-expansion-evidence.ts"
           ],
           "regression": [
-            "tests/unit/finance-review-file-services.test.ts",
-            "tests/finance-expansion-files.test.ts"
+            "tests/unit/finance/finance-review-file-services.test.ts",
+            "tests/integration/finance/finance-expansion-files.test.ts"
           ]
         },
         {
@@ -1522,8 +1522,8 @@
             "src/server/modules/finance/adapters/finance-starter.ts"
           ],
           "regression": [
-            "tests/unit/finance-starter-services.test.ts",
-            "tests/finance-starter.test.ts"
+            "tests/unit/finance/finance-starter-services.test.ts",
+            "tests/integration/finance/finance-starter.test.ts"
           ]
         },
         {
@@ -1544,9 +1544,9 @@
             "src/server/modules/people_payroll/adapters/finance-group-person-facts.ts"
           ],
           "regression": [
-            "tests/finance-group-editions.test.ts",
-            "tests/finance-consolidation.test.ts",
-            "tests/unit/finance-group-services.test.ts"
+            "tests/integration/finance/finance-group-editions.test.ts",
+            "tests/integration/finance/finance-consolidation.test.ts",
+            "tests/unit/finance/finance-group-services.test.ts"
           ]
         },
         {
@@ -1558,8 +1558,8 @@
             "src/server/modules/finance/adapters/finance-reporting.ts"
           ],
           "regression": [
-            "tests/unit/finance-reporting-services.test.ts",
-            "tests/finance-reporting.test.ts"
+            "tests/unit/finance/finance-reporting-services.test.ts",
+            "tests/integration/finance/finance-reporting.test.ts"
           ]
         },
         {
@@ -1574,9 +1574,9 @@
             "src/server/modules/people_payroll/adapters/finance-reviewer-sources.ts"
           ],
           "regression": [
-            "tests/unit/finance-record-projection-services.test.ts",
-            "tests/finance-asset-policies.test.ts",
-            "tests/finance-instruments.test.ts"
+            "tests/unit/finance/finance-record-projection-services.test.ts",
+            "tests/integration/finance/finance-asset-policies.test.ts",
+            "tests/integration/finance/finance-instruments.test.ts"
           ]
         },
         {
@@ -1597,8 +1597,8 @@
             "src/server/modules/workflow/adapters/finance-ai-request-sources.ts"
           ],
           "regression": [
-            "tests/unit/finance-ai-services.test.ts",
-            "tests/finance-ai.test.ts"
+            "tests/unit/finance/finance-ai-services.test.ts",
+            "tests/integration/finance/finance-ai.test.ts"
           ]
         },
         {
@@ -1613,10 +1613,10 @@
             "src/server/modules/commerce/adapters/finance-obligation-sources.ts"
           ],
           "regression": [
-            "tests/unit/finance-workspace-services.test.ts",
-            "tests/finance-payment-obligations.test.ts",
-            "tests/finance-close-reconciliation.test.ts",
-            "tests/finance-ai.test.ts"
+            "tests/unit/finance/finance-workspace-services.test.ts",
+            "tests/integration/finance/finance-payment-obligations.test.ts",
+            "tests/integration/finance/finance-close-reconciliation.test.ts",
+            "tests/integration/finance/finance-ai.test.ts"
           ]
         },
         {
@@ -1630,8 +1630,8 @@
             "src/server/modules/pos/adapters/finance-bank-cash-source.ts"
           ],
           "regression": [
-            "tests/unit/finance-bank-automation-services.test.ts",
-            "tests/finance-bank-automation.test.ts"
+            "tests/unit/finance/finance-bank-automation-services.test.ts",
+            "tests/integration/finance/finance-bank-automation.test.ts"
           ]
         },
         {
@@ -1643,8 +1643,8 @@
             "src/server/modules/finance/adapters/finance-collections.ts"
           ],
           "regression": [
-            "tests/unit/finance-collection-services.test.ts",
-            "tests/finance-bank-automation.test.ts"
+            "tests/unit/finance/finance-collection-services.test.ts",
+            "tests/integration/finance/finance-bank-automation.test.ts"
           ]
         },
         {
@@ -1660,9 +1660,9 @@
             "src/server/modules/organization/adapters/finance-intercompany-sources.ts"
           ],
           "regression": [
-            "tests/unit/finance-intercompany-services.test.ts",
-            "tests/finance-intercompany.test.ts",
-            "tests/finance-group-editions.test.ts"
+            "tests/unit/finance/finance-intercompany-services.test.ts",
+            "tests/integration/finance/finance-intercompany.test.ts",
+            "tests/integration/finance/finance-group-editions.test.ts"
           ]
         },
         {
@@ -1674,9 +1674,9 @@
             "src/server/modules/workflow/adapters/finance-business-contract-effects.ts"
           ],
           "regression": [
-            "tests/finance-business-contracts.test.ts",
-            "tests/finance-billing-corrections.test.ts",
-            "tests/unit/finance-business-contracts.test.ts"
+            "tests/integration/finance/finance-business-contracts.test.ts",
+            "tests/integration/finance/finance-billing-corrections.test.ts",
+            "tests/unit/finance/finance-business-contracts.test.ts"
           ],
           "migration": "clean"
         },
@@ -1689,8 +1689,8 @@
             "src/server/modules/finance/adapters/finance-asset-carrying.ts"
           ],
           "regression": [
-            "tests/unit/finance-asset-carrying-services.test.ts",
-            "tests/finance-asset-policies.test.ts"
+            "tests/unit/finance/finance-asset-carrying-services.test.ts",
+            "tests/integration/finance/finance-asset-policies.test.ts"
           ]
         },
         {
@@ -1706,10 +1706,10 @@
             "src/server/modules/workflow/adapters/finance-book-adjustment-effects.ts"
           ],
           "regression": [
-            "tests/unit/finance-book-services.test.ts",
-            "tests/finance-books.test.ts",
-            "tests/finance-billing-corrections.test.ts",
-            "tests/finance-expansion-upgrade.test.ts"
+            "tests/unit/finance/finance-book-services.test.ts",
+            "tests/integration/finance/finance-books.test.ts",
+            "tests/integration/finance/finance-billing-corrections.test.ts",
+            "tests/integration/finance/finance-expansion-upgrade.test.ts"
           ]
         },
         {
@@ -1722,8 +1722,8 @@
             "src/server/modules/finance/adapters/finance-planning.ts"
           ],
           "regression": [
-            "tests/unit/finance-planning-services.test.ts",
-            "tests/finance-planning.test.ts"
+            "tests/unit/finance/finance-planning-services.test.ts",
+            "tests/integration/finance/finance-planning.test.ts"
           ]
         },
         {
@@ -1736,10 +1736,10 @@
             "src/server/modules/finance/adapters/finance-asset-policies.ts"
           ],
           "regression": [
-            "tests/finance-asset-policies.test.ts",
-            "tests/finance-books.test.ts",
-            "tests/finance-assets.test.ts",
-            "tests/unit/finance-asset-policies.test.ts"
+            "tests/integration/finance/finance-asset-policies.test.ts",
+            "tests/integration/finance/finance-books.test.ts",
+            "tests/integration/finance/finance-assets.test.ts",
+            "tests/unit/finance/finance-asset-policies.test.ts"
           ]
         },
         {
@@ -1752,8 +1752,8 @@
             "src/server/modules/finance/adapters/finance-instruments.ts"
           ],
           "regression": [
-            "tests/finance-instruments.test.ts",
-            "tests/unit/finance-instrument-services.test.ts"
+            "tests/integration/finance/finance-instruments.test.ts",
+            "tests/unit/finance/finance-instrument-services.test.ts"
           ]
         },
         {
@@ -1768,9 +1768,9 @@
             "src/server/modules/finance/adapters/finance-presentation.ts"
           ],
           "regression": [
-            "tests/unit/finance-planning-services.test.ts",
-            "tests/finance-planning.test.ts",
-            "tests/finance-instruments.test.ts"
+            "tests/unit/finance/finance-planning-services.test.ts",
+            "tests/integration/finance/finance-planning.test.ts",
+            "tests/integration/finance/finance-instruments.test.ts"
           ]
         },
         {
@@ -1782,8 +1782,8 @@
             "src/server/modules/finance/adapters/hospitality-tax-documents.ts"
           ],
           "regression": [
-            "tests/unit/finance-hospitality-tax-services.test.ts",
-            "tests/pos.test.ts"
+            "tests/unit/finance/finance-hospitality-tax-services.test.ts",
+            "tests/integration/pos/pos.test.ts"
           ]
         },
         {
@@ -2028,19 +2028,19 @@
             "src/server/modules/finance/public/entrypoint-queries.ts"
           ],
           "regression": [
-            "tests/unit/finance-core-services.test.ts",
-            "tests/unit/finance-instrument-services.test.ts",
-            "tests/unit/finance-planning-services.test.ts",
-            "tests/unit/finance-hospitality-tax-services.test.ts",
-            "tests/finance-instruments.test.ts",
-            "tests/finance-books.test.ts",
-            "tests/finance-planning.test.ts",
-            "tests/finance-business-contracts.test.ts",
-            "tests/finance-asset-policies.test.ts",
-            "tests/finance-billing-corrections.test.ts",
-            "tests/finance-group-editions.test.ts",
-            "tests/finance-ai.test.ts",
-            "tests/pos.test.ts"
+            "tests/unit/finance/finance-core-services.test.ts",
+            "tests/unit/finance/finance-instrument-services.test.ts",
+            "tests/unit/finance/finance-planning-services.test.ts",
+            "tests/unit/finance/finance-hospitality-tax-services.test.ts",
+            "tests/integration/finance/finance-instruments.test.ts",
+            "tests/integration/finance/finance-books.test.ts",
+            "tests/integration/finance/finance-planning.test.ts",
+            "tests/integration/finance/finance-business-contracts.test.ts",
+            "tests/integration/finance/finance-asset-policies.test.ts",
+            "tests/integration/finance/finance-billing-corrections.test.ts",
+            "tests/integration/finance/finance-group-editions.test.ts",
+            "tests/integration/finance/finance-ai.test.ts",
+            "tests/integration/pos/pos.test.ts"
           ]
         }
       ]
@@ -2052,14 +2052,14 @@
       ],
       "source": [
         "src/server/modules/pos/**",
-        "src/server/pos-core.ts",
-        "src/server/pos-daily.ts",
-        "src/server/pos-image-source.ts",
-        "src/server/pos-images.ts",
-        "src/server/pos-stripe.ts",
-        "src/server/pos.ts",
-        "src/server/stripe-payment-time.ts",
-        "src/lib/pos.ts"
+        "src/server/modules/pos/public/pos-core.ts",
+        "src/server/modules/pos/public/pos-daily.ts",
+        "src/server/modules/pos/public/pos-image-source.ts",
+        "src/server/modules/pos/public/pos-images.ts",
+        "src/server/modules/pos/public/pos-stripe.ts",
+        "src/server/modules/pos/public/pos.ts",
+        "src/server/modules/pos/public/stripe-payment-time.ts",
+        "src/server/modules/pos/public/rules/pos.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -2072,7 +2072,7 @@
             "src/server/modules/pos/public/rules/pos.ts"
           ],
           "regression": [
-            "tests/pos.test.ts"
+            "tests/integration/pos/pos.test.ts"
           ]
         },
         {
@@ -2111,9 +2111,9 @@
             "src/server/modules/pos/public/stripe-entrypoint-facts.ts"
           ],
           "regression": [
-            "tests/unit/pos-application.test.ts",
-            "tests/pos.test.ts",
-            "tests/pos-file-sources.test.ts"
+            "tests/unit/pos/pos-application.test.ts",
+            "tests/integration/pos/pos.test.ts",
+            "tests/integration/pos/pos-file-sources.test.ts"
           ]
         }
       ]
@@ -2125,14 +2125,14 @@
       ],
       "source": [
         "src/server/modules/sales/**",
-        "src/server/customer-followups.ts",
-        "src/server/customer-notes.ts",
-        "src/server/sales-customer-notifications.ts",
-        "src/server/sales-customer-redirect.ts",
-        "src/server/sales-customers.ts",
-        "src/server/sales-pricing.ts",
-        "src/server/sales-recipient.ts",
-        "src/lib/sales-customers.ts"
+        "src/server/modules/sales/public/customer-followups.ts",
+        "src/server/modules/sales/public/customer-notes.ts",
+        "src/server/modules/sales/public/sales-customer-notifications.ts",
+        "src/server/modules/sales/public/sales-customer-redirect.ts",
+        "src/server/modules/sales/public/sales-customers.ts",
+        "src/server/modules/sales/public/sales-pricing.ts",
+        "src/server/modules/sales/public/sales-recipient.ts",
+        "src/server/modules/sales/public/rules/navigation.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -2145,7 +2145,7 @@
             "src/server/modules/sales/application/pricing.ts"
           ],
           "regression": [
-            "tests/unit/owner-projections.test.ts"
+            "tests/unit/shared.architecture/owner-projections.test.ts"
           ]
         },
         {
@@ -2176,13 +2176,13 @@
             "src/server/modules/sales/domain/pricing.ts"
           ],
           "regression": [
-            "tests/sales-pricing.test.ts",
-            "tests/customer-followups.test.ts",
-            "tests/customer-notes.test.ts",
-            "tests/sales-customers-workspace.test.ts",
-            "tests/sales-customer-notifications.test.ts",
-            "tests/sales-customers-navigation.test.ts",
-            "tests/unit/sales-services.test.ts"
+            "tests/integration/sales/sales-pricing.test.ts",
+            "tests/integration/sales/customer-followups.test.ts",
+            "tests/integration/sales/customer-notes.test.ts",
+            "tests/integration/sales/sales-customers-workspace.test.ts",
+            "tests/integration/sales/sales-customer-notifications.test.ts",
+            "tests/unit/sales/sales-customers-navigation.test.ts",
+            "tests/unit/sales/sales-services.test.ts"
           ]
         }
       ]
@@ -2194,7 +2194,7 @@
       ],
       "source": [
         "src/server/modules/assets/**",
-        "src/server/asset-maintenance.ts"
+        "src/server/modules/assets/public/asset-maintenance.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -2207,7 +2207,7 @@
             "src/server/modules/assets/domain/registration.ts"
           ],
           "regression": [
-            "tests/asset-maintenance.test.ts"
+            "tests/integration/assets/asset-maintenance.test.ts"
           ]
         },
         {
@@ -2222,8 +2222,8 @@
             "src/server/modules/assets/domain/registration.ts"
           ],
           "regression": [
-            "tests/asset-maintenance.test.ts",
-            "tests/unit/asset-maintenance-applications.test.ts"
+            "tests/integration/assets/asset-maintenance.test.ts",
+            "tests/unit/shared.business-contracts/asset-maintenance-applications.test.ts"
           ]
         }
       ]
@@ -2235,13 +2235,13 @@
       ],
       "source": [
         "src/server/modules/inventory/**",
-        "src/server/inventory-consumption.ts",
-        "src/server/inventory-counts.ts",
-        "src/server/inventory-landed-costs.ts",
-        "src/server/inventory-reorder-policies.ts",
-        "src/server/inventory-reservation-alerts.ts",
-        "src/server/inventory-transfers.ts",
-        "src/server/inventory-transit.ts"
+        "src/server/modules/inventory/public/inventory-consumption.ts",
+        "src/server/modules/inventory/public/inventory-counts.ts",
+        "src/server/modules/inventory/public/inventory-landed-costs.ts",
+        "src/server/modules/inventory/public/inventory-reorder-policies.ts",
+        "src/server/modules/inventory/public/inventory-reservation-alerts.ts",
+        "src/server/modules/inventory/public/inventory-transfers.ts",
+        "src/server/modules/inventory/public/inventory-transit.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -2253,7 +2253,7 @@
             "src/server/modules/inventory/domain/reorder-quantity.ts"
           ],
           "regression": [
-            "tests/unit/owner-projections.test.ts"
+            "tests/unit/shared.architecture/owner-projections.test.ts"
           ]
         },
         {
@@ -2296,15 +2296,15 @@
             "src/server/modules/inventory/public/commerce-entrypoint-facts.ts"
           ],
           "regression": [
-            "tests/unit/inventory-services.test.ts",
-            "tests/inventory-lot-serial.test.ts",
-            "tests/inventory-transit.test.ts",
-            "tests/inventory-landed-costs.test.ts",
-            "tests/stock-reservations.test.ts",
-            "tests/business-scheduled-production.test.ts",
-            "tests/executive-canvas.test.ts",
-            "tests/asset-maintenance.test.ts",
-            "tests/field-service.test.ts"
+            "tests/unit/manage_erpx/inventory-services.test.ts",
+            "tests/integration/inventory/inventory-lot-serial.test.ts",
+            "tests/integration/inventory/inventory-transit.test.ts",
+            "tests/integration/inventory/inventory-landed-costs.test.ts",
+            "tests/integration/inventory/stock-reservations.test.ts",
+            "tests/integration/manufacturing/business-scheduled-production.test.ts",
+            "tests/integration/shared.executive/executive-canvas.test.ts",
+            "tests/integration/assets/asset-maintenance.test.ts",
+            "tests/integration/field_service/field-service.test.ts"
           ]
         }
       ]
@@ -2316,7 +2316,7 @@
       ],
       "source": [
         "src/server/modules/maintenance/**",
-        "src/server/maintenance-preventive.ts"
+        "src/server/modules/maintenance/public/maintenance-preventive.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -2328,8 +2328,8 @@
             "src/server/modules/maintenance/domain/recurrence.ts"
           ],
           "regression": [
-            "tests/maintenance-preventive.test.ts",
-            "tests/unit/remaining-owner-applications.test.ts"
+            "tests/integration/maintenance/maintenance-preventive.test.ts",
+            "tests/unit/shared.architecture/remaining-owner-applications.test.ts"
           ]
         },
         {
@@ -2345,10 +2345,10 @@
             "src/server/modules/maintenance/domain/work.ts"
           ],
           "regression": [
-            "tests/asset-maintenance.test.ts",
-            "tests/maintenance-preventive.test.ts",
-            "tests/unit/asset-maintenance-applications.test.ts",
-            "tests/unit/remaining-owner-applications.test.ts"
+            "tests/integration/assets/asset-maintenance.test.ts",
+            "tests/integration/maintenance/maintenance-preventive.test.ts",
+            "tests/unit/shared.business-contracts/asset-maintenance-applications.test.ts",
+            "tests/unit/shared.architecture/remaining-owner-applications.test.ts"
           ]
         }
       ]
@@ -2360,17 +2360,17 @@
       ],
       "source": [
         "src/server/modules/operations/**",
-        "src/server/guided-intake.ts",
-        "src/server/handover-policy.ts",
-        "src/server/handover.ts",
-        "src/server/operations-exceptions.ts",
-        "src/server/responsibilities.ts",
-        "src/server/routines.ts",
-        "src/server/staff-policy.ts",
-        "src/server/staff-settings.ts",
-        "src/server/staff-task-alerts.ts",
-        "src/server/staff-tasks.ts",
-        "src/lib/ai/guided-intake-domain.ts"
+        "src/server/modules/operations/public/guided-intake.ts",
+        "src/server/modules/operations/public/handover-policy.ts",
+        "src/server/modules/operations/public/handover.ts",
+        "src/server/modules/operations/public/operations-exceptions.ts",
+        "src/server/modules/operations/public/responsibilities.ts",
+        "src/server/modules/operations/public/routines.ts",
+        "src/server/modules/operations/public/staff-policy.ts",
+        "src/server/modules/operations/public/staff-settings.ts",
+        "src/server/modules/operations/public/staff-task-alerts.ts",
+        "src/server/modules/operations/public/staff-tasks.ts",
+        "src/lib/operations/ai/guided-intake-domain.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -2384,8 +2384,8 @@
             "src/server/modules/operations/domain/queue-policy.ts"
           ],
           "regression": [
-            "tests/operations-exceptions.test.ts",
-            "tests/unit/remaining-owner-applications.test.ts"
+            "tests/integration/operations/operations-exceptions.test.ts",
+            "tests/unit/shared.architecture/remaining-owner-applications.test.ts"
           ]
         },
         {
@@ -2440,13 +2440,13 @@
           ],
           "notes": "All task/routine/exception/staff routing and guided proposal rules use injected ports. Project CRUD delegates to its public owner with supplied transaction context. Native final-outbox failure proves exception/notification/receipt/audit rollback followed by exact retry/replay.",
           "regression": [
-            "tests/unit/operations-services.test.ts",
-            "tests/staff-work.test.ts",
-            "tests/staff-migration.test.ts",
-            "tests/handover.test.ts",
-            "tests/guided-intake.test.ts",
-            "tests/staff-task-alerts.test.ts",
-            "tests/operations-exceptions.test.ts"
+            "tests/unit/operations/operations-services.test.ts",
+            "tests/integration/operations/staff-work.test.ts",
+            "tests/integration/operations/staff-migration.test.ts",
+            "tests/integration/operations/handover.test.ts",
+            "tests/integration/shared.requests/guided-intake.test.ts",
+            "tests/integration/operations/staff-task-alerts.test.ts",
+            "tests/integration/operations/operations-exceptions.test.ts"
           ]
         }
       ]
@@ -2458,11 +2458,11 @@
       ],
       "source": [
         "src/server/modules/procurement/**",
-        "src/server/procurement-rfqs.ts",
-        "src/server/purchase-request-progress.ts",
-        "src/server/supplier-bill-matching.ts",
-        "src/server/supplier-payments.ts",
-        "src/server/supplier-promises.ts"
+        "src/server/modules/procurement/public/procurement-rfqs.ts",
+        "src/server/modules/procurement/public/purchase-request-progress.ts",
+        "src/server/modules/procurement/public/supplier-bill-matching.ts",
+        "src/server/modules/procurement/public/supplier-payments.ts",
+        "src/server/modules/procurement/public/supplier-promises.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -2474,7 +2474,7 @@
             "src/server/modules/procurement/domain/quantity-conversion.ts"
           ],
           "regression": [
-            "tests/unit/owner-projections.test.ts"
+            "tests/unit/shared.architecture/owner-projections.test.ts"
           ]
         },
         {
@@ -2486,8 +2486,8 @@
             "src/server/modules/procurement/adapters/purchase-request-progress.ts"
           ],
           "regression": [
-            "tests/unit/procurement-services.test.ts",
-            "tests/purchase-to-payment.test.ts"
+            "tests/unit/procurement/procurement-services.test.ts",
+            "tests/integration/procurement/purchase-to-payment.test.ts"
           ]
         },
         {
@@ -2499,8 +2499,8 @@
             "src/server/modules/procurement/adapters/supplier-promises.ts"
           ],
           "regression": [
-            "tests/unit/procurement-services.test.ts",
-            "tests/supplier-promises.test.ts"
+            "tests/unit/procurement/procurement-services.test.ts",
+            "tests/integration/procurement/supplier-promises.test.ts"
           ]
         },
         {
@@ -2514,8 +2514,8 @@
             "src/server/modules/procurement/public/people-app-entrypoint-facts.ts"
           ],
           "regression": [
-            "tests/unit/procurement-services.test.ts",
-            "tests/procurement-rfqs.test.ts"
+            "tests/unit/procurement/procurement-services.test.ts",
+            "tests/integration/procurement/procurement-rfqs.test.ts"
           ]
         },
         {
@@ -2527,8 +2527,8 @@
             "src/server/modules/procurement/adapters/supplier-bills.ts"
           ],
           "regression": [
-            "tests/unit/procurement-services.test.ts",
-            "tests/supplier-bill-matching.test.ts"
+            "tests/unit/procurement/procurement-services.test.ts",
+            "tests/integration/procurement/supplier-bill-matching.test.ts"
           ]
         },
         {
@@ -2542,8 +2542,8 @@
             "src/server/modules/procurement/public/supplier-payment-contract.ts"
           ],
           "regression": [
-            "tests/unit/procurement-services.test.ts",
-            "tests/supplier-payments.test.ts"
+            "tests/unit/procurement/procurement-services.test.ts",
+            "tests/integration/procurement/supplier-payments.test.ts"
           ]
         }
       ]
@@ -2555,8 +2555,8 @@
       ],
       "source": [
         "src/server/modules/quality/**",
-        "src/server/quality-alerts.ts",
-        "src/server/quality.ts"
+        "src/server/modules/quality/public/quality-alerts.ts",
+        "src/server/modules/quality/public/quality.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -2568,7 +2568,7 @@
             "src/server/modules/quality/domain/measurements.ts"
           ],
           "regression": [
-            "tests/unit/owner-projections.test.ts"
+            "tests/unit/shared.architecture/owner-projections.test.ts"
           ]
         },
         {
@@ -2584,9 +2584,9 @@
             "src/server/modules/quality/adapters/alerts.ts"
           ],
           "regression": [
-            "tests/quality.test.ts",
-            "tests/unit/quality-services.test.ts",
-            "tests/unit/owner-projections.test.ts"
+            "tests/integration/quality/quality.test.ts",
+            "tests/unit/quality/quality-services.test.ts",
+            "tests/unit/shared.architecture/owner-projections.test.ts"
           ]
         }
       ]
@@ -2598,42 +2598,42 @@
       ],
       "source": [
         "src/server/modules/legal/**",
-        "src/server/legal/access.ts",
-        "src/server/legal/approval.ts",
-        "src/server/legal/assignees.ts",
-        "src/server/legal/authority.ts",
-        "src/server/legal/body.ts",
-        "src/server/legal/citations.ts",
-        "src/server/legal/destruction-sources.ts",
-        "src/server/legal/documents.ts",
-        "src/server/legal/enrollment.ts",
-        "src/server/legal/executed-copies.ts",
-        "src/server/legal/features.ts",
-        "src/server/legal/governance.ts",
-        "src/server/legal/integrations.ts",
-        "src/server/legal/invitations.ts",
-        "src/server/legal/jobs.ts",
-        "src/server/legal/knowledge.ts",
-        "src/server/legal/law-corpus.ts",
-        "src/server/legal/operations.ts",
-        "src/server/legal/pdf-validation.ts",
-        "src/server/legal/portal-attachments.ts",
-        "src/server/legal/portal.ts",
-        "src/server/legal/processing.ts",
-        "src/server/legal/references.ts",
-        "src/server/legal/reports.ts",
-        "src/server/legal/retention.ts",
-        "src/server/legal/runtime-gate.ts",
-        "src/server/legal/service.ts",
-        "src/server/legal/signing.ts",
-        "src/server/legal/sources.ts",
-        "src/server/legal/trust.ts",
-        "src/server/legal/workspace.ts",
-        "src/lib/legal/model.ts",
-        "src/lib/legal/deadlines.ts",
-        "src/lib/legal/thailand.ts",
-        "src/lib/legal/features-domain.ts",
-        "src/lib/legal/features.ts"
+        "src/server/modules/legal/public/legal/access.ts",
+        "src/server/modules/legal/public/legal/approval.ts",
+        "src/server/modules/legal/public/legal/assignees.ts",
+        "src/server/modules/legal/public/legal/authority.ts",
+        "src/server/modules/legal/public/legal/body.ts",
+        "src/server/modules/legal/public/legal/citations.ts",
+        "src/server/modules/legal/public/legal/destruction-sources.ts",
+        "src/server/modules/legal/public/legal/documents.ts",
+        "src/server/modules/legal/public/legal/enrollment.ts",
+        "src/server/modules/legal/public/legal/executed-copies.ts",
+        "src/server/modules/legal/public/legal/features.ts",
+        "src/server/modules/legal/public/legal/governance.ts",
+        "src/server/modules/legal/public/legal/integrations.ts",
+        "src/server/modules/legal/public/legal/invitations.ts",
+        "src/server/modules/legal/public/legal/jobs.ts",
+        "src/server/modules/legal/public/legal/knowledge.ts",
+        "src/server/modules/legal/public/legal/law-corpus.ts",
+        "src/server/modules/legal/public/legal/operations.ts",
+        "src/server/modules/legal/public/legal/pdf-validation.ts",
+        "src/server/modules/legal/public/legal/portal-attachments.ts",
+        "src/server/modules/legal/public/legal/portal.ts",
+        "src/server/modules/legal/public/legal/processing.ts",
+        "src/server/modules/legal/public/legal/references.ts",
+        "src/server/modules/legal/public/legal/reports.ts",
+        "src/server/modules/legal/public/legal/retention.ts",
+        "src/server/modules/legal/public/legal/runtime-gate.ts",
+        "src/server/modules/legal/public/legal/service.ts",
+        "src/server/modules/legal/public/legal/signing.ts",
+        "src/server/modules/legal/public/legal/sources.ts",
+        "src/server/modules/legal/public/legal/trust.ts",
+        "src/server/modules/legal/public/legal/workspace.ts",
+        "src/server/modules/legal/public/rules/model.ts",
+        "src/server/modules/legal/public/rules/deadlines.ts",
+        "src/server/modules/legal/public/rules/thailand.ts",
+        "src/lib/legal/legal/features-domain.ts",
+        "src/lib/legal/legal/features.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -2646,8 +2646,8 @@
             "src/server/modules/legal/public/rules/model.ts"
           ],
           "regression": [
-            "tests/legal-deadlines.test.ts",
-            "tests/legal-body.test.ts"
+            "tests/unit/legal/legal-deadlines.test.ts",
+            "tests/unit/legal/legal-body.test.ts"
           ]
         },
         {
@@ -2658,7 +2658,7 @@
             "src/server/modules/legal/public/rules/deadlines.ts"
           ],
           "regression": [
-            "tests/legal-deadlines.test.ts"
+            "tests/unit/legal/legal-deadlines.test.ts"
           ]
         },
         {
@@ -2669,7 +2669,7 @@
             "src/server/modules/legal/public/rules/thailand.ts"
           ],
           "regression": [
-            "tests/legal-deadlines.test.ts"
+            "tests/unit/legal/legal-deadlines.test.ts"
           ]
         },
         {
@@ -2761,15 +2761,15 @@
             "src/server/modules/legal/adapters/legal/sources.ts",
             "src/server/modules/legal/adapters/legal/trust.ts",
             "src/server/modules/legal/adapters/legal/workspace.ts",
-            "src/lib/legal/features-domain.ts"
+            "src/lib/legal/legal/features-domain.ts"
           ],
           "regression": [
-            "tests/legal.test.ts",
-            "tests/legal-g2.test.ts",
-            "tests/legal-privacy-workflows.test.ts",
-            "tests/legal-law-corpus.test.ts",
-            "tests/unit/legal-application.test.ts",
-            "tests/specialized-attachment-adapters.test.ts"
+            "tests/integration/legal/legal.test.ts",
+            "tests/integration/legal/legal-g2.test.ts",
+            "tests/integration/legal/legal-privacy-workflows.test.ts",
+            "tests/integration/legal/legal-law-corpus.test.ts",
+            "tests/unit/legal/legal-application.test.ts",
+            "tests/integration/shared.attachments/specialized-attachment-adapters.test.ts"
           ]
         }
       ]
@@ -2781,47 +2781,47 @@
       ],
       "source": [
         "src/server/modules/people_payroll/**",
-        "src/server/expense-ai-source.ts",
-        "src/server/expense-ai.ts",
-        "src/server/expense-drafts.ts",
-        "src/server/expense-payments.ts",
-        "src/server/expense-routing.ts",
-        "src/server/expense-workflow.ts",
-        "src/server/expenses.ts",
-        "src/server/leave-evidence.ts",
-        "src/server/leave-self-service.ts",
-        "src/server/leave.ts",
-        "src/server/overtime.ts",
-        "src/server/payroll-accounting.ts",
-        "src/server/payroll-adjustments.ts",
-        "src/server/payroll-cancellation.ts",
-        "src/server/payroll-deductions.ts",
-        "src/server/payroll-payslips.ts",
-        "src/server/payroll-readiness.ts",
-        "src/server/payroll-recoveries.ts",
-        "src/server/payroll-remittance.ts",
-        "src/server/payroll-statutory.ts",
-        "src/server/people/directory-repository.ts",
-        "src/server/people-access.ts",
-        "src/server/people-directory-page.ts",
-        "src/server/people-directory.ts",
-        "src/server/people-evaluation-ai.ts",
-        "src/server/people-evaluation.ts",
-        "src/server/people-explorer-detail.ts",
-        "src/server/people-handoffs.ts",
-        "src/server/people-hr-settings.ts",
-        "src/server/people-lifecycle-jobs.ts",
-        "src/server/people-lifecycle.ts",
-        "src/server/people-move.ts",
-        "src/server/people-payroll.ts",
-        "src/server/people-placement-batch.ts",
-        "src/server/people-roster.ts",
-        "src/server/people-templates.ts",
-        "src/server/people-workspace.ts",
-        "src/server/retirement-clearance.ts",
-        "src/server/roster-position-exit.ts",
-        "src/server/spending-templates.ts",
-        "src/lib/people-roster-domain.ts"
+        "src/server/modules/people_payroll/public/expense-ai-source.ts",
+        "src/server/modules/people_payroll/public/expense-ai.ts",
+        "src/server/modules/people_payroll/public/expense-drafts.ts",
+        "src/server/modules/people_payroll/public/expense-payments.ts",
+        "src/server/modules/people_payroll/public/expense-routing.ts",
+        "src/server/modules/people_payroll/public/expense-workflow.ts",
+        "src/server/modules/people_payroll/public/expenses.ts",
+        "src/server/modules/people_payroll/public/leave-evidence.ts",
+        "src/server/modules/people_payroll/public/leave-self-service.ts",
+        "src/server/modules/people_payroll/public/leave.ts",
+        "src/server/modules/people_payroll/public/overtime.ts",
+        "src/server/modules/people_payroll/public/payroll-accounting.ts",
+        "src/server/modules/people_payroll/public/payroll-adjustments.ts",
+        "src/server/modules/people_payroll/public/payroll-cancellation.ts",
+        "src/server/modules/people_payroll/public/payroll-deductions.ts",
+        "src/server/modules/people_payroll/public/payroll-payslips.ts",
+        "src/server/modules/people_payroll/public/payroll-readiness.ts",
+        "src/server/modules/people_payroll/public/payroll-recoveries.ts",
+        "src/server/modules/people_payroll/public/payroll-remittance.ts",
+        "src/server/modules/people_payroll/public/payroll-statutory.ts",
+        "src/server/modules/people_payroll/public/people/directory-repository.ts",
+        "src/server/modules/people_payroll/public/people-access.ts",
+        "src/server/modules/people_payroll/public/people-directory-page.ts",
+        "src/server/modules/people_payroll/public/people-directory.ts",
+        "src/server/modules/people_payroll/public/people-evaluation-ai.ts",
+        "src/server/modules/people_payroll/public/people-evaluation.ts",
+        "src/server/modules/people_payroll/public/people-explorer-detail.ts",
+        "src/server/modules/people_payroll/public/people-handoffs.ts",
+        "src/server/modules/people_payroll/public/people-hr-settings.ts",
+        "src/server/modules/people_payroll/public/people-lifecycle-jobs.ts",
+        "src/server/modules/people_payroll/public/people-lifecycle.ts",
+        "src/server/modules/people_payroll/public/people-move.ts",
+        "src/server/modules/people_payroll/public/people-payroll.ts",
+        "src/server/modules/people_payroll/public/people-placement-batch.ts",
+        "src/server/modules/people_payroll/public/people-roster.ts",
+        "src/server/modules/people_payroll/public/people-templates.ts",
+        "src/server/modules/people_payroll/public/people-workspace.ts",
+        "src/server/modules/people_payroll/public/retirement-clearance.ts",
+        "src/server/modules/people_payroll/public/roster-position-exit.ts",
+        "src/server/modules/people_payroll/public/spending-templates.ts",
+        "src/lib/people_payroll/people-roster-domain.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -2837,8 +2837,8 @@
             "src/server/modules/people_payroll/application/expense-posting-preview.ts"
           ],
           "regression": [
-            "tests/unit/expense-policy.test.ts",
-            "tests/unit/expense-commands.test.ts"
+            "tests/unit/people_payroll/expense-policy.test.ts",
+            "tests/unit/people_payroll/expense-commands.test.ts"
           ]
         },
         {
@@ -2874,13 +2874,13 @@
             "src/server/modules/people_payroll/domain/expense-routing-rules.ts"
           ],
           "regression": [
-            "tests/unit/expense-commands.test.ts",
-            "tests/expense-v2.test.ts",
-            "tests/spending-approvals.test.ts",
-            "tests/department-authority.test.ts",
-            "tests/flow-routing.test.ts",
-            "tests/staff-work.test.ts",
-            "tests/ai-providers.test.ts"
+            "tests/unit/people_payroll/expense-commands.test.ts",
+            "tests/integration/people_payroll/expense-v2.test.ts",
+            "tests/integration/shared.commands/spending-approvals.test.ts",
+            "tests/integration/organization/department-authority.test.ts",
+            "tests/integration/shared.work/flow-routing.test.ts",
+            "tests/integration/operations/staff-work.test.ts",
+            "tests/integration/agent/ai-providers.test.ts"
           ]
         },
         {
@@ -3008,7 +3008,7 @@
             "src/server/modules/people_payroll/domain/roster-position-exit.ts",
             "src/server/modules/people_payroll/domain/roster.ts",
             "src/server/modules/people_payroll/domain/spending-templates.ts",
-            "src/lib/people-roster-domain.ts",
+            "src/lib/people_payroll/people-roster-domain.ts",
             "src/server/modules/people_payroll/public/rules/people-roster-domain.ts",
             "src/server/modules/people_payroll/adapters/people-app-entrypoint-facts.ts",
             "src/server/modules/people_payroll/public/people-app-entrypoint-facts.ts",
@@ -3016,78 +3016,78 @@
             "src/server/modules/people_payroll/public/organization-graph-snapshot-sources.ts"
           ],
           "regression": [
-            "tests/unit/people-services.test.ts",
-            "tests/attachment-crm-atomic-guard.test.ts",
-            "tests/attachment-formats.test.ts",
-            "tests/attachments-v2.test.ts",
-            "tests/benefits.test.ts",
-            "tests/business-commands.test.ts",
-            "tests/business-readiness.test.ts",
-            "tests/business-statutory-payment-owners.test.ts",
-            "tests/calendar-api.test.ts",
-            "tests/calendar.test.ts",
-            "tests/cloudflare-bindings.test.ts",
-            "tests/command-composition.test.ts",
-            "tests/daily-plan.test.ts",
-            "tests/employee-services.test.ts",
-            "tests/engineering-finance-close-fixture.test.ts",
-            "tests/engineering-finance-people-attachments.test.ts",
-            "tests/engineering-migration-upgrade.test.ts",
-            "tests/engineering-platform-access.test.ts",
-            "tests/engineering-recovery.test.ts",
-            "tests/engineering-stock-continuity.test.ts",
-            "tests/engineering-verification.test.ts",
-            "tests/executive-canvas.test.ts",
-            "tests/executive-mcp.test.ts",
-            "tests/expense-v2.test.ts",
-            "tests/file-orphan-preservation.test.ts",
-            "tests/flow-routing.test.ts",
-            "tests/guided-intake.test.ts",
-            "tests/inbox.test.ts",
-            "tests/learning.test.ts",
-            "tests/leave-attachment-lock.test.ts",
-            "tests/list-page.test.ts",
-            "tests/member-directory.test.ts",
-            "tests/native-runtime.test.ts",
-            "tests/navigation-counts.test.ts",
-            "tests/page-layouts.test.ts",
-            "tests/payroll-cancellation.test.ts",
-            "tests/payroll-core.test.ts",
-            "tests/payroll-scheduled.test.ts",
-            "tests/payroll-statutory.test.ts",
-            "tests/people-api-privacy.test.ts",
-            "tests/people-directory-selection.test.ts",
-            "tests/people-evaluation.test.ts",
-            "tests/people-explorer-history.test.ts",
-            "tests/people-hr-settings.test.ts",
-            "tests/people-lifecycle.test.ts",
-            "tests/people-move.test.ts",
-            "tests/people-read-performance.test.ts",
-            "tests/people-roster.test.ts",
-            "tests/people-workspace-reads.test.ts",
-            "tests/read-metrics.test.ts",
-            "tests/read-request.test.ts",
-            "tests/record-details.test.ts",
-            "tests/release-acceptance.test.ts",
-            "tests/request-ai.test.ts",
-            "tests/request-experience.test.ts",
-            "tests/retirement.test.ts",
-            "tests/routing-attention.test.ts",
-            "tests/scoped-browser-staff.test.ts",
-            "tests/self-service-journeys.test.ts",
-            "tests/sensitive-attachment-access.test.ts",
-            "tests/specialized-attachment-adapters.test.ts",
-            "tests/spending-approvals.test.ts",
-            "tests/talent.test.ts",
-            "tests/web-push.test.ts",
-            "tests/work-cache.test.ts",
-            "tests/work-card-preferences.test.ts",
-            "tests/work-read-model.test.ts",
-            "tests/work-review.test.ts",
-            "tests/workflow-projection.test.ts",
-            "tests/workspace-preferences.test.ts",
-            "tests/gpo-rule-migration.test.ts",
-            "tests/organization.test.ts"
+            "tests/unit/people_payroll/people-services.test.ts",
+            "tests/integration/shared.attachments/attachment-crm-atomic-guard.test.ts",
+            "tests/integration/shared.attachments/attachment-formats.test.ts",
+            "tests/integration/shared.attachments/attachments-v2.test.ts",
+            "tests/integration/benefits/benefits.test.ts",
+            "tests/integration/shared.commands/business-commands.test.ts",
+            "tests/integration/shared.evidence/business-readiness.test.ts",
+            "tests/integration/shared.statutory/business-statutory-payment-owners.test.ts",
+            "tests/integration/shared.calendar/calendar-api.test.ts",
+            "tests/integration/shared.calendar/calendar.test.ts",
+            "tests/integration/shared.runtime/cloudflare-bindings.test.ts",
+            "tests/integration/shared.commands/command-composition.test.ts",
+            "tests/integration/shared.work/daily-plan.test.ts",
+            "tests/integration/people_payroll/employee-services.test.ts",
+            "tests/integration/shared.money-people-journeys/engineering-finance-close-fixture.test.ts",
+            "tests/integration/shared.money-people-journeys/engineering-finance-people-attachments.test.ts",
+            "tests/integration/shared.evidence/engineering-migration-upgrade.test.ts",
+            "tests/integration/shared.evidence/engineering-platform-access.test.ts",
+            "tests/integration/shared.evidence/engineering-recovery.test.ts",
+            "tests/integration/shared.evidence/engineering-stock-continuity.test.ts",
+            "tests/integration/shared.evidence/engineering-verification.test.ts",
+            "tests/integration/shared.executive/executive-canvas.test.ts",
+            "tests/integration/shared.executive/executive-mcp.test.ts",
+            "tests/integration/people_payroll/expense-v2.test.ts",
+            "tests/integration/shared.attachments/file-orphan-preservation.test.ts",
+            "tests/integration/shared.work/flow-routing.test.ts",
+            "tests/integration/shared.requests/guided-intake.test.ts",
+            "tests/integration/shared.inbox/inbox.test.ts",
+            "tests/integration/learning/learning.test.ts",
+            "tests/integration/people_payroll/leave-attachment-lock.test.ts",
+            "tests/integration/shared.records/list-page.test.ts",
+            "tests/integration/organization/member-directory.test.ts",
+            "tests/integration/shared.runtime/native-runtime.test.ts",
+            "tests/integration/shared.ui/navigation-counts.test.ts",
+            "tests/integration/shared.ui/page-layouts.test.ts",
+            "tests/integration/people_payroll/payroll-cancellation.test.ts",
+            "tests/integration/people_payroll/payroll-core.test.ts",
+            "tests/integration/people_payroll/payroll-scheduled.test.ts",
+            "tests/integration/people_payroll/payroll-statutory.test.ts",
+            "tests/integration/people_payroll/people-api-privacy.test.ts",
+            "tests/integration/people_payroll/people-directory-selection.test.ts",
+            "tests/integration/people_payroll/people-evaluation.test.ts",
+            "tests/integration/people_payroll/people-explorer-history.test.ts",
+            "tests/integration/people_payroll/people-hr-settings.test.ts",
+            "tests/integration/people_payroll/people-lifecycle.test.ts",
+            "tests/integration/people_payroll/people-move.test.ts",
+            "tests/integration/people_payroll/people-read-performance.test.ts",
+            "tests/integration/people_payroll/people-roster.test.ts",
+            "tests/integration/people_payroll/people-workspace-reads.test.ts",
+            "tests/integration/shared.runtime/read-metrics.test.ts",
+            "tests/integration/shared.runtime/read-request.test.ts",
+            "tests/integration/shared.records/record-details.test.ts",
+            "tests/integration/shared.evidence/release-acceptance.test.ts",
+            "tests/integration/shared.requests/request-ai.test.ts",
+            "tests/integration/shared.requests/request-experience.test.ts",
+            "tests/integration/people_payroll/retirement.test.ts",
+            "tests/integration/shared.work/routing-attention.test.ts",
+            "tests/integration/shared.evidence/scoped-browser-staff.test.ts",
+            "tests/integration/people_payroll/self-service-journeys.test.ts",
+            "tests/integration/shared.attachments/sensitive-attachment-access.test.ts",
+            "tests/integration/shared.attachments/specialized-attachment-adapters.test.ts",
+            "tests/integration/shared.commands/spending-approvals.test.ts",
+            "tests/integration/talent/talent.test.ts",
+            "tests/integration/shared.foundation/web-push.test.ts",
+            "tests/integration/shared.work/work-cache.test.ts",
+            "tests/integration/shared.work/work-card-preferences.test.ts",
+            "tests/integration/shared.work/work-read-model.test.ts",
+            "tests/integration/shared.work/work-review.test.ts",
+            "tests/integration/shared.work/workflow-projection.test.ts",
+            "tests/integration/shared.ui/workspace-preferences.test.ts",
+            "tests/integration/identity_access/gpo-rule-migration.test.ts",
+            "tests/integration/organization/organization.test.ts"
           ]
         }
       ]
@@ -3099,11 +3099,11 @@
       ],
       "source": [
         "src/server/modules/crm/**",
-        "src/server/crm-activities.ts",
-        "src/server/crm-identities.ts",
-        "src/server/crm-marketing-report.ts",
-        "src/server/crm.ts",
-        "src/lib/crm-forecast.ts"
+        "src/server/modules/crm/public/crm-activities.ts",
+        "src/server/modules/crm/public/crm-identities.ts",
+        "src/server/modules/crm/public/crm-marketing-report.ts",
+        "src/server/modules/crm/public/crm.ts",
+        "src/server/modules/crm/public/rules/crm-forecast.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -3116,7 +3116,7 @@
             "src/server/modules/crm/public/rules/crm-forecast.ts"
           ],
           "regression": [
-            "tests/crm-forecast.test.ts"
+            "tests/unit/crm/crm-forecast.test.ts"
           ]
         },
         {
@@ -3137,11 +3137,11 @@
             "src/server/modules/crm/adapters/analytics.ts"
           ],
           "regression": [
-            "tests/crm.test.ts",
-            "tests/crm-activities.test.ts",
-            "tests/crm-marketing-analytics.test.ts",
-            "tests/crm-migration.test.ts",
-            "tests/unit/owner-projections.test.ts"
+            "tests/integration/crm/crm.test.ts",
+            "tests/integration/crm/crm-activities.test.ts",
+            "tests/integration/crm/crm-marketing-analytics.test.ts",
+            "tests/integration/crm/crm-migration.test.ts",
+            "tests/unit/shared.architecture/owner-projections.test.ts"
           ]
         }
       ]
@@ -3153,9 +3153,9 @@
       ],
       "source": [
         "src/server/modules/marketing/**",
-        "src/server/marketing-campaigns.ts",
-        "src/server/marketing-public-form.ts",
-        "src/server/marketing.ts"
+        "src/server/modules/marketing/public/marketing-campaigns.ts",
+        "src/server/modules/marketing/public/marketing-public-form.ts",
+        "src/server/modules/marketing/public/marketing.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -3169,8 +3169,8 @@
             "src/server/modules/marketing/domain/asset.ts"
           ],
           "regression": [
-            "tests/marketing.test.ts",
-            "tests/unit/remaining-owner-applications.test.ts"
+            "tests/integration/marketing/marketing.test.ts",
+            "tests/unit/shared.architecture/remaining-owner-applications.test.ts"
           ]
         },
         {
@@ -3192,11 +3192,11 @@
             "src/server/modules/marketing/domain/presentation.ts"
           ],
           "regression": [
-            "tests/marketing.test.ts",
-            "tests/marketing-editor.test.ts",
-            "tests/crm.test.ts",
-            "tests/crm-marketing-analytics.test.ts",
-            "tests/unit/remaining-owner-applications.test.ts"
+            "tests/integration/marketing/marketing.test.ts",
+            "tests/unit/marketing/marketing-editor.test.ts",
+            "tests/integration/crm/crm.test.ts",
+            "tests/integration/crm/crm-marketing-analytics.test.ts",
+            "tests/unit/shared.architecture/remaining-owner-applications.test.ts"
           ]
         },
         {
@@ -3210,8 +3210,8 @@
             "src/server/modules/organization/public/public-marketing-receiving-branch.ts"
           ],
           "regression": [
-            "tests/public-marketing-form.test.ts",
-            "tests/unit/remaining-owner-applications.test.ts"
+            "tests/integration/marketing/public-marketing-form.test.ts",
+            "tests/unit/shared.architecture/remaining-owner-applications.test.ts"
           ],
           "migration": "clean"
         }
@@ -3225,9 +3225,9 @@
       ],
       "source": [
         "src/server/modules/manufacturing/**",
-        "src/server/production-accounting.ts",
-        "src/server/production-lots.ts",
-        "src/server/production.ts"
+        "src/server/modules/manufacturing/public/production-accounting.ts",
+        "src/server/modules/manufacturing/public/production-lots.ts",
+        "src/server/modules/manufacturing/public/production.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -3239,7 +3239,7 @@
             "src/server/modules/manufacturing/domain/lot-policy.ts"
           ],
           "regression": [
-            "tests/production.test.ts"
+            "tests/integration/manufacturing/production.test.ts"
           ]
         },
         {
@@ -3261,11 +3261,11 @@
             "src/server/modules/manufacturing/domain/production.ts"
           ],
           "regression": [
-            "tests/unit/production-services.test.ts",
-            "tests/unit/planning-capacity.test.ts",
-            "tests/production.test.ts",
-            "tests/executive-canvas.test.ts",
-            "tests/inventory-lot-serial.test.ts"
+            "tests/unit/planning/production-services.test.ts",
+            "tests/unit/planning/planning-capacity.test.ts",
+            "tests/integration/manufacturing/production.test.ts",
+            "tests/integration/shared.executive/executive-canvas.test.ts",
+            "tests/integration/inventory/inventory-lot-serial.test.ts"
           ]
         }
       ]
@@ -3276,8 +3276,7 @@
         "planning"
       ],
       "source": [
-        "src/server/modules/planning/**",
-        "src/server/production-resources.ts"
+        "src/server/modules/planning/**"
       ],
       "migration": "clean",
       "kind": "business",
@@ -3291,7 +3290,7 @@
             "src/server/modules/planning/adapters/capacity.ts"
           ],
           "regression": [
-            "tests/unit/planning-capacity.test.ts"
+            "tests/unit/planning/planning-capacity.test.ts"
           ]
         },
         {
@@ -3311,11 +3310,11 @@
             "src/server/modules/planning/domain/scenarios.ts"
           ],
           "regression": [
-            "tests/unit/production-services.test.ts",
-            "tests/unit/planning-capacity.test.ts",
-            "tests/production.test.ts",
-            "tests/executive-canvas.test.ts",
-            "tests/inventory-lot-serial.test.ts"
+            "tests/unit/planning/production-services.test.ts",
+            "tests/unit/planning/planning-capacity.test.ts",
+            "tests/integration/manufacturing/production.test.ts",
+            "tests/integration/shared.executive/executive-canvas.test.ts",
+            "tests/integration/inventory/inventory-lot-serial.test.ts"
           ]
         }
       ]
@@ -3327,9 +3326,9 @@
       ],
       "source": [
         "src/server/modules/projects/**",
-        "src/server/project-actuals.ts",
-        "src/server/project-milestones.ts",
-        "src/server/project-structure.ts"
+        "src/server/modules/projects/public/project-actuals.ts",
+        "src/server/modules/projects/public/project-milestones.ts",
+        "src/server/modules/projects/public/project-structure.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -3342,7 +3341,7 @@
             "src/server/modules/projects/application/graph.ts"
           ],
           "regression": [
-            "tests/unit/owner-projections.test.ts"
+            "tests/unit/shared.architecture/owner-projections.test.ts"
           ]
         },
         {
@@ -3372,9 +3371,9 @@
             "src/server/modules/projects/public/people-app-entrypoint-facts.ts"
           ],
           "regression": [
-            "tests/unit/project-services.test.ts",
-            "tests/project-actuals.test.ts",
-            "tests/project-structure.test.ts"
+            "tests/unit/projects/project-services.test.ts",
+            "tests/integration/projects/project-actuals.test.ts",
+            "tests/integration/projects/project-structure.test.ts"
           ]
         }
       ]
@@ -3386,7 +3385,7 @@
       ],
       "source": [
         "src/server/modules/ecommerce/**",
-        "src/server/ecommerce.ts"
+        "src/server/modules/ecommerce/public/ecommerce.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -3399,7 +3398,7 @@
             "src/server/modules/ecommerce/domain/channel.ts"
           ],
           "regression": [
-            "tests/ecommerce.test.ts"
+            "tests/integration/ecommerce/ecommerce.test.ts"
           ]
         },
         {
@@ -3411,8 +3410,8 @@
             "src/server/modules/ecommerce/adapters/ecommerce.ts"
           ],
           "regression": [
-            "tests/ecommerce.test.ts",
-            "tests/unit/owner-isolation.test.ts"
+            "tests/integration/ecommerce/ecommerce.test.ts",
+            "tests/unit/shared.business-contracts/owner-isolation.test.ts"
           ]
         }
       ]
@@ -3424,7 +3423,7 @@
       ],
       "source": [
         "src/server/modules/benefits/**",
-        "src/server/benefits.ts"
+        "src/server/modules/benefits/public/benefits.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -3438,7 +3437,7 @@
             "src/server/modules/benefits/adapters/plan.ts"
           ],
           "regression": [
-            "tests/unit/owner-command-applications.test.ts"
+            "tests/unit/shared.architecture/owner-command-applications.test.ts"
           ]
         },
         {
@@ -3452,9 +3451,9 @@
             "src/server/modules/benefits/adapters/eligibility.ts"
           ],
           "regression": [
-            "tests/benefits.test.ts",
-            "tests/learning.test.ts",
-            "tests/unit/owner-command-applications.test.ts"
+            "tests/integration/benefits/benefits.test.ts",
+            "tests/integration/learning/learning.test.ts",
+            "tests/unit/shared.architecture/owner-command-applications.test.ts"
           ]
         }
       ]
@@ -3466,8 +3465,8 @@
       ],
       "source": [
         "src/server/modules/learning/**",
-        "src/server/learning-eligibility.ts",
-        "src/server/learning.ts"
+        "src/server/modules/learning/public/learning-eligibility.ts",
+        "src/server/modules/learning/public/learning.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -3481,7 +3480,7 @@
             "src/server/modules/learning/adapters/course.ts"
           ],
           "regression": [
-            "tests/unit/owner-command-applications.test.ts"
+            "tests/unit/shared.architecture/owner-command-applications.test.ts"
           ]
         },
         {
@@ -3499,10 +3498,10 @@
             "src/server/modules/learning/domain/learning.ts"
           ],
           "regression": [
-            "tests/unit/learning-talent-services.test.ts",
-            "tests/learning.test.ts",
-            "tests/people-lifecycle.test.ts",
-            "tests/benefits.test.ts"
+            "tests/unit/learning/learning-talent-services.test.ts",
+            "tests/integration/learning/learning.test.ts",
+            "tests/integration/people_payroll/people-lifecycle.test.ts",
+            "tests/integration/benefits/benefits.test.ts"
           ]
         }
       ]
@@ -3514,7 +3513,7 @@
       ],
       "source": [
         "src/server/modules/talent/**",
-        "src/server/talent.ts"
+        "src/server/modules/talent/public/talent.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -3528,7 +3527,7 @@
             "src/server/modules/talent/adapters/requisition.ts"
           ],
           "regression": [
-            "tests/unit/owner-command-applications.test.ts"
+            "tests/unit/shared.architecture/owner-command-applications.test.ts"
           ]
         },
         {
@@ -3543,9 +3542,9 @@
             "src/server/modules/talent/domain/talent.ts"
           ],
           "regression": [
-            "tests/unit/learning-talent-services.test.ts",
-            "tests/talent.test.ts",
-            "tests/people-lifecycle.test.ts"
+            "tests/unit/learning/learning-talent-services.test.ts",
+            "tests/integration/talent/talent.test.ts",
+            "tests/integration/people_payroll/people-lifecycle.test.ts"
           ]
         }
       ]
@@ -3557,7 +3556,7 @@
       ],
       "source": [
         "src/server/modules/field_service/**",
-        "src/server/field-service.ts"
+        "src/server/modules/field_service/public/field-service.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -3571,8 +3570,8 @@
             "src/server/modules/field_service/domain/agreement.ts"
           ],
           "regression": [
-            "tests/field-service.test.ts",
-            "tests/unit/remaining-owner-applications.test.ts"
+            "tests/integration/field_service/field-service.test.ts",
+            "tests/unit/shared.architecture/remaining-owner-applications.test.ts"
           ]
         },
         {
@@ -3584,8 +3583,8 @@
             "src/server/modules/field_service/adapters/service.ts"
           ],
           "regression": [
-            "tests/field-service.test.ts",
-            "tests/unit/field-service-application.test.ts"
+            "tests/integration/field_service/field-service.test.ts",
+            "tests/unit/field_service/field-service-application.test.ts"
           ]
         },
         {
@@ -3597,8 +3596,8 @@
             "src/server/modules/field_service/adapters/service.ts"
           ],
           "regression": [
-            "tests/field-service.test.ts",
-            "tests/unit/field-service-application.test.ts"
+            "tests/integration/field_service/field-service.test.ts",
+            "tests/unit/field_service/field-service-application.test.ts"
           ]
         },
         {
@@ -3610,8 +3609,8 @@
             "src/server/modules/field_service/adapters/service.ts"
           ],
           "regression": [
-            "tests/field-service.test.ts",
-            "tests/unit/field-service-application.test.ts"
+            "tests/integration/field_service/field-service.test.ts",
+            "tests/unit/field_service/field-service-application.test.ts"
           ]
         },
         {
@@ -3623,8 +3622,8 @@
             "src/server/modules/field_service/adapters/service.ts"
           ],
           "regression": [
-            "tests/field-service.test.ts",
-            "tests/unit/field-service-application.test.ts"
+            "tests/integration/field_service/field-service.test.ts",
+            "tests/unit/field_service/field-service-application.test.ts"
           ]
         },
         {
@@ -3636,8 +3635,8 @@
             "src/server/modules/field_service/adapters/service.ts"
           ],
           "regression": [
-            "tests/field-service.test.ts",
-            "tests/unit/field-service-application.test.ts"
+            "tests/integration/field_service/field-service.test.ts",
+            "tests/unit/field_service/field-service-application.test.ts"
           ]
         }
       ]
@@ -3649,12 +3648,12 @@
       ],
       "source": [
         "src/server/modules/agent/**",
-        "src/server/agent-governance.ts",
-        "src/server/ai-gateway.ts",
-        "src/server/ai-providers.ts",
-        "src/server/ai-quota.ts",
-        "src/server/ai-transport.ts",
-        "src/server/workspace-assistant.ts"
+        "src/server/modules/agent/public/agent-governance.ts",
+        "src/server/modules/agent/public/ai-gateway.ts",
+        "src/server/modules/agent/public/ai-providers.ts",
+        "src/server/modules/agent/public/ai-quota.ts",
+        "src/server/modules/agent/public/ai-transport.ts",
+        "src/server/modules/agent/public/workspace-assistant.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -3666,7 +3665,7 @@
             "src/server/modules/agent/domain/source-policy.ts"
           ],
           "regression": [
-            "tests/unit/owner-command-applications.test.ts"
+            "tests/unit/shared.architecture/owner-command-applications.test.ts"
           ]
         },
         {
@@ -3693,12 +3692,12 @@
             "src/server/modules/agent/adapters/workspace-assistant.ts"
           ],
           "regression": [
-            "tests/ai-protocols.test.ts",
-            "tests/ai-gateway.test.ts",
-            "tests/ai-providers.test.ts",
-            "tests/agent-governance.test.ts",
-            "tests/workspace-assistant.test.ts",
-            "tests/unit/agent-services.test.ts"
+            "tests/unit/agent/ai-protocols.test.ts",
+            "tests/integration/agent/ai-gateway.test.ts",
+            "tests/integration/agent/ai-providers.test.ts",
+            "tests/integration/agent/agent-governance.test.ts",
+            "tests/integration/agent/workspace-assistant.test.ts",
+            "tests/unit/agent/agent-services.test.ts"
           ]
         }
       ]
@@ -3710,22 +3709,22 @@
       ],
       "source": [
         "src/server/modules/collaboration/**",
-        "src/server/collaboration-work.ts",
-        "src/server/inbox.ts",
-        "src/server/messaging-files.ts",
-        "src/server/messaging.ts",
-        "src/server/social-activity.ts",
-        "src/server/social-agent.ts",
-        "src/server/social-ai.ts",
-        "src/server/social-home.ts",
-        "src/server/social-source.ts",
-        "src/server/social-task.ts",
-        "src/server/social-text.ts",
-        "src/server/social.ts",
-        "src/server/staff-notifications.ts",
-        "src/server/web-push.ts",
-        "src/lib/social-text.ts",
-        "src/server/handbook.ts"
+        "src/server/modules/collaboration/public/collaboration-work.ts",
+        "src/server/modules/collaboration/public/inbox.ts",
+        "src/server/modules/collaboration/public/messaging-files.ts",
+        "src/server/modules/collaboration/public/messaging.ts",
+        "src/server/modules/collaboration/public/social-activity.ts",
+        "src/server/modules/collaboration/public/social-agent.ts",
+        "src/server/modules/collaboration/public/social-ai.ts",
+        "src/server/modules/collaboration/public/social-home.ts",
+        "src/server/modules/collaboration/public/social-source.ts",
+        "src/server/modules/collaboration/public/social-task.ts",
+        "src/server/modules/collaboration/public/social-text.ts",
+        "src/server/modules/collaboration/public/social.ts",
+        "src/server/modules/collaboration/public/staff-notifications.ts",
+        "src/server/modules/collaboration/public/web-push.ts",
+        "src/server/modules/collaboration/public/rules/social-text.ts",
+        "src/server/modules/collaboration/public/handbook.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -3738,7 +3737,7 @@
             "src/server/modules/collaboration/public/rules/social-text.ts"
           ],
           "regression": [
-            "tests/social-text.test.ts"
+            "tests/unit/collaboration/social-text.test.ts"
           ]
         },
         {
@@ -3838,13 +3837,13 @@
             "src/server/modules/collaboration/public/people-app-entrypoint-facts.ts"
           ],
           "regression": [
-            "tests/unit/collaboration-services.test.ts",
-            "tests/social-beta.test.ts",
-            "tests/messaging.test.ts",
-            "tests/inbox.test.ts",
-            "tests/web-push.test.ts",
-            "tests/collaboration-work.test.ts",
-            "tests/handover.test.ts"
+            "tests/unit/collaboration/collaboration-services.test.ts",
+            "tests/integration/collaboration/social-beta.test.ts",
+            "tests/integration/collaboration/messaging.test.ts",
+            "tests/integration/shared.inbox/inbox.test.ts",
+            "tests/integration/shared.foundation/web-push.test.ts",
+            "tests/integration/collaboration/collaboration-work.test.ts",
+            "tests/integration/operations/handover.test.ts"
           ]
         },
         {
@@ -3857,8 +3856,8 @@
             "src/server/modules/collaboration/public/handbook.ts"
           ],
           "regression": [
-            "tests/employee-services.test.ts",
-            "tests/unit/handbook-services.test.ts"
+            "tests/integration/people_payroll/employee-services.test.ts",
+            "tests/unit/collaboration/handbook-services.test.ts"
           ]
         }
       ]
@@ -3870,31 +3869,31 @@
       ],
       "source": [
         "src/server/modules/pms/**",
-        "src/server/hospitality-day-controls.ts",
-        "src/server/hospitality-evidence.ts",
-        "src/server/hospitality-rollout.ts",
-        "src/server/hospitality-setup.ts",
-        "src/server/pms/finance.ts",
-        "src/server/pms/front-attachments.ts",
-        "src/server/pms/guest-document.ts",
-        "src/server/pms/home-api.ts",
-        "src/server/pms/home.ts",
-        "src/server/pms/import.ts",
-        "src/server/pms/read-repository.ts",
-        "src/server/pms/record-details.ts",
-        "src/server/pms/reports.ts",
-        "src/server/pms/social-events.ts",
-        "src/server/pms/source-policy.ts",
-        "src/server/pms/source.ts",
-        "src/server/pms/staff-booking-changes.ts",
-        "src/server/pms-booking-changes.ts",
-        "src/server/pms-booking-refunds.ts",
-        "src/server/pms-booking.ts",
-        "src/server/pms-stripe.ts",
-        "src/server/pms.ts",
-        "src/lib/pms-model.ts",
-        "src/lib/pms.ts",
-        "src/lib/pms-*.ts"
+        "src/server/modules/pms/public/hospitality-day-controls.ts",
+        "src/server/modules/pms/public/hospitality-evidence.ts",
+        "src/server/modules/pms/public/hospitality-rollout.ts",
+        "src/server/modules/pms/public/hospitality-setup.ts",
+        "src/server/modules/pms/public/pms/finance.ts",
+        "src/server/modules/pms/public/pms/front-attachments.ts",
+        "src/server/modules/pms/public/pms/guest-document.ts",
+        "src/server/modules/pms/public/pms/home-api.ts",
+        "src/server/modules/pms/public/pms/home.ts",
+        "src/server/modules/pms/public/pms/import.ts",
+        "src/server/modules/pms/public/pms/read-repository.ts",
+        "src/server/modules/pms/public/pms/record-details.ts",
+        "src/server/modules/pms/public/pms/reports.ts",
+        "src/server/modules/pms/public/pms/social-events.ts",
+        "src/server/modules/pms/public/pms/source-policy.ts",
+        "src/server/modules/pms/public/pms/source.ts",
+        "src/server/modules/pms/public/pms/staff-booking-changes.ts",
+        "src/server/modules/pms/public/pms-booking-changes.ts",
+        "src/server/modules/pms/public/pms-booking-refunds.ts",
+        "src/server/modules/pms/public/pms-booking.ts",
+        "src/server/modules/pms/public/pms-stripe.ts",
+        "src/server/modules/pms/public/pms.ts",
+        "src/server/modules/pms/public/rules/pms-model.ts",
+        "src/server/modules/pms/public/rules/pms.ts",
+        "src/lib/pms/pms-*.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -3907,7 +3906,7 @@
             "src/server/modules/pms/public/rules/pms-model.ts"
           ],
           "regression": [
-            "tests/pms.test.ts"
+            "tests/integration/pms/pms.test.ts"
           ]
         },
         {
@@ -3918,7 +3917,7 @@
             "src/server/modules/pms/public/rules/pms.ts"
           ],
           "regression": [
-            "tests/pms.test.ts"
+            "tests/integration/pms/pms.test.ts"
           ]
         },
         {
@@ -3984,12 +3983,12 @@
             "src/server/modules/pms/public/entrypoint-queries.ts"
           ],
           "regression": [
-            "tests/pms.test.ts",
-            "tests/pms-booking.test.ts",
-            "tests/pms-read-model.test.ts",
-            "tests/pms-reports.test.ts",
-            "tests/pms-front-attachments.test.ts",
-            "tests/unit/pms-application.test.ts"
+            "tests/integration/pms/pms.test.ts",
+            "tests/integration/pms/pms-booking.test.ts",
+            "tests/integration/pms/pms-read-model.test.ts",
+            "tests/integration/pms/pms-reports.test.ts",
+            "tests/integration/pms/pms-front-attachments.test.ts",
+            "tests/unit/pms/pms-application.test.ts"
           ]
         }
       ]
@@ -4001,15 +4000,14 @@
       ],
       "source": [
         "src/server/modules/manage_erpx/**",
-        "src/server/beta-api.ts",
-        "src/server/beta-config.ts",
-        "src/server/beta-email.ts",
-        "src/server/beta-http.ts",
-        "src/server/beta-maintenance.ts",
-        "src/server/beta-onboarding.ts",
-        "src/server/beta-team.ts",
-        "src/server/cloudflare.ts",
-        "src/server/public-origin.ts"
+        "src/server/modules/manage_erpx/public/beta-api.ts",
+        "src/server/modules/manage_erpx/public/beta-config.ts",
+        "src/server/modules/manage_erpx/public/beta-email.ts",
+        "src/server/modules/manage_erpx/public/beta-http.ts",
+        "src/server/modules/manage_erpx/public/beta-maintenance.ts",
+        "src/server/modules/manage_erpx/public/beta-onboarding.ts",
+        "src/server/modules/manage_erpx/public/beta-team.ts",
+        "src/server/modules/manage_erpx/public/public-origin.ts"
       ],
       "migration": "clean",
       "kind": "business",
@@ -4023,8 +4021,8 @@
             "src/server/modules/manage_erpx/adapters/resource-cleanup.ts"
           ],
           "regression": [
-            "tests/resource-cleanup.test.ts",
-            "tests/unit/first-wave-applications.test.ts"
+            "tests/integration/manage_erpx/resource-cleanup.test.ts",
+            "tests/unit/shared.architecture/first-wave-applications.test.ts"
           ]
         },
         {
@@ -4056,11 +4054,11 @@
             "src/server/modules/manage_erpx/public/people-app-entrypoint-facts.ts"
           ],
           "regression": [
-            "tests/social-beta.test.ts",
-            "tests/beta-auth-billing.test.ts",
-            "tests/handover.test.ts",
-            "tests/resource-cleanup.test.ts",
-            "tests/unit/management-services.test.ts"
+            "tests/integration/collaboration/social-beta.test.ts",
+            "tests/integration/commercial/beta-auth-billing.test.ts",
+            "tests/integration/operations/handover.test.ts",
+            "tests/integration/manage_erpx/resource-cleanup.test.ts",
+            "tests/unit/manage_erpx/management-services.test.ts"
           ]
         }
       ]
@@ -4078,11 +4076,11 @@
       ],
       "source": [
         "src/server/modules/commerce/**",
-        "src/server/billing-test-finance.ts",
-        "src/server/commerce-delivery-evidence.ts",
-        "src/server/commerce-goods-accounting.ts",
-        "src/server/commerce-return-accounting.ts",
-        "src/server/commerce.ts"
+        "src/server/modules/commerce/public/billing-test-finance.ts",
+        "src/server/modules/commerce/public/commerce-delivery-evidence.ts",
+        "src/server/modules/commerce/public/commerce-goods-accounting.ts",
+        "src/server/modules/commerce/public/commerce-return-accounting.ts",
+        "src/server/modules/commerce/public/commerce.ts"
       ],
       "migration": "clean",
       "kind": "kernel",
@@ -4143,14 +4141,14 @@
             "src/server/modules/commerce/public/entrypoint-facts.ts"
           ],
           "regression": [
-            "tests/billing-test-finance.test.ts",
-            "tests/commerce-delivery-file-authority.test.ts",
-            "tests/commerce-directory.test.ts",
-            "tests/commerce-foreign-goods.test.ts",
-            "tests/commerce-returns.test.ts",
-            "tests/purchase-to-payment.test.ts",
-            "tests/supplier-bill-matching.test.ts",
-            "tests/unit/commerce-application.test.ts"
+            "tests/integration/commercial/billing-test-finance.test.ts",
+            "tests/integration/sales/commerce-delivery-file-authority.test.ts",
+            "tests/integration/shared.commerce/commerce-directory.test.ts",
+            "tests/integration/sales/commerce-foreign-goods.test.ts",
+            "tests/integration/sales/commerce-returns.test.ts",
+            "tests/integration/procurement/purchase-to-payment.test.ts",
+            "tests/integration/procurement/supplier-bill-matching.test.ts",
+            "tests/unit/shared.commerce/commerce-application.test.ts"
           ]
         }
       ]
@@ -4164,15 +4162,15 @@
       ],
       "source": [
         "src/server/modules/billing/**",
-        "src/server/beta-billing.ts",
-        "src/server/billing-api.ts",
-        "src/server/billing-attachments.ts",
-        "src/server/billing-forecast.ts",
-        "src/server/billing-jobs.ts",
-        "src/server/billing-stripe.ts",
-        "src/server/billing-target-rollout.ts",
-        "src/server/billing-target.ts",
-        "src/server/billing.ts"
+        "src/server/modules/billing/public/beta-billing.ts",
+        "src/server/modules/billing/public/billing-api.ts",
+        "src/server/modules/billing/public/billing-attachments.ts",
+        "src/server/modules/billing/public/billing-forecast.ts",
+        "src/server/modules/billing/public/billing-jobs.ts",
+        "src/server/modules/billing/public/billing-stripe.ts",
+        "src/server/modules/billing/public/billing-target-rollout.ts",
+        "src/server/modules/billing/public/billing-target.ts",
+        "src/server/modules/billing/public/billing.ts"
       ],
       "migration": "clean",
       "kind": "kernel",
@@ -4208,15 +4206,15 @@
             "src/server/modules/billing/adapters/beta-billing.ts"
           ],
           "regression": [
-            "tests/unit/billing-owner-services.test.ts",
-            "tests/billing.test.ts",
-            "tests/billing-api.test.ts",
-            "tests/billing-test-finance.test.ts",
-            "tests/billing-target.test.ts",
-            "tests/billing-forecast.test.ts",
-            "tests/beta-auth-billing.test.ts",
-            "tests/billing-stripe-errors.test.ts",
-            "tests/billing-forecast-routes.test.ts"
+            "tests/unit/billing/billing-owner-services.test.ts",
+            "tests/integration/commercial/billing.test.ts",
+            "tests/integration/commercial/billing-api.test.ts",
+            "tests/integration/commercial/billing-test-finance.test.ts",
+            "tests/integration/commercial/billing-target.test.ts",
+            "tests/integration/commercial/billing-forecast.test.ts",
+            "tests/integration/commercial/beta-auth-billing.test.ts",
+            "tests/unit/commercial/billing-stripe-errors.test.ts",
+            "tests/unit/commercial/billing-forecast-routes.test.ts"
           ]
         }
       ]
@@ -4260,17 +4258,17 @@
       ],
       "source": [
         "src/server/modules/records/**",
-        "src/server/business-evidence.ts",
-        "src/server/employee-requests.ts",
-        "src/server/record-details.ts",
-        "src/server/record-domain-details.ts",
-        "src/server/record-owner-pages.ts",
-        "src/server/records.ts",
-        "src/server/request-ai.ts",
-        "src/server/request-page.ts",
-        "src/server/request-preview.ts",
-        "src/server/self-service.ts",
-        "src/server/source-record-policy.ts"
+        "src/server/modules/records/public/business-evidence.ts",
+        "src/server/modules/records/public/employee-requests.ts",
+        "src/server/modules/records/public/record-details.ts",
+        "src/server/modules/records/public/record-domain-details.ts",
+        "src/server/modules/records/public/record-owner-pages.ts",
+        "src/server/modules/records/public/records.ts",
+        "src/server/modules/records/public/request-ai.ts",
+        "src/server/modules/records/public/request-page.ts",
+        "src/server/modules/records/public/request-preview.ts",
+        "src/server/modules/records/public/self-service.ts",
+        "src/server/modules/records/public/source-record-policy.ts"
       ],
       "migration": "clean",
       "kind": "kernel",
@@ -4318,14 +4316,14 @@
             "src/server/modules/records/public/commerce-entrypoint-facts.ts"
           ],
           "regression": [
-            "tests/employee-services.test.ts",
-            "tests/staff-work.test.ts",
-            "tests/self-service-journeys.test.ts",
-            "tests/record-details.test.ts",
-            "tests/request-ai.test.ts",
-            "tests/list-page.test.ts",
-            "tests/handover.test.ts",
-            "tests/unit/record-services.test.ts"
+            "tests/integration/people_payroll/employee-services.test.ts",
+            "tests/integration/operations/staff-work.test.ts",
+            "tests/integration/people_payroll/self-service-journeys.test.ts",
+            "tests/integration/shared.records/record-details.test.ts",
+            "tests/integration/shared.requests/request-ai.test.ts",
+            "tests/integration/shared.records/list-page.test.ts",
+            "tests/integration/operations/handover.test.ts",
+            "tests/unit/shared.records/record-services.test.ts"
           ]
         }
       ]
@@ -4369,13 +4367,13 @@
       ],
       "source": [
         "src/server/modules/workflow/**",
-        "src/server/approvals.ts",
-        "src/server/commands.ts",
-        "src/server/flow-access.ts",
-        "src/server/flow-routing.ts",
-        "src/server/flow-work.ts",
-        "src/server/job-projector.ts",
-        "src/server/routing-attention.ts"
+        "src/server/modules/workflow/public/approvals.ts",
+        "src/server/modules/workflow/public/commands.ts",
+        "src/server/modules/workflow/public/flow-access.ts",
+        "src/server/modules/workflow/public/flow-routing.ts",
+        "src/server/modules/workflow/public/flow-work.ts",
+        "src/server/modules/workflow/public/job-projector.ts",
+        "src/server/modules/workflow/public/routing-attention.ts"
       ],
       "migration": "clean",
       "kind": "kernel",
@@ -4445,14 +4443,14 @@
             "src/server/modules/workflow/adapters/organization-position-move-events.ts"
           ],
           "regression": [
-            "tests/business-commands.test.ts",
-            "tests/command-composition.test.ts",
-            "tests/staff-work.test.ts",
-            "tests/workflow-projection.test.ts",
-            "tests/flow-routing.test.ts",
-            "tests/routing-attention.test.ts",
-            "tests/spending-approvals.test.ts",
-            "tests/unit/workflow-services.test.ts"
+            "tests/integration/shared.commands/business-commands.test.ts",
+            "tests/integration/shared.commands/command-composition.test.ts",
+            "tests/integration/operations/staff-work.test.ts",
+            "tests/integration/shared.work/workflow-projection.test.ts",
+            "tests/integration/shared.work/flow-routing.test.ts",
+            "tests/integration/shared.work/routing-attention.test.ts",
+            "tests/integration/shared.commands/spending-approvals.test.ts",
+            "tests/unit/shared.workflow/workflow-services.test.ts"
           ],
           "migration": "clean"
         }
@@ -4497,24 +4495,24 @@
       ],
       "source": [
         "src/server/modules/files/**",
-        "src/server/attachments/feature.ts",
-        "src/server/attachments/finance-operations-policy.ts",
-        "src/server/attachments/legacy-policy.ts",
-        "src/server/attachments/migration.ts",
-        "src/server/attachments/orphan-preservation.ts",
-        "src/server/attachments/policy.ts",
-        "src/server/attachments/portal-collaboration-policy.ts",
-        "src/server/attachments/preview.ts",
-        "src/server/attachments/readiness.ts",
-        "src/server/attachments/reconciliation-adjudication.ts",
-        "src/server/attachments/remaining-operational-policy.ts",
-        "src/server/attachments/scanner.ts",
-        "src/server/attachments/sensitive-policy.ts",
-        "src/server/attachments/service.ts",
-        "src/server/attachments/types.ts",
-        "src/server/attachments/upload.ts",
-        "src/server/document-derivatives.ts",
-        "src/server/upload-validation.ts"
+        "src/server/modules/files/public/attachments/feature.ts",
+        "src/server/modules/files/public/attachments/finance-operations-policy.ts",
+        "src/server/modules/files/public/attachments/legacy-policy.ts",
+        "src/server/modules/files/public/attachments/migration.ts",
+        "src/server/modules/files/public/attachments/orphan-preservation.ts",
+        "src/server/modules/files/public/attachments/policy.ts",
+        "src/server/modules/files/public/attachments/portal-collaboration-policy.ts",
+        "src/server/modules/files/public/attachments/preview.ts",
+        "src/server/modules/files/public/attachments/readiness.ts",
+        "src/server/modules/files/public/attachments/reconciliation-adjudication.ts",
+        "src/server/modules/files/public/attachments/remaining-operational-policy.ts",
+        "src/server/modules/files/public/attachments/scanner.ts",
+        "src/server/modules/files/public/attachments/sensitive-policy.ts",
+        "src/server/modules/files/public/attachments/service.ts",
+        "src/server/modules/files/public/attachments/types.ts",
+        "src/server/modules/files/public/attachments/upload.ts",
+        "src/server/modules/files/public/document-derivatives.ts",
+        "src/server/modules/files/public/upload-validation.ts"
       ],
       "migration": "clean",
       "kind": "kernel",
@@ -4612,20 +4610,20 @@
             "src/server/modules/files/public/profile-media-storage.ts"
           ],
           "regression": [
-            "tests/unit/files-application.test.ts",
-            "tests/unit/files-storage-services.test.ts",
-            "tests/engineering-business-attachments.test.ts",
-            "tests/attachments-v2.test.ts",
-            "tests/attachment-formats.test.ts",
-            "tests/specialized-attachment-adapters.test.ts",
-            "tests/leave-attachment-lock.test.ts",
-            "tests/finance-operations-attachments.test.ts",
-            "tests/file-orphan-preservation.test.ts",
-            "tests/engineering-migration-upgrade.test.ts",
-            "tests/ai-providers.test.ts",
-            "tests/pos-file-sources.test.ts",
-            "tests/member-profiles.test.ts",
-            "tests/unit/organization-services.test.ts"
+            "tests/unit/shared.files/files-application.test.ts",
+            "tests/unit/shared.files/files-storage-services.test.ts",
+            "tests/integration/shared.business-attachments/engineering-business-attachments.test.ts",
+            "tests/integration/shared.attachments/attachments-v2.test.ts",
+            "tests/integration/shared.attachments/attachment-formats.test.ts",
+            "tests/integration/shared.attachments/specialized-attachment-adapters.test.ts",
+            "tests/integration/people_payroll/leave-attachment-lock.test.ts",
+            "tests/integration/finance/finance-operations-attachments.test.ts",
+            "tests/integration/shared.attachments/file-orphan-preservation.test.ts",
+            "tests/integration/shared.evidence/engineering-migration-upgrade.test.ts",
+            "tests/integration/agent/ai-providers.test.ts",
+            "tests/integration/pos/pos-file-sources.test.ts",
+            "tests/integration/identity_access/member-profiles.test.ts",
+            "tests/unit/organization/organization-services.test.ts"
           ]
         }
       ]
@@ -4669,55 +4667,55 @@
       ],
       "source": [
         "src/server/modules/work_projection/**",
-        "src/server/calendar/access.ts",
-        "src/server/calendar/announcements.ts",
-        "src/server/calendar/appointments.ts",
-        "src/server/calendar/availability.ts",
-        "src/server/calendar/commands.ts",
-        "src/server/calendar/crm.ts",
-        "src/server/calendar/customer-followups.ts",
-        "src/server/calendar/index.ts",
-        "src/server/calendar/leave.ts",
-        "src/server/calendar/lifecycle.ts",
-        "src/server/calendar/maintenance.ts",
-        "src/server/calendar/procurement-rfqs.ts",
-        "src/server/calendar/quality.ts",
-        "src/server/calendar/refunds.ts",
-        "src/server/calendar/reminders.ts",
-        "src/server/calendar/roster.ts",
-        "src/server/calendar/supplier-batches.ts",
-        "src/server/calendar/supplier-bills.ts",
-        "src/server/calendar/supplier-promises.ts",
-        "src/server/calendar/support.ts",
-        "src/server/calendar/transit.ts",
-        "src/server/daily-plan.ts",
-        "src/server/domain-work.ts",
-        "src/server/front-app.ts",
-        "src/server/front-icon.ts",
-        "src/server/front-quick-access.ts",
-        "src/server/list-page.ts",
-        "src/server/navigation-context.ts",
-        "src/server/navigation-counts.ts",
-        "src/server/page-error.ts",
-        "src/server/page-layouts.ts",
-        "src/server/portal-quick-access.ts",
-        "src/server/quick-access-preferences.ts",
-        "src/server/staff-api.ts",
-        "src/server/staff-page.ts",
-        "src/server/work-cache.ts",
-        "src/server/work-capabilities.ts",
-        "src/server/work-card-preferences.ts",
-        "src/server/work-cards.ts",
-        "src/server/work-items.ts",
-        "src/server/work-reports.ts",
-        "src/server/work-review.ts",
-        "src/server/work-role-options.ts",
-        "src/server/work-role-store.ts",
-        "src/server/work-summary.ts",
-        "src/server/work.ts",
-        "src/server/workspace-preferences.ts",
-        "src/lib/calendar-domain.ts",
-        "src/lib/calendar-date-domain.ts"
+        "src/server/modules/work_projection/public/calendar/access.ts",
+        "src/server/modules/work_projection/public/calendar/announcements.ts",
+        "src/server/modules/work_projection/public/calendar/appointments.ts",
+        "src/server/modules/work_projection/public/calendar/availability.ts",
+        "src/server/modules/work_projection/public/calendar/commands.ts",
+        "src/server/modules/work_projection/public/calendar/crm.ts",
+        "src/server/modules/work_projection/public/calendar/customer-followups.ts",
+        "src/server/modules/work_projection/public/calendar/index.ts",
+        "src/server/modules/work_projection/public/calendar/leave.ts",
+        "src/server/modules/work_projection/public/calendar/lifecycle.ts",
+        "src/server/modules/work_projection/public/calendar/maintenance.ts",
+        "src/server/modules/work_projection/public/calendar/procurement-rfqs.ts",
+        "src/server/modules/work_projection/public/calendar/quality.ts",
+        "src/server/modules/work_projection/public/calendar/refunds.ts",
+        "src/server/modules/work_projection/public/calendar/reminders.ts",
+        "src/server/modules/work_projection/public/calendar/roster.ts",
+        "src/server/modules/work_projection/public/calendar/supplier-batches.ts",
+        "src/server/modules/work_projection/public/calendar/supplier-bills.ts",
+        "src/server/modules/work_projection/public/calendar/supplier-promises.ts",
+        "src/server/modules/work_projection/public/calendar/support.ts",
+        "src/server/modules/work_projection/public/calendar/transit.ts",
+        "src/server/modules/work_projection/public/daily-plan.ts",
+        "src/server/modules/work_projection/public/domain-work.ts",
+        "src/server/modules/work_projection/public/front-app.ts",
+        "src/server/modules/work_projection/public/front-icon.ts",
+        "src/server/modules/work_projection/public/front-quick-access.ts",
+        "src/server/modules/work_projection/public/list-page.ts",
+        "src/server/modules/work_projection/public/navigation-context.ts",
+        "src/server/modules/work_projection/public/navigation-counts.ts",
+        "src/server/modules/work_projection/public/page-error.ts",
+        "src/server/modules/work_projection/public/page-layouts.ts",
+        "src/server/modules/work_projection/public/portal-quick-access.ts",
+        "src/server/modules/work_projection/public/quick-access-preferences.ts",
+        "src/server/modules/work_projection/public/staff-api.ts",
+        "src/server/modules/work_projection/public/staff-page.ts",
+        "src/server/modules/work_projection/public/work-cache.ts",
+        "src/server/modules/work_projection/public/work-capabilities.ts",
+        "src/server/modules/work_projection/public/work-card-preferences.ts",
+        "src/server/modules/work_projection/public/work-cards.ts",
+        "src/server/modules/work_projection/public/work-items.ts",
+        "src/server/modules/work_projection/public/work-reports.ts",
+        "src/server/modules/work_projection/public/work-review.ts",
+        "src/server/modules/work_projection/public/work-role-options.ts",
+        "src/server/modules/work_projection/public/work-role-store.ts",
+        "src/server/modules/work_projection/public/work-summary.ts",
+        "src/server/modules/work_projection/public/work.ts",
+        "src/server/modules/work_projection/public/workspace-preferences.ts",
+        "src/lib/work_projection/calendar-domain.ts",
+        "src/lib/work_projection/calendar-date-domain.ts"
       ],
       "migration": "clean",
       "kind": "projection",
@@ -4794,14 +4792,14 @@
             "src/server/modules/workflow/public/work-ui-staff-facts.ts"
           ],
           "regression": [
-            "tests/unit/work-ui-services.test.ts",
-            "tests/page-error.test.ts",
-            "tests/front-quick-access.test.ts",
-            "tests/page-layouts.test.ts",
-            "tests/front-logo.test.ts",
-            "tests/list-page.test.ts",
-            "tests/navigation-counts.test.ts",
-            "tests/brand-identity.test.ts"
+            "tests/unit/shared.work/work-ui-services.test.ts",
+            "tests/unit/shared.ui/page-error.test.ts",
+            "tests/unit/identity_access/front-quick-access.test.ts",
+            "tests/integration/shared.ui/page-layouts.test.ts",
+            "tests/integration/brand/front-logo.test.ts",
+            "tests/integration/shared.records/list-page.test.ts",
+            "tests/integration/shared.ui/navigation-counts.test.ts",
+            "tests/integration/brand/brand-identity.test.ts"
           ]
         },
         {
@@ -4930,18 +4928,18 @@
             "src/server/modules/work_projection/adapters/work.ts",
             "src/server/modules/work_projection/adapters/workflow-projector.ts",
             "src/server/modules/work_projection/adapters/workspace-preferences.ts",
-            "src/lib/calendar-domain.ts",
+            "src/lib/work_projection/calendar-domain.ts",
             "src/server/modules/work_projection/public/rules/calendar-domain.ts",
-            "src/lib/calendar-date-domain.ts",
+            "src/lib/work_projection/calendar-date-domain.ts",
             "src/server/modules/work_projection/public/rules/calendar-date-domain.ts"
           ],
           "regression": [
-            "tests/calendar.test.ts",
-            "tests/staff-work.test.ts",
-            "tests/work-cache.test.ts",
-            "tests/work-review.test.ts",
-            "tests/unit/work-services.test.ts",
-            "tests/unit/work-ui-services.test.ts"
+            "tests/integration/shared.calendar/calendar.test.ts",
+            "tests/integration/operations/staff-work.test.ts",
+            "tests/integration/shared.work/work-cache.test.ts",
+            "tests/integration/shared.work/work-review.test.ts",
+            "tests/unit/shared.work/work-services.test.ts",
+            "tests/unit/shared.work/work-ui-services.test.ts"
           ]
         }
       ]
@@ -4985,46 +4983,44 @@
       ],
       "source": [
         "src/server/modules/runtime/**",
-        "src/server/administration.ts",
-        "src/server/business-readiness.ts",
-        "src/server/crypto.ts",
-        "src/server/db/auth-schema.ts",
-        "src/server/db/schema.ts",
-        "src/server/executive/access.ts",
-        "src/server/executive/agent-evidence.ts",
-        "src/server/executive/brand-evidence.ts",
-        "src/server/executive/connections.ts",
-        "src/server/executive/context.ts",
-        "src/server/executive/crm-evidence.ts",
-        "src/server/executive/evidence.ts",
-        "src/server/executive/generation.ts",
-        "src/server/executive/html-widget.ts",
-        "src/server/executive/learning-evidence.ts",
-        "src/server/executive/marketing-evidence.ts",
-        "src/server/executive/mcp.ts",
-        "src/server/executive/metric-sources.ts",
-        "src/server/executive/metrics.ts",
-        "src/server/executive/operations-access.ts",
-        "src/server/executive/planning-evidence.ts",
-        "src/server/executive/pos-evidence.ts",
-        "src/server/executive/project-milestone-access.ts",
-        "src/server/executive/reports.ts",
-        "src/server/executive/talent-evidence.ts",
-        "src/server/http.ts",
-        "src/server/runtime/env.ts",
-        "src/server/runtime/filesystem.ts",
-        "src/server/runtime/https.ts",
-        "src/server/runtime/jobs.ts",
-        "src/server/runtime/migrations.ts",
-        "src/server/runtime/minio.ts",
-        "src/server/runtime/postgres.ts",
-        "src/server/runtime/read-metrics.ts",
-        "src/server/runtime/read-request.ts",
-        "src/server/runtime/redis-cache.ts",
-        "src/server/runtime/types.ts",
-        "src/server/runtime.ts",
-        "src/server/simulation-only-adapters.ts",
-        "src/lib/executive/canvas-domain.ts"
+        "src/server/modules/runtime/public/administration.ts",
+        "src/server/modules/runtime/public/business-readiness.ts",
+        "src/server/modules/runtime/adapters/crypto.ts",
+        "src/server/modules/runtime/adapters/db/auth-schema.ts",
+        "src/server/modules/runtime/adapters/db/schema.ts",
+        "src/server/modules/runtime/public/executive/access.ts",
+        "src/server/modules/runtime/public/executive/agent-evidence.ts",
+        "src/server/modules/runtime/public/executive/brand-evidence.ts",
+        "src/server/modules/runtime/public/executive/connections.ts",
+        "src/server/modules/runtime/public/executive/context.ts",
+        "src/server/modules/runtime/public/executive/crm-evidence.ts",
+        "src/server/modules/runtime/public/executive/evidence.ts",
+        "src/server/modules/runtime/public/executive/generation.ts",
+        "src/server/modules/runtime/public/executive/html-widget.ts",
+        "src/server/modules/runtime/public/executive/learning-evidence.ts",
+        "src/server/modules/runtime/public/executive/marketing-evidence.ts",
+        "src/server/modules/runtime/public/executive/mcp.ts",
+        "src/server/modules/runtime/public/executive/metric-sources.ts",
+        "src/server/modules/runtime/public/executive/metrics.ts",
+        "src/server/modules/runtime/public/executive/planning-evidence.ts",
+        "src/server/modules/runtime/public/executive/pos-evidence.ts",
+        "src/server/modules/runtime/public/executive/reports.ts",
+        "src/server/modules/runtime/public/executive/talent-evidence.ts",
+        "src/server/modules/runtime/adapters/http.ts",
+        "src/server/modules/runtime/adapters/runtime/env.ts",
+        "src/server/modules/runtime/adapters/runtime/filesystem.ts",
+        "src/server/modules/runtime/adapters/runtime/https.ts",
+        "src/server/modules/runtime/adapters/runtime/jobs.ts",
+        "src/server/modules/runtime/adapters/runtime/migrations.ts",
+        "src/server/modules/runtime/adapters/runtime/minio.ts",
+        "src/server/modules/runtime/adapters/runtime/postgres.ts",
+        "src/server/modules/runtime/adapters/runtime/read-metrics.ts",
+        "src/server/modules/runtime/adapters/runtime/read-request.ts",
+        "src/server/modules/runtime/adapters/runtime/redis-cache.ts",
+        "src/server/modules/runtime/adapters/runtime/types.ts",
+        "src/server/modules/runtime/adapters/runtime.ts",
+        "src/server/modules/runtime/adapters/simulation-only-adapters.ts",
+        "src/lib/runtime/executive/canvas-domain.ts"
       ],
       "migration": "clean",
       "kind": "infrastructure",
@@ -5096,15 +5092,15 @@
             "src/server/modules/runtime/domain/executive/pos-evidence.ts",
             "src/server/modules/runtime/domain/executive/reports.ts",
             "src/server/modules/runtime/domain/executive/talent-evidence.ts",
-            "src/lib/executive/canvas-domain.ts",
+            "src/lib/runtime/executive/canvas-domain.ts",
             "src/server/modules/runtime/public/rules/canvas-domain.ts"
           ],
           "regression": [
-            "tests/executive-canvas.test.ts",
-            "tests/executive-mcp.test.ts",
-            "tests/business-readiness.test.ts",
-            "tests/native-runtime.test.ts",
-            "tests/unit/runtime-executive-services.test.ts"
+            "tests/integration/shared.executive/executive-canvas.test.ts",
+            "tests/integration/shared.executive/executive-mcp.test.ts",
+            "tests/integration/shared.evidence/business-readiness.test.ts",
+            "tests/integration/shared.runtime/native-runtime.test.ts",
+            "tests/unit/shared.runtime/runtime-executive-services.test.ts"
           ]
         }
       ]
@@ -5147,9 +5143,7 @@
         "manage_erpx"
       ],
       "source": [
-        "src/server/modules/shared/**",
-        "src/server/modules/ownership.ts",
-        "src/server/modules/ownership.json"
+        "src/server/modules/shared/**"
       ],
       "migration": "clean",
       "kind": "kernel"

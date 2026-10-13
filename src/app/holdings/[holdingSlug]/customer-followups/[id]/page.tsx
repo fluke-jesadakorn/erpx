@@ -1,10 +1,10 @@
 import { InlineNotice } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
 import {requireWorkContext,publicScope} from "@/server/modules/identity_access/public/authorization";
-import {workspaceBase} from '@/lib/workspace';
+import {workspaceBase} from "@/lib/work_projection/workspace";
 import {pageError} from "@/server/modules/work_projection/public/page-error";
 import {customerFollowupDetail} from "@/server/modules/sales/public/customer-followups";
-import {CustomerFollowupForm} from '@/components/modules/customer-followups';
+import { CustomerFollowupForm } from "@/components/records/loaders/modules--customer-followups";
 import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic='force-dynamic';
 export default async function Page({params}:{params:Promise<{holdingSlug:string;id:string}>}){const {holdingSlug,id}=await params,a=await requireWorkContext(holdingSlug),base=workspaceBase(publicScope(a)),data=await customerFollowupDetail(a,id).catch(e=>pageError(e,holdingSlug)),r=data.row;return <PageContent as="div" className="ui-page-content"><Link href={`${base}/customer-followups`}>All follow-ups</Link><h1>{String(r.customer_name)} · Follow-up</h1><Card as="section" appearance="standard" className="ui-panel"><p>{String(r.next_action)}</p><p>{String(r.status)} · Due {String(r.due_date)} · Owner {String(r.owner_name??'Assigned sales colleague')}</p><Link href={`${base}/commerce/orders/${r.order_id}`}>Source order · {String(r.order_number)}</Link>{!Number(r.owner_eligible)&&r.status==='open'&&<InlineNotice tone="danger" role="alert">Owner is no longer eligible. A sales manager must reassign with a reason.</InlineNotice>}{r.outcome&&<p>Outcome: {String(r.outcome)}</p>}</Card><CustomerFollowupForm key={`${r.id}:${r.version}`} base={base} detail={data} recipients={data.recipients}/><Card as="section" appearance="standard" className="ui-panel"><h2>Handoff history</h2>{data.history.map(e=><p key={String(e.id)}>Version {String(e.version)} · {String(e.action)} · {String(e.reason)} · Owner {String(e.owner_id)} · Due {String(e.due_date)}</p>)}</Card></PageContent>;}

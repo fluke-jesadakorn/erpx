@@ -70,6 +70,6 @@ OAuth linking for ChatGPT/Claude, report editing/sharing, new KPIs and source-do
 
 ## Verification
 
-`tests/executive-mcp.test.ts` runs the official v2 client against the route handler backed by disposable PostgreSQL databases. It checks discovery, Canvas parity, exact large values, strict schemas, Company/Branch/Department isolation, recipient/distribution boundaries, live IAM and eligibility, withdrawals during reads, concurrency, limits, idempotency and storage failure. Run `bun run test -- tests/executive-mcp.test.ts tests/executive-canvas.test.ts`.
+`tests/integration/shared.executive/executive-mcp.test.ts` runs the official v2 client against the route handler backed by disposable PostgreSQL databases. It checks discovery, Canvas parity, exact large values, strict schemas, Company/Branch/Department isolation, recipient/distribution boundaries, live IAM and eligibility, withdrawals during reads, concurrency, limits, idempotency and storage failure. Run `bun run test -- tests/integration/shared.executive/executive-mcp.test.ts tests/integration/shared.executive/executive-canvas.test.ts`.
 
 Browser and public-origin verification are separate from these integration tests. Development results do not certify production or staging rollout.

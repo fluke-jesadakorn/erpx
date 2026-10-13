@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { hasPermission } from '@/lib/permissions';
-import { assessmentContentSchema, bandSchema, basisSchema, benchmarkSchema, compensationMetrics, cycleSchema, defaultEvaluationPolicy, definitionSchemas, emptyAssessment, evaluationDate, evaluationMetrics, monthlyFtePay, policySchema, roleSchema, type Compensation, type DefinitionKind, type RoleProfile } from "@/lib/people-evaluation";
-import { decimalToMinor } from "@/lib/finance-money";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { assessmentContentSchema, bandSchema, basisSchema, benchmarkSchema, compensationMetrics, cycleSchema, defaultEvaluationPolicy, definitionSchemas, emptyAssessment, evaluationDate, evaluationMetrics, monthlyFtePay, policySchema, roleSchema, type Compensation, type DefinitionKind, type RoleProfile } from "@/lib/people_payroll/people-evaluation";
+import { decimalToMinor } from "@/lib/finance/finance-money";
 import type { iamMutationGuards } from '../../identity_access/public/iam-store';
 import type { snapshotMoney } from '../../finance/public/company-money';
 import type { attachmentLinkStatus } from '../../files/public/attachments/service';

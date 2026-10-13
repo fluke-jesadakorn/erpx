@@ -1,4 +1,4 @@
-import type { QuickAccessItem } from "@/lib/quick-access";
+import type { QuickAccessItem } from "@/lib/work_projection/quick-access";
 
 export type AccountQuickAccessArea = "my-access" | "security" | "work-role";
 

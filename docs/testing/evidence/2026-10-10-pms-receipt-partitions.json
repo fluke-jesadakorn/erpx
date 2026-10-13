@@ -1,0 +1,163 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "status": "Receipt partitions alone fail strict guest/reservation SLO; real analyzed Property header Seq Scan reproduces cross-hotel SSI and transaction-local index preference removes that diagnostic cycle",
+  "source": {
+    "runtime": "1b2c1ac0667ddae6863091ab33760116b65e4769bb03454dc20dbf5cea923097",
+    "verification": "a41c73c51fe3c2b272b75728742458b0ac38dfbd18e1e8a7be0cc2d2c55abe95"
+  },
+  "migration": "1040_command_receipt_hash_partitions.sql",
+  "semantics": {
+    "partitions": 32,
+    "canonicalTableNameUnchanged": true,
+    "primaryKeyUnchanged": true,
+    "canonicalReplayAuthorityUnchanged": true,
+    "serializableIsolationUnchanged": true,
+    "originalRowsRetained": true,
+    "allReferencingForeignKeysRebound": true,
+    "unsupportedSecurityFailsClosed": true,
+    "workCacheFactsPreserved": true
+  },
+  "proofs": {
+    "ownedDiagnostic": {
+      "run": "75feff5e2dd0",
+      "red": "40001",
+      "hashPrototypeGreen": "both committed",
+      "countsAsAcceptance": false,
+      "ownedDatabasesDestroyed": 8
+    },
+    "focused": {
+      "passed": true,
+      "cases": 293,
+      "unit": 69,
+      "postgres": 224,
+      "newReceiptCases": 5,
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-receipt-partitions/native-focused-green.log"
+    },
+    "recoveryInvocationFailure": {
+      "passed": false,
+      "code": "RECOVERY_RELEASE_SOURCE_MISMATCH",
+      "reason": "Required source fingerprint was omitted from invocation; unchanged guard retained and corrected invocation rerun",
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-receipt-partitions/recovery.log"
+    },
+    "compiledRecoveryFailure": {
+      "passed": false,
+      "error": "pg_restore cannot drop inherited child primary key",
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-receipt-partitions/recovery-green.log",
+      "release": "2026-10-10T08-26-44-913Z",
+      "fix": "Remove partition roots under paused full-snapshot restore after checksum/scope checks and protected backup; constraints restored from complete archive; exit-on-error retained",
+      "newCandidateRequired": true
+    },
+    "controllerRecovery": {
+      "passed": true,
+      "cases": 3,
+      "compiledRelease": false,
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-receipt-partitions/recovery-parent-green.log",
+      "allDatabaseTableDigestsPreserved": true,
+      "compatibleRollback": true,
+      "incompatibleRollbackRejected": true,
+      "corruptedBackupRejected": true
+    },
+    "compiledRecovery": {
+      "passed": true,
+      "cases": 2,
+      "release": "2026-10-10T08-33-06-536Z",
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-receipt-partitions/recovery-controller-release.log"
+    },
+    "load": {
+      "passed": false,
+      "run": "bc8ef5ea0f1f",
+      "checks": {
+        "sourceMatchesFrozenCandidate": true,
+        "sourceUnchanged": true,
+        "sameProcesses": true,
+        "samplesDigestMatches": true,
+        "exactReadCount": true,
+        "exactWriteCount": true,
+        "allSamplesValid": true,
+        "completeFinancialOperationalClosing": true,
+        "originalHarnessPassed": false,
+        "everyOperationWithinStrictTarget": false
+      },
+      "samplesSha256": "54670b0f9bab3cd5bfc7cb8e1c179742dd2e3df8d6baa906ffa389bf2d6271de",
+      "failedOperations": [
+        {
+          "stage": "core",
+          "kind": "write",
+          "operation": "guest.save",
+          "count": 200,
+          "p95Ms": 2286.1224590000056,
+          "limitMs": 2000,
+          "passed": false
+        },
+        {
+          "stage": "core",
+          "kind": "write",
+          "operation": "reservation.create",
+          "count": 200,
+          "p95Ms": 2476.7108339999977,
+          "limitMs": 2000,
+          "passed": false
+        }
+      ],
+      "readP95Ms": 318.571458,
+      "allMoneyHistoryClosingReconciled": true,
+      "invalidSamples": 0,
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-receipt-partitions/scale-confirmation/strict-acceptance.json",
+      "ownedDatabasesDestroyed": 8
+    }
+  },
+  "static": {
+    "typecheck": true,
+    "lintErrors": 0,
+    "preexistingWarnings": 3,
+    "architecture": true,
+    "documentation": true
+  },
+  "pending": [
+    "Strict full compiled capacity workload",
+    "Full native/security including release migration and encrypted restore",
+    "178 required browsers and 38 PMS route cases",
+    "Mock feature acceptance and development availability"
+  ],
+  "release": {
+    "id": "2026-10-10T08-33-06-536Z",
+    "built": true
+  },
+  "priorSource": {
+    "runtime": "ea8d51c4d4f9cd62c25aa1122abd368047305ff6d01aa41060f2332626fa90d0",
+    "verification": "58130e5126f9185a74acc728d996c2b3f01b02545d48036f8521f092c6153346"
+  },
+  "publicDevelopment": {
+    "healthHttpStatus": 200,
+    "actualBrowser": "Existing authenticated Chrome session expired and redirected to login; no authentication bypass",
+    "finalPublicVisualVerificationPending": true,
+    "anonymousPrototype": {
+      "passed": true,
+      "url": "https://console-dev-erpx.jesadakorn.com/book/acme?prototype=1",
+      "steps": [
+        "gallery",
+        "Deluxe Twin selection",
+        "30 percent advance: THB 1920 of 6400",
+        "in-memory confirmation",
+        "manage booking",
+        "in-memory cancellation"
+      ],
+      "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-receipt-partitions-public-booking.jpg",
+      "liveTransactions": false
+    }
+  },
+  "rawServerEvidence": {
+    "bytes": 6170582,
+    "sha256": "96eacea5cd2bf445163f0cd7fab51dc6cc2acf383ef2b79155c58476f3c21991",
+    "private": true
+  },
+  "nextDiagnosis": {
+    "ownedDiagnostic": true,
+    "countsAsAcceptance": false,
+    "analyzedThreePropertyHeaderDefault": "Seq Scan with relation SIReadLock; unrelated Property transactions fail 40001",
+    "transactionLocalIndexPreference": "Bitmap index scan with tuple/page SIReadLock; both Property transactions commit",
+    "otherGuestInventoryStayReaders": "already use Index Scan; no evidence to change them",
+    "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-receipt-partitions/property-plan-probe.json"
+  }
+}

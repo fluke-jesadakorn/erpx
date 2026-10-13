@@ -3,7 +3,7 @@ import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { TimeText } from "@/components/time/time-preference-context";
+import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Card, FormLayout } from "@/components/ui/foundation";
 export function AccountSecurity() {

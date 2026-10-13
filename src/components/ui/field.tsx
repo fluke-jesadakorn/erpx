@@ -1,5 +1,5 @@
 import { forwardRef, type LabelHTMLAttributes, type ReactNode } from "react";
-import { cn } from "@/lib/ui";
+import { cn } from "@/lib/shared/ui";
 
 import type { UiAppearance } from "./appearance";
 

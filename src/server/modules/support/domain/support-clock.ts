@@ -1,5 +1,5 @@
 import {z} from "zod";
-import {businessCalendarSchema,addBusinessTime,elapsedBusinessTime} from "@/lib/business-time";
+import {businessCalendarSchema,addBusinessTime,elapsedBusinessTime} from "@/lib/shared/business-time";
 export const supportSlaPolicySchema=z.object({calendar:businessCalendarSchema,targetMinutes:z.number().int().min(1).max(28800),pauseWhileWaiting:z.boolean()});
 export type SupportSlaPolicy=z.infer<typeof supportSlaPolicySchema>;
 export type SupportClock={snapshot:SupportSlaPolicy;remainingMs:number;startedAt:number|null;dueAt:number|null;state:'running'|'paused'|'stopped';breachedAt:number|null};

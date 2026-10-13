@@ -1,1 +1,0 @@
-export {followupCreateSchema,followupChangeSchema,getCustomerFollowup,customerFollowupEvidenceRow,customerFollowupWorkspace,customerFollowupDetail,createCustomerFollowup,changeCustomerFollowup,customerFollowupWork} from './modules/sales/adapters/followups';

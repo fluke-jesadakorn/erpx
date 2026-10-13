@@ -1,7 +1,7 @@
 import {z} from "zod";
-import type {WorkItem} from "@/lib/work-item";
-import {quantityMilli,lineAmounts} from "@/lib/commerce-math";
-import {decimalToMinor} from "@/lib/finance-money";
+import type {WorkItem} from "@/lib/work_projection/work-item";
+import {quantityMilli,lineAmounts} from "@/lib/commerce/commerce-math";
+import {decimalToMinor} from "@/lib/finance/finance-money";
 import {BusinessRuleError} from "../../shared";
 import {exactConversion} from "./quantity-conversion";
 import type {requestQuotationSource} from "../../records/public/employee-requests";

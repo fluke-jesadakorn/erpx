@@ -1,0 +1,157 @@
+{
+  "checkedAt": "2026-10-12T07:32:07.369808+00:00",
+  "scope": "Supervised real Stripe API/hosted Checkout in test mode using fictional native disposable data; not live payment, real guest return or external email acceptance",
+  "sourceFingerprint": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+  "verificationFingerprint": "baf2b73727a5106b9153f71c54c336dfc399f763c83607aa41290d0c7943cfbb",
+  "passed": true,
+  "cases": [
+    {
+      "name": "card-full",
+      "policy": "full",
+      "state": "confirmed",
+      "refund": "succeeded"
+    },
+    {
+      "name": "card-deposit",
+      "policy": "deposit",
+      "state": "confirmed",
+      "refund": "succeeded"
+    },
+    {
+      "name": "card-3ds",
+      "policy": "full",
+      "state": "confirmed",
+      "refund": "succeeded"
+    },
+    {
+      "name": "card-declined",
+      "policy": "full",
+      "state": "provider_declined"
+    },
+    {
+      "name": "promptpay-full",
+      "policy": "full",
+      "state": "confirmed"
+    },
+    {
+      "name": "promptpay-deposit",
+      "policy": "deposit",
+      "state": "confirmed"
+    },
+    {
+      "name": "promptpay-expired",
+      "policy": "full",
+      "state": "provider_expired"
+    }
+  ],
+  "producerAssertions": [
+    "promptpay-expired: real Stripe-hosted session expiry, local 30-minute hold clock fault injection; no receipt or revenue",
+    "card-full: real Checkout payment, verified provider timestamp, receipt and immutable allocation; repeat reconciliation no duplicate",
+    "card-full: independently approved 50% refund succeeded; provider id re_3UPdDi3df28HzxB506Pyn9Tg",
+    "card-deposit: real Checkout payment, verified provider timestamp, receipt and immutable allocation; repeat reconciliation no duplicate",
+    "card-deposit: independently approved 50% refund succeeded; provider id re_3UPdGr3df28HzxB51gF9TZiq",
+    "card-3ds: real Checkout payment, verified provider timestamp, receipt and immutable allocation; repeat reconciliation no duplicate",
+    "card-3ds: independently approved 50% refund succeeded; provider id re_3UPdIu3df28HzxB50pv893qY",
+    "card-declined: real Stripe PaymentIntent reports card_declined; booking stays unpaid, no receipt",
+    "promptpay-full: real Checkout payment, verified provider timestamp, receipt and immutable allocation; repeat reconciliation no duplicate",
+    "promptpay-deposit: real Checkout payment, verified provider timestamp, receipt and immutable allocation; repeat reconciliation no duplicate",
+    "All resulting PMS journals balance"
+  ],
+  "rawVerification": {
+    "path": ".scratch/dev/pms-2026-10-05/sandbox/2026-10-12T06-55-06-955Z/verification.json",
+    "sha256": "08a7c3b3934959b844b693a6cae98a1bd452f1cf6bc34fc85cb8cc4ff5b74627",
+    "tokensAndCheckoutUrlsOmittedFromPermanentEvidence": true
+  },
+  "terminal": {
+    "finishedAt": "2026-10-12T07:15:35.962Z",
+    "exitCode": 0
+  },
+  "browser": {
+    "ownedTabsClosedAndAbsent": [
+      "1050192617",
+      "1050192622",
+      "1050192626"
+    ],
+    "actualUiActions": [
+      "Card full/deposit using Stripe4242 test card",
+      "3DS required test card3220 and actual test Complete action",
+      "Declined test card0002 and visible declined alert",
+      "PromptPay full/deposit QR and Stripe Authorize Test Payment simulator"
+    ],
+    "ordinaryTrustedMouseUsed": true,
+    "pageContentOrSecurityControlsModified": false,
+    "screenshots": [
+      {
+        "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-provider-browser-4e2b/card-3ds-challenge.jpg",
+        "sha256": "c86c5e93137ec3597f11fd1278062385438edddaab50c68a0f5d36efed7e872c"
+      },
+      {
+        "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-provider-browser-4e2b/card-3ds-checkout.jpg",
+        "sha256": "5ed5a73ee508f8bd371970decf0928d5ab0b84ff4eb81b5e02d940332bea6c21"
+      },
+      {
+        "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-provider-browser-4e2b/card-declined.jpg",
+        "sha256": "bc8c1714900eebac2b2b27409c8149772780e7f0f136701a65c0bd3898d4a3c6"
+      },
+      {
+        "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-provider-browser-4e2b/card-deposit-checkout.jpg",
+        "sha256": "deefab767928dc05786823f51560fffa8820507b31b5abc4276795bf6f7ad820"
+      },
+      {
+        "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-provider-browser-4e2b/promptpay-deposit-authorized.jpg",
+        "sha256": "08f27e6f1b19e679dd6990fc088f9f5537b5c798670844e00cc7c9c30e463ba0"
+      },
+      {
+        "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-provider-browser-4e2b/promptpay-deposit-qr.jpg",
+        "sha256": "d5df19184a4061b105af3a8d3d00a190fc1760d7493ac462988a9ad67e98af64"
+      },
+      {
+        "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-provider-browser-4e2b/promptpay-deposit-test-authorize.jpg",
+        "sha256": "e29a2a6c2222e290bd216bf9f88f3a5b64191e266fef1c147044f76c8e6c952a"
+      },
+      {
+        "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-provider-browser-4e2b/promptpay-full-authorized.jpg",
+        "sha256": "08f27e6f1b19e679dd6990fc088f9f5537b5c798670844e00cc7c9c30e463ba0"
+      },
+      {
+        "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-provider-browser-4e2b/promptpay-full-qr.jpg",
+        "sha256": "8a6265fdec0182e391a7536559b5be060bc1ae4ebe8692ebb8db93b13ac77de5"
+      },
+      {
+        "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-provider-browser-4e2b/promptpay-full-test-authorize.jpg",
+        "sha256": "667f67c7a394c18dfa17832c7a2a26a8beab7c6604b14317f4bae127069b8253"
+      }
+    ]
+  },
+  "cleanup": {
+    "awaitedNormalCleanupInFinally": true,
+    "helper": "tests/runtime-env.ts",
+    "helperSha256": "9db87bf8650b35b050f21a1accd5cb21c99b660ba7beb848095474a204dcf44d",
+    "testDatabaseBindings": 8,
+    "providerChildPid": 67394,
+    "providerChildExited": true,
+    "candidateRuntimeTestsDirectoryEmpty": true,
+    "exactRandomNamespaceBeforeSnapshotRecorded": false,
+    "otherTestDatabasesObserved": 32,
+    "otherNamespacesUntouched": true
+  },
+  "limits": [
+    "Provider reconciliation/polling is not real signed-webhook delivery or guest-return E2E; compiled mock webhook/recovery journeys are separate",
+    "PromptPay refund and controlled email delivery not exercised; no recipient inherited",
+    "Expiry combines actual provider session expiry with local31-minute clock fault injection",
+    "Numeric journal totals and separate declined/expired DB receipt snapshots not retained in this producer artifact; reviewed assertions and native evidence remain distinct",
+    "No named before/after namespace attestation fabricated; source cleanup ownership checks and awaited exit0 retained",
+    "Observed native-harness provider callback404 is retained explicitly; screenshot filename authorized records the preceding test action, not a successful ERPX return page"
+  ],
+  "mailDelivered": false,
+  "realMoney": false,
+  "productionPublished": false,
+  "wholePlanAccepted": false,
+  "observedCallbackBoundary": {
+    "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-provider-browser-4e2b/promptpay-deposit-authorized.jpg",
+    "observedState": "ERPX404 after provider test authorization",
+    "reason": "Standalone native fixture creates checkout callbacks at public development while fixture data/signing context exists only in disposable databases; callback is not served by that installed environment",
+    "acceptedScope": "Provider UI action plus native API reconciliation only; successful installed guest-return page is not claimed",
+    "separateGuestReturnEvidence": "Actual compiled mock-provider guest journey and recovery cases in browser180"
+  }
+}

@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import type {DirectoryInventory} from '@/lib/directory-operations';
+import type {DirectoryInventory} from "@/lib/identity_access/directory-operations";
 import type {ProviderConnection} from '../public/iam-providers';
 import {BusinessRuleError} from '../../shared';
 export const id=z.string().min(1).max(180);

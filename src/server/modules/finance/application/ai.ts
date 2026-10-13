@@ -1,6 +1,6 @@
 import type {WorkContext} from '@/server/modules/identity_access/public/authorization';
 import type {AiProviderSnapshot} from '@/server/modules/agent/public/ai-providers';
-import {minorToDecimal} from '@/lib/finance-money';
+import {minorToDecimal} from "@/lib/finance/finance-money";
 import {financeAiApplySchema,financeAiPolicySchema,financeAiPrepareSchema,type FinanceAiKind,type FinanceAiResult} from '../domain/ai-contracts';
 import {financeAiScope,validateFinanceAiResult,type FinanceAiInput,type FinanceAiSnapshot} from '../domain/ai-source';
 import {financeAiPolicyView,type FinanceAiPolicy,type FinanceAiProposal} from '../domain/ai';

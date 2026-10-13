@@ -1,5 +1,5 @@
-import { hasPermission } from '@/lib/permissions';
-import { descendants, emptyDirectoryHierarchy, type HierarchyNode, type DirectoryHierarchy } from '@/lib/hierarchy';
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { descendants, emptyDirectoryHierarchy, type HierarchyNode, type DirectoryHierarchy } from "@/lib/organization/hierarchy";
 import { BusinessRuleError, type Clock } from '../../shared';
 import type { IamActor } from '../../identity_access/public/iam-context';
 import type { iamOverview } from '../../identity_access/public/iam-service';

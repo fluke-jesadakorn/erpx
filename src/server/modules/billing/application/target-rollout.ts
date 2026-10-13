@@ -1,4 +1,4 @@
-import { monthBounds } from "@/lib/billing";
+import { monthBounds } from "@/lib/billing/billing";
 import type {TargetMarginReport,TargetRolloutReadiness,EffectivePriceRow,RatedShadowPeriodRow,UsageSnapshotRow,AvailableOperatingCostsRow,CapacityReviewRow} from '../domain/target-rollout';
 
 export interface TargetRolloutRepository{effectivePrice(effectiveMonth:string):Promise<{rows:EffectivePriceRow[];rowCount:number|null}>;

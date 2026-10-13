@@ -1,4 +1,4 @@
-import { type RecurrenceRule } from "@/lib/calendar-recurrence";
+import { type RecurrenceRule } from "@/lib/work_projection/calendar-recurrence";
 export type Row = {
     id: string;
     company_id: string;

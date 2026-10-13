@@ -1,5 +1,5 @@
 import type {WorkContext} from "../../identity_access/public/authorization";
-import type {WorkItem} from "@/lib/work-item";
+import type {WorkItem} from "@/lib/work_projection/work-item";
 import {mergeWorkItems,type WorkSnapshot} from "../domain/work-items";
 import type {getWork} from "../public/work";
 export type WorkSource="financeExpansionWork"|"legalWork"|"organizationChangeWork"|"companyBusinessAcceptanceWork"|"posWork"|"crmWork"|"supportAlertWork"|"incidentWork"|"supportPolicyWork"|"supportWork"|"supportSessionWork"|"maintenanceWork"|"preventivePlanWork"|"projectHandoffWork"|"fieldServiceWork"|"collaborationActionWork"|"operationsExceptionWork"|"learningWork"|"benefitWork"|"talentWork"|"marketingWork"|"manufacturingWork"|"customerAccessWork"|"customerDuplicateWork"|"customerIdentityWork"|"customerFollowupWork"|"supplierBillWork"|"landedCostWork"|"rfqWork"|"supplierPromiseWork"|"transitWork"|"qualityWork"|"qualityAlertWork"|"supplierBatchWork"|"refundWork"|"overtimeWork"|"pmsWork"|"employeeRequestWork"|"departmentOverrideWork"|"retirementWork"|"peopleLifecycleWork"|"otherFlowWork";

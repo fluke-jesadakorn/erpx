@@ -1,0 +1,147 @@
+{
+  "checkedAt": "2026-10-11T03:31:11.455995+00:00",
+  "source": {
+    "runtime": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+    "verification": "da3577cbc0866b9770ad0279a6a5b54fe7f71120501f1846d6d2cea38c2b43f5",
+    "mainRuntime": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+    "mainVerification": "da3577cbc0866b9770ad0279a6a5b54fe7f71120501f1846d6d2cea38c2b43f5",
+    "releaseDirectory": null
+  },
+  "publicUrl": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms/reports",
+  "authentication": "Existing normal authenticated Console session",
+  "TH": {
+    "balances": [
+      {
+        "label": "อัตราเข้าพัก",
+        "value": "7.9%"
+      },
+      {
+        "label": "ADR",
+        "value": "THB 1,760.00"
+      },
+      {
+        "label": "RevPAR",
+        "value": "THB 139.68"
+      },
+      {
+        "label": "รายได้สุทธิ",
+        "value": "THB 8,800.00"
+      },
+      {
+        "label": "ลูกหนี้",
+        "value": "THB 7,000.00"
+      },
+      {
+        "label": "เงินค่าห้องล่วงหน้า",
+        "value": "THB 0.00"
+      },
+      {
+        "label": "เงินประกันความเสียหาย",
+        "value": "THB 400.00"
+      },
+      {
+        "label": "หนี้เงินคืน",
+        "value": "THB 0.00"
+      },
+      {
+        "label": "เงินรับที่ยังไม่จัดสรร",
+        "value": "THB 0.00"
+      }
+    ],
+    "dates": [
+      "2026-09-26",
+      "2026-10-02"
+    ],
+    "language": "th",
+    "reportTableLabels": [
+      "ยอดจองตามเวลา",
+      "รายงานช่องทางขาย",
+      "รายงานรายวัน",
+      "Records"
+    ],
+    "widgetIds": [
+      "pms-pms-vs-gl",
+      "pms-receivables-balances"
+    ]
+  },
+  "EN": {
+    "balances": [
+      {
+        "label": "Occupancy",
+        "value": "7.9%"
+      },
+      {
+        "label": "ADR",
+        "value": "THB 1,760.00"
+      },
+      {
+        "label": "RevPAR",
+        "value": "THB 139.68"
+      },
+      {
+        "label": "Net revenue",
+        "value": "THB 8,800.00"
+      },
+      {
+        "label": "Receivable",
+        "value": "THB 7,000.00"
+      },
+      {
+        "label": "Room advance",
+        "value": "THB 0.00"
+      },
+      {
+        "label": "Damage deposit",
+        "value": "THB 400.00"
+      },
+      {
+        "label": "Refunds payable",
+        "value": "THB 0.00"
+      },
+      {
+        "label": "Unallocated payments",
+        "value": "THB 0.00"
+      }
+    ],
+    "dates": [
+      "2026-09-26",
+      "2026-10-02"
+    ],
+    "language": "en",
+    "reportTableLabels": [
+      "Booking pace",
+      "Channel report",
+      "Daily report",
+      "Records"
+    ],
+    "widgetIds": [
+      "pms-pms-vs-gl",
+      "pms-receivables-balances"
+    ]
+  },
+  "originalEnglishPreferenceRestored": true,
+  "ownedReportTabClosed": true,
+  "businessCommandsPerformed": 0,
+  "thaiPreferenceSurvivedNormalReload": true,
+  "dailyDrawer": {
+    "title": "รายละเอียดการบันทึก · 2026-09-30",
+    "datePreserved": true,
+    "readOnlyEntriesLoaded": 4
+  },
+  "qualifiedTransient": "First report result later disappeared during this development review; retained as observed refresh, not diagnosed or silently counted as persistent draft proof. Second read loaded report; locale switch retained result/values.",
+  "screenshots": [
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-native-language-2026-10-11/report-th-leaf-fixed.png",
+      "sha256": "6734b512a3409d2e65929eccd9a611275624ff588014c5abb080bf37390c5a82"
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-native-language-2026-10-11/report-th-detail-leaf-fixed.png",
+      "sha256": "046f7ee1a6c86abac19d4fd6cb351388dc769b49c13d5d1e059f29e782e3ef45"
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-native-language-2026-10-11/report-en-leaf-fixed.png",
+      "sha256": "6b108c61c3feab0225c1f9c750f37adf650e567f1b63ffd4615117e8795884f2"
+    }
+  ],
+  "wholePlanAccepted": false
+}

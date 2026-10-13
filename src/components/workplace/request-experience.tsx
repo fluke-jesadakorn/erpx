@@ -1,7 +1,7 @@
 "use client";
 import { useFrontLanguage } from "@/components/front/front-language";
 import { InlineNotice } from "@/components/ui/foundation";
-import type { RequestPreview } from "@/lib/request-preview";
+import type { RequestPreview } from "@/lib/work_projection/request-preview";
 export function RequestSteps({reviewing}:{reviewing:boolean}) {
  const th=useFrontLanguage()==="th";
  return <ol className="request-steps" aria-label={th?"ขั้นตอนคำขอ":"Request steps"}><li aria-current={!reviewing?"step":undefined}><span>1</span>{th?"รายละเอียด":"Details"}</li><li aria-current={reviewing?"step":undefined}><span>2</span>{th?"ตรวจและส่ง":"Review & send"}</li></ol>;

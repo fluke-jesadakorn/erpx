@@ -184,6 +184,18 @@
   margin-bottom: 0;
   padding: 16px 18px;
 }
+.rail[data-attention-state="pending"] {
+  border-top: 3px solid var(--ui-amber);
+  background: color-mix(in srgb, var(--ui-amber-soft) 35%, var(--ui-card));
+}
+.attention[data-attention-state="caught-up"] .header h2 span {
+  background: var(--ui-green-soft);
+  color: var(--ui-green);
+}
+.attention[data-attention-state="unknown"] .header h2 span {
+  background: var(--ui-card-2);
+  color: var(--ui-muted);
+}
 .rail.compact .items {
   grid-template-columns: minmax(0, 1fr);
   gap: 0;

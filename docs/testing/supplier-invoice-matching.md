@@ -20,7 +20,7 @@
 - Header content/line/event evidence immutable. การ reject/return เก็บ history; ไม่ rewrite receipt หรือ GL เดิม.
 - บิลที่ส่งกลับมีงานขอฉบับแก้ใน Work ของ named PO invoicing owner; เมื่อส่งฉบับแก้แล้ว งานเดิมออกจากคิวแต่เก็บประวัติ. ผู้รับหมดสิทธิ์แสดง blocker ให้เปลี่ยนผู้รับผ่าน routing เดิม.
 - Review queue ตรวจจำนวนผู้มีสิทธิ์ปัจจุบัน; ถ้าไม่มี independent Finance reviewer แสดง blocker ให้ administrator แก้ role coverage. ขั้น AP ใช้ routing ของ PO เดิม.
-- Automated: `tests/supplier-bill-matching.test.ts` ตรวจ variance บวก/ลบ, partial/final returns กระทบยอดทุกบัญชี, quantity correction, invoice bypass, immutable evidence, concurrent capture/review, revoked role, scope/notifications/Calendar, closed period และ idempotent posting.
+- Automated: `tests/integration/procurement/supplier-bill-matching.test.ts` ตรวจ variance บวก/ลบ, partial/final returns กระทบยอดทุกบัญชี, quantity correction, invoice bypass, immutable evidence, concurrent capture/review, revoked role, scope/notifications/Calendar, closed period และ idempotent posting.
 
 ## สิ่งที่ยังไม่ครอบคลุม
 

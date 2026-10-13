@@ -4,7 +4,7 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { TimeText } from "@/components/time/time-preference-context";
+import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 import { useEffect, useState } from "react";
 import type { LegalDetail } from "@/server/modules/legal/public/rules/model";
 import s from "./legal.module.css";

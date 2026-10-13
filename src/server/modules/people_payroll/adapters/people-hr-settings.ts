@@ -3,12 +3,12 @@ import type { WorkContext } from "@/server/modules/identity_access/public/author
 import { ApiError } from "@/server/modules/runtime/public/http";
 import { iamActorFromWork } from "@/server/modules/identity_access/public/iam-context";
 import { iamOverview } from "@/server/modules/identity_access/public/iam-service";
-import { leaveAdministration } from "@/server/leave-self-service";
+import { leaveAdministration } from "@/server/modules/people_payroll/adapters/leave-self-service";
 import { organizationOverview } from "@/server/modules/organization/public/organization";
-import { peopleLifecycleData } from "@/server/people-lifecycle";
-import { directoryOptions } from "@/server/people-directory";
-import { payrollOptions } from "@/server/people-payroll";
-import { peopleTemplatesData } from "@/server/people-templates";
+import { peopleLifecycleData } from "@/server/modules/people_payroll/adapters/people-lifecycle";
+import { directoryOptions } from "@/server/modules/people_payroll/adapters/people-directory";
+import { payrollOptions } from "@/server/modules/people_payroll/adapters/people-payroll";
+import { peopleTemplatesData } from "@/server/modules/people_payroll/adapters/people-templates";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
 import type { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
 import { defaultCatalog } from "@/server/modules/organization/public/staff-defaults";

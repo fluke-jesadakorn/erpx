@@ -3,9 +3,9 @@ import { legalPresentationQueries } from "@/server/modules/legal/public/presenta
 import { PageContent } from "@/components/ui/patterns";
 import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
 
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 
-import { LegalWorkspace } from "@/components/legal/legal-workspace";
+import { LegalWorkspace } from "@/components/records/loaders/legal--legal-workspace";
 import { kinds, type LegalKind } from "@/server/modules/legal/public/rules/model";
 export const dynamic = "force-dynamic";
 export default async function LegalPage({

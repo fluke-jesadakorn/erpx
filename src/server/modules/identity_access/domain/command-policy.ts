@@ -1,5 +1,5 @@
 export const iamCommandKeyValid = (key: string) => /^[a-zA-Z0-9:_.-]{8,180}$/.test(key);
-export const iamCommandNeedsFreshMfa = (operation: string) => /^(role\.propose|assignment\.propose|migration\.prepare|mapping\.propose|connection\.activate\.propose|review\.decide|emergency\.|identity\.restore\.propose|invitation\.propose|beta\.invite)/.test(operation);
+export const iamCommandNeedsFreshMfa = (operation: string) => /^(people\.access\.apply|role\.propose|assignment\.propose|migration\.prepare|mapping\.propose|connection\.activate\.propose|review\.decide|emergency\.|identity\.restore\.propose|invitation\.propose|beta\.invite)/.test(operation);
 export type IamCommandAssignment = {
     role: string;
     version: string | number;

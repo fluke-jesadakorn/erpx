@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { decimalToMinor, minorToDecimal } from "@/lib/finance-money";
+import { decimalToMinor, minorToDecimal } from "@/lib/finance/finance-money";
 export const invoiceLineSchema = z.object({
     description: z.string().trim().min(1).max(500),
     quantity: z.string().regex(/^\d+(\.\d{1,3})?$/, "Use a positive quantity with at most three decimals."),

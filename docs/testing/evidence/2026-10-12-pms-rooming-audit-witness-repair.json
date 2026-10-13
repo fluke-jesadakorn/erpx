@@ -1,0 +1,85 @@
+{
+  "checkedAt": "2026-10-12T00:44:51.814442+00:00",
+  "scope": "Supplemental HTTP rooming witness repair and current continuation; not an application/test-source repair and not a passing workload receipt",
+  "candidate": {
+    "runtime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+    "verification": "6bec217508702c495235e2a3740598d3132176d24be4d6af9cb1845bfe5c95c9",
+    "mainRuntime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+    "mainVerification": "6bec217508702c495235e2a3740598d3132176d24be4d6af9cb1845bfe5c95c9",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T19-44-51-044Z",
+    "releaseId": "2026-10-11T19-44-51-044Z",
+    "releaseReusedForIdenticalRuntime": true,
+    "verificationAmendment": "Only existing shared keyboard readiness and null-safe theme init; all runtime/native sources unchanged"
+  },
+  "observedFailedRun": "00fcca10eb32",
+  "actualFailedChecks": 2,
+  "failureResult": {
+    "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-keyboard-repair-2026-10-12/rooming-proof/00fcca10eb32/result/result.json",
+    "SHA256": "d4ae5579535369987c34f496dd7ab40c3a7f944286e65a5c38e51e92636234d2"
+  },
+  "oldOwnedCleanup": {
+    "run": "00fcca10eb32",
+    "destroyed": true,
+    "processesExited": true,
+    "checkedAt": "2026-10-12T00:39:45.830Z"
+  },
+  "repair": {
+    "checkedAt": "2026-10-12T00:41:54.262125+00:00",
+    "failureRun": "00fcca10eb32",
+    "originalHelperSHA256": "c4bf8a5882c38a3380117a47e31c49677dc61d2713e99059e1eee874554075d2",
+    "repairedHelperSHA256": "95c485902e72925d8a6c3752d22b000bc81825eb521a407505fc8a25bf2d4c4d",
+    "scope": "Ignored supplemental witness only; original10 cases/counts/budgets/auth/replay/stale/missing/foreign Property and financial assertions retained",
+    "observedFailure": "stay.guest appends reservation audit history and increments its version; the old financial witness incorrectly compared the entire reservation as immutable money",
+    "sourceReviewed": {
+      "file": "src/lib/pms-engine.ts",
+      "SHA256": "f0aea9402e5d10512c82808ef90b4c350416ee02504b7069e2a81e737ee1ae3b",
+      "stayGuestLines": "1139 and post-command audit at2515..2537"
+    },
+    "strongerAssertions": [
+      "Exact affected IDs only; no added/removed records",
+      "Selected stay version+1 and onlyguestId change",
+      "Reservation version+1, exact originalhistory prefix plus one stay guest event by actual signed-in actor",
+      "Original payer/policy/all other reservation fields unchanged",
+      "All other records byte-identical",
+      "Every GuestAccount/entry and Finance journal/line byte-identical"
+    ],
+    "oldCleanup": {
+      "run": "00fcca10eb32",
+      "destroyed": true,
+      "processesExited": true,
+      "checkedAt": "2026-10-12T00:39:45.830Z"
+    },
+    "runtimeSourceChanged": false,
+    "requiredTestSourceChanged": false,
+    "retryStarted": true,
+    "wholePlanAccepted": false,
+    "additionalFixtureSchemaCorrection": {
+      "change": "The foreign-property fixture now supplies current.property.businessDate",
+      "reason": "Current property.create schema requires businessDate; prepared helper omitted it",
+      "observedSource": "src/server/modules/pms/application/pms.ts property.create branch",
+      "failureExecutedForThisOmission": false
+    },
+    "retryAuthorizedByActualTerminalAndWitnessCorrection": true,
+    "oldRunPointerArchivedAndClearedAfterOwnedCleanup": true,
+    "newDriver": "post-rooming-repair-driver.ts",
+    "oldFailedTerminalsPreserved": true,
+    "retryDriverPid": 71364,
+    "retryMetadataSupervisorPid": 71446
+  },
+  "helperBundled": true,
+  "original10ChecksRetained": true,
+  "original30ChecksAndAdditionalUI6Unchanged": true,
+  "passed180And134RetainedByRawHashesAndActualCleanup": true,
+  "newDriver": {
+    "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-keyboard-repair-2026-10-12/post-rooming-repair-driver.ts",
+    "pid": 71364,
+    "terminal": "post-rooming-repair-terminal.json"
+  },
+  "metadataSupervisor": {
+    "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-keyboard-repair-2026-10-12/post-rooming-repair-metadata.ts",
+    "pid": 71446,
+    "terminal": "post-rooming-repair-metadata-terminal.json"
+  },
+  "capacityReleased": false,
+  "wholePlanAccepted": false
+}

@@ -5,7 +5,7 @@ import { holdingResources } from "@/server/modules/runtime/public/runtime";
 import { requirePermission } from "@/server/modules/identity_access/public/iam-permissions";
 import { executeCommand, replayCommand, assertion } from "@/server/modules/workflow/public/commands";
 import { ApiError } from "@/server/modules/runtime/public/http";
-import { samePerson } from "@/lib/iam";
+import { samePerson } from "@/lib/identity_access/iam";
 import { sha256 } from "@/server/modules/runtime/public/crypto";
 import { invoiceHistoryCte } from "@/server/modules/finance/public/finance-history";
 import type {financeReviewSchema} from "../domain/review";

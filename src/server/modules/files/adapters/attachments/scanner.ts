@@ -3,7 +3,7 @@ import "server-only";
 import { createConnection } from "node:net";
 import { isAbsolute, join } from "node:path";
 import { stat } from "node:fs/promises";
-import { attachmentsV2Enabled } from "@/server/attachments/feature";
+import { attachmentsV2Enabled } from "@/server/modules/files/public/attachments/feature";
 
 const DEFAULT_MAX_DEFINITION_AGE_MS = 24 * 60 * 60_000;
 

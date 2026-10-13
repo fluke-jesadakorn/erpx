@@ -1,4 +1,4 @@
-import {BusinessRuleError} from '../../shared';import {hasPermission} from '@/lib/permissions';import {validateAttributeValue as validateValue,type AttributeDefinition,type ManagementChange,type ManagementSnapshot,type ManagementImpact} from '@/lib/user-management';import type {IamActor} from './iam-actor';
+import {BusinessRuleError} from '../../shared';import {hasPermission} from "@/lib/identity_access/permissions";import {validateAttributeValue as validateValue,type AttributeDefinition,type ManagementChange,type ManagementSnapshot,type ManagementImpact} from "@/lib/identity_access/user-management";import type {IamActor} from './iam-actor';
 export function checkedAttributeValue(field: AttributeDefinition, value: unknown) {
   try {
     return validateValue(field, value);
@@ -25,7 +25,7 @@ export function commandPermission(change: ManagementChange, actor: IamActor) {
   )
     return "iam.directory.manage";
   return change.operation === "attribute"
-    ? "iam.roles.manage"
+    ? "iam.attributes.manage"
     : change.operation === "values"
       ? change.input.target === "person"
         ? "people.custom_attributes.write"

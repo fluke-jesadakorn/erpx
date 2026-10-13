@@ -17,7 +17,7 @@ for(const source of manifest.sources) {
  if(createHash('sha256').update(text).digest('hex')!==source.fingerprint)violations.push(`${source.source}: inventory is stale; regenerate coverage`);
  const ast=ts.createSourceFile(source.source,text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
  const importedControls=new Map();
- for(const node of ast.statements) if(ts.isImportDeclaration(node)&&ts.isStringLiteral(node.moduleSpecifier)&&/^@\/components\/(?:ui\/|features\/feature-page)/.test(node.moduleSpecifier.text)) {
+ for(const node of ast.statements) if(ts.isImportDeclaration(node)&&ts.isStringLiteral(node.moduleSpecifier)&&/^@\/components\/(?:ui\/|shared\/features\/feature-page)/.test(node.moduleSpecifier.text)) {
   const bindings=node.importClause?.namedBindings;
   if(bindings&&ts.isNamedImports(bindings))for(const specifier of bindings.elements) {
    const original=(specifier.propertyName??specifier.name).text;if(controls.has(original))importedControls.set(specifier.name.text,original);

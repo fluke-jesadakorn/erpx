@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { directoryChangeInput } from "@/lib/directory-operations";
+import { directoryChangeInput } from "@/lib/identity_access/directory-operations";
 import type { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
 import { iamActorFromWork } from "@/server/modules/identity_access/public/iam-context";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";

@@ -1,11 +1,11 @@
 import { RecordCatalog } from "@/components/records/record-catalog";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { talentWorkspace } from "@/server/modules/talent/public/talent";
-import { TalentConsole } from "@/components/modules/talent-console";
-import {hasPermission} from "@/lib/permissions";
+import { TalentConsole } from "@/components/talent/talent-console";
+import {hasPermission} from "@/lib/identity_access/permissions";
 import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Page({

@@ -1,1 +1,0 @@
-export { customerIdentityWorkspace,customerIdentityDetail,requestCustomerIdentityChange,changeCustomerIdentity,customerIdentityWork } from "./modules/customer_authority/public/customer-identity-changes";

@@ -1,10 +1,10 @@
-import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
+import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/shared/features/feature-page";
 import { currentSession } from "@/server/modules/identity_access/public/authorization";
 import { workspaceChoices } from "@/server/modules/organization/public/workspace-choices";
 import { accountQuickAccessItems } from "@/server/modules/identity_access/public/account-quick-access";
 import { readQuickAccessPreferences } from "@/server/modules/work_projection/public/quick-access-preferences";
-import { QuickAccessShelf } from "@/components/quick-access/shelf";
-import rail from "@/components/quick-access/area-rail.module.css";
+import { QuickAccessShelf } from "@/components/work_projection/quick-access/shelf";
+import rail from "@/components/work_projection/quick-access/area-rail.module.css";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AccountSecurity } from "./security-form";

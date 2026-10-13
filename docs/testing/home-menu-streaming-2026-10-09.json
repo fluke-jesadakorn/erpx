@@ -1,0 +1,155 @@
+{
+  "date": "2026-10-09",
+  "environment": "https://console-dev-erpx.jesadakorn.com/holdings/acme/home",
+  "runtime": {
+    "node": "24.20.0",
+    "bun": "1.2.17",
+    "next": "16.3.4"
+  },
+  "methodology": [
+    "Authenticated existing Chrome session, development database and public Tunnel; no staging access.",
+    "Baseline reconstructed by disabling the server seed and awaiting the feed before rendering Home. Reader logic and the parallel layout reads were held constant; this is an architecture comparison, not an exact checkout of the prior workspace.",
+    "One warm-up after each source change was excluded. Three document reloads per variant; timer origin is performance.now() for each document.",
+    "A temporary inline MutationObserver recorded menu DOM arrival, non-unknown Needs you DOM arrival, first feed article DOM arrival, and enabled workspace search as a hydration proxy. DOM arrival can precede final visibility for streamed hidden segments; it is not an interaction latency measurement.",
+    "Initial navigation GETs were checked separately using browser resource timing and network request methods. Polling starts at 30 seconds and is excluded from initial-load counts.",
+    "Background jobs, GC, Tunnel latency and the existing revision cache were left active. Hits and misses are identified in server logs, not forced or averaged together. These three timing rounds are not a matched cold-cache benchmark.",
+    "SQL and connection wait are cumulative concurrent work, not wall time. Work snapshot metrics are nested inside navigation metrics; do not sum them twice.",
+    "Temporary timing scripts, simulated fetch failures and feed delay were removed."
+  ],
+  "browser_ms": {
+    "before": [
+      {
+        "menu": 659.4,
+        "priorities": 2838.9,
+        "hydration": 1647.5,
+        "feed": 665.6
+      },
+      {
+        "menu": 540.8,
+        "priorities": 2953.5,
+        "hydration": 1739.7,
+        "feed": 546.0
+      },
+      {
+        "menu": 691.6,
+        "priorities": 2495.8,
+        "hydration": 1554.1,
+        "feed": 696.8
+      }
+    ],
+    "after": [
+      {
+        "menu": 4143.8,
+        "priorities": 4144.7,
+        "hydration": 5303.5,
+        "feed": 4149.3
+      },
+      {
+        "menu": 1128.0,
+        "priorities": 1128.9,
+        "hydration": 2183.3,
+        "feed": 1134.0
+      },
+      {
+        "menu": 533.6,
+        "priorities": 534.6,
+        "hydration": 1909.5,
+        "feed": 539.3
+      }
+    ],
+    "median_before": {
+      "menu": 659.4,
+      "priorities": 2838.9,
+      "hydration": 1647.5,
+      "feed": 665.6
+    },
+    "median_after": {
+      "menu": 1128.0,
+      "priorities": 1128.9,
+      "hydration": 2183.3,
+      "feed": 1134.0
+    }
+  },
+  "initial_navigation_gets": {
+    "baseline": [
+      1,
+      1,
+      1
+    ],
+    "server_seed_success": [
+      0,
+      0,
+      0
+    ],
+    "post_read_home": "One expected POST per entry; it is not a navigation data GET."
+  },
+  "server_reader_samples": {
+    "cache_hit": {
+      "queries": 5,
+      "duration_ms": [
+        35.278,
+        59.322,
+        53.34
+      ],
+      "pool_wait_ms": [
+        23.606,
+        71.904,
+        16.457
+      ]
+    },
+    "cache_miss_without_crossing_revision": {
+      "navigation_queries": 190,
+      "work_queries": 185,
+      "work_items": 245,
+      "navigation_duration_ms": 413.811,
+      "navigation_pool_wait_ms": 1994.144
+    },
+    "revision_crossing": "The existing fence may retry after concurrent commits; 376/562-query reads occurred during warm-up and background activity. They are not silently classified as single misses."
+  },
+  "behavior": {
+    "matching_live_counts": {
+      "my_work": 12,
+      "needs_you": 12
+    },
+    "refresh_failure": "Three work-change events coalesced to one GET; a simulated 503 retained all 12 actions with Retry work. Restoring fetch and retrying cleared the error.",
+    "context_change": "A delayed fake response containing 999 was released after a work-context change; My work stayed unknown (dash), rejecting the old response. Reload restored the actual session.",
+    "slow_feed": {
+      "injected_delay_ms": 10000,
+      "visible_menu_ms": 1639.4,
+      "visible_needs_you_ms": 6160.8,
+      "hydration_proxy_ms": 8303.4,
+      "feed_visible_at_check": false,
+      "launcher_opened_before_feed": true
+    },
+    "roles_scopes": "Unit checks forward every built-in role plus holding_owner, branch_manager and department_head across holding, branch and department scopes unchanged. This checks reader authorization propagation, not new live assignments for every role."
+  },
+  "interpretation": [
+    "Needs you arrives earlier in these warmed rounds; median DOM arrival moved from 2838.9 ms to 1128.9 ms.",
+    "Interactive menu readiness did not improve consistently: hydration proxy median moved from 1647.5 ms to 2183.3 ms. No overall menu-speed or cold-cache performance claim is made.",
+    "The structural improvement is independently verified: navigation badges and Needs you stream without the feed, successful server data removes the initial GET, and My day consumes the same authorized Work promise.",
+    "The equivalent service projection keeps exact API fields, counts and ordering; fresh Work computation remains 185 SQL queries."
+  ],
+  "validation": {
+    "unit_contract_streaming_identity_tests": {
+      "passed": 116,
+      "files": 7
+    },
+    "integration_cache_unread_self_service_tests": {
+      "passed": 46,
+      "files": 3
+    },
+    "additional_read_metrics_tests": 7,
+    "typecheck": "passed (application and engineering tests)",
+    "repository_lint": "passed; three existing warnings in unrelated PMS and work-fetch files",
+    "architecture": "passed; no legacy edges; terminology passed",
+    "isolated_release_build": ".runtime/releases/2026-10-09T05-22-41-253Z",
+    "development_home": "Authenticated public page inspected; filters, composer and launcher verified. My work and Needs you both 12.",
+    "health": {
+      "http://127.0.0.1:3100/api/health": 200,
+      "https://console-dev-erpx.jesadakorn.com/api/health": 200,
+      "http://127.0.0.1:3101/api/health": 200
+    },
+    "dev_process": "Reused existing detached supervisor, pinned Bun 1.2.17 / Node 24.20.0; listener 3100 and PostgreSQL 5432 remain available.",
+    "staging": "Not accessed."
+  }
+}

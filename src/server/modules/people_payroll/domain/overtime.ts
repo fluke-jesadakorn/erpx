@@ -1,4 +1,4 @@
-import {BusinessRuleError} from '../../shared';import type {OvertimeDetails} from '@/lib/overtime';export const fail = (code: string, message: string, status=409): never => { throw new BusinessRuleError(status,code,message); };
+import {BusinessRuleError} from '../../shared';import type {OvertimeDetails} from "@/lib/people_payroll/overtime";export const fail = (code: string, message: string, status=409): never => { throw new BusinessRuleError(status,code,message); };
 export type OvertimeRow = {
  id:string; company_id:string; engagement_id:string; person_id:string; branch_id:string|null; department_id:string|null;
  created_by:string; mode:"advance"|"retrospective"; state:string; timezone:string; start_local:string; end_local:string;

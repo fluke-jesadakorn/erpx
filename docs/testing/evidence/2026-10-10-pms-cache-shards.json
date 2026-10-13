@@ -1,0 +1,523 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "status": "Cache scope proofs pass; complete source-1d646f release verification retains failed strict reservation SLO and compiled/development AI fixture mismatch. Replacement guard candidate 66a13754 is being verified.",
+  "source": {
+    "runtime": "1d646f0338b5b79ac34e872be80b32e1c315ffc518fd61d17bfebaa220197ac0",
+    "verification": "7e2eaf3afc25a48ed71b197312381de1c30c7c2a5c2314a36c239b151fcae4e8"
+  },
+  "worktree": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx",
+  "implementation": {
+    "migration": "1038_pms_property_cache_counters.sql",
+    "logicalRevision": "Original baselines plus committed Property deltas, security-invoker read view",
+    "counterFactsReset": false,
+    "transactionIsolation": "SERIALIZABLE retained",
+    "propertyLock": "Existing pre-snapshot Property advisory lock and scoped row lock retained",
+    "scopeLifetime": "Transaction-local; clears on commit/rollback",
+    "globalWritersAndTruncate": "Continue incrementing original baseline",
+    "authorityCaching": false,
+    "coverageRepair": "Physical baseline ON CONFLICT; view INSERT/UPDATE/DELETE retained"
+  },
+  "focused": {
+    "red": {
+      "passed": false,
+      "sqlstate": "40001",
+      "artifact": ".scratch/dev/pms-account-authority/cache-shard-red.log"
+    },
+    "green": {
+      "passed": true,
+      "cases": 1,
+      "artifact": ".scratch/dev/pms-cache-shards/native-green.log"
+    },
+    "cacheAndPopulatedUpgrade": {
+      "passed": true,
+      "cases": 28,
+      "artifact": ".scratch/dev/pms-cache-shards/native-cache-final.log"
+    },
+    "pms": {
+      "passed": true,
+      "cases": 70,
+      "note": "All cases passed within initial focused four-file run; newly added cache test had an incorrect count type assertion subsequently corrected",
+      "artifact": ".scratch/dev/pms-cache-shards/native-focused.log"
+    }
+  },
+  "developmentMigration": {
+    "environment": "development only",
+    "holdings": 3,
+    "remaining": 0,
+    "artifact": ".scratch/dev/pms-cache-shards/development-migration.log"
+  },
+  "release": {
+    "id": "2026-10-10T05-09-34-266Z",
+    "sourceFingerprint": "1d646f0338b5b79ac34e872be80b32e1c315ffc518fd61d17bfebaa220197ac0",
+    "fileManifestSha256": "46b895e41a0f561b385ffe2a8fa8e9cf31797b594f3624e73a9a2f0b65c49a0a",
+    "passed": true
+  },
+  "frozenNative": {
+    "unit": {
+      "passed": true,
+      "files": 77,
+      "cases": 779
+    },
+    "integration": {
+      "passed": false,
+      "files": 50,
+      "cases": 526,
+      "passedCases": 525,
+      "failedCases": 1,
+      "failure": "pms-read-model scale case timed out at original 180000 ms while build/preparation also ran",
+      "rerun": {
+        "passed": true,
+        "fileCases": 18,
+        "durationSeconds": 139.4,
+        "unchangedTimeoutMs": 180000,
+        "unchangedAssertions": true,
+        "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-cache-shards/native-read-model-recheck.log"
+      }
+    },
+    "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-cache-shards/native-full-final.log",
+    "uniqueLatestPassingCases": 1305,
+    "composition": "779 passing unit cases plus all 526 integration cases have passing evidence on identical source; initial full command remains failed due to scale timeout, then the entire unchanged 18-case file passed alone",
+    "security": {
+      "passed": true,
+      "cases": 47,
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-cache-shards/native-security-final.log"
+    }
+  },
+  "static": {
+    "typecheck": true,
+    "lint": {
+      "errors": 0,
+      "warnings": 3
+    },
+    "architecture": true,
+    "docs": true
+  },
+  "freshScaleRun": {
+    "run": "b36dc11d894b",
+    "prepared": true,
+    "properties": 3,
+    "roomsPerProperty": 200,
+    "historyDays": 730,
+    "historicalRecords": 657000,
+    "concurrentAccounts": 20,
+    "port": 3104,
+    "holdingPool": 8,
+    "controlPool": 8,
+    "jobsHoldingPool": 1,
+    "jobsControlPool": 2,
+    "measured": true
+  },
+  "fixtureMaintenance": {
+    "logicalCacheFactsUnchanged": true,
+    "scope": "Exact quiescent owned mock Holding/Control databases only",
+    "physicalMaintenance": "VACUUM (ANALYZE) work_cache_revision_baselines; ANALYZE"
+  },
+  "rejectedPreparations": [
+    {
+      "run": "5aa264bf062f",
+      "reason": "Source changed after preparation began due to props type correction",
+      "destroyed": true
+    },
+    {
+      "run": "bcafeaffcbfc",
+      "reason": "Independent workspace source changes during preparation",
+      "destroyed": true
+    }
+  ],
+  "priorFullNative": {
+    "passed": true,
+    "uniqueCases": 1305,
+    "acceptedAsFrozenProof": false,
+    "reason": "Workspace source changed from 18abfa41 to 1d646f03 during native run"
+  },
+  "remaining": [
+    "Per-operation reservation latency: prior p95 2032.681 ms failed the strict 2000 ms gate",
+    "Finish 178 required baseline browser cases and 38 PMS route UAT cases",
+    "Review mock-pilot and feature evidence on final candidate",
+    "Final environment availability checks"
+  ],
+  "performance": {
+    "harnessPassed": true,
+    "ordinaryOperationAcceptance": false,
+    "passedWholeSlo": false,
+    "result": {
+      "run": "b36dc11d894b",
+      "sourceFingerprint": "1d646f0338b5b79ac34e872be80b32e1c315ffc518fd61d17bfebaa220197ac0",
+      "verificationFingerprint": "7e2eaf3afc25a48ed71b197312381de1c30c7c2a5c2314a36c239b151fcae4e8",
+      "release": {
+        "id": "2026-10-10T05-09-34-266Z",
+        "fileManifestSha256": "46b895e41a0f561b385ffe2a8fa8e9cf31797b594f3624e73a9a2f0b65c49a0a"
+      },
+      "scope": "Release HTTP: 3 \u00d7 200 rooms, 730-day synthetic closed stay/reservation/account metadata; 20 distinct normal staff accounts. Historic revenue is not invented.",
+      "applicationPoolMax": 8,
+      "controlPoolMax": 8,
+      "jobsHoldingPoolMax": 1,
+      "counts": [
+        {
+          "rooms": 200,
+          "archived_stays": 73000,
+          "reservations": 73000,
+          "archived_accounts": 73000
+        },
+        {
+          "rooms": 200,
+          "archived_stays": 73000,
+          "reservations": 73000,
+          "archived_accounts": 73000
+        },
+        {
+          "rooms": 200,
+          "archived_stays": 73000,
+          "reservations": 73000,
+          "archived_accounts": 73000
+        }
+      ],
+      "accounts": 20,
+      "rounds": 10,
+      "durationMs": 87510,
+      "readCount": 840,
+      "writeCount": 843,
+      "readP95Ms": 474.89233400000376,
+      "writeP95Ms": 1998.3505409999998,
+      "coreReadCount": 840,
+      "coreWriteCount": 400,
+      "financialEnabled": true,
+      "financialWriteCount": 200,
+      "financialWriteP95Ms": 1569.5944170000002,
+      "financialOperations": [
+        {
+          "operation": "shift.open",
+          "count": 20,
+          "p95Ms": 1344.768750000003
+        },
+        {
+          "operation": "charge.add",
+          "count": 20,
+          "p95Ms": 1587.289208000002
+        },
+        {
+          "operation": "payment.receive",
+          "count": 40,
+          "p95Ms": 1605.5312919999997
+        },
+        {
+          "operation": "payment.deposit",
+          "count": 20,
+          "p95Ms": 1591.5460419999945
+        },
+        {
+          "operation": "refund.request",
+          "count": 20,
+          "p95Ms": 1341.0085830000025
+        },
+        {
+          "operation": "refund.approve",
+          "count": 20,
+          "p95Ms": 213.37033400000655
+        },
+        {
+          "operation": "refund.pay",
+          "count": 20,
+          "p95Ms": 1569.5944170000002
+        },
+        {
+          "operation": "shift.close",
+          "count": 20,
+          "p95Ms": 1290.6187499999942
+        },
+        {
+          "operation": "shift.review",
+          "count": 20,
+          "p95Ms": 192.57770799999707
+        }
+      ],
+      "financialReconciliation": {
+        "history": {
+          "records": 657000,
+          "versions": "657000"
+        },
+        "balances": {
+          "accounts": 20,
+          "due": "0",
+          "advance": "200000",
+          "deposit": "40000"
+        },
+        "cash": {
+          "shifts": 20,
+          "cash": "475400",
+          "reviewed": true
+        },
+        "receipts": {
+          "receipts": 60,
+          "refunds": 20,
+          "received": "495400",
+          "refunded": "20000",
+          "settled": true
+        },
+        "journals": {
+          "debit": "999280",
+          "credit": "999280"
+        }
+      },
+      "operationalEnabled": true,
+      "operationalWriteCount": 220,
+      "operationalWriteP95Ms": 1558.7508750000125,
+      "operationalOperations": [
+        {
+          "operation": "reservation.create",
+          "count": 20,
+          "p95Ms": 1366.0121249999938
+        },
+        {
+          "operation": "stay.assign",
+          "count": 20,
+          "p95Ms": 1320.8424999999988
+        },
+        {
+          "operation": "stay.check_in",
+          "count": 20,
+          "p95Ms": 1334.6075839999976
+        },
+        {
+          "operation": "stay.move",
+          "count": 20,
+          "p95Ms": 1394.0307500000054
+        },
+        {
+          "operation": "stay.change_dates",
+          "count": 20,
+          "p95Ms": 1578.211374999999
+        },
+        {
+          "operation": "stay.preview_checkout",
+          "count": 20,
+          "p95Ms": 1728.7481249999983
+        },
+        {
+          "operation": "shift.open",
+          "count": 20,
+          "p95Ms": 1350.1119159999944
+        },
+        {
+          "operation": "payment.receive",
+          "count": 20,
+          "p95Ms": 1673.4185419999994
+        },
+        {
+          "operation": "stay.check_out",
+          "count": 20,
+          "p95Ms": 1418.232250000001
+        },
+        {
+          "operation": "shift.close",
+          "count": 20,
+          "p95Ms": 1309.6387089999916
+        },
+        {
+          "operation": "shift.review",
+          "count": 20,
+          "p95Ms": 220.02687499999593
+        }
+      ],
+      "operationalReconciliation": {
+        "occupancy": {
+          "stays": 20,
+          "completed": true
+        },
+        "balances": {
+          "accounts": 20,
+          "due": "0",
+          "advance": "0",
+          "deposit": "0"
+        },
+        "cash": {
+          "shifts": 20,
+          "cash": "7062000",
+          "reviewed": true
+        },
+        "rooms": {
+          "rooms": 40,
+          "dirty": true
+        },
+        "charges": {
+          "charges": 20,
+          "total": "7062000"
+        },
+        "receipts": {
+          "receipts": 20,
+          "received": "7062000",
+          "settled": true
+        },
+        "journals": {
+          "debit": "22185280",
+          "credit": "22185280"
+        },
+        "history": {
+          "records": 657000,
+          "versions": "657000"
+        }
+      },
+      "closingEnabled": true,
+      "closingWriteCount": 23,
+      "closingWriteP95Ms": 1440.5616659999941,
+      "closingOperations": [
+        {
+          "operation": "guest_account.close",
+          "count": 20,
+          "p95Ms": 1440.5616659999941
+        },
+        {
+          "operation": "night.start",
+          "count": 3,
+          "p95Ms": 191.1305410000059
+        }
+      ],
+      "closingReconciliation": {
+        "invoices": {
+          "invoices": 20,
+          "total": "7062000",
+          "outstanding": "0",
+          "paid": true
+        },
+        "days": {
+          "hotels": 3,
+          "advanced": true
+        },
+        "nights": {
+          "nights": 3,
+          "capacity": 600,
+          "sold": 20,
+          "completed": true
+        },
+        "journals": {
+          "debit": "22185280",
+          "credit": "22185280"
+        },
+        "history": {
+          "records": 657000,
+          "versions": "657000"
+        }
+      },
+      "failedSamples": 0,
+      "sameProcesses": true,
+      "unchanged": true,
+      "samplesSha256": "94fc28eb892379fd704b35cbd7181ddcc3bd3083c3b585d1a156b57bfd6e6c89",
+      "passed": true
+    },
+    "coreOperations": {
+      "guest.save": {
+        "count": 200,
+        "p95Ms": 1954.2929579999982
+      },
+      "reservation.create": {
+        "count": 200,
+        "p95Ms": 2032.6814169999998
+      }
+    },
+    "deadlocks": 0,
+    "validReads": 840,
+    "validWrites": 843,
+    "failedSamples": 0,
+    "sourceUnchanged": true,
+    "allMoneyHistoryInvoicesAndAuditsReconciled": true,
+    "telemetryLimit": "Sanitized phase analysis retained SQL-error counts but did not retain already available serialization/lock counters before owned raw logs were removed. Root causes of 425 error phases are not attributed."
+  },
+  "cleanup": {
+    "firstOwnedScaleRun": "b36dc11d894b",
+    "webAndJobsStopped": true,
+    "eightDatabasesDestroyed": true,
+    "artifacts": [
+      "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-cache-shards/destroy-stop.log",
+      "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-cache-shards/destroy-databases.log"
+    ],
+    "confirmationRun": {
+      "run": "b6f64497a274",
+      "webAndJobsStopped": true,
+      "eightDatabasesDestroyed": true
+    }
+  },
+  "confirmationRun": {
+    "run": "b6f64497a274",
+    "sourceUnchanged": true,
+    "status": "Measured full unchanged fresh workload; strict SLO failed; all owned web/jobs and eight databases destroyed",
+    "purpose": "Confirm per-operation SLO and retain existing diagnostic lock/serialization counters before cleanup; prior failed reservation SLO remains recorded",
+    "prepared": true,
+    "counterBaselineArtifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-cache-shards/counters-confirmation-before.json",
+    "measured": true,
+    "harnessPassed": false,
+    "strictAcceptancePassed": false,
+    "readP95Ms": 301.4539589999986,
+    "coreWriteP95Ms": 2171.4879999999976,
+    "coreOperations": [
+      {
+        "stage": "core",
+        "kind": "write",
+        "operation": "guest.save",
+        "count": 200,
+        "p95Ms": 1975.0093749999978,
+        "limitMs": 2000,
+        "passed": true
+      },
+      {
+        "stage": "core",
+        "kind": "write",
+        "operation": "reservation.create",
+        "count": 200,
+        "p95Ms": 2268.892416999999,
+        "limitMs": 2000,
+        "passed": false
+      }
+    ],
+    "failedSamples": 0,
+    "moneyHistoryInvoicesAuditsReconciled": true,
+    "serializationTelemetry": {
+      "present": 529,
+      "sum": 645,
+      "p95": 3
+    },
+    "retryTelemetry": {
+      "present": 529,
+      "sum": 631,
+      "p95": 3
+    },
+    "counterRouting": "Five observed PMS/Finance baselines unchanged; committed increments routed to three Property scopes",
+    "diagnosticOnly": {
+      "rounds": 1,
+      "normalAccounts": 20,
+      "acceptedAsLoadEvidence": false,
+      "ownedBackendSsiErrors": 32,
+      "classification": {
+        "ssi-read-write": 32
+      },
+      "statements": {
+        "COMMIT": 2,
+        "DELETE": 24,
+        "INSERT": 5,
+        "SELECT": 1
+      },
+      "relations": {
+        "": 2,
+        "command_assertions": 25,
+        "active_work_contexts,clock_timestamp,command_assertions": 2,
+        "audit_events,command_receipts": 1,
+        "money_transaction_snapshots": 1,
+        "active_work_contexts": 1
+      },
+      "scope": "Separate post-workload diagnostic; exact currently owned Holding backend PIDs and backend_start filter; no other database log lines retained"
+    },
+    "rawServerLogRetained": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-cache-shards/scale-confirmation/server-private.log",
+    "resultArtifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-cache-shards/scale-confirmation/result.json"
+  },
+  "browser": {
+    "requiredBaselineCases": 178,
+    "additionalPmsRouteCases": 38,
+    "status": "Stopped at compiled AI simulation mismatch; unchanged original development-only mock guard explains failure; current replacement candidate must rerun full baseline with corrected runtime mapping",
+    "receiptRoot": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-10T05-34-00-327Z",
+    "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-cache-shards/browser-required.log",
+    "passedCases": 32,
+    "failedCases": 1,
+    "cleanupFailures": [],
+    "runtimeMappingCorrection": "AI deterministic journey remains development-only; production mock selector and original assertions unchanged"
+  }
+}

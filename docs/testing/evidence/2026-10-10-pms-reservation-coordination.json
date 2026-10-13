@@ -1,0 +1,699 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "experimentAccepted": false,
+  "experiment": "Coordinate only ordinary reservation.create cache dependencies before the original Property session lock and SERIALIZABLE snapshot. Guest edits and other commands retain their original lock scheduling. Other domains still use original serialization retry handling.",
+  "source": {
+    "runtime": "4cf62f363fb4b1d0de905647cf4479d9a1fa581913fa7b3e26895c059251aff7",
+    "verification": "8eefb8de20fcab6129dd12e26919c7515bc7f374992a798b04cd477c903ddad9"
+  },
+  "native": {
+    "files": 2,
+    "cases": 77,
+    "passed": true,
+    "runtimeCases": 9,
+    "pmsCases": 68,
+    "addedRealPmsLockProof": true,
+    "propertyLockOnBothOperations": true,
+    "reservationDependencyLockOnGuestEdit": false,
+    "reservationDependencyLockOnReservation": true,
+    "isolationSerializable": true,
+    "afterCompletionCommonLockCount": 0
+  },
+  "unit": {
+    "files": 1,
+    "cases": 58,
+    "passed": true
+  },
+  "remaining": [
+    "Core latency gate",
+    "Same-candidate browser/mock-pilot acceptance"
+  ],
+  "liveHandles": {},
+  "artifacts": {
+    "adapter-before.ts": {
+      "path": ".scratch/dev/pms-reservation-coordination/adapter-before.ts",
+      "sha256": "b03aae2e13a4999128d0019a1e93789cd6da3ae07d2cd615b2fb5ba1f32125e0"
+    },
+    "application-before.ts": {
+      "path": ".scratch/dev/pms-reservation-coordination/application-before.ts",
+      "sha256": "c4c011b7c81f51eeca4415fec5ac586b8565a4b706f2a2b16b0098311680a2a6"
+    },
+    "native-final.log": {
+      "path": ".scratch/dev/pms-reservation-coordination/native-final.log",
+      "sha256": "ab2157d3d62f02e19ac6a79fbe7c275d158ec92895563ce0968bcb748f7b2e5d"
+    },
+    "native.log": {
+      "path": ".scratch/dev/pms-reservation-coordination/native.log",
+      "sha256": "ba761b68410fa21b272816f6e4f6414d5bc73caaa1554fe6eea2a429db1c57b5"
+    },
+    "postgres-before.ts": {
+      "path": ".scratch/dev/pms-reservation-coordination/postgres-before.ts",
+      "sha256": "4d3feeca50300e0788533998c6454ba6a1c981d1d8f4d89ab86c78d419bdaae2"
+    },
+    "runtime-test-before.ts": {
+      "path": ".scratch/dev/pms-reservation-coordination/runtime-test-before.ts",
+      "sha256": "081b7ae6a1792767b5fe180b9e667c900e4dff3416dd317f649168ff28989642"
+    },
+    "source-before.json": {
+      "path": ".scratch/dev/pms-reservation-coordination/source-before.json",
+      "sha256": "164dd2615702f6bd51ddf9e167a968b5dfc02a60a599e074151f457b5ea90e66"
+    },
+    "types-before.ts": {
+      "path": ".scratch/dev/pms-reservation-coordination/types-before.ts",
+      "sha256": "8c96b42e1c8854ba688f99b139d97ecbcc35daa9b7f400a46065dcb64266362d"
+    },
+    "unit.log": {
+      "path": ".scratch/dev/pms-reservation-coordination/unit.log",
+      "sha256": "534a0a6deeb1a484fc72af5de29de5a9caed57a7f5e249a1fdaa593c2eb6c1e1"
+    },
+    "health.json": {
+      "path": ".scratch/dev/pms-reservation-coordination/health.json",
+      "sha256": "265a80bdebb2af1af3c32935b3ba6de7843f2c0a7aaf13d08b74ad6bdf8f70e8"
+    },
+    "typecheck.log": {
+      "path": ".scratch/dev/pms-reservation-coordination/typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "lint.log": {
+      "path": ".scratch/dev/pms-reservation-coordination/lint.log",
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    },
+    "architecture.log": {
+      "path": ".scratch/dev/pms-reservation-coordination/architecture.log",
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    "docs.log": {
+      "path": ".scratch/dev/pms-reservation-coordination/docs.log",
+      "sha256": "c62c6b7165718ad9bcc4e9e972704a48eaf2997f488c02895bd9589e9b9d8b55"
+    },
+    "diff-check.log": {
+      "path": ".scratch/dev/pms-reservation-coordination/diff-check.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build.log": {
+      "path": ".scratch/dev/pms-reservation-coordination/build.log",
+      "sha256": "a09ba3f416678f1e697911abfad51b925f9db5ba2c248feca510ab4a03369f38"
+    },
+    "adapter-experimental.ts": {
+      "path": ".scratch/dev/pms-reservation-coordination/adapter-experimental.ts",
+      "sha256": "79d218096f4679a37cb0c6179cd1ff0ed679bf28d1f8623ce68120b8641c99aa"
+    },
+    "application-experimental.ts": {
+      "path": ".scratch/dev/pms-reservation-coordination/application-experimental.ts",
+      "sha256": "1803d1725b2cb2e1e3c36eacdfdcf7242af8917f270776b8a243ed0eb98852f1"
+    },
+    "budget-after.json": {
+      "path": ".scratch/dev/pms-reservation-coordination/budget-after.json",
+      "sha256": "268faa2b8152e9e0f24f572c9d7421b365e5c59ffab7c0f354af03fdf454af00"
+    },
+    "budget-before.json": {
+      "path": ".scratch/dev/pms-reservation-coordination/budget-before.json",
+      "sha256": "27efeab3025b6cac6382c16286e0a1348d6e1f4b30269a334f9e4c258f26f5ba"
+    },
+    "budget-load.json": {
+      "path": ".scratch/dev/pms-reservation-coordination/budget-load.json",
+      "sha256": "dac6f706066c7d2260928e204077287aa701e7e51d04527f6f0f6cb4f6d24b00"
+    },
+    "db-after.json": {
+      "path": ".scratch/dev/pms-reservation-coordination/db-after.json",
+      "sha256": "1f7adf64fc0e726f2656d861db54670a62f957b60d77025ef8104516fc0b0e9c"
+    },
+    "db-before.json": {
+      "path": ".scratch/dev/pms-reservation-coordination/db-before.json",
+      "sha256": "1f7adf64fc0e726f2656d861db54670a62f957b60d77025ef8104516fc0b0e9c"
+    },
+    "destroy-databases.log": {
+      "path": ".scratch/dev/pms-reservation-coordination/destroy-databases.log",
+      "sha256": "57ed760b9e7fcd1c6fdb9cda833e0f1fe8f1bb34f9b9feb91c5384b0ed500a7e"
+    },
+    "destroy-stop.log": {
+      "path": ".scratch/dev/pms-reservation-coordination/destroy-stop.log",
+      "sha256": "381c7d8d7b8144fe052c13d95ee146395be39a6fead71a40bf6e9d5c35830615"
+    },
+    "performance.log": {
+      "path": ".scratch/dev/pms-reservation-coordination/performance.log",
+      "sha256": "c6066523c189ca93ba974f411c70b83b7ebdfe30ebc13612a9434c32b31edc72"
+    },
+    "pms-test-experimental.ts": {
+      "path": ".scratch/dev/pms-reservation-coordination/pms-test-experimental.ts",
+      "sha256": "2c574f0c10828d1fd659407c805651e5fc6f518f4bf86be4f79e1ebaed76b4ea"
+    },
+    "postgres-experimental.ts": {
+      "path": ".scratch/dev/pms-reservation-coordination/postgres-experimental.ts",
+      "sha256": "e0989ebd443887c8b6c4a114de162c9b51dcd3a1bcafd4b3a0bfa57d864f312d"
+    },
+    "prepare.log": {
+      "path": ".scratch/dev/pms-reservation-coordination/prepare.log",
+      "sha256": "129e9fc99e6467ff74ff6d6776321b63973e229165281aa40be0921317148d97"
+    },
+    "restored-native.log": {
+      "path": ".scratch/dev/pms-reservation-coordination/restored-native.log",
+      "sha256": "d8d1e2e301f37ddd375350c3241fc8c19c00571ec6e798936aec1889b9fcfd78"
+    },
+    "runtime-test-experimental.ts": {
+      "path": ".scratch/dev/pms-reservation-coordination/runtime-test-experimental.ts",
+      "sha256": "86c4144fe833d0dd236dc689f22ed2d6e392cc5f76d085d87bb558095fcd78cf"
+    },
+    "scale-result/analysis.json": {
+      "path": ".scratch/dev/pms-reservation-coordination/scale-result/analysis.json",
+      "sha256": "efd6bf77ee4e6b1306255b16c3fe7a68eaa6d71c5234947db45c3f5813333959"
+    },
+    "scale-result/requests.jsonl": {
+      "path": ".scratch/dev/pms-reservation-coordination/scale-result/requests.jsonl",
+      "sha256": "f37cb80dcb1b34539b25066efc0e5ff82dfc5bb7cc5fce655874a928c2c39e6a"
+    },
+    "scale-result/result.json": {
+      "path": ".scratch/dev/pms-reservation-coordination/scale-result/result.json",
+      "sha256": "1e62a4cce14ea772e6d9b0b9ca08a67613cc2f074878ecb0d5ec8ce31b4f6325"
+    },
+    "scale-result/samples.jsonl": {
+      "path": ".scratch/dev/pms-reservation-coordination/scale-result/samples.jsonl",
+      "sha256": "60cffb1a82df6ea51c1b062376f1fffe1e62f04096be2bad749497485f51287f"
+    },
+    "scale-result/timings.jsonl": {
+      "path": ".scratch/dev/pms-reservation-coordination/scale-result/timings.jsonl",
+      "sha256": "5ee956625c17d694fe987bb76ad1c75b0c3639b982c2926d79abefc7b25f4688"
+    },
+    "source-restored.json": {
+      "path": ".scratch/dev/pms-reservation-coordination/source-restored.json",
+      "sha256": "f1e1bbb37ed42a1d4a184964926c6042f913b77ec69051fd3868c58744ac9a3b"
+    },
+    "start.log": {
+      "path": ".scratch/dev/pms-reservation-coordination/start.log",
+      "sha256": "43c4ece090f81bebfc7d2e09a5503ba48817c37086d7ab9bd16fe0b62e2e9d8c"
+    },
+    "types-experimental.ts": {
+      "path": ".scratch/dev/pms-reservation-coordination/types-experimental.ts",
+      "sha256": "94b3b1e9741b2622e2cbe0b96ed7f7979147158d56dbae60c3ab0580a9ba21fa"
+    }
+  },
+  "typecheckPassed": true,
+  "environment": {
+    "checkedAt": "2026-10-10T00:18:58.907238+00:00",
+    "checks": [
+      {
+        "url": "http://127.0.0.1:3100/api/health",
+        "status": 200,
+        "exitCode": 0
+      },
+      {
+        "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+        "status": 200,
+        "exitCode": 0
+      },
+      {
+        "url": "http://127.0.0.1:3101/api/health",
+        "status": 200,
+        "exitCode": 0
+      }
+    ],
+    "listeners": {
+      "3100": "COMMAND   PID  USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME\nnode    58873 fluke   13u  IPv6 0xc4d6f8978281bcb4      0t0  TCP *:3100 (LISTEN)",
+      "3104": "",
+      "5432": "COMMAND  PID  USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME\npostgres 909 fluke    5u  IPv4 0xab194641205d693c      0t0  TCP 127.0.0.1:5432 (LISTEN)"
+    },
+    "stagingAccessed": false,
+    "productionHealthOnly": true,
+    "publicUi": {
+      "entry": "https://console-dev-erpx.jesadakorn.com/front/acme/acme-co/pms/holding",
+      "normalAuthenticated": true,
+      "companyTodayOnline": true,
+      "guestAccountBalancesAndEntryVisible": true,
+      "transactionsSubmitted": false,
+      "compiledAcceptance": false
+    },
+    "developmentCwd": "p58873\nfcwd\nn/Users/fluke/Desktop/Work/erpx"
+  },
+  "staticVerification": {
+    "typecheck": true,
+    "lintErrors": 0,
+    "existingWarnings": 3,
+    "architecture": true,
+    "buildAwaitingTerminal": false,
+    "isolatedReleaseBuild": true
+  },
+  "documentation": {
+    "passed": true,
+    "markdownFiles": 248,
+    "localLinks": 1306,
+    "ledgerFiles": 213,
+    "wholeTreeDiffCheck": true
+  },
+  "release": {
+    "id": "2026-10-10T00-18-23-975Z",
+    "runtime": "4cf62f363fb4b1d0de905647cf4479d9a1fa581913fa7b3e26895c059251aff7",
+    "metadataSha256": "6a0e486ed6bd32c16f185440e1cb569b4dd10444afc1a3e7029df348aa95a41d"
+  },
+  "experimentRemoved": true,
+  "reason": "Original core write gate remains failed at 2,211 ms; reservation.create individually 2,335 ms. Common reservation scheduling is not retained.",
+  "result": {
+    "run": "5697d26a93b9",
+    "sourceFingerprint": "4cf62f363fb4b1d0de905647cf4479d9a1fa581913fa7b3e26895c059251aff7",
+    "verificationFingerprint": "8eefb8de20fcab6129dd12e26919c7515bc7f374992a798b04cd477c903ddad9",
+    "release": {
+      "id": "2026-10-10T00-18-23-975Z",
+      "fileManifestSha256": "0ff02060117b1e09ed50d5fe992a18eed3bd694ba37a298ba335d42cc4ac943d"
+    },
+    "scope": "Release HTTP: 3 \u00d7 200 rooms, 730-day synthetic closed stay/reservation/account metadata; 20 distinct normal staff accounts. Historic revenue is not invented.",
+    "applicationPoolMax": 8,
+    "controlPoolMax": 5,
+    "jobsHoldingPoolMax": 1,
+    "counts": [
+      {
+        "rooms": 200,
+        "archived_stays": 73000,
+        "reservations": 73000,
+        "archived_accounts": 73000
+      },
+      {
+        "rooms": 200,
+        "archived_stays": 73000,
+        "reservations": 73000,
+        "archived_accounts": 73000
+      },
+      {
+        "rooms": 200,
+        "archived_stays": 73000,
+        "reservations": 73000,
+        "archived_accounts": 73000
+      }
+    ],
+    "accounts": 20,
+    "rounds": 10,
+    "durationMs": 87548,
+    "readCount": 840,
+    "writeCount": 843,
+    "readP95Ms": 342.95929199999955,
+    "writeP95Ms": 2210.630790999996,
+    "coreReadCount": 840,
+    "coreWriteCount": 400,
+    "financialEnabled": true,
+    "financialWriteCount": 200,
+    "financialWriteP95Ms": 1632.812665999998,
+    "financialOperations": [
+      {
+        "operation": "shift.open",
+        "count": 20,
+        "p95Ms": 1354.4792089999974
+      },
+      {
+        "operation": "charge.add",
+        "count": 20,
+        "p95Ms": 1691.3878330000007
+      },
+      {
+        "operation": "payment.receive",
+        "count": 40,
+        "p95Ms": 1699.2785829999993
+      },
+      {
+        "operation": "payment.deposit",
+        "count": 20,
+        "p95Ms": 1575.6263749999998
+      },
+      {
+        "operation": "refund.request",
+        "count": 20,
+        "p95Ms": 1362.0691670000015
+      },
+      {
+        "operation": "refund.approve",
+        "count": 20,
+        "p95Ms": 195.0380839999998
+      },
+      {
+        "operation": "refund.pay",
+        "count": 20,
+        "p95Ms": 1603.2028340000033
+      },
+      {
+        "operation": "shift.close",
+        "count": 20,
+        "p95Ms": 1346.7756250000093
+      },
+      {
+        "operation": "shift.review",
+        "count": 20,
+        "p95Ms": 197.69787499999802
+      }
+    ],
+    "financialReconciliation": {
+      "history": {
+        "records": 657000,
+        "versions": "657000"
+      },
+      "balances": {
+        "accounts": 20,
+        "due": "0",
+        "advance": "200000",
+        "deposit": "40000"
+      },
+      "cash": {
+        "shifts": 20,
+        "cash": "475400",
+        "reviewed": true
+      },
+      "receipts": {
+        "receipts": 60,
+        "refunds": 20,
+        "received": "495400",
+        "refunded": "20000",
+        "settled": true
+      },
+      "journals": {
+        "debit": "999280",
+        "credit": "999280"
+      }
+    },
+    "operationalEnabled": true,
+    "operationalWriteCount": 220,
+    "operationalWriteP95Ms": 1474.3114579999965,
+    "operationalOperations": [
+      {
+        "operation": "reservation.create",
+        "count": 20,
+        "p95Ms": 1519.1480420000007
+      },
+      {
+        "operation": "stay.assign",
+        "count": 20,
+        "p95Ms": 1449.3074170000036
+      },
+      {
+        "operation": "stay.check_in",
+        "count": 20,
+        "p95Ms": 1404.907290999996
+      },
+      {
+        "operation": "stay.move",
+        "count": 20,
+        "p95Ms": 1415.0879589999968
+      },
+      {
+        "operation": "stay.change_dates",
+        "count": 20,
+        "p95Ms": 1409.731375000003
+      },
+      {
+        "operation": "stay.preview_checkout",
+        "count": 20,
+        "p95Ms": 1572.3059170000051
+      },
+      {
+        "operation": "shift.open",
+        "count": 20,
+        "p95Ms": 1332.0529170000082
+      },
+      {
+        "operation": "payment.receive",
+        "count": 20,
+        "p95Ms": 1627.2285829999892
+      },
+      {
+        "operation": "stay.check_out",
+        "count": 20,
+        "p95Ms": 1389.642458000002
+      },
+      {
+        "operation": "shift.close",
+        "count": 20,
+        "p95Ms": 1362.2189580000122
+      },
+      {
+        "operation": "shift.review",
+        "count": 20,
+        "p95Ms": 204.14770899999712
+      }
+    ],
+    "operationalReconciliation": {
+      "occupancy": {
+        "stays": 20,
+        "completed": true
+      },
+      "balances": {
+        "accounts": 20,
+        "due": "0",
+        "advance": "0",
+        "deposit": "0"
+      },
+      "cash": {
+        "shifts": 20,
+        "cash": "7062000",
+        "reviewed": true
+      },
+      "rooms": {
+        "rooms": 40,
+        "dirty": true
+      },
+      "charges": {
+        "charges": 20,
+        "total": "7062000"
+      },
+      "receipts": {
+        "receipts": 20,
+        "received": "7062000",
+        "settled": true
+      },
+      "journals": {
+        "debit": "22185280",
+        "credit": "22185280"
+      },
+      "history": {
+        "records": 657000,
+        "versions": "657000"
+      }
+    },
+    "closingEnabled": true,
+    "closingWriteCount": 23,
+    "closingWriteP95Ms": 1364.7767910000111,
+    "closingOperations": [
+      {
+        "operation": "guest_account.close",
+        "count": 20,
+        "p95Ms": 1364.7767910000111
+      },
+      {
+        "operation": "night.start",
+        "count": 3,
+        "p95Ms": 191.80654200000572
+      }
+    ],
+    "closingReconciliation": {
+      "invoices": {
+        "invoices": 20,
+        "total": "7062000",
+        "outstanding": "0",
+        "paid": true
+      },
+      "days": {
+        "hotels": 3,
+        "advanced": true
+      },
+      "nights": {
+        "nights": 3,
+        "capacity": 600,
+        "sold": 20,
+        "completed": true
+      },
+      "journals": {
+        "debit": "22185280",
+        "credit": "22185280"
+      },
+      "history": {
+        "records": 657000,
+        "versions": "657000"
+      }
+    },
+    "failedSamples": 0,
+    "sameProcesses": true,
+    "unchanged": true,
+    "samplesSha256": "60cffb1a82df6ea51c1b062376f1fffe1e62f04096be2bad749497485f51287f",
+    "passed": false
+  },
+  "analysis": {
+    "commandPhases": 4199,
+    "queryErrors": {
+      "0": 3746,
+      "1": 406,
+      "2": 42,
+      "3": 5
+    },
+    "operations": {
+      "guest.save": {
+        "count": 200,
+        "p95Ms": 1588.9237499999945,
+        "attempts": {
+          "1": 30,
+          "2": 33,
+          "3": 40,
+          "4": 34,
+          "5": 30,
+          "6": 24,
+          "7": 9
+        }
+      },
+      "reservation.create": {
+        "count": 200,
+        "p95Ms": 2334.8017919999984,
+        "attempts": {
+          "6": 46,
+          "7": 47,
+          "5": 23,
+          "8": 38,
+          "2": 8,
+          "4": 11,
+          "11": 5,
+          "13": 1,
+          "3": 6,
+          "9": 12,
+          "10": 2,
+          "12": 1
+        }
+      }
+    }
+  },
+  "restored": {
+    "runtime": "40ed801710a2db58bae6ca1fc3904bba5318d7bd92113a6dbb5678227817bc1b",
+    "verification": "5ed162ebdab8b9f2b0ad424d9dbb6ba5a75d45696dde53f205920796f20381d7"
+  },
+  "restoredNativeRuntime": {
+    "passed": true,
+    "cases": 7
+  },
+  "cleanup": {
+    "run": "5697d26a93b9",
+    "destroyed": true,
+    "ownedDatabasesRemoved": 8,
+    "port3104Free": true
+  },
+  "database": {
+    "before": {
+      "run": "5697d26a93b9",
+      "stats": [
+        {
+          "datid": 615675871,
+          "deadlocks": "0",
+          "conflicts": "0"
+        }
+      ],
+      "triggers": [
+        {
+          "tgname": "release_configuration_changed"
+        },
+        {
+          "tgname": "work_cache_change"
+        },
+        {
+          "tgname": "work_cache_pms_booking_observation"
+        },
+        {
+          "tgname": "work_cache_truncate"
+        }
+      ]
+    },
+    "after": {
+      "run": "5697d26a93b9",
+      "stats": [
+        {
+          "datid": 615675871,
+          "deadlocks": "0",
+          "conflicts": "0"
+        }
+      ],
+      "triggers": [
+        {
+          "tgname": "release_configuration_changed"
+        },
+        {
+          "tgname": "work_cache_change"
+        },
+        {
+          "tgname": "work_cache_pms_booking_observation"
+        },
+        {
+          "tgname": "work_cache_truncate"
+        }
+      ]
+    },
+    "conflictsAreStandbyConflicts": true
+  },
+  "connectionSamples": [
+    {
+      "run": "5697d26a93b9",
+      "limits": {
+        "max_connections": 180,
+        "reserved": 3
+      },
+      "observed": {
+        "total_connections": 33,
+        "owned_control_app_connections": 0,
+        "owned_control_jobs_connections": 2
+      }
+    },
+    {
+      "run": "5697d26a93b9",
+      "limits": {
+        "max_connections": 180,
+        "reserved": 3
+      },
+      "observed": {
+        "total_connections": 47,
+        "owned_control_app_connections": 5,
+        "owned_control_jobs_connections": 2
+      }
+    },
+    {
+      "run": "5697d26a93b9",
+      "limits": {
+        "max_connections": 180,
+        "reserved": 3
+      },
+      "observed": {
+        "total_connections": 45,
+        "owned_control_app_connections": 5,
+        "owned_control_jobs_connections": 2
+      }
+    }
+  ],
+  "samplingLimitation": "Samples are not peaks; per-runtime pool limits are not process-global.",
+  "restoredAvailability": {
+    "checkedAt": "2026-10-10T00:33:25.743827+00:00",
+    "checks": [
+      {
+        "url": "http://127.0.0.1:3100/api/health",
+        "status": 200,
+        "exitCode": 0
+      },
+      {
+        "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+        "status": 200,
+        "exitCode": 0
+      },
+      {
+        "url": "http://127.0.0.1:3101/api/health",
+        "status": 200,
+        "exitCode": 0
+      }
+    ],
+    "listeners": {
+      "3100": "COMMAND   PID  USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME\nnode    58873 fluke   13u  IPv6 0xc4d6f8978281bcb4      0t0  TCP *:3100 (LISTEN)",
+      "3104": "",
+      "5432": "COMMAND  PID  USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME\npostgres 909 fluke    5u  IPv4 0xab194641205d693c      0t0  TCP 127.0.0.1:5432 (LISTEN)"
+    },
+    "stagingAccessed": false,
+    "productionHealthOnly": true,
+    "publicUi": {
+      "entry": "https://console-dev-erpx.jesadakorn.com/front/acme/acme-co/pms/holding",
+      "existingNormalSession": true,
+      "companyTodayOnline": true,
+      "initialTaskButtonNavigationTimedOut": true,
+      "sameTabPaymentsLinkSucceeded": true,
+      "guestAccountBalancesAndEntryRendered": true,
+      "transactionsSubmitted": false,
+      "compiledCandidateAcceptance": false,
+      "hydrationInvestigationStillOpen": true
+    },
+    "developmentCwd": "p58873\nfcwd\nn/Users/fluke/Desktop/Work/erpx"
+  }
+}

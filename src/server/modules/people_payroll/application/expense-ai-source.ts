@@ -1,5 +1,5 @@
-import { samePerson } from "@/lib/iam";
-import { hasPermission } from "@/lib/permissions";
+import { samePerson } from "@/lib/identity_access/iam";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { ExpenseCommandPort } from "./expense-commands";
 import type { StaffActor } from "@/server/modules/operations/public/staff-policy";
 

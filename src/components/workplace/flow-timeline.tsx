@@ -4,12 +4,12 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
-import { workFetch } from "@/lib/work-fetch";
+import { workFetch } from "@/lib/work_projection/work-fetch";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { FlowView } from "@/lib/flow";
+import type { FlowView } from "@/lib/shared/flow";
 import styles from "./flow.module.css";
-import { TimeText } from "@/components/time/time-preference-context";
+import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 
 export function FlowTimeline({ flow, endpoint }: { flow: FlowView; endpoint: string }) {
   const router = useRouter();

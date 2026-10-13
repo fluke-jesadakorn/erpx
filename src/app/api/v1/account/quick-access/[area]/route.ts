@@ -2,8 +2,8 @@ import { currentSession } from "@/server/modules/identity_access/public/authoriz
 import { accountQuickAccessItems, type AccountQuickAccessArea } from "@/server/modules/identity_access/public/account-quick-access";
 import { workRoleOptions } from "@/server/modules/work_projection/public/work-role-options";
 import { workspaceChoices } from "@/server/modules/organization/public/workspace-choices";
-import { safeReturnPath } from "@/lib/access-problem";
-import { parseHoldingWorkspace, workspaceBase } from "@/lib/workspace";
+import { safeReturnPath } from "@/lib/shared/access-problem";
+import { parseHoldingWorkspace, workspaceBase } from "@/lib/work_projection/workspace";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import { quickAccessPreferenceSchema, readQuickAccessPreferences, saveQuickAccessPreferences } from "@/server/modules/work_projection/public/quick-access-preferences";
 import { serviceCommandBody } from "@/server/modules/support/public/service-http";

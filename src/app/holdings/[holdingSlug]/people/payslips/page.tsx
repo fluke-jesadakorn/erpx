@@ -1,9 +1,9 @@
 import { Table as StandardTable, TableFrame } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
-import {FeaturePage} from "@/components/features/feature-page";
+import {FeaturePage} from "@/components/shared/features/feature-page";
 import {PageHeader} from "@/components/ui/primitives";
-import {minorToDecimal} from "@/lib/finance-money";
-import {workspaceBase} from "@/lib/workspace";
+import {minorToDecimal} from "@/lib/finance/finance-money";
+import {workspaceBase} from "@/lib/work_projection/workspace";
 import {publicScope,requireWorkContext} from "@/server/modules/identity_access/public/authorization";
 import {pageError} from "@/server/modules/work_projection/public/page-error";
 import {listPayslips} from "@/server/modules/people_payroll/public/payroll-payslips";

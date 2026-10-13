@@ -1,7 +1,7 @@
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SupportRow, SupportMutation, SupportCommand, SupportCommandPorts } from "./command";
-import { hasPermission } from "@/lib/permissions";
-import { samePerson } from "@/lib/iam";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { samePerson } from "@/lib/identity_access/iam";
 import type { AuthorizedSourceRecord } from "@/server/modules/records/public/source-record-policy";
 import { supportCreateSchema, supportChangeSchema, supportClosed, supportWorkItems, type SupportCreate, type SupportChange } from "../domain/support";
 import { advanceSupportClock, type SupportClock } from "../domain/support-clock";

@@ -1,6 +1,6 @@
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { commandOvertime, createOvertime, getOvertime, listOvertime, previewOvertime, setOvertimeEligibility } from "@/server/modules/people_payroll/public/overtime";
-import { overtimeCommandSchema, overtimeDetailsSchema } from "@/lib/overtime";
+import { overtimeCommandSchema, overtimeDetailsSchema } from "@/lib/people_payroll/overtime";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 export const dynamic="force-dynamic";

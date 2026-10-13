@@ -1,2 +1,2 @@
 /** Compatibility entry; its legacy implementation is tracked in ownership.json. */
-export { taxDocumentRequest } from "../../../hospitality-tax-document-request";
+export { taxDocumentRequest } from "@/server/modules/finance/adapters/hospitality-tax-document-request";

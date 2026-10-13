@@ -12,7 +12,7 @@ export interface CRMRepository{
  replay<Result=Record<string,unknown>>(key:string,operation:string,id:string,input:unknown):Promise<Result|null>;
  commit<Result>(mutation:CRMMutation,result:Result):Promise<Result>;
 }
-export function createCRMApplication(ports:{actorId:string;canRead:boolean;canSales:boolean;canApprove:boolean;canPms:boolean;canSupport:boolean;clock:Clock;authorize(permission:"commerce.read"|"commerce.sales"|"commerce.approve"|"pms.read"):void;repository():Promise<CRMRepository>;activityWork():Promise<import("@/lib/work-item").WorkItem[]>}){
+export function createCRMApplication(ports:{actorId:string;canRead:boolean;canSales:boolean;canApprove:boolean;canPms:boolean;canSupport:boolean;clock:Clock;authorize(permission:"commerce.read"|"commerce.sales"|"commerce.approve"|"pms.read"):void;repository():Promise<CRMRepository>;activityWork():Promise<import("@/lib/work_projection/work-item").WorkItem[]>}){
  async function getLead(id:string){const repository=await ports.repository();ports.authorize("commerce.read");const row=(await repository.records(id))[0];if(!row)throw new BusinessRuleError(404,"CRM_LEAD_NOT_FOUND","Lead not found in this scope.");return row;}
  return {
   getLead,

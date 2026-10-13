@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { WorkContext } from '../../identity_access/public/authorization';
 import { mentionsSchema } from './social-text';
 import type { Mention } from './social-text';
-import type { RichContent } from '@/lib/home-rich-content';
+import type { RichContent } from "@/lib/shared/home-rich-content";
 import { BusinessRuleError } from '../../shared';
 export type Actor = WorkContext;
 export const postContentBlockSchema = z.discriminatedUnion("type", [

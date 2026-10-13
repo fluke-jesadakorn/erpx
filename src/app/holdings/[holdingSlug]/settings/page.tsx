@@ -2,26 +2,26 @@ import { operationsPresentationQueries } from "@/server/modules/operations/publi
 
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
-import { BetaSettings } from "@/components/beta/settings";
+import { BetaSettings } from "@/components/collaboration/settings";
 import {
   FeatureTabBar,
   FeaturePage,
   FeatureWidget,
   WidgetGrid,
-} from "@/components/features/feature-page";
-import { AiProviders } from "@/components/modules/ai-providers";
-import { ApprovalAdministration } from "@/components/modules/approval-administration";
-import { BrandAdministration } from "@/components/modules/brand-administration";
-import { ServiceNavigation } from "@/components/modules/service-navigation";
-import { StaffSettingsControls } from "@/components/modules/staff-settings-controls";
+} from "@/components/shared/features/feature-page";
+import { AiProviders } from "@/components/platform_administration/ai-providers";
+import { ApprovalAdministration } from "@/components/workflow/approval-administration";
+import { BrandAdministration } from "@/components/brand/brand-administration";
+import { ServiceNavigation } from "@/components/field_service/service-navigation";
+import { StaffSettingsControls } from "@/components/people_payroll/staff-settings-controls";
 import { PageHeader } from "@/components/ui/primitives";
 import { FlowSettingsHub } from "@/components/workplace/flow-settings-hub";
 import { RequestAdministration } from "@/components/workplace/request-administration";
 import { ServiceTeams } from "@/components/workplace/service-teams";
-import { adminSections, type AdminSection } from "@/lib/administration";
-import { workspaceBase } from "@/lib/workspace";
-import { peopleContextHref } from "@/lib/people-route-context";
-import { hasPermission } from "@/lib/permissions";
+import { adminSections, type AdminSection } from "@/lib/shared/administration";
+import { workspaceBase } from "@/lib/work_projection/workspace";
+import { peopleContextHref } from "@/lib/people_payroll/people-route-context";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { administrationAccess } from "@/server/modules/runtime/public/administration";
 
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";

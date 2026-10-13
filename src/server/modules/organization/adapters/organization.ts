@@ -1,10 +1,11 @@
+import {policyRead} from "../../identity_access/public/iam-read-snapshot";
 import { platformOwnerProjectionSources as commercePlatformSources } from "../../commerce/public/platform-owner-projection-sources";
 import { platformOwnerProjectionSources as identity_accessPlatformSources } from "../../identity_access/public/platform-owner-projection-sources";
 import { platformOwnerProjectionSources as people_payrollPlatformSources } from "../../people_payroll/public/platform-owner-projection-sources";
 import {organizationGraphSnapshotSources} from '../../people_payroll/public/organization-graph-snapshot-sources';
 import "server-only";
-import {hasPermission} from '@/lib/permissions';
-import {samePerson} from '@/lib/iam';
+import {hasPermission} from "@/lib/identity_access/permissions";
+import {samePerson} from "@/lib/identity_access/iam";
 import type {WorkContext} from '../../identity_access/public/authorization';
 import {requirePermission} from '../../identity_access/public/iam-permissions';
 import {stageOrganizationDepartmentAssignment} from '../../identity_access/public/organization-department-relocation';
@@ -19,7 +20,7 @@ import {organizationRosterPeople,organizationRosterExitEngagementIds,organizatio
 import {stageOrganizationNodeChannels} from '../../collaboration/public/organization-node-channels';
 import {prepareAttachmentBinding} from '../../files/public/attachments/service';
 import {attachmentPurposeFacts} from '../../files/public/attachment-purpose-facts';
-import type {OrganizationPerson,OrganizationPosition,OrganizationNode,OrganizationNodeChange} from '@/lib/organization';
+import type {OrganizationPerson,OrganizationPosition,OrganizationNode,OrganizationNodeChange} from "@/lib/organization/organization";
 import {BusinessRuleError} from '../../shared';
 import {canReadOrganizationChanges,organizationChangeNotice} from './organization-work';
 import {organizationMemberSql} from './organization-channels';
@@ -40,11 +41,13 @@ export async function organizationGuard(db: SqlDatabase, companyId: string, key:
   return assertion(db,key,"organization-snapshot",`((${graphSql})::jsonb = ?::jsonb)`,[...args,row!.snapshot]);
 }
 export async function organizationRoster(db: SqlDatabase, companyId: string) {
+  return structuredClone(await policyRead(db,JSON.stringify(["organization-roster",companyId]),async () => {
   const [people, positions] = await Promise.all([
 organizationRosterPeople(db,companyId),
     db.prepare("SELECT p.*,l.level_number FROM organization_positions p JOIN staff_levels l ON l.id=p.level_id AND l.company_id=p.company_id WHERE p.company_id=? ORDER BY l.level_number,p.title,p.id").bind(companyId).all<OrganizationPosition>(),
   ]);
   return {people:people.results,positions:positions.results};
+  }));
 }
 const nodeImpactSql=`SELECT
  (SELECT count(*) FROM organization_nodes WHERE company_id=? AND parent_id=? AND status='active') child_nodes,

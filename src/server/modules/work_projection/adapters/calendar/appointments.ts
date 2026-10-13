@@ -1,7 +1,7 @@
 import { ApiError } from "../../../runtime/public/http";
 import type { CalendarAccess } from "../../domain/calendar/access";
 import "server-only";
-import type { CalendarQuery } from "@/lib/calendar";
+import type { CalendarQuery } from "@/lib/work_projection/calendar";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { runtimeEnv } from "@/server/modules/runtime/public/runtime";
 import { calendarAppointmentsWorkProjectionFacts } from "../../../work_projection/public/calendar-appointments-facts";

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AccessPackageDefinition } from "@/lib/people-lifecycle";
+import type { AccessPackageDefinition } from "@/lib/people_payroll/people-lifecycle";
 const id = z.string().min(1).max(180);
 export const provisioningInput = z
   .object({

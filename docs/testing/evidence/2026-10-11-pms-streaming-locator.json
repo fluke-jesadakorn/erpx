@@ -1,0 +1,23 @@
+{
+  "date": "2026-10-11",
+  "candidate": "61d02a05665bdec4bc25a5b25cb9af9b40140960da76ed51b0228f9a37652581",
+  "verification": "d7bc97cd9fa75e7f86fa2240b05b376a9fcd1aeccc95af8116befa59b2d48ded",
+  "wholePlanComplete": false,
+  "passedBeforeFailure": 33,
+  "failedTitle": "H002 guest journey includes independent guest account correction, payment, checkout and Night Audit",
+  "failedProject": "mobile",
+  "failure": "Strict locator matched the visible correction article and a hidden Next.js streaming segment S:3 containing the same correction ID.",
+  "correction": "Select exact returned correction ID, expected reason and visible article; assert exactly one visible result before independent manager approval. All reversal, actor independence, SQL and two-posting assertions retained.",
+  "runtimeSourceChanged": false,
+  "retriesAdded": false,
+  "forcedClicksAdded": false,
+  "cleanupFailures": [],
+  "receiptSha256": "33d2e400765acc0b4100c97b60f469281e39fa1bbc02185d17f642b70100065c",
+  "focusedRerun": {
+    "run": "2026-10-10T18-52-32-086Z",
+    "desktopPassed": true,
+    "mobilePassed": true,
+    "verificationFingerprint": "288ac27d0e51949a43a2be01e6b7818e3bd52ea19b07cf0bb34f5264dcc45b96",
+    "cleanupFailures": []
+  }
+}

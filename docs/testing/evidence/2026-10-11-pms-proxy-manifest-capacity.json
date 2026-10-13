@@ -1,0 +1,396 @@
+{
+  "date": "2026-10-11",
+  "scope": "Strict uninstrumented owned release capacity passed; whole-candidate acceptance pending",
+  "complete": false,
+  "wholePlanAccepted": false,
+  "runtimeFingerprint": "61d02a05665bdec4bc25a5b25cb9af9b40140960da76ed51b0228f9a37652581",
+  "verificationFingerprint": "d7bc97cd9fa75e7f86fa2240b05b376a9fcd1aeccc95af8116befa59b2d48ded",
+  "release": "2026-10-10T18-04-29-147Z",
+  "run": "28482e15425c",
+  "instrumented": false,
+  "accounts": 20,
+  "properties": 3,
+  "roomsPerProperty": 200,
+  "historyDays": 730,
+  "poolMax": 16,
+  "controlPoolMax": 8,
+  "readCount": 840,
+  "writeCount": 843,
+  "readP95Ms": 233.2669160000005,
+  "coreWriteP95Ms": 1622.698916999998,
+  "strictEveryOperationPassed": true,
+  "operations": [
+    {
+      "stage": "cashier",
+      "kind": "write",
+      "operation": "charge.add",
+      "count": 20,
+      "p95Ms": 1166.6529160000064,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "cashier",
+      "kind": "write",
+      "operation": "payment.deposit",
+      "count": 20,
+      "p95Ms": 1271.5201250000027,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "cashier",
+      "kind": "write",
+      "operation": "payment.receive",
+      "count": 40,
+      "p95Ms": 1294.3312089999963,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "cashier",
+      "kind": "write",
+      "operation": "refund.approve",
+      "count": 20,
+      "p95Ms": 150.34791699999914,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "cashier",
+      "kind": "write",
+      "operation": "refund.pay",
+      "count": 20,
+      "p95Ms": 1263.7500409999993,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "cashier",
+      "kind": "write",
+      "operation": "refund.request",
+      "count": 20,
+      "p95Ms": 1026.6464579999956,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "cashier",
+      "kind": "write",
+      "operation": "shift.close",
+      "count": 20,
+      "p95Ms": 1027.161208999998,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "cashier",
+      "kind": "write",
+      "operation": "shift.open",
+      "count": 20,
+      "p95Ms": 958.6392500000002,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "cashier",
+      "kind": "write",
+      "operation": "shift.review",
+      "count": 20,
+      "p95Ms": 165.30020800000057,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "closing",
+      "kind": "write",
+      "operation": "guest_account.close",
+      "count": 20,
+      "p95Ms": 1298.3334160000086,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "closing",
+      "kind": "write",
+      "operation": "night.start",
+      "count": 3,
+      "p95Ms": 223.10683399999107,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "core",
+      "kind": "read",
+      "operation": "calendar",
+      "count": 200,
+      "p95Ms": 145.77691699999923,
+      "limitMs": 1000,
+      "passed": true
+    },
+    {
+      "stage": "core",
+      "kind": "read",
+      "operation": "dashboard",
+      "count": 200,
+      "p95Ms": 212.67145800000435,
+      "limitMs": 1000,
+      "passed": true
+    },
+    {
+      "stage": "core",
+      "kind": "read",
+      "operation": "guest-accounts",
+      "count": 200,
+      "p95Ms": 218.10391600000003,
+      "limitMs": 1000,
+      "passed": true
+    },
+    {
+      "stage": "core",
+      "kind": "read",
+      "operation": "rooms",
+      "count": 200,
+      "p95Ms": 184.75712500000373,
+      "limitMs": 1000,
+      "passed": true
+    },
+    {
+      "stage": "core",
+      "kind": "read",
+      "operation": "seven-day-report",
+      "count": 40,
+      "p95Ms": 316.3667919999989,
+      "limitMs": 1000,
+      "passed": true
+    },
+    {
+      "stage": "core",
+      "kind": "write",
+      "operation": "guest.save",
+      "count": 200,
+      "p95Ms": 1678.328749999997,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "core",
+      "kind": "write",
+      "operation": "reservation.create",
+      "count": 200,
+      "p95Ms": 1415.1200420000023,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "operational",
+      "kind": "write",
+      "operation": "payment.receive",
+      "count": 20,
+      "p95Ms": 1305.840624999997,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "operational",
+      "kind": "write",
+      "operation": "reservation.create",
+      "count": 20,
+      "p95Ms": 1266.490417000001,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "operational",
+      "kind": "write",
+      "operation": "shift.close",
+      "count": 20,
+      "p95Ms": 1082.0376669999969,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "operational",
+      "kind": "write",
+      "operation": "shift.open",
+      "count": 20,
+      "p95Ms": 1017.6776670000036,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "operational",
+      "kind": "write",
+      "operation": "shift.review",
+      "count": 20,
+      "p95Ms": 191.67462499999965,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "operational",
+      "kind": "write",
+      "operation": "stay.assign",
+      "count": 20,
+      "p95Ms": 1232.005916000002,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "operational",
+      "kind": "write",
+      "operation": "stay.change_dates",
+      "count": 20,
+      "p95Ms": 1329.6751250000016,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "operational",
+      "kind": "write",
+      "operation": "stay.check_in",
+      "count": 20,
+      "p95Ms": 1080.1664170000004,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "operational",
+      "kind": "write",
+      "operation": "stay.check_out",
+      "count": 20,
+      "p95Ms": 1102.2725000000064,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "operational",
+      "kind": "write",
+      "operation": "stay.move",
+      "count": 20,
+      "p95Ms": 1264.7670419999995,
+      "limitMs": 2000,
+      "passed": true
+    },
+    {
+      "stage": "operational",
+      "kind": "write",
+      "operation": "stay.preview_checkout",
+      "count": 20,
+      "p95Ms": 1472.5057920000036,
+      "limitMs": 2000,
+      "passed": true
+    }
+  ],
+  "allSamplesValid": true,
+  "sameProcesses": true,
+  "sourceUnchanged": true,
+  "samplesSha256": "63dc8f7fa0ec308ef08e836bbd68341e71e3f7d760ffddd2f960d556d9851a03",
+  "moneyHistoryAuditReconciliation": {
+    "financial": {
+      "history": {
+        "records": 657000,
+        "versions": "657000"
+      },
+      "balances": {
+        "accounts": 20,
+        "due": "0",
+        "advance": "200000",
+        "deposit": "40000"
+      },
+      "cash": {
+        "shifts": 20,
+        "cash": "475400",
+        "reviewed": true
+      },
+      "receipts": {
+        "receipts": 60,
+        "refunds": 20,
+        "received": "495400",
+        "refunded": "20000",
+        "settled": true
+      },
+      "journals": {
+        "debit": "999280",
+        "credit": "999280"
+      }
+    },
+    "operational": {
+      "occupancy": {
+        "stays": 20,
+        "completed": true
+      },
+      "balances": {
+        "accounts": 20,
+        "due": "0",
+        "advance": "0",
+        "deposit": "0"
+      },
+      "cash": {
+        "shifts": 20,
+        "cash": "7062000",
+        "reviewed": true
+      },
+      "rooms": {
+        "rooms": 40,
+        "dirty": true
+      },
+      "charges": {
+        "charges": 20,
+        "total": "7062000"
+      },
+      "receipts": {
+        "receipts": 20,
+        "received": "7062000",
+        "settled": true
+      },
+      "journals": {
+        "debit": "22185280",
+        "credit": "22185280"
+      },
+      "history": {
+        "records": 657000,
+        "versions": "657000"
+      }
+    },
+    "closing": {
+      "invoices": {
+        "invoices": 20,
+        "total": "7062000",
+        "outstanding": "0",
+        "paid": true
+      },
+      "days": {
+        "hotels": 3,
+        "advanced": true
+      },
+      "nights": {
+        "nights": 3,
+        "capacity": 600,
+        "sold": 20,
+        "completed": true
+      },
+      "journals": {
+        "debit": "22185280",
+        "credit": "22185280"
+      },
+      "history": {
+        "records": 657000,
+        "versions": "657000"
+      }
+    }
+  },
+  "ownedCohortDestroyed": true,
+  "correction": "Each separately invoked Proxy owns its request-local computation map. Only identical fresh manifest bytes reuse SHA256; fresh origin/artifact/Company/expiry/transaction guards and native response behavior remain unchanged.",
+  "focusedVerification": {
+    "unit": 6,
+    "native": 92,
+    "typecheck": true,
+    "architecture": true
+  },
+  "remaining": [
+    "Final candidate full native/security/browser/route checks",
+    "Final mock per-feature evidence and migration/restore reconciliation",
+    "Public development staff session verification and environment availability"
+  ]
+}

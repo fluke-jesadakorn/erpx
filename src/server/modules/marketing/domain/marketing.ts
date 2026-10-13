@@ -1,6 +1,6 @@
 import {z} from "zod";
 import type {Row} from "../../commerce/public/commerce";
-import type {WorkItem} from "@/lib/work-item";
+import type {WorkItem} from "@/lib/work_projection/work-item";
 const reason = z.string().trim().min(3).max(3000),
   version = z.number().int().positive();
 export const marketingCandidateSchema = z.object({

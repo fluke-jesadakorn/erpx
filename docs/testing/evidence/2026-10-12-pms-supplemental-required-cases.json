@@ -1,0 +1,135 @@
+{
+  "originalNativeRequirementsRetained": 1342,
+  "explicitNewNativeCases": [
+    {
+      "runner": "vitest",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "upgrades only remaining nights and retains past prices, type occupancy and original money records"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "repeated upgrades on one business date retain both decisions without zero-length inventory periods"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "upgrade rejects uninspected rooms, incompatible rates, and issued destination bills before changing the stay"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "extends upgraded stays without reassigning past room type or nightly price"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "reuses cancelled group quota while preserving both historical pickup IDs"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "supports back-to-back group pickups but rejects overlapping use of the same quota"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "changes pickup dates into its own remaining allotment without double-counting held capacity"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "returns remaining source-type group quota after upgrade and consumes target capacity exactly once"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "counts durable pending group claims once and returns the allotment when the hold expires"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/pms-application.test.ts",
+      "title": "keeps a quota-only revision claim from consuming physical room capacity twice"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms-booking.test.ts",
+      "title": "reviews and applies a staff group pickup date change within its held allotment without extra payment"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms-booking.test.ts",
+      "title": "allows authorized staff to review an active private company rate while public offers exclude it"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms-booking.test.ts",
+      "title": "protects own group quota while an additional-payment date change is pending and applies it once after payment"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms-booking.test.ts",
+      "title": "deducts an existing manual room advance from additional collection during a staff booking review"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms-booking.test.ts",
+      "title": "retains a manual advance on pay-at-hotel review and rejects stale funding before confirmation"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms-booking.test.ts",
+      "title": "requests excess manual advance refund on a staff revision without changing its issued receipt"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms-booking.test.ts",
+      "title": "refuses staff pickup of an internal provider hold without changing its capacity or booking"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms-booking.test.ts",
+      "title": "refuses ordinary staff release of an internal provider hold without changing its capacity or booking"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms-read-model.test.ts",
+      "title": "keeps room and supply context while withholding pricing and upgrade reasons from housekeeping reads"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms-read-model.test.ts",
+      "title": "retains legacy PMS rows and rejects malformed optional upgrade and pending-quota containers"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms.test.ts",
+      "title": "commits an in-house room upgrade once with version fencing and immutable original receipt evidence"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/pms.test.ts",
+      "title": "serializes concurrent last group pickups and returns quota after cancellation without erasing pickup history"
+    }
+  ],
+  "originalBrowserRequirementsRetained": 178,
+  "explicitNewBrowserCases": [
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/demo-hospitality-setup.spec.ts",
+      "title": "keeps hotel drafts scoped while refresh fences stale cash and an inspected higher room type upgrades through the drawer",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/demo-hospitality-setup.spec.ts",
+      "title": "keeps hotel drafts scoped while refresh fences stale cash and an inspected higher room type upgrades through the drawer",
+      "project": "mobile"
+    }
+  ],
+  "originalCurrentRegisterCount": 131,
+  "currentRegisterCount": 155,
+  "addedCount": 24,
+  "historicalBaselinesEdited": false,
+  "finalCandidateAcceptancePending": true
+}

@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import {assistantPage} from '@/lib/ai/workspace-assistant';
+import {assistantPage} from "@/lib/work_projection/ai/workspace-assistant";
 export const reason = z.string().trim().min(3).max(3000),
   version = z.number().int().positive();
 export const sourcePath = z.string().max(300).transform((path, ctx) => {

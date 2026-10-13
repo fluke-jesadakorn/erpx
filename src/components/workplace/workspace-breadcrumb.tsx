@@ -9,7 +9,7 @@ import {
   navigationTrail,
   workplaceNavigation,
   type NavigationContext,
-} from "@/lib/workplace-navigation";
+} from "@/lib/work_projection/workplace-navigation";
 import styles from "./shell.module.css";
 
 export type WorkspaceCrumb = {

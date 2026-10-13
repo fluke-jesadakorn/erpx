@@ -1,9 +1,9 @@
 import { workProjectionPresentationQueries } from "@/server/modules/work_projection/public/presentation-queries";
-import { CalendarWorkspace } from "@/components/calendar/calendar-workspace";
+import { CalendarWorkspace } from "@/components/work_projection/calendar/calendar-workspace";
 import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
 
 
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 export const dynamic = "force-dynamic";
 export default async function CalendarPage({
   params,

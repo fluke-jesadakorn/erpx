@@ -16,7 +16,7 @@ Open access-certification campaigns notify every currently eligible company-leve
 
 ## Policy and storage
 
-- `src/lib/iam.ts` owns shared contracts; `src/lib/permissions.ts` owns live and preview capabilities and built-in compatibility definitions. Preview modules cannot supply executable grants.
+- `src/lib/identity_access/iam.ts` owns shared contracts; `src/lib/identity_access/permissions.ts` owns live and preview capabilities and built-in compatibility definitions. Preview modules cannot supply executable grants.
 - `iam-store`, `iam-transactions`, `iam-service` and `iam-inspector` resolve policy, enforce parent bounds/revisions and implement review workflows. Existing People access and invitation APIs adapt to these services.
 - Control migrations `0006_iam`, `0007_iam_catalog` and Holding-write migrations `0020_iam`, `0021_iam_catalog` are additive. The catalog update publishes built-in revision 2 for generic live-record permissions and invalidates old contexts; it preserves assignment validity/history.
 - Permissions are explicit and default-deny. Scope, staff eligibility, ownership, workflow participation, approval limits and independent review remain mandatory. Customer role IDs and permission namespaces cannot grant Platform access.

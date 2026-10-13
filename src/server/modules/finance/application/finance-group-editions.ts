@@ -1,10 +1,10 @@
 import { convert } from '../domain/group-consolidation-math';
 import type { intercompanyPairSchema } from '../public/finance-intercompany-pairs';
 import { z } from "zod";
-import { decimalToUnits, unitsToDecimal } from "@/lib/finance-money";
+import { decimalToUnits, unitsToDecimal } from "@/lib/finance/finance-money";
 import { calculateFinance } from "../domain/finance-calculations";
-import { financeCsv as serializeFinanceCsv } from "@/lib/finance-csv";
-import { samePerson } from "@/lib/iam";
+import { financeCsv as serializeFinanceCsv } from "@/lib/finance/finance-csv";
+import { samePerson } from "@/lib/identity_access/iam";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { capturedFiscalClose } from "@/server/modules/finance/public/finance-fiscal-close-source";
 import type { requireFinanceTool } from "@/server/modules/finance/public/finance-company-tools";

@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { samePerson } from '@/lib/iam';
-import { minorToDecimal } from '@/lib/finance-money';
+import { samePerson } from "@/lib/identity_access/iam";
+import { minorToDecimal } from "@/lib/finance/finance-money";
 import { exportCsv } from './withholding-month-source';
 import type { WorkContext } from '@/server/modules/identity_access/public/authorization';
 import type { TaxPermission } from '../domain/tax-identities';

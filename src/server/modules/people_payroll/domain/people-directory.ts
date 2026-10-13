@@ -1,4 +1,4 @@
-import {z} from 'zod';import {hasPermission} from '@/lib/permissions';import type {WorkContext} from '../../identity_access/public/authorization';export const directorySchema = z.object({
+import {z} from 'zod';import {hasPermission} from "@/lib/identity_access/permissions";import type {WorkContext} from '../../identity_access/public/authorization';export const directorySchema = z.object({
   legalName: z.string().trim().min(2).max(200),
   preferredName: z.string().trim().max(160).default(""),
   email: z.email().transform((v) => v.toLowerCase()),

@@ -4,12 +4,12 @@ import { accessPage } from "@/server/modules/work_projection/public/page-error";
 import { ApiError } from "@/server/modules/runtime/public/http";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { qualityWorkspace } from "@/server/modules/quality/public/quality";
 import { qualityAlerts } from "@/server/modules/quality/public/quality-alerts";
-import { QualityConsole } from "@/components/modules/quality-console";
-import { RecordDocumentDrawer } from "@/components/attachments/record-document-drawer";
-import { AttachmentFeatureSurface } from "@/components/attachments/attachment-feature-context";
+import { QualityConsole } from "@/components/quality/quality-console";
+import { RecordDocumentDrawer } from "@/components/files/record-document-drawer";
+import { AttachmentFeatureSurface } from "@/components/files/attachment-feature-context";
 import { PageContent, Card, TableFrame } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Page({ params }: { params: Promise<{ holdingSlug: string }> }) {

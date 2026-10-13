@@ -4,7 +4,7 @@ import { holdingBindingBySlug, holdingResources } from "@/server/modules/runtime
 import { workspaceChoices } from "@/server/modules/organization/public/workspace-choices";
 import { currentSession, requireAccountAccess } from "@/server/modules/identity_access/public/authorization";
 import { ApiError } from "@/server/modules/runtime/public/http";
-import { frontOrigin } from "@/lib/front-host";
+import { frontOrigin } from "@/lib/shared/front-host";
 import { iamRoles } from "@/server/modules/identity_access/public/iam-store";
 import { readWorkSelection, selectWorkRole } from "../public/work-role-store";
 import {publishedBrandIdentity} from "@/server/modules/brand/public/brand-identity";

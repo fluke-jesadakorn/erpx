@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { appendFile, stat, rename, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
-import { getRuntime,closeRuntime } from '../../src/server/runtime/env';
+import { getRuntime,closeRuntime } from "../../src/server/modules/runtime/adapters/runtime/env";
 
 const role=process.argv[2];
 if(role!=='web'&&role!=='jobs'&&role!=='tunnel')throw new Error('INVALID_SERVICE_ROLE');

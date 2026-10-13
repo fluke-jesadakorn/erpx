@@ -1,5 +1,5 @@
-import { isMyAction } from "@/lib/work-item";
-import { selfServiceActions } from "@/lib/self-service";
+import { isMyAction } from "@/lib/work_projection/work-item";
+import { selfServiceActions } from "@/lib/work_projection/self-service";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { activeStaff } from "@/server/modules/operations/public/staff-policy";
 import type { leaveSummary } from "@/server/modules/people_payroll/public/leave-self-service";

@@ -1,1 +1,0 @@
-export {crmLeadSchema,crmLeadChangeSchema,crmOpportunitySchema,getCRMLead,crmOpportunityEvidenceRow,crmWorkspace,crmDetail,createCRMLead,changeCRMLead,changeCRMOpportunity,crmWork} from "./modules/crm/adapters/leads";

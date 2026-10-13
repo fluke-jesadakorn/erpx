@@ -2,7 +2,7 @@ import { platformOwnerProjectionSources as identity_accessPlatformSources } from
 import { platformOwnerProjectionSources as people_payrollPlatformSources } from "../../people_payroll/public/platform-owner-projection-sources";
 import "server-only";
 import {createHash} from 'node:crypto';
-import {hasPermission} from '@/lib/permissions';
+import {hasPermission} from "@/lib/identity_access/permissions";
 import type {WorkContext} from '../../identity_access/public/authorization';
 import {requirePermission} from '../../identity_access/public/iam-permissions';
 import {readGpoRules} from '../../identity_access/public/gpo-rules';
@@ -15,7 +15,7 @@ import {applyOrganizationPositionMoveHolder,organizationPositionMoveMembers,orga
 import {BusinessRuleError} from '../../shared';
 import {organizationRoster} from './organization';
 import {recommendationStatements} from './staff-defaults';
-import {positionMoveDate,type PositionMoveInput,type PositionMoveRecord} from '@/lib/position-moves';
+import {positionMoveDate,type PositionMoveInput,type PositionMoveRecord} from "@/lib/people_payroll/position-moves";
 import {createPositionMoveApplication,type PositionMovePorts,type ClaimedPositionMove} from '../application/position-moves';
 import type {LeaveDefault} from '../domain/position-moves';
 export {positionMoveGraphIssues,positionMoveLeaveImpact} from '../domain/position-moves';

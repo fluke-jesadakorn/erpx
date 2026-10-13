@@ -8,21 +8,21 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Button, Field, Select, Table, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { FeatureTabBar, FeatureWidget, WidgetGrid } from "@/components/features/feature-page";
+import { FeatureTabBar, FeatureWidget, WidgetGrid } from "@/components/shared/features/feature-page";
 import { TargetBillingPanel } from "./target-billing-panel";
 import { NextMonthForecast } from "./next-month-forecast";
-import { TimeText } from "@/components/time/time-preference-context";
+import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 
-import { betaFetch } from "@/lib/beta-client";
+import { betaFetch } from "@/lib/shared/beta-client";
 import {
   baht,
   billingMonth,
   type BillingCost,
   type BillingView,
   type InvoiceLine,
-} from "@/lib/billing";
-import { APP_LOCALE, APP_TIMEZONE } from "@/lib/localization";
-import { workFetch } from "@/lib/work-fetch";
+} from "@/lib/billing/billing";
+import { APP_LOCALE, APP_TIMEZONE } from "@/lib/shared/localization";
+import { workFetch } from "@/lib/work_projection/work-fetch";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RecordLink as Link } from "@/components/records/record-link";

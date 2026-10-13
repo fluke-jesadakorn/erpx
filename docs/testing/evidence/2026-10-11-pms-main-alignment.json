@@ -1,0 +1,213 @@
+{
+  "checkedAt": "2026-10-10T21:29:26.886228+00:00",
+  "source": "/Users/fluke/Desktop/Work/erpx",
+  "destination": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx",
+  "reason": "Final delivery candidate must include current shared PMS/POS/UI dependencies. Preserve main concurrent changes; old frozen evidence remains historical and is not promoted.",
+  "filesCopied": [
+    {
+      "file": "migrations/postgres/holding-write/1039_transaction_local_command_assertions.sql",
+      "candidateSHA256": "0c2be51c92cba021437da90326961df3d569a7f80495c9b99964f3769b5c5701",
+      "mainSHA256": "efa749ab8c688ef0385425330213fc04673d19847e7a829b205830c9127e741d"
+    },
+    {
+      "file": "scripts/testing/runner-environment.ts",
+      "candidateSHA256": "eee16b39f8e04814515c692ab8f92a0f24b8c08139e3709e7ae677823e0e7ed6",
+      "mainSHA256": "991c7e47615b4509e3239116c9b8e50ffe1eef8cca912d603771cd1417891779"
+    },
+    {
+      "file": "src/app/holdings/[holdingSlug]/forbidden.tsx",
+      "candidateSHA256": "bb05f426dccd95fcb77a70bf7ae0865ea7f6cb6c9da92ca165e57641dfb6858a",
+      "mainSHA256": "bc9eb1b89cc0a0115d532dbc416c9629e8909cbfdc8eab81450f1e346dfee685"
+    },
+    {
+      "file": "src/components/front/front-error.tsx",
+      "candidateSHA256": "6b09521504bc9578fb45adfe07f2ca57484285ed010027416daf08ee929041d2",
+      "mainSHA256": "263f2b7a62b9855c60e00d5b411db957152a7306f6b342119ef2b632b037bbdd"
+    },
+    {
+      "file": "src/components/pos/pos-closing.tsx",
+      "candidateSHA256": "a0ebf9cf7c78f5fd36b76829dc9308d2f941ac05e1febd8d0cbe13f0c8060be9",
+      "mainSHA256": "d91e8f681ecc01f5cdfa0b0053a44ac08bb71601998b5306fda80f2d56129c8c"
+    },
+    {
+      "file": "src/components/pos/pos-console.tsx",
+      "candidateSHA256": "01b84152827f5d8976ac2a2591953f5f37062de8b51d0118ff1f92b60f787fbb",
+      "mainSHA256": "7f219baf0c3356fc8da2e5ac33e81d600db4a8278d07ee6e03fb88f7743fc318"
+    },
+    {
+      "file": "src/components/pos/pos-controller.ts",
+      "candidateSHA256": "a3a953a83c0b8a838acda85f85e77407dba67a11062cd1859e1e6f3bf836b05f",
+      "mainSHA256": "2c2709fc2d585bb0708887848f0f53572f12166efcd4ce485e2c7a71d56c8b03"
+    },
+    {
+      "file": "src/components/records/record-link.tsx",
+      "candidateSHA256": "128c17dc24970d020b91a6f9d638fe8b6eda80ae813e1e6bf75b1c4111726a33",
+      "mainSHA256": "3a6c44bbcdd2e07b8cfccb15f0cdfa50ec307a42e87947a088b459cd0a559684"
+    },
+    {
+      "file": "src/components/ui/action-anchor.tsx",
+      "candidateSHA256": null,
+      "mainSHA256": "56495a32f9b42cc6a552ed2e731a35c272eb9e3cc1cfb6cbf669491c6a25b425"
+    },
+    {
+      "file": "src/components/ui/card.tsx",
+      "candidateSHA256": null,
+      "mainSHA256": "f8306556a8b4df359d3c7d678b4ce200e404bd71a707744790aae3e4d2891643"
+    },
+    {
+      "file": "src/components/ui/foundation.tsx",
+      "candidateSHA256": "7bdde27b32f7df1a4930d10e8b84e8c164905d6aafa94252327a3acc82356d83",
+      "mainSHA256": "1d01d78b8875ceed856388ffd960032acce53e43beba1ca9da620412401a4d04"
+    },
+    {
+      "file": "src/components/workplace/access-state.tsx",
+      "candidateSHA256": "71d83e11928bbfed5fd41cc1f5692b989e6463891d9acd7fb1f43dd6dc3f6ab2",
+      "mainSHA256": "2c635f32639962ea1e928c87079fb8d4cb1b281588ed5f0bb2a01178f06daec2"
+    },
+    {
+      "file": "src/components/workplace/context-switch-context.ts",
+      "candidateSHA256": null,
+      "mainSHA256": "5ffd431fbf36801f18b64ba0c1eeada841514db694080b9d13efb087872cdbde"
+    },
+    {
+      "file": "src/components/workplace/context-switch-provider.tsx",
+      "candidateSHA256": "538158bb9b9eb4abe36e1a193711474c24b38b43805d16e6ada93de3cf1dd0be",
+      "mainSHA256": "a8df7ec95864e8911f5a7644d507af81a2ffcfc1af76eccec3c3da9a0c37100b"
+    },
+    {
+      "file": "src/components/workplace/forbidden-context.ts",
+      "candidateSHA256": null,
+      "mainSHA256": "5d73ad7e0b5e48a129f2728e9ea96a9ef604c1229c9d57b095e88f73fec0a30e"
+    },
+    {
+      "file": "src/components/workplace/forbidden-panel.tsx",
+      "candidateSHA256": null,
+      "mainSHA256": "9d6ada81e4babd54941c55e033be9ed5522e51efad80d46035bb3fb44ba407d0"
+    },
+    {
+      "file": "src/components/workplace/forbidden-recovery.tsx",
+      "candidateSHA256": "260e3cf132632d8e4e3053a1075f83465254fcbb9cdf9a18433497e089e0ab28",
+      "mainSHA256": "90d69b9e3bd1c65aa6f0d5085b55f4101e10470b0541196ba85701630b29889b"
+    },
+    {
+      "file": "src/components/workplace/platform-role-switcher-loader.tsx",
+      "candidateSHA256": null,
+      "mainSHA256": "be7ba7b3b4a099e1306a396555be99b8494e315ac4bc22a1b95121cb4ca37aa9"
+    },
+    {
+      "file": "src/components/workplace/platform-role-switcher.tsx",
+      "candidateSHA256": "19a357d6781b3f0d531c38090f398cb5ac740b6569f67862ccb2396c43dfb2ac",
+      "mainSHA256": "185137e99d689e99652523ce617a0a96525658ba5adae82851bbc0cc1f778196"
+    },
+    {
+      "file": "src/lib/latest-read.ts",
+      "candidateSHA256": "1947ef46abf957cda336b9888945e202be00606f6dbc1210f29971fb0748c803",
+      "mainSHA256": "c77a28adca4f9ba1e081cc85aa50a6c22d55ed70628f47139c22e998033f87e1"
+    },
+    {
+      "file": "src/server/modules/people_payroll/adapters/expense-batch-facts.ts",
+      "candidateSHA256": "97a532d6065a5295723f7a6717086dad1a4456e3e83f533e17b1064f523bbe33",
+      "mainSHA256": "212016468e484c91fbbf7d00e2717cdf5c8bff06135d0266fca85763dc04f073"
+    },
+    {
+      "file": "src/server/modules/people_payroll/adapters/expense-drafts.ts",
+      "candidateSHA256": "22701f37393e0cd6dc335469f13e460219e5c78bce402c4d9282988269abf291",
+      "mainSHA256": "3061701718c0672dc6bde086db5ad5d09ec632224e951a9481f4d6079b663ddc"
+    },
+    {
+      "file": "tests/expense-v2.test.ts",
+      "candidateSHA256": "448e16ec8b8c9da17b5fba3d347e9d46dd9a0390fd9305c8fad3c5b6be2e82b2",
+      "mainSHA256": "69f7a1a6a8c3c76b155f00610819cb6fed1a8827ee9780524f139c46c275375d"
+    },
+    {
+      "file": "tests/unit/latest-read.test.ts",
+      "candidateSHA256": "4d5fee0fb3883057fd03fd692f4f407ac2b3413788f9b29cb71e7a08b331723c",
+      "mainSHA256": "aa17552835f49e384ce9e776937cb515c4f9792b54748ccd9123ac3fe75a9916"
+    },
+    {
+      "file": "tests/unit/test-selection.test.ts",
+      "candidateSHA256": "a3b1beb794b7e0216cf135034a83ea61496c69b58be2ea32aa7b87da5213c305",
+      "mainSHA256": "a70a7b62703261ca12641dbc2f97b855ba7c5bf4671bd75779f39e0a482e2648"
+    },
+    {
+      "file": "tests/work-cache.test.ts",
+      "candidateSHA256": "46728630d3ce6a119b732d8a3be87c5011614e5e059b34849d95835875cd2b2d",
+      "mainSHA256": "5dad0bbfeeba71031179a499c7a78d8eaf58dbee4acce48ed1bdc5555d5d7ae3"
+    }
+  ],
+  "sourceMainWasNotModified": true,
+  "oldRun": {
+    "session": 12238,
+    "terminalExitCode": 1,
+    "interrupted": "SIGINT",
+    "passedCases": 12,
+    "cleanupFailures": [],
+    "receipt": ".scratch/dev/test-suites/browser/2026-10-10T21-16-17-156Z/receipt.json"
+  },
+  "wholePlanAccepted": false,
+  "initialStaticFailure": {
+    "session": 58460,
+    "terminalExitCode": 2,
+    "log": ".scratch/dev/pms-main-aligned-candidate/typecheck-initial.log",
+    "cause": "TS2783 in owned supplemental domain-proof script; Object.assign preserves override behavior and removes duplicate-property declaration. No runtime source modification."
+  },
+  "candidate": {
+    "runtime": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+    "verification": "d338abbdd6e4fb68b035f2003c0337f66e54f7b3f2615dfa780eec899d15bd2e",
+    "mainRuntime": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+    "mainVerification": "d338abbdd6e4fb68b035f2003c0337f66e54f7b3f2615dfa780eec899d15bd2e",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-10T21-33-53-720Z",
+    "releaseId": "2026-10-10T21-33-53-720Z"
+  },
+  "verification": {
+    "session": 71059,
+    "state": "running; after verification-script type repair",
+    "capacityFreshRunRequired": true,
+    "fullNativeCountsNotAssumed": true
+  },
+  "currentCheckpoint": {
+    "checkedAt": "2026-10-10T21:37:56.490327+00:00",
+    "driverSession": 71059,
+    "phase": "browser178",
+    "staticPassed": [
+      "typecheck",
+      "lint",
+      "architecture",
+      "documentation"
+    ],
+    "lintExistingWarnings": 3,
+    "buildPassed": true,
+    "unitPassed": 781,
+    "integration": "running, aggregate not sealed",
+    "logs": {
+      "typecheck": {
+        "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-main-aligned-candidate/typecheck.log",
+        "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+      },
+      "lint": {
+        "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-main-aligned-candidate/lint.log",
+        "sha256": "0211741eacc108089202fadacf856c584e3bfc48d4ce33a4fa7a8b4d08de2a88"
+      },
+      "architecture": {
+        "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-main-aligned-candidate/architecture.log",
+        "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+      },
+      "docs": {
+        "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-main-aligned-candidate/docs.log",
+        "sha256": "f5db8aa0f3ceec3f9a835bc304588e8cc6d41ebd5edc799c8c332b83cd6be55e"
+      },
+      "build": {
+        "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-main-aligned-candidate/build.log",
+        "sha256": "4b538503294eb2d6fab49b09471b8d347932031bdcf0f8943b8def83dabc6db5"
+      },
+      "seal-release": {
+        "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-main-aligned-candidate/seal-release.log",
+        "sha256": "77ffbfa7df7c223411518b83070d21489b621fcad1a4ff99032e8ae6c6ce223c"
+      }
+    },
+    "nativePassed": 1342,
+    "securityPassed": 47,
+    "nativeEvidence": "docs/testing/evidence/2026-10-11-pms-main-aligned-native.json",
+    "wholeCandidateAcceptance": false
+  }
+}

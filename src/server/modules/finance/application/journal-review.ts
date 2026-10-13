@@ -1,6 +1,6 @@
 import type { WorkContext } from '@/server/modules/identity_access/public/authorization';
-import { hasPermission } from '@/lib/permissions';
-import { samePerson } from '@/lib/iam';
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { samePerson } from "@/lib/identity_access/iam";
 import { createFinancePolicy } from '../domain/finance-policy';
 import type { FinanceRow } from '../domain/finance';
 import type { FinanceError } from '../domain/invoice-line-revision';

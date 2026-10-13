@@ -1,4 +1,4 @@
-import type { OrganizationAccessData } from "@/lib/organization-access";
+import type { OrganizationAccessData } from "@/lib/organization/organization-access";
 import type { Clock } from "../../shared";
 import { assertOrganizationAccess, projectOrganizationAccess, type OrganizationAccessActor, type OrganizationAccessSnapshot } from "../domain/access";
 

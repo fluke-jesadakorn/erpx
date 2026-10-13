@@ -9,7 +9,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
-import { frontText } from "@/lib/front-language";
+import { frontText } from "@/lib/shared/front-language";
 
 export type FrontLanguage = "th" | "en";
 

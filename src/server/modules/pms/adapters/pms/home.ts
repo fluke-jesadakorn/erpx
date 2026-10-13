@@ -1,5 +1,5 @@
 import "server-only";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { SqlDatabase } from "../../../runtime/public/runtime/types";
 import { holdingResources } from "../../../runtime/public/runtime";
 import type { WorkContext } from "../../../identity_access/public/authorization";
@@ -32,13 +32,11 @@ function taskQuery(actor: WorkContext, propertyId?: string, mine = false, select
     WHEN pr.kind='shift' THEN CASE WHEN pr.data->>'state'='closed' THEN 'variance' ELSE 'shift' END ELSE 'night' END`;
     const urgent = `(pr.kind='night' OR (pr.kind='shift' AND pr.data->>'state'='closed') OR pr.data->>'priority'='urgent'
     OR (pr.kind='stay' AND pr.data->>'state'='in_house' AND pr.data->>'departure'<pr.business_date))`;
-    return { sql: `SELECT pr.*,${label} label,COALESCE(${urgent},FALSE) urgent,${actionable} actionable,
-      rr.data_json::jsonb->>'number' room_number,
-      CASE WHEN COALESCE(${urgent},FALSE) THEN '0' ELSE '1' END || lpad(pr.updated_at::text,16,'0') page_key
+    return { sql: `WITH operational AS MATERIALIZED (
+    SELECT pr.*
     FROM (${pmsSourcesSql}) pr CROSS JOIN (SELECT ?::text user_id) recipient
-    LEFT JOIN pms_records rr ON rr.property_id=pr.property_id AND rr.id=pr.data->>'roomId' AND rr.kind='room'
     WHERE pr.company_id=? AND (?::text IS NULL OR pr.branch_id=?) AND (?::text IS NULL OR pr.property_id=?)
-      AND ${pmsSourceReadableSql("pr", "recipient.user_id", "?::text")} AND (
+      AND (
       (pr.kind='stay' AND ${can("pms.frontdesk")} AND ((pr.data->>'state'='reserved' AND pr.data->>'arrival'<=pr.business_date)
         OR (pr.data->>'state'='in_house' AND pr.data->>'departure'<=pr.business_date)))
       OR (pr.kind='task' AND pr.data->>'state' NOT IN ('done','superseded')
@@ -54,9 +52,15 @@ function taskQuery(actor: WorkContext, propertyId?: string, mine = false, select
       OR (pr.kind='shift' AND ((pr.data->>'state'='open' AND ${cashier} AND ${own})
         OR (pr.data->>'state'='closed' AND (pr.data->>'variance')::bigint<>0 AND (${approve} OR ${audit}))))
       OR (pr.kind='night' AND pr.data->>'state'='blocked' AND ${audit})
-    ) ${mine ? `AND (${actionable}) AND (pr.kind<>'task' OR pr.data->>'state'='clean' OR pr.data->>'assigneeId'=recipient.user_id OR COALESCE(pr.data->>'assigneeId','')='')` : ""}
+    )) SELECT pr.*,${label} label,COALESCE(${urgent},FALSE) urgent,${actionable} actionable,
+      rr.data_json::jsonb->>'number' room_number,
+      CASE WHEN COALESCE(${urgent},FALSE) THEN '0' ELSE '1' END || lpad(pr.updated_at::text,16,'0') page_key
+    FROM operational pr CROSS JOIN (SELECT ?::text user_id) recipient
+    LEFT JOIN pms_records rr ON rr.property_id=pr.property_id AND rr.id=pr.data->>'roomId' AND rr.kind='room'
+    WHERE ${pmsSourceReadableSql("pr", "recipient.user_id", "?::text")}
+    ${mine ? `AND (${actionable}) AND (pr.kind<>'task' OR pr.data->>'state'='clean' OR pr.data->>'assigneeId'=recipient.user_id OR COALESCE(pr.data->>'assigneeId','')='')` : ""}
     AND (?::text IS NULL OR (${label})=?)`,
-        args: [actor.userId, actor.companyId, actor.branchId, actor.branchId, propertyId ?? null, propertyId ?? null, actor.assignmentId, selectedLabel ?? null, selectedLabel ?? null] };
+        args: [actor.userId, actor.companyId, actor.branchId, actor.branchId, propertyId ?? null, propertyId ?? null,actor.userId, actor.assignmentId, selectedLabel ?? null, selectedLabel ?? null] };
 }
 function repository(db: SqlDatabase): PmsHomeRepository {
     return {
@@ -109,9 +113,9 @@ function repository(db: SqlDatabase): PmsHomeRepository {
     ) SELECT p.id,
       COALESCE((SELECT sum((r.data_json::jsonb->>'net')::bigint) FROM pms_records r JOIN entry_roots e ON e.id=r.id AND e.property_id=r.property_id
         WHERE r.property_id=p.id AND r.data_json::jsonb->>'date'=p.business_date AND r.data_json::jsonb->>'kind' IN ('charge','adjustment')),0) room_revenue,
-      COALESCE((SELECT sum((r.data_json::jsonb->>'due')::bigint) FROM pms_records r WHERE r.property_id=p.id AND r.kind='folio'),0) receivable,
-      COALESCE((SELECT sum((r.data_json::jsonb->>'advance')::bigint) FROM pms_records r WHERE r.property_id=p.id AND r.kind='folio'),0) advance,
-      COALESCE((SELECT sum((r.data_json::jsonb->>'deposit')::bigint) FROM pms_records r WHERE r.property_id=p.id AND r.kind='folio'),0) deposit
+      COALESCE((SELECT sum((r.data_json::jsonb->>'due')::bigint) FROM pms_records r WHERE r.property_id=p.id AND r.kind='guest_account'),0) receivable,
+      COALESCE((SELECT sum((r.data_json::jsonb->>'advance')::bigint) FROM pms_records r WHERE r.property_id=p.id AND r.kind='guest_account'),0) advance,
+      COALESCE((SELECT sum((r.data_json::jsonb->>'deposit')::bigint) FROM pms_records r WHERE r.property_id=p.id AND r.kind='guest_account'),0) deposit
     FROM pms_properties p WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.id=?)`).bind(facts.companyId, facts.branchId, facts.branchId2, facts.companyId2, facts.branchId3, facts.branchId4, facts.propertyId, facts.propertyId2).all<{
             id: string;
             room_revenue: number;

@@ -7,7 +7,7 @@ import { companyAuthority } from "../../operations/public/staff-policy";
 import { homePosts, postView, socialAudienceOptions } from "../public/social-home";
 import { createSocialPageQuery } from "../application/social-page";
 
-export function socialPageData(actor: WorkContext, input: { postId?: string; tag?: string }) {
+export function socialPageData(actor: WorkContext, input: { postId?: string; tag?: string; skipDay?: boolean; skipMilestones?: boolean }) {
   let db: SqlDatabase;
   return createSocialPageQuery({
     prepare: async () => { db = (await holdingResources(actor.holdingId)).write; },

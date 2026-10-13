@@ -1,6 +1,6 @@
 import {billingInput,type BillingActor,type BillingInput} from '../domain/billing';
-import type {BillingView} from '@/lib/billing';
-import {billingMonth} from '@/lib/billing';
+import type {BillingView} from "@/lib/billing/billing";
+import {billingMonth} from "@/lib/billing/billing";
 import type {WorkContext} from '@/server/modules/identity_access/public/authorization';
 import type {BillingEvidenceSource} from '../domain/evidence';
 import type {TargetBillingPeriodView} from '../domain/target';

@@ -1,6 +1,6 @@
 import "server-only";
 import type { SqlDatabase } from "../../runtime/public/runtime/types";
-import { type RecurrenceRule } from "@/lib/calendar-recurrence";
+import { type RecurrenceRule } from "@/lib/work_projection/calendar-recurrence";
 export function calendarAvailabilityWorkProjectionFacts(db: SqlDatabase) {
     return { read2: (facts: {
             value1: string;

@@ -1,8 +1,10 @@
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { parseGuestAccountJson } from "@/lib/identity_access/guest-account-compat";
 import { record, records, type Snapshot } from "../domain/pms";
-import { executePms } from '@/lib/pms-engine';
-import { samePerson } from '@/lib/iam';
+import { executePms } from "@/lib/pms/pms-engine";
+import { samePerson } from "@/lib/identity_access/iam";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
-import type { Effects } from "@/lib/pms-engine";
+import type { Effects } from "@/lib/pms/pms-engine";
 import type { Clock } from "../../shared/application/ports";
 import type { BookingPaymentRow, BookingEnv } from "../public/pms-booking";
 export type PmsProviderRows<Row> = {
@@ -12,6 +14,7 @@ export type PmsProviderWrite = {
     run(): Promise<PmsProviderRows<Record<string, unknown>>>;
 };
 export type PmsBookingRefundUnit = {
+    authorize(actor: WorkContext, permission: string): Promise<void>;
     readPmsBookingPayments(facts: {
         paymentId: string;
         id: string;
@@ -23,7 +26,7 @@ export type PmsBookingRefundUnit = {
         paymentId: string;
     }): Promise<PmsProviderRows<{
         stay_id: string;
-        folio_id: string;
+        guest_account_id: string;
         entry_id: string;
         amount_minor: number;
     }>>;
@@ -197,7 +200,7 @@ export type PmsBookingRefundPorts = {
 };
 export type Part = {
     stayId: string;
-    folioId: string;
+    guestAccountId: string;
     entryId: string;
     amount: number;
 };
@@ -226,14 +229,14 @@ export function createPmsBookingRefund(ports: PmsBookingRefundPorts) {
             throw ports.error(409, 'PMS_REFUND_NOT_AVAILABLE', 'Choose a confirmed original payment');
         const prior = await tx.readPmsBookingRefundRequests({ requestId: requestId });
         if (prior) {
-            const old = JSON.parse(prior.allocations_json) as Part[];
+            const old = parseGuestAccountJson(prior.allocations_json) as Part[];
             if (prior.payment_id !== paymentId || prior.reason !== reason || prior.requested_by !== requestedBy || JSON.stringify(old.map(p => ({ stayId: p.stayId, amount: p.amount }))) !== JSON.stringify(wanted))
                 throw ports.error(409, 'PMS_REFUND_KEY_REUSED', 'Use a new refund request key');
             return prior;
         }
         const sources = (await tx.readPmsBookingAllocations({ paymentId: paymentId })).results;
         const previous = (await tx.readPmsBookingRefundRequests2({ paymentId: paymentId })).results;
-        const used = previous.flatMap(r => JSON.parse(r.allocations_json) as Part[]);
+        const used = previous.flatMap(r => parseGuestAccountJson(r.allocations_json) as Part[]);
         const parts: Part[] = [];
         for (const selection of wanted) {
             if (!Number.isSafeInteger(selection.amount) || selection.amount <= 0)
@@ -242,41 +245,42 @@ export function createPmsBookingRefund(ports: PmsBookingRefundPorts) {
             const consumed = used.filter(p => p.stayId === selection.stayId).reduce((n, p) => n + p.amount, 0) + parts.filter(p => p.stayId === selection.stayId).reduce((n, p) => n + p.amount, 0);
             if (!source || selection.amount > Number(source.amount_minor) - consumed)
                 throw ports.error(409, 'PMS_REFUND_EXCEEDS_PAYMENT', 'Refund exceeds the remaining original receipt');
-            parts.push({ stayId: source.stay_id, folioId: source.folio_id, entryId: source.entry_id, amount: selection.amount });
+            parts.push({ stayId: source.stay_id, guestAccountId: source.guest_account_id, entryId: source.entry_id, amount: selection.amount });
         }
         const amount = parts.reduce((n, p) => n + p.amount, 0);
         if (!amount || previous.reduce((n, p) => n + Number(p.amount_minor), 0) + amount > Number(payment.amount_minor))
             throw ports.error(409, 'PMS_REFUND_EXCEEDS_PAYMENT', 'Cumulative refunds exceed the payment');
         const before = new Map(s.records.map(r => [r.id, JSON.stringify(r)]));
         for (const part of parts)
-            executePms(s, 'payment.refund_reserve', { folioId: part.folioId, amount: part.amount, sourceEntryId: part.entryId }, providerActor(now));
+            executePms(s, 'payment.refund_reserve', { guestAccountId: part.guestAccountId, amount: part.amount, sourceEntryId: part.entryId }, providerActor(now));
         await tx.persist(s, before);
         await tx.insertPmsBookingRefundRequests({ requestId: requestId, paymentId: paymentId, amount: amount, fact3: JSON.stringify(parts), reason: reason, requestedBy: requestedBy, now: now, now2: now });
         await tx.updatePmsBookingPayments({ now: now, now2: now, paymentId: paymentId });
         return { id: requestId, state: 'requested' as const, amount_minor: amount };
     }
     async function approveBookingRefund(db: PmsBookingRefundRepository, actor: WorkContext, id: string) {
-        ports.require(actor, 'finance.approve');
-        if (actor.branchId || actor.departmentId)
-            throw ports.error(403, 'PMS_COMPANY_FINANCE', 'Use the company Finance workspace');
+        ports.require(actor, 'pms.approve');
+        if (actor.departmentId) throw ports.error(403,'PMS_BRANCH_REQUIRED','Choose a Company or Branch.');
         const found = await db.readPmsBookingRefundRequests3({ id: id, id2: id, companyId: actor.companyId });
         if (!found)
             throw ports.error(409, 'PMS_REFUND_NOT_REQUESTED', 'No refund request awaits approval');
         return db.transaction(async (tx) => {
             const s = await tx.bookingSnapshot(found.property_id, undefined, true);
+            if(actor.branchId && s.property.branchId !== actor.branchId) throw ports.error(404,'PMS_NOT_FOUND','Refund not found in this workspace.');
+            await tx.authorize(actor,'pms.approve');
             await tx.readWriteContext({});
             const request = await tx.readPmsBookingRefundRequests4({ id: found.id });
             if (!request || request.state !== 'requested' || samePerson(actor, request.requested_by))
-                throw ports.error(409, 'PMS_INDEPENDENT_REFUND_APPROVAL', 'A different Finance user must approve the refund');
+                throw ports.error(409, 'PMS_INDEPENDENT_REFUND_APPROVAL', 'A different PMS manager must approve the refund');
             if (!s.property.config.onlineAccounting?.approvedBy)
                 throw ports.error(409, 'PMS_ONLINE_ACCOUNTING_REQUIRED', 'Finance must approve the online liability accounts');
-            if (!(JSON.parse(request.allocations_json) as Part[]).length && !records(s, 'entry').some(e => e.data.sourceKey === `online-payment:${request.payment_id}` && e.data.description === 'payment.unallocated'))
+            if (!(parseGuestAccountJson(request.allocations_json) as Part[]).length && !records(s, 'entry').some(e => e.data.sourceKey === `online-payment:${request.payment_id}` && e.data.description === 'payment.unallocated'))
                 throw ports.error(409, 'PMS_UNALLOCATED_RECEIPT_MISSING', 'Recover and account for the original provider receipt before approving its refund');
             const before = new Map(s.records.map(r => [r.id, JSON.stringify(r)]));
-            for (const part of JSON.parse(request.allocations_json) as Part[]) {
+            for (const part of parseGuestAccountJson(request.allocations_json) as Part[]) {
                 if (request.legacy_review)
-                    executePms(s, 'payment.refund_reserve', { folioId: part.folioId, amount: part.amount, sourceEntryId: part.entryId }, providerActor(ports.clock.now()));
-                const outcome = executePms(s, 'payment.refund_liability', { folioId: part.folioId, amount: part.amount, reference: request.id, sourceEntryId: part.entryId }, providerActor(ports.clock.now()));
+                    executePms(s, 'payment.refund_reserve', { guestAccountId: part.guestAccountId, amount: part.amount, sourceEntryId: part.entryId }, providerActor(ports.clock.now()));
+                const outcome = executePms(s, 'payment.refund_liability', { guestAccountId: part.guestAccountId, amount: part.amount, reference: request.id, sourceEntryId: part.entryId }, providerActor(ports.clock.now()));
                 await tx.persist(s, before);
                 await tx.effects(actor, s, outcome.effects);
             }
@@ -323,7 +327,7 @@ export function createPmsBookingRefund(ports: PmsBookingRefundPorts) {
                 throw ports.error(409, 'PMS_RECEIPT_TARGET_MISSING', 'The original booking needs owner review');
             const before = new Map(s.records.map(r => [r.id, JSON.stringify(r)])), clearing = s.property.config.accounts.edc;
             s.property.config.accounts.edc = found.clearing_account;
-            const result = executePms(s, 'payment.unallocated', { folioId: stay.data.folioId, amount: Number(found.amount_minor), reference: String(pi.id) }, providerActor(now));
+            const result = executePms(s, 'payment.unallocated', { guestAccountId: stay.data.guestAccountId, amount: Number(found.amount_minor), reference: String(pi.id) }, providerActor(now));
             record(s, 'entry', result.id).data.sourceKey = `online-payment:${found.id}`;
             await tx.persist(s, before);
             await tx.effects(actor, s, result.effects);
@@ -354,7 +358,7 @@ export function createPmsBookingRefund(ports: PmsBookingRefundPorts) {
                 const charge = typeof pi.latest_charge === 'string' ? await ports.stripeCall(Boolean(payment.livemode), `charges/${pi.latest_charge}`, { account: payment.account_id }) : null;
                 const promptpay = (charge?.payment_method_details as {
                     type?: string;
-                } | undefined)?.type === 'promptpay' || JSON.parse(payment.methods_json).join(',') === 'promptpay';
+                } | undefined)?.type === 'promptpay' || parseGuestAccountJson(payment.methods_json).join(',') === 'promptpay';
                 const refund = await ports.stripeCall(Boolean(payment.livemode), 'refunds', { method: 'POST', account: payment.account_id, key: `pms-refund-${request.id}-${request.generation}`, body: { payment_intent: pi.id, amount: String(request.amount_minor), ...(promptpay ? { instructions_email: email } : {}), 'metadata[pms_booking_payment_id]': payment.id, 'metadata[pms_booking_refund_id]': request.id } });
                 refundId = String(refund.id);
                 await db.insertPmsBookingRefundAttempts({ id: request.id, generation: request.generation, refundId: refundId, now: now });
@@ -384,16 +388,16 @@ export function createPmsBookingRefund(ports: PmsBookingRefundPorts) {
                     throw ports.error(409, 'PMS_REFUND_STATE', 'Refund state changed');
                 const before = new Map(s.records.map(r => [r.id, JSON.stringify(r)])), oldEdc = s.property.config.accounts.edc;
                 s.property.config.accounts.edc = payment.clearing_account;
-                const parts = JSON.parse(current.allocations_json) as Part[];
+                const parts = parseGuestAccountJson(current.allocations_json) as Part[];
                 if (!parts.length) {
                     const st = records(s, 'stay').find(st => st.data.reservationId === payment.reservation_id)!;
                     const receipt = records(s, 'entry').find(e => e.data.sourceKey === `online-payment:${payment.id}` && e.data.description === 'payment.unallocated');
                     if (!receipt)
                         throw ports.error(409, 'PMS_UNALLOCATED_RECEIPT_MISSING', 'Unallocated receipt requires recovery');
-                    parts.push({ stayId: st.id, folioId: st.data.folioId, entryId: receipt.id, amount: Number(current.amount_minor) });
+                    parts.push({ stayId: st.id, guestAccountId: st.data.guestAccountId, entryId: receipt.id, amount: Number(current.amount_minor) });
                 }
                 for (const part of parts) {
-                    const outcome = executePms(s, 'payment.refund_settle', { folioId: part.folioId, amount: part.amount, reference: refundId, sourceEntryId: part.entryId }, providerActor(now));
+                    const outcome = executePms(s, 'payment.refund_settle', { guestAccountId: part.guestAccountId, amount: part.amount, reference: refundId, sourceEntryId: part.entryId }, providerActor(now));
                     await tx.persist(s, before);
                     await tx.effects({ companyId: payment.company_id, userId: 'system:stripe' } as WorkContext, s, outcome.effects);
                 }
@@ -407,17 +411,18 @@ export function createPmsBookingRefund(ports: PmsBookingRefundPorts) {
     }
     /** Retry only after Stripe confirms that the previous refund failed or was cancelled. */
     async function retryBookingRefund(db: PmsBookingRefundRepository, actor: WorkContext, id: string, reason: string) {
-        ports.require(actor, 'finance.approve');
-        if (actor.branchId || actor.departmentId || reason.trim().length < 3)
-            throw ports.error(422, 'PMS_REFUND_RETRY_INPUT', 'Use company Finance and enter a recovery reason');
+        ports.require(actor, 'pms.approve');
+        if (actor.departmentId || reason.trim().length < 3) throw ports.error(422,'PMS_REFUND_RETRY_INPUT','Use PMS and enter a recovery reason');
         const found = await db.readPmsBookingRefundRequests7({ id: id, companyId: actor.companyId });
         if (!found || found.state !== 'failed' || !found.provider_id || samePerson(actor, found.requested_by))
-            throw ports.error(409, 'PMS_REFUND_RETRY_UNAVAILABLE', 'An independent Finance reviewer must select a failed provider refund');
+            throw ports.error(409, 'PMS_REFUND_RETRY_UNAVAILABLE', 'An independent PMS reviewer must select a failed provider refund');
         const provider = await ports.stripeCall(Boolean(found.livemode), `refunds/${found.provider_id}`, { account: found.account_id });
         if (!['failed', 'canceled'].includes(String(provider.status)))
             throw ports.error(409, 'PMS_REFUND_PROVIDER_PENDING', 'Recover the current provider refund without creating another');
         return db.transaction(async (tx) => {
-            await tx.bookingSnapshot(found.property_id, undefined, true);
+            const s=await tx.bookingSnapshot(found.property_id, undefined, true);
+            if(actor.branchId && s.property.branchId !== actor.branchId)throw ports.error(404,'PMS_NOT_FOUND','Refund not found in this workspace.');
+            await tx.authorize(actor,'pms.approve');
             const current = await tx.readPmsBookingRefundRequests8({ id: id });
             if (current?.state !== 'failed' || current.provider_id !== found.provider_id)
                 throw ports.error(409, 'PMS_REFUND_CHANGED', 'Refund changed; refresh before retrying');

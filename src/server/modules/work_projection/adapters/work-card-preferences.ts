@@ -4,7 +4,7 @@ import type {SqlDatabase,SqlStatement} from "../../runtime/public/runtime/types"
 import {ApiError} from "../../runtime/public/http";
 import {assertion,executeCommand,replayCommand} from "../../workflow/public/commands";
 import {serviceAuthoritySnapshot,serviceMember} from "../../support/public/service-access";
-import type {WorkCardId} from "@/lib/work-cards";
+import type {WorkCardId} from "@/lib/work_projection/work-cards";
 import type {WorkCardPreferenceInput} from "../domain/work-card-preferences";
 import {createWorkCardPreferenceService,type WorkCardPreferenceUnit} from "../application/work-card-preferences";
 export {workCardPreferenceSchema} from "../domain/work-card-preferences";

@@ -1,6 +1,6 @@
 import type { getProject } from "../../projects/public/staff-projects";
 import { z } from "zod";
-import { nextOccurrence, type RoutineRule } from "@/lib/routine-calendar";
+import { nextOccurrence, type RoutineRule } from "@/lib/work_projection/routine-calendar";
 import type { StaffActor } from "@/server/modules/operations/public/staff-policy";
 import type { validateTaskConfiguration } from "@/server/modules/operations/public/staff-tasks";
 import type { configGuards } from "@/server/modules/operations/public/staff-tasks";

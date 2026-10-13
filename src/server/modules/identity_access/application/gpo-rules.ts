@@ -1,10 +1,10 @@
 import type {WorkContext} from '../public/authorization';
 import type {ProviderConnection} from '../public/iam-providers';
-import type {DirectoryInventory} from '@/lib/directory-operations';
-import type {GpoRulePreview,GpoRuleTarget,GpoRulesOverview} from '@/lib/gpo-rules';
-import {gpoRuleInput,gpoRuleRemoval} from '@/lib/gpo-rules';
+import type {DirectoryInventory} from "@/lib/identity_access/directory-operations";
+import type {GpoRulePreview,GpoRuleTarget,GpoRulesOverview} from "@/lib/organization/gpo-rules";
+import {gpoRuleInput,gpoRuleRemoval} from "@/lib/organization/gpo-rules";
 import {z} from 'zod';
-import {hasPermission} from '@/lib/permissions';
+import {hasPermission} from "@/lib/identity_access/permissions";
 
 import {BusinessRuleError,type Clock,type IdentifierSource} from '../../shared';
 import {canManageGpoRules,presentGpoRule,gpoRuleMatchesPosition,tokenSchema,type GpoRuleRow,type EffectiveRuleRow,type Position} from '../domain/gpo-rules';

@@ -1,7 +1,7 @@
 import { posPermissions } from "../domain/pos-permissions";
 import type { WorkContext } from "../../identity_access/public/authorization";
 import { str, scopeRow as domainScopeRow, type PosRow } from "../domain/pos-model";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { businessDate as evaluateBusinessDate, recipeQuantities } from "../domain/pos";
 import type { Clock } from "../../shared/application/ports";
 import type { ListPage } from "../../work_projection/public/list-page";
@@ -18,6 +18,7 @@ export type PosReadAttachmentBinding<Effect> = {
     steps: Effect[];
 };
 export type PosReadUnit<Effect extends PosReadEffect> = {
+    hotelLinks(companyId: string, branchId: string | null): Promise<PosRow[]>;
     readPosRegisters1(facts: {
         company: string;
         branch: string | null;
@@ -128,6 +129,7 @@ export type PosReadUnit<Effect extends PosReadEffect> = {
         company: string;
         branch_id: string | number | boolean | null;
         currency: string | number | boolean | null;
+        propertyId: string | number | boolean | null;
     }): Promise<PosRow[]>;
     readPosRefundPayments1(facts: {
         company: string;
@@ -269,10 +271,11 @@ export function createPosRead<Effect extends PosReadEffect>(ports: {
 }) {
     const businessDate = (timezone = "Asia/Bangkok", date = new Date(ports.clock.now())) => evaluateBusinessDate(timezone, date);
     const scopeRow = (actor: WorkContext, row: PosRow | null) => domainScopeRow(actor, row, ports.error);
-    async function posWorkspace(actor: WorkContext, saleId?: string, historyQuery = '', section?: string, cursor?: string, frontMode = false) {
-        ports.require(actor, 'pos.read');
+    async function posWorkspace(actor: WorkContext, saleId?: string, historyQuery = '', section?: string, cursor?: string, frontMode = false, financeMode = false) {
+        ports.require(actor, financeMode ? 'finance.read' : 'pos.read');
+        if (financeMode && (frontMode || !['settings','reports'].includes(section ?? ''))) throw ports.error(403,'FINANCE_SOURCE_SELECTION_REQUIRED','Choose accounting settings or a reconciliation report.');
         if (actor.departmentId)
-            throw new Error('POS_BRANCH_REQUIRED');
+            throw ports.error(403, 'POS_BRANCH_REQUIRED', 'Select a Company or Branch to read POS reports.');
         const db = await ports.forActor(actor), company = actor.companyId, branch = actor.branchId;
         const registers = await db.readPosRegisters1({ company: company, branch: branch, branch2: branch });
         const sale = saleId ? scopeRow(actor, await db.readPosSales1({ saleId: saleId })) : null;
@@ -281,21 +284,22 @@ export function createPosRead<Effect extends PosReadEffect>(ports: {
         const frontProductCount = frontMode ? await db.readCommerceProducts1({ company: company, branch: branch, branch2: branch }) : null;
         const frontHotels = frontMode ? await db.readPosRegisters2({ company: company, branch: branch, branch2: branch }) : [];
         const frontBlockedRegisters = frontHotels.filter(row => row.hotel_state && (row.hotel_state !== 'open' || row.business_date !== businessDate()));
-        const report = !frontMode && hasPermission(actor, 'pos.reports'), configure = !frontMode && hasPermission(actor, 'pos.configure') && (wants('settings') || !settings), connect = !frontMode && hasPermission(actor, 'pos.payments.configure') && wants('settings');
-        const salesPage = section === 'history' ? await db.salesPage({ company, branch, historyQuery, cursor }) : null;
+        const accounting = !frontMode && (hasPermission(actor,'pos.accounting.prepare') || hasPermission(actor,'pos.accounting.approve'));
+        const report = !frontMode && (hasPermission(actor, 'pos.reports') || financeMode), configure = !frontMode && hasPermission(actor, 'pos.configure') && (wants('settings') || !settings), connect = !frontMode && hasPermission(actor, 'pos.payments.configure') && wants('settings');
+        const salesPage = !financeMode && section === 'history' ? await db.salesPage({ company, branch, historyQuery, cursor }) : null;
         const [commerce, commerceCurrency, products, warehouses, shifts, tables, sales, kitchen, refunds, cashMovements, stock, bankAccounts] = await Promise.all([
-            configure ? db.readCommerceSettings1({ company: company }) : Promise.resolve(null),
+            accounting ? db.readCommerceSettings1({ company: company }) : Promise.resolve(null),
             db.readCommerceSettings2({ company: company }),
-            wants('sale', 'settings') ? db.readPosRegisterCatalog1({ branch: branch, branch2: branch, company: company, fact3: section === 'settings', branch3: branch, branch4: branch }) : Promise.resolve([]),
+            !financeMode && wants('sale', 'settings') ? db.readPosRegisterCatalog1({ branch: branch, branch2: branch, company: company, fact3: section === 'settings', branch3: branch, branch4: branch }) : Promise.resolve([]),
             wants('sale', 'settings') ? db.readCommerceWarehouses1({ company: company, branch: branch, branch2: branch }) : Promise.resolve([]),
             wants('sale', 'history', 'shifts') ? db.readPosPayments1({ company: company, branch: branch, branch2: branch }) : Promise.resolve([]),
-            wants('sale', 'settings') ? db.readPosTables1({ company: company, branch: branch, branch2: branch }) : Promise.resolve([]),
+            !financeMode && wants('sale', 'settings') ? db.readPosTables1({ company: company, branch: branch, branch2: branch }) : Promise.resolve([]),
             salesPage ? Promise.resolve(salesPage.items) : wants('sale') ? db.readPosSales2({ company: company, branch: branch, branch2: branch, fact3: historyQuery.slice(0, 100), fact4: `%${historyQuery.slice(0, 100)}%`, fact5: section === 'sale' ? 1 : 0 }) : Promise.resolve([]),
-            wants('kitchen') ? db.readPosLines1({ company: company, branch: branch, branch2: branch }) : Promise.resolve([]),
+            wants('kitchen') && (hasPermission(actor,'pos.kitchen') || hasPermission(actor,'pos.sell')) ? db.readPosLines1({ company: company, branch: branch, branch2: branch }) : Promise.resolve([]),
             wants('history') || (wants('sale') && sale) ? db.readPosRefunds1({ company: company, branch: branch, branch2: branch, fact3: wants('history') ? null : sale?.id, fact4: wants('history') ? null : sale?.id }) : Promise.resolve([]),
             wants('shifts') ? db.readPosCashMovements1({ company: company, branch: branch, branch2: branch }) : Promise.resolve([]),
             wants('sale', 'settings') ? db.readInventoryActiveReservations1({ company: company, branch: branch, branch2: branch }) : Promise.resolve([]),
-            configure ? db.readFinanceAccounts1({ company: company }) : Promise.resolve([])
+            accounting ? db.readFinanceAccounts1({ company: company }) : Promise.resolve([])
         ]);
         const lines = sale ? await db.readPosLines2({ id: sale.id }) : [];
         const payments = sale ? await db.readPosPayments2({ id: sale.id }) : [];
@@ -307,7 +311,7 @@ export function createPosRead<Effect extends PosReadEffect>(ports: {
         const providerAllowed = ports.environment("NODE_ENV") !== 'production' || ports.environment("POS_STRIPE_LIVE_ENABLED") === 'true';
         const availableTenderMethods = ['cash', 'transfer', ...(providerAllowed ? ['edc'] : []), ...(providerAllowed && tenderConnection?.charges_enabled && tenderConnection.payouts_enabled && (!tenderConnection.livemode || ports.environment("POS_STRIPE_LIVE_ENABLED") === 'true') ? [...(tenderConnection.card_enabled ? ['stripe_card'] : []), ...(tenderConnection.promptpay_enabled ? ['stripe_promptpay'] : [])] : [])];
         const roomChargeStays = roomChargeEnabled && sale && ['open', 'held'].includes(str(sale, 'state')) && hasPermission(actor, 'pos.sell')
-            ? await db.readPmsProperties1({ company: company, branch_id: sale.branch_id, currency: sale.currency })
+            ? await db.readPmsProperties1({ company: company, branch_id: sale.branch_id, currency: sale.currency, propertyId: registers.find(r => r.id === sale.register_id)?.property_id ?? null })
             : [];
         const jobs = !branch && (connect || hasPermission(actor, 'pos.approve')) ? await db.readPosRefundPayments1({ company: company }) : [];
         if (!connect)
@@ -344,14 +348,17 @@ export function createPosRead<Effect extends PosReadEffect>(ports: {
         const receipt: PosReceiptSnapshot | null = receiptRow ? JSON.parse(str(receiptRow, 'snapshot_json')) : null;
         if (frontMode && receipt)
             receipt.payments = receipt.payments.map(p => { const { finance_payment_id: _finance, ...rest } = p; void _finance; return rest; });
-        const frontData = { currency: settings?.currency ? String(settings.currency) : commerce?.currency ? String(commerce.currency) : commerceCurrency?.currency ? String(commerceCurrency.currency) : null, salesPage: frontMode ? null : salesPage, permissions, userId: actor.userId, settings: frontMode ? frontSettings : settings, commerce: frontMode ? null : configure ? commerce : null, availableTenderMethods, roomChargeEnabled, registers: frontRows(registers), products: frontRows(products), warehouses: frontRows(warehouses), shifts: frontRows(shifts), tables: frontRows(tables), sales: frontRows(sales), sale: frontMode ? frontRow(sale) : sale, taxDocumentInvoiceId: sale?.state === 'completed' && sale.invoice_id ? str(sale, 'invoice_id') : null, lines: frontRows(lines), payments: payments.map((payment): PosRow => ({ ...(frontMode ? frontRow(payment) : payment), provider_payment_confirmed: Boolean(payment.provider_received_at) })), transferEvidence: frontMode ? [] : transferEvidence, roomCharge: frontMode && roomCharge ? { property_id: roomCharge.property_id, folio_entry_id: roomCharge.folio_entry_id } : roomCharge, roomChargeStays, kitchen: frontRows(kitchen), refunds: frontRows(refunds), cashMovements: frontRows(cashMovements), stock: frontRows(stock), jobs: frontMode ? [] : jobs, reports: frontMode ? [] : reports, paymentMix: frontMode ? [] : paymentMix,
+        if (!accounting && !report && settings) delete settings.accounts_json;
+        if (!accounting && !report && sale) delete sale.accounts_json;
+        const hotelLinks = configure ? await db.hotelLinks(company,branch) : [];
+        const frontData = { hotelLinks, currency: settings?.currency ? String(settings.currency) : commerce?.currency ? String(commerce.currency) : commerceCurrency?.currency ? String(commerceCurrency.currency) : null, salesPage: frontMode ? null : salesPage, permissions, userId: actor.userId, settings: frontMode ? frontSettings : settings, commerce: frontMode ? null : accounting ? commerce : null, availableTenderMethods, roomChargeEnabled, registers: frontRows(registers), products: frontRows(products), warehouses: frontRows(warehouses), shifts: frontRows(shifts), tables: frontRows(tables), sales: frontRows(sales), sale: frontMode ? frontRow(sale) : sale, taxDocumentInvoiceId: sale?.state === 'completed' && sale.invoice_id ? str(sale, 'invoice_id') : null, lines: frontRows(lines), payments: payments.map((payment): PosRow => ({ ...(frontMode ? frontRow(payment) : payment), provider_payment_confirmed: Boolean(payment.provider_received_at) })), transferEvidence: frontMode ? [] : transferEvidence, roomCharge: frontMode && roomCharge ? { property_id: roomCharge.property_id, guest_account_entry_id: roomCharge.guest_account_entry_id } : roomCharge, roomChargeStays, kitchen: frontRows(kitchen), refunds: frontRows(refunds), cashMovements: frontRows(cashMovements), stock: frontRows(stock), jobs: frontMode ? [] : jobs, reports: frontMode ? [] : reports, paymentMix: frontMode ? [] : paymentMix,
             companyName: (await db.readOrganizationNodes1({ company: company }))?.display_name ?? company,
             bankTransactions: frontMode ? [] : report && !branch && wants('reports') ? await db.readFinanceBankTransactions2({ company: company }) : [],
             customers: wants('sale') ? await db.posCustomers(actor) : [], receipt, companyId: company, branchId: branch,
             branches: report ? await db.readOrganizationNodes2({ company: company, branch: branch, branch2: branch }) : [],
             dayCloses: report && wants('reports') ? await db.readPosDayCloses1({ company: company, branch: branch, branch2: branch }) : [],
-            accounts: frontMode ? [] : configure ? await db.readFinanceAccounts2({ company: company }) : [],
-            charts: frontMode ? [] : configure ? await db.readFinanceCharts1({ company: company }) : [],
+            accounts: frontMode ? [] : accounting ? await db.readFinanceAccounts2({ company: company }) : [],
+            charts: frontMode ? [] : accounting ? await db.readFinanceCharts1({ company: company }) : [],
             bankAccounts: frontMode ? [] : bankAccounts,
             settlementConnection: !frontMode && report && !branch && wants('reports') && tenderConnection ? { account_id: tenderConnection.account_id, livemode: tenderConnection.livemode, version: tenderConnection.version } : null,
             connection: frontMode ? null : connect ? await db.readPosConnections2({ company: company }) : null,
@@ -366,7 +373,7 @@ export function createPosRead<Effect extends PosReadEffect>(ports: {
         to: string;
         currency: string;
     }) {
-        ports.require(actor, 'pos.read');
+        ports.require(actor, hasPermission(actor,'pos.read') ? 'pos.read' : 'finance.read');
         ports.require(actor, 'pos.reports');
         if (actor.departmentId)
             throw ports.error(403, 'EVIDENCE_FORBIDDEN', 'POS evidence is available only at Company or Branch scope.');
@@ -384,7 +391,7 @@ export function createPosRead<Effect extends PosReadEffect>(ports: {
             return db.readPosRefundPayments3({ id: id, company: company, branch: branch, branch2: branch, currency: currency, from: from, to: to });
         return null;
     }
-    async function posWork(actor: WorkContext): Promise<import('@/lib/work-item').WorkItem[]> {
+    async function posWork(actor: WorkContext): Promise<import("@/lib/work_projection/work-item").WorkItem[]> {
         if (!hasPermission(actor, 'pos.approve') || actor.departmentId)
             return [];
         const db = await ports.forActor(actor), company = actor.companyId, branch = actor.branchId;
@@ -401,7 +408,7 @@ export function createPosRead<Effect extends PosReadEffect>(ports: {
         shiftId: string;
         currency: string;
     }, page = 1) {
-        ports.require(actor, 'pos.read');
+        ports.require(actor, hasPermission(actor,'pos.read') ? 'pos.read' : 'finance.read');
         ports.require(actor, 'pos.reports');
         if (actor.departmentId)
             throw ports.error(403, 'POS_BRANCH_REQUIRED', 'Select a Company or Branch to read POS reports.');

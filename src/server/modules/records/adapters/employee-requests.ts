@@ -16,7 +16,7 @@ import { departmentRoute, departmentStepEligible } from "@/server/modules/organi
 import { canOverrideStaffStep, staffOverrideGuards } from "@/server/modules/workflow/public/approvals";
 import { companyMember, inServiceWorkspace, serviceAuthoritySnapshot, serviceMember, serviceOwner, validateServiceScope } from "@/server/modules/support/public/service-access";
 import { resolveServiceTeam, teamHandlers } from "@/server/modules/support/public/service-teams";
-import type { WorkItem } from "@/lib/work-item";
+import type { WorkItem } from "@/lib/work_projection/work-item";
 import { holdingResources as nativeHoldingResources } from '../../runtime/public/runtime';
 import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '../../identity_access/public/iam-read-snapshot';
 import { replayCommand as nativeReplayCommand, executeCommand as nativeExecuteCommand } from '../../workflow/public/commands';

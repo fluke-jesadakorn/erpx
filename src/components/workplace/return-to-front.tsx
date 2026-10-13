@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { frontWorkReturn } from "@/lib/front-work-return";
+import { frontWorkReturn } from "@/lib/work_projection/front-work-return";
 
 export function ReturnToFront({ base, holdingSlug, companySlug, companyId, userId, assignmentId }: { base:string; holdingSlug:string; companySlug?:string; companyId:string; userId:string; assignmentId:string }) {
   const search = useSearchParams(), incoming = search.get("frontReturn");

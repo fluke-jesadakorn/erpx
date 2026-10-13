@@ -1,6 +1,6 @@
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { recordSupplementData } from "@/server/modules/records/public/record-details";
-import { isRecordKind } from "@/lib/record-drawer";
+import { isRecordKind } from "@/lib/records/record-drawer";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 export const dynamic="force-dynamic";
 export async function GET(request:Request,{params}:{params:Promise<{holdingSlug:string}>}) {

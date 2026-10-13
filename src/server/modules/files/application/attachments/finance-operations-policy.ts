@@ -1,5 +1,5 @@
 import { financeOperationsAttachmentPolicies, targetTypes } from "../../domain/attachments/finance-operations-policy";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { WorkContext } from "../../../identity_access/public/authorization";
 import type { Clock } from "../../../shared/application/ports";
 import type { AttachmentOperation, AttachmentPolicy, AttachmentTargetScope } from "../../domain/attachments/types";

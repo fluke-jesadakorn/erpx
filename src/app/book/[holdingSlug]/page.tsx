@@ -3,6 +3,7 @@ import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 
+import { GuestBookingVisualPrototype } from "@/components/pms/visual-prototype";
 import { BookingFlow } from "@/components/pms/booking-flow";
 import { BookingGallery } from "@/components/pms/booking-gallery";
 import { BookingCopy } from "@/components/pms/booking-copy";
@@ -10,8 +11,10 @@ import styles from "@/components/pms/booking.module.css";
 export const dynamic = "force-dynamic";
 export default async function BookingPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ holdingSlug: string }>;
+  searchParams: Promise<{ prototype?: string }>;
 }) {
   if (
     process.env.PMS_STRIPE_BOOKING_ENABLED === "false"
@@ -22,6 +25,7 @@ export default async function BookingPage({
     if (e instanceof Error && e.message === "HOLDING_NOT_FOUND") notFound();
     throw e;
   });
+  if (process.env.NODE_ENV !== "production" && (await searchParams).prototype === "1") return <GuestBookingVisualPrototype />;
   const hotels = await queries.bookingCatalog();
   return (
     <main className={styles.wrap}>

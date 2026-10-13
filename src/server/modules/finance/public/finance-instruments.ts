@@ -1,2 +1,2 @@
 /** Compatibility entry; its legacy implementation is tracked in ownership.json. */
-export { instrumentEditionSchema, instrumentDecisionSchema, instrumentRunSchema, instrumentReversalSchema, prepareInstrument, decideInstrument, prepareInstrumentRun, decideInstrumentRun, reverseInstrumentRun, instrumentWorkspace } from "../../../finance-instruments";
+export { instrumentEditionSchema, instrumentDecisionSchema, instrumentRunSchema, instrumentReversalSchema, prepareInstrument, decideInstrument, prepareInstrumentRun, decideInstrumentRun, reverseInstrumentRun, instrumentWorkspace } from "@/server/modules/finance/adapters/finance-instruments";

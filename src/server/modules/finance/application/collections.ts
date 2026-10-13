@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import type {WorkContext} from '@/server/modules/identity_access/public/authorization';
-import {minorToDecimal} from '@/lib/finance-money';
+import {minorToDecimal} from "@/lib/finance/finance-money";
 import {financeReviewSchema} from '../domain/review';
 import {collectionCaseSchema,reviseCollectionCaseSchema,stage,type CollectionInvoice,type CollectionParent,type CollectionCase,type CollectionExposure,type CollectionPage,type CollectionQuery} from '../domain/collections';
 import type {FinanceError} from '../domain/invoice-line-revision';

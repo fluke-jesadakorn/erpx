@@ -1,4 +1,4 @@
-import { decimalToMinor } from "@/lib/finance-money";
+import { decimalToMinor } from "@/lib/finance/finance-money";
 import { BusinessRuleError } from "../../shared/domain/error";
 export type SalesPricingRow = Record<string, string | number | null>;
 export type SalesPricingInput = { kind: "quote" | "sales" | "purchase"; partyId: string; orderDate: string; priceListId?: string; discountReason?: string; lines: Array<{ productId: string; price: string; taxBps: number }> };

@@ -1,0 +1,34 @@
+{
+  "checkedAt": "2026-10-11T23:52:11.275699+00:00",
+  "scope": "Prepared supplemental6 actual compiled group/rooming UI checks; not executed and not acceptance",
+  "gap": "Native group quota/staff quote persistence and HTTP rooming10 do not independently prove the interactive group block/pickup/rooming controls",
+  "plannedChecks": [
+    "Desktop group-block long right drawer and persisted allocation",
+    "Desktop staff allocation search/signed review/two persistent pickups",
+    "Desktop actual rooming editor reload with unchanged payer/accounts/second stay/frozen prices",
+    "Mobile corresponding full-width group drawer",
+    "Mobile corresponding staff allocation booking",
+    "Mobile corresponding rooming editor"
+  ],
+  "boundary": "Run after original10rooming+30rates/report/maintenance in the same owned3104 compiled booking fixture, before existing owned cleanup. Shell set-e stops on failure. Additional result remains separate from original40 and all native/browser/route counters. No live money or candidate source mutation.",
+  "original10And30AssertionsCountsAndBudgetsUnchanged": true,
+  "supplementalCheckCount": 6,
+  "nativeBrowserRouteRequiredCountsUnchanged": true,
+  "buildSyntaxPassed": true,
+  "executed": false,
+  "wholePlanAccepted": false,
+  "files": [
+    {
+      "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-keyboard-repair-2026-10-12/rooming-proof/group-ui-workload.ts",
+      "sha256": "56c366064db779599f684eeea4cf7af4689738474f29e79fc0d26f2c91e9a141"
+    },
+    {
+      "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-keyboard-repair-2026-10-12/rooming-proof/group-ui-build.ts",
+      "sha256": "ec89c87b4b4fcb1d64550f621cd592a36a091d0d4247b6577fed683367e7e4c6"
+    },
+    {
+      "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-keyboard-repair-2026-10-12/rooming-proof/acceptance.sh",
+      "sha256": "08488f37d631bef9a40ca8f3280f94311c0236a8a6bee41163341eeae086c1bb"
+    }
+  ]
+}

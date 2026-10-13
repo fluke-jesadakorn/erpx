@@ -1,4 +1,4 @@
-import type { PermissionActor, RoleRevision } from "@/lib/iam";
+import type { PermissionActor, RoleRevision } from "@/lib/identity_access/iam";
 import type { IdentityError } from "./authorization";
 export type IamAuthorityMember = {
     status: string;

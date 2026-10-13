@@ -1,0 +1,172 @@
+{
+  "checkedAt": "2026-10-11T20:03:14.601265+00:00",
+  "scope": "Same-candidate engineering native acceptance; browser/routes/capacity/final feature reconciliation remain pending",
+  "runtimeFingerprint": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+  "verificationFingerprint": "520b658394141d43a5a5fa2b34ad6d8f1f6b17e79e96f6f218f460924eb406d3",
+  "candidateRelease": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T19-44-51-044Z",
+  "nativeAudit": {
+    "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-final-2026-10-12/native1364-audit.json",
+    "SHA256": "afe84452a6b5219eaa7364b4699d8aa1576a63447c896b670c8d46222a756582",
+    "originalRequired": 1342,
+    "newRequired": 22,
+    "exactRequiredPassingIdentities": 1364,
+    "originalUnit": 781,
+    "originalPostgres": 561,
+    "security": 47,
+    "crm": 9,
+    "typed403": 1,
+    "sameCandidateComposite": true,
+    "initialWholeIntegrationPassed": false,
+    "initialIntegrationPassed": 627,
+    "initialIntegrationFailed": 2,
+    "boundedRerunPassed": 2,
+    "rawReceipts": [
+      {
+        "file": ".scratch/dev/pms-joint-final-2026-10-12/unit-cases.json",
+        "SHA256": "382c26023d3b5ddc6cbc8bacb70752d9622dc0a6d6f07fc0cda2cb3ba5bd7918",
+        "wholeInvocationPassed": true,
+        "passedCases": 791,
+        "failedCases": 0
+      },
+      {
+        "file": ".scratch/dev/pms-joint-final-2026-10-12/integration-cases.json",
+        "SHA256": "ba6b63ea4b20b9848d4678e9353bf75827f7a9165bd688145be6346f9afddcc5",
+        "wholeInvocationPassed": false,
+        "passedCases": 627,
+        "failedCases": 2
+      },
+      {
+        "file": ".scratch/dev/pms-joint-final-2026-10-12/recovery-export-rerun.json",
+        "SHA256": "d40345070a202bb8f02308d865fc52d9489dfeff0a436c0c63189232db5caaf6",
+        "wholeInvocationPassed": true,
+        "passedCases": 2,
+        "failedCases": 0
+      },
+      {
+        "file": ".scratch/dev/pms-joint-final-2026-10-12/unit33-extra-cases.json",
+        "SHA256": "ca1c59d2000318ecb134fc66d0c68fc4050d51eb76e15d24201ca67d85d6e0ce",
+        "wholeInvocationPassed": true,
+        "passedCases": 33,
+        "failedCases": 0
+      }
+    ],
+    "retainedFailures": [
+      {
+        "file": "tests/engineering-migration-upgrade.test.ts",
+        "title": "upgrades populated pre-completion databases without changing posted money or files and replays canonical backfill once",
+        "status": "failed",
+        "kind": "integration",
+        "receipt": ".scratch/dev/pms-joint-final-2026-10-12/integration-cases.json",
+        "failureMessages": [
+          "Error: PRIVATE_UPGRADE_EVIDENCE_DIRECTORY_REQUIRED\n    at /Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/tests/engineering-migration-upgrade.test.ts:120:94\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at file:///Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+        ]
+      },
+      {
+        "file": "tests/engineering-recovery.test.ts",
+        "title": "encrypts a complete isolated snapshot, restores immutable money and files, and rolls back only compatible releases",
+        "status": "failed",
+        "kind": "integration",
+        "receipt": ".scratch/dev/pms-joint-final-2026-10-12/integration-cases.json",
+        "failureMessages": [
+          "Error: ENOENT: no such file or directory, open '/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-final-2026-10-12/compiled-recovery-raw/encrypted-recovery.json'\n    at open (node:internal/fs/promises:1345:25)\n    at Proxy.writeFile (node:internal/fs/promises:1965:14)\n    at /Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/tests/engineering-recovery.test.ts:263:17\n    at file:///Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+        ]
+      }
+    ]
+  },
+  "recoveryAndMigrationEvidence": [
+    {
+      "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/engineering-completion/runs/pms-joint-final-2026-10-12/encrypted-recovery.json",
+      "SHA256": "12683bb351709b71cd32ea34d135fdfc84dd6a3f7d08785eb553da4f2f998538",
+      "evidence": {
+        "sourceFingerprint": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+        "softwareVersion": "release-51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+        "compiledCandidate": true,
+        "fileManifestSha256": "7db29e3d7e5e641451548166583c83a353770ef9e3a5b975436ed1af9f5788b5",
+        "databaseCount": 8,
+        "tracks": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "holdingFileStores": 3,
+        "allHoldingFilesSha256": "968240006f2e7014ff9830c36c9ca02b492e89b84914f7084fd496e5bc71f3c3",
+        "tableCount": 2486,
+        "tableDigestSha256": "fc8babd699ab928289f1c4099bdcb5bf00c3f096851c4e8b395324df815eac33",
+        "ciphertextSha256": "7a39370f3dfbe97e3a30a33c05884e1d25bd5843d33e0a99f01dba60fe66b247",
+        "sourceBytesSha256": "04e1714dfb954cafd89463a425f91802cfe07435fa151d0c780a026002b0c858",
+        "restored": true,
+        "compatibleRollback": true,
+        "incompatibleRollbackRejected": true,
+        "pms": {
+          "propertyId": "property-ea95f2974c1e2396fcdeb4e517a6a52b",
+          "reservationId": "e9987849-7712-4425-af34-03aded79f3ad",
+          "stayId": "8cfb1d29-9e69-4bac-a1e1-dd3b299bd5a3",
+          "guestAccountId": "7c784672-9bae-4cea-b527-8bb34b8f4e29",
+          "roomId": "17aa2a65-4725-48ab-9db3-a0d50f05940e",
+          "taskId": "2d1da0d8-86c6-4fd2-bd12-4ccc24a09879",
+          "issuedDocuments": 2,
+          "documentsSHA256": "a4717fcfa776a9e3f61ad680baf41741e85e7bf32002872e9ec4e0e99391d1dc",
+          "ledger": {
+            "journals": 3,
+            "debit": "16400",
+            "credit": "16400"
+          },
+          "privateFileSHA256": "891ad3764293cc233bad7d9d573f44dc7c66eac872bb9f89f57bf437097928f6",
+          "mutatedGuestAndHotelRestored": true,
+          "identicalPaymentReplay": true,
+          "originalPmsSnapshotRetained": true
+        },
+        "ciphertextTamperingRejected": true,
+        "legal": {
+          "originalSha256": "a2761e5f87a3357d4df892f0c2c557e9950e43cc2017c0f6c81654a17270792c",
+          "originalBytesRetained": true,
+          "historyRetained": true,
+          "aclRetained": true,
+          "unassignedReaderRefused": true,
+          "overlappingHoldsRetained": true,
+          "queuedJobRetained": true,
+          "commandReplayWithoutDuplicateEffects": true,
+          "scanner": "declared scanner fixture; actual scanner is covered by compiled browser UAT"
+        },
+        "scope": "Isolated PostgreSQL18.6 and local FileStore; age encryption; no installed environment or external device"
+      }
+    },
+    {
+      "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/engineering-completion/runs/pms-joint-final-2026-10-12/migration-upgrade.json",
+      "SHA256": "451ef5d0d89369ca905e2fbb34fc845e2b305a77aea40e639114ac390b809e33",
+      "evidence": {
+        "version": 1,
+        "sourceFingerprint": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+        "compiledCandidate": true,
+        "softwareVersion": "release-51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+        "fileManifestSha256": "7db29e3d7e5e641451548166583c83a353770ef9e3a5b975436ed1af9f5788b5",
+        "tracks": 8,
+        "baselineBoundary": "0920",
+        "beforeSha256": "e10180086f5a926a1959969b5f1d4028387ee0fa455837bdd7973165e009aa27",
+        "afterSha256": "e10180086f5a926a1959969b5f1d4028387ee0fa455837bdd7973165e009aa27",
+        "priorReceiptsPreserved": true,
+        "backfillCount": 1,
+        "replayBackfillCount": 0,
+        "originalSha256": "59dd804c5b7c95cd200c1721d56c0029e4dce429d0d47a7e3ee46a98900769ad",
+        "thumbnailSha256": "87dbc0bd56806d3fa24c62d5400c2cbedd57e12cf1a4093837e3181a91419cf0",
+        "postedEvidenceImmutable": true,
+        "checksumsVerified": true,
+        "quotaDeltaBytes": 0,
+        "pmsPriceBackfill": {
+          "count": 1,
+          "originalQuoteRetained": true,
+          "unquotedNotInvented": true,
+          "ownerHistoryRetained": true,
+          "replayCount": 0
+        },
+        "scanner": "declared clean interface fixture; real scanner is verified separately"
+      }
+    }
+  ],
+  "wholePmsAccepted": false
+}

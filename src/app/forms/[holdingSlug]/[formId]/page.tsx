@@ -1,7 +1,7 @@
 import { marketingPresentationQueries } from "@/server/modules/marketing/public/presentation-queries";
 import {notFound} from 'next/navigation';
 import { holdingBindingBySlug } from "@/server/modules/runtime/public/runtime";
-import {PublicMarketingForm} from '@/components/modules/public-marketing-form';
+import {PublicMarketingForm} from "@/components/marketing/public-marketing-form";
 
 import Image from 'next/image';
 

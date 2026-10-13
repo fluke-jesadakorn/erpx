@@ -1,6 +1,6 @@
-import { parseHoldingWorkspace, type HoldingWorkspaceScope } from '@/lib/workspace';
+import { parseHoldingWorkspace, type HoldingWorkspaceScope } from "@/lib/work_projection/workspace";
 import { assignmentProblem, safeReturnPath } from '../domain/access-problem';
-import type { AccessProblem } from '@/lib/access-problem';
+import type { AccessProblem } from "@/lib/shared/access-problem";
 import { assignmentApplies, isRoleValidAtScope } from '../domain/workspace-access';
 import type { ResolvedWorkspaceScope, WorkAssignment } from '../domain/authorization';
 type AssignmentRow = {

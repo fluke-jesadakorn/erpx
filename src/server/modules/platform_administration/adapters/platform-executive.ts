@@ -1,5 +1,5 @@
 import "server-only";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { PlatformContext } from "../../identity_access/public/authorization";
 import type { SqlDatabase } from "../../runtime/public/runtime/types";
 import { ApiError } from "../../runtime/public/http";

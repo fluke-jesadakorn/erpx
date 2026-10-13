@@ -1,3 +1,4 @@
+import { pmsFinanceFacts } from "../../../finance/public/pms-command-facts";
 import "server-only";
 import { holdingResources } from "../../../runtime/public/runtime";
 import type { SqlDatabase } from "../../../runtime/public/runtime/types";
@@ -10,6 +11,7 @@ import { createPmsFinancialOverview, type PmsFinancialOverviewRepository } from 
 function repository(db: SqlDatabase): PmsFinancialOverviewRepository {
     const financial = pmsFinancialOverviewFacts(db);
     return {
+        bankEvidence: (companyId,bank,currency) => pmsFinanceFacts(db).readFinanceBankTransactions({companyId,bank,currency}),
         ledger: facts => financial.ledger(facts),
         liabilities: (facts: {
             companyId: string;
@@ -35,14 +37,16 @@ function repository(db: SqlDatabase): PmsFinancialOverviewRepository {
             branchId2: string | null;
             propertyId: string | null;
             propertyId2: string | null;
-        }) => db.prepare(`SELECT t.id,t.property_id,t.folio_id,t.state,t.amount_minor,t.currency,t.version,t.reference,t.recorded_by,
+        }) => db.prepare(`SELECT t.id,t.property_id,p.version property_version,p.config_json::jsonb->'accounts'->>'bank' bank_account,t.guest_account_id,t.state,t.amount_minor,t.currency,t.version,t.reference,t.recorded_by,
       t.bank_transaction_id,t.entry_id,t.finance_payment_id,t.updated_at
     FROM pms_transfer_requests t JOIN pms_properties p ON p.id=t.property_id AND p.company_id=t.company_id
     WHERE t.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.id=?)
     ORDER BY CASE WHEN t.state='pending' THEN 0 ELSE 1 END,t.updated_at DESC LIMIT 100`).bind(facts.companyId, facts.branchId, facts.branchId2, facts.propertyId, facts.propertyId2).all<{
             id: string;
             property_id: string;
-            folio_id: string;
+            property_version: number;
+            bank_account: string;
+            guest_account_id: string;
             state: string;
             amount_minor: number;
             currency: string;

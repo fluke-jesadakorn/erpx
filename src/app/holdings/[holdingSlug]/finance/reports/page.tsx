@@ -1,14 +1,14 @@
 import { Button, Field, Select, Table, TableFrame, TextInput } from "@/components/ui/foundation";
-import { FeaturePage } from "@/components/features/feature-page";
+import { FeaturePage } from "@/components/shared/features/feature-page";
 import { FinanceWorkspace, financeStyles as styles } from "@/components/finance/finance-workspace";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { reportDateSchema } from "@/server/modules/finance/public/finance";
 import { ledgerWorkspace } from "@/server/modules/finance/public/ledger";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { FinanceReportingConsole } from "@/components/modules/finance-reporting-console";
+import { FinanceReportingConsole } from "@/components/finance/finance-reporting-console";
 import { reportingWorkspace } from "@/server/modules/finance/public/finance-reporting";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { FormLayout } from "@/components/ui/foundation";
 import { financePlanningWorkspace } from "@/server/modules/finance/public/finance-planning";
 import { FinancePlanningControls } from "@/components/finance/finance-planning-controls";

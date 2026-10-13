@@ -917,6 +917,10 @@
 .workspaceCompany {
   display: grid;
   gap: 3px;
+  padding: 6px;
+  border: 1px solid var(--ui-line-strong, var(--ui-line));
+  border-radius: 10px;
+  background: var(--ui-card);
 }
 .workspaceChoice {
   display: grid;
@@ -1147,9 +1151,21 @@ a.workspaceChoice:hover {
   }
 }
 
-/* A quiet frame leaves the work as the strongest surface. */
+/* Navy navigation frames the lighter workspace surfaces. */
 .sidebar {
-  background: color-mix(in srgb, var(--ui-paper) 78%, var(--ui-card));
+  --ui-paper: #142544;
+  --ui-card: #1e3358;
+  --ui-card-2: #253e66;
+  --ui-line: #ffffff26;
+  --ui-ink: #eef3ff;
+  --ui-ink-strong: #fff;
+  --ui-muted: #c1cee5;
+  --ui-brand: #bdd0ff;
+  --ui-brand-soft: #3458db;
+  --ui-shadow-sm: none;
+  color-scheme: dark;
+  color: var(--ui-ink);
+  background: #142544;
   border-right-color: var(--ui-line);
 }
 .topbar {
@@ -1164,12 +1180,12 @@ a.workspaceChoice:hover {
   border-radius: 10px;
 }
 .nav a[aria-current="page"] {
-  background: var(--ui-card);
+  background: var(--ui-brand-soft);
   color: var(--ui-ink-strong);
   box-shadow: var(--ui-shadow-sm);
 }
 .nav a[aria-current="page"] svg {
-  color: var(--ui-brand);
+  color: var(--ui-ink-strong);
 }
 .searchButton {
   background: var(--ui-card-2);

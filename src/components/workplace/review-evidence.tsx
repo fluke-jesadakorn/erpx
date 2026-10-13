@@ -2,9 +2,9 @@
 import { useEffect,useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { workFetch } from "@/lib/work-fetch";
-import { prepareDocumentPages } from "@/lib/document-pages";
-import type { WorkReview } from "@/lib/work-review";
+import { workFetch } from "@/lib/work_projection/work-fetch";
+import { prepareDocumentPages } from "@/lib/files/document-pages";
+import type { WorkReview } from "@/lib/work_projection/work-review";
 export function ReviewEvidence({file}:{file:WorkReview["evidence"][number]}){
  const [open,setOpen]=useState(false);
  return <details onToggle={e=>setOpen(e.currentTarget.open)}><summary>{file.name}</summary>{file.contentHref?<><a href={file.contentHref} target="_blank" rel="noreferrer">Open / download original</a>{open&&<EvidencePages file={file}/>}</>:<Link href={file.href}>Open evidence in source record</Link>}</details>;

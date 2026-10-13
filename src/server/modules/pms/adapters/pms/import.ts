@@ -56,7 +56,7 @@ function unit(db: SqlDatabase): PmsImportUnit<SqlStatement> {
             total: number;
             paymentId: string | null;
             fact8: string | null;
-        }) => db.prepare(`INSERT INTO pms_import_balances(batch_id,source_key,property_id,folio_id,entry_id,pocket,amount_minor,finance_payment_id,finance_invoice_id) VALUES(?,?,?,?,?,?,?,?,?)`).bind(facts.id, facts.sourceKey, facts.property_id, facts.id2, facts.id3, facts.pocket, facts.total, facts.paymentId, facts.fact8).run(),
+        }) => db.prepare(`INSERT INTO pms_import_balances(batch_id,source_key,property_id,guest_account_id,entry_id,pocket,amount_minor,finance_payment_id,finance_invoice_id) VALUES(?,?,?,?,?,?,?,?,?)`).bind(facts.id, facts.sourceKey, facts.property_id, facts.id2, facts.id3, facts.pocket, facts.total, facts.paymentId, facts.fact8).run(),
         document: (facts: {
             fact0: string;
             property_id: string;
@@ -64,7 +64,7 @@ function unit(db: SqlDatabase): PmsImportUnit<SqlStatement> {
             fact3: string | null;
             fact4: string;
             now: number;
-        }) => db.prepare(`INSERT INTO pms_documents(id,property_id,folio_id,kind,finance_id,snapshot_json,created_at) VALUES(?,?,?,'opening',?,?,?)`).bind(facts.fact0, facts.property_id, facts.id, facts.fact3, facts.fact4, facts.now).run(),
+        }) => db.prepare(`INSERT INTO pms_documents(id,property_id,guest_account_id,kind,finance_id,snapshot_json,created_at) VALUES(?,?,?,'opening',?,?,?)`).bind(facts.fact0, facts.property_id, facts.id, facts.fact3, facts.fact4, facts.now).run(),
         property: (facts: {
             now: number;
             property_id: string;

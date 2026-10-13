@@ -1,16 +1,16 @@
 import { Table, TableFrame } from "@/components/ui/foundation";
-import { FeaturePage } from "@/components/features/feature-page";
+import { FeaturePage } from "@/components/shared/features/feature-page";
 import { FinanceWorkspace, financeStyles as styles } from "@/components/finance/finance-workspace";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { listRefunds } from "@/server/modules/finance/public/refunds";
-import { MoneyAmount } from "@/components/money/currency-provider";
+import { MoneyAmount } from "@/components/finance/money/currency-provider";
 import { bookingRefundsForFinance } from "@/server/modules/pms/public/pms-booking";
 import { BookingRefunds } from "@/components/pms/booking-refunds";
 import { CounterRefunds } from "@/components/pms/counter-refunds";
 import { pmsStripeRefundsForFinance } from "@/server/modules/pms/public/pms-stripe";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
@@ -40,12 +40,13 @@ export default async function RefundsPage({
             <BookingRefunds
               base={base}
               rows={bookingRefunds}
-              canApprove={hasPermission(actor, "finance.approve")}
+              canRecoverReceipt={hasPermission(actor,"finance.approve")}
+              canApprove={hasPermission(actor, "pms.approve")}
             />
             <CounterRefunds
               base={base}
               rows={counterRefunds}
-              canApprove={hasPermission(actor, "finance.approve")}
+              canApprove={hasPermission(actor, "pms.approve")}
             />
           </div>
         </details>

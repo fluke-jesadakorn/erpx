@@ -1,4 +1,4 @@
-import type { PermissionActor } from "@/lib/iam";
+import type { PermissionActor } from "@/lib/identity_access/iam";
 export type IamActor = PermissionActor & {
     userId: string;
     assignmentId: string;

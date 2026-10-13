@@ -1,6 +1,6 @@
 import type { CalendarAccess } from "../../domain/calendar/access";
 import 'server-only';
-import type { CalendarQuery } from '@/lib/calendar';
+import type { CalendarQuery } from "@/lib/work_projection/calendar";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { calendarRefundsFinanceFacts } from "../../../finance/public/calendar-refunds-facts";
 import { createCalendarRefunds, type CalendarRefundsUnit } from "../../application/calendar/refunds";

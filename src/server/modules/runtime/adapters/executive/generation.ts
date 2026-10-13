@@ -5,7 +5,7 @@ import { guardExecutiveGenerationWorkspace } from '../../../organization/public/
 import { aiRequestQuotaLock } from "@/server/modules/agent/public/ai-quota";
 import "server-only";
 import { z } from "zod";
-import { generateSchema, type Generation } from "@/lib/executive/canvas";
+import { generateSchema, type Generation } from "@/lib/shared/executive/canvas";
 import type { SqlDatabase } from "../../public/runtime/types";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { BetaEnvironment } from "@/server/modules/manage_erpx/public/beta-config";

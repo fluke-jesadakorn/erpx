@@ -1,5 +1,5 @@
 import type { WorkContext } from '../../identity_access/public/authorization';
-import type { WorkItem } from '@/lib/work-item';
+import type { WorkItem } from "@/lib/work_projection/work-item";
 import type { SqlDatabase } from '../../runtime/public/runtime/types';
 import { holdingResources } from '../../runtime/public/runtime';
 import { ApiError } from '../../runtime/public/http';

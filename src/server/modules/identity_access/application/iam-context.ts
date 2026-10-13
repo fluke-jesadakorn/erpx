@@ -1,6 +1,6 @@
 import type { WorkContext, PlatformContext, IdentitySession } from "../domain/authorization";
 import type { IamActor } from "../domain/iam-actor";
-import type { PermissionActor } from "@/lib/iam";
+import type { PermissionActor } from "@/lib/identity_access/iam";
 import type { IdentityError } from "./authorization";
 export function createIamContext(ports: {
     session(): Promise<{

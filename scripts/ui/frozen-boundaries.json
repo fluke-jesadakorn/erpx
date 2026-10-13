@@ -26,7 +26,7 @@
   },
   {
     "source": "src/app/front-access/forgot-password/page.tsx",
-    "fingerprint": "3e949dbca1a0f3a8473b3b99427aa03f142b1f47d8e8e0bf8031e6d7984a355e",
+    "fingerprint": "1c617c677f991549f30e1592ec277564d037909733cd31def78aa21f67c441f0",
     "reason": "deferred-pms-pos"
   },
   {
@@ -41,7 +41,7 @@
   },
   {
     "source": "src/app/front-access/layout.tsx",
-    "fingerprint": "6ab132d60df0b6dff2366f4b3e9291681dc9310d07c0c7231f064c43fa13ea5b",
+    "fingerprint": "3df25b3ae53b2bcc5315f963ce5ba2cd9bc7b9678eed4730c393ab51d65caf35",
     "reason": "deferred-pms-pos"
   },
   {
@@ -51,7 +51,7 @@
   },
   {
     "source": "src/app/front-access/manifest.webmanifest/route.ts",
-    "fingerprint": "1d99b5de979e00aecb54cc797c12bf2bc07fdff53cc73736e253f75b858dd98c",
+    "fingerprint": "0c06592fc98c4272da2ea40a8b3e9dab1acaed61d0c6807a15c57a6ebefb85fc",
     "reason": "deferred-pms-pos"
   },
   {
@@ -61,12 +61,12 @@
   },
   {
     "source": "src/app/front-access/reset-password/page.tsx",
-    "fingerprint": "785b49f1d738a86121870d8dfcbb90d955800b276de22d28010bafedc24e1436",
+    "fingerprint": "d895857114ed317352bed80060bb6f14097e353b210d49e7776c2b1d575fa4e1",
     "reason": "deferred-pms-pos"
   },
   {
     "source": "src/app/front-access/verify-email/page.tsx",
-    "fingerprint": "51c5a6f81f6b4aeb5b9cfb9bbde3da2a017fa8a4a7914096f82d0a43c0d93f8b",
+    "fingerprint": "4fd1dd9621dc955864316b28655098d481622e70dacfb154e8e47bf1af895eb9",
     "reason": "deferred-pms-pos"
   },
   {
@@ -141,7 +141,7 @@
   },
   {
     "source": "src/app/marketing/page.tsx",
-    "fingerprint": "9201198bbdc623800b6badef101b205e6a2070fcc64139a5199b13000a8290cf",
+    "fingerprint": "12b8e00a9e09972c5c7c4d475e4a4c2f2ae30325fc32081dbb164c3afe219cc0",
     "reason": "deferred-public-marketing"
   },
   {
@@ -150,95 +150,95 @@
     "reason": "deferred-public-marketing"
   },
   {
-    "source": "src/components/beta/social-advanced-editor.tsx",
+    "source": "src/components/collaboration/social-advanced-editor.tsx",
     "fingerprint": "d93d31e31f665d59f30c8179438be9ffa51ce471cc8cca1d55bed7ce4b2777e6",
     "reason": "frozen-specialized"
   },
   {
-    "source": "src/components/beta/social-post-content-editor.tsx",
+    "source": "src/components/collaboration/social-post-content-editor.tsx",
     "fingerprint": "6a538204445bb07c1bc9f3b553652158c02d11c836ba4c86492339ef628375f8",
     "reason": "frozen-specialized"
   },
   {
-    "source": "src/components/beta/social-text.module.css",
+    "source": "src/components/collaboration/social-text.module.css",
     "fingerprint": "9ba4b386f449c7a8b424fff4c534f2b351bf880ac5e0b9f327bf1347cc62afca",
     "reason": "frozen-specialized imported stylesheet"
   },
   {
-    "source": "src/components/calendar/calendar-day-timeline.tsx",
-    "fingerprint": "2de4a14af85fe56dfcac31e993265adc81e7060296bff0afb914327a3248e721",
+    "source": "src/components/work_projection/calendar/calendar-day-timeline.tsx",
+    "fingerprint": "b9247259c16e5589866148e477e6accb3821c7619c46e23cbaa5b8adbcf0e309",
     "reason": "frozen-specialized"
   },
   {
-    "source": "src/components/calendar/calendar-event.tsx",
-    "fingerprint": "3fd32c94dfa4e11fd6366aa9f60607414c5f42d1ec71e24989e3dd8173b03111",
+    "source": "src/components/work_projection/calendar/calendar-event.tsx",
+    "fingerprint": "1f56af94595bcd66fda5762bc8f813543ef8b101f89709b9b87125d4c7562b9b",
     "reason": "frozen-specialized"
   },
   {
-    "source": "src/components/calendar/calendar-forms.tsx",
-    "fingerprint": "c45c2b314baa173631973088ef7ca91e351d6c15eb45cd9da138dceb2efc94f9",
+    "source": "src/components/work_projection/calendar/calendar-forms.tsx",
+    "fingerprint": "3de601cbff304ddeb38b0bba24d7e29019fa66ea9a3e88de0d430cbb2d231db7",
     "reason": "frozen-specialized"
   },
   {
-    "source": "src/components/calendar/calendar-workspace.tsx",
-    "fingerprint": "0ae468a190ca915f1356ced00a5c5f281483324bfa3d79e7e261321681fec2cc",
+    "source": "src/components/work_projection/calendar/calendar-workspace.tsx",
+    "fingerprint": "f6168bd688180ce410848987a6f09f869720bf91c23fa5cf0e406d968adfd95a",
     "reason": "frozen-specialized"
   },
   {
-    "source": "src/components/calendar/calendar.module.css",
+    "source": "src/components/work_projection/calendar/calendar.module.css",
     "fingerprint": "0c13ecd0f0a8d510c37c290b1e99f0b5c6d87ec7d32e642070e9725891a2f55c",
     "reason": "frozen-specialized imported stylesheet"
   },
   {
-    "source": "src/components/calendar/month-grid.tsx",
-    "fingerprint": "84c16f10567d3f80f7d6c8c26e351d18118dfe4df44ace463f9071e2506c9364",
+    "source": "src/components/work_projection/calendar/month-grid.tsx",
+    "fingerprint": "24773a06226b20659e577ddc0c18047b293c34ce9611a5c45939ced8c0738e13",
     "reason": "frozen-specialized"
   },
   {
-    "source": "src/components/calendar/personal-time-grid.module.css",
+    "source": "src/components/work_projection/calendar/personal-time-grid.module.css",
     "fingerprint": "ffdd38a89ef9239b052b3475a68c3dab60ca20c344d9734a4e812204464f796a",
     "reason": "Style owner of a frozen component"
   },
   {
-    "source": "src/components/calendar/personal-time-grid.tsx",
-    "fingerprint": "b88eece52bd6500b6a0795747c38f87e4af24b909bc4a94cd167fb5764e3d454",
+    "source": "src/components/work_projection/calendar/personal-time-grid.tsx",
+    "fingerprint": "1e0aa9d7ef995b61c6bc711473a2ca773df4bbfed9186fe64c9317eb5c40ddda",
     "reason": "frozen-specialized"
   },
   {
-    "source": "src/components/executive/canvas.module.css",
+    "source": "src/components/runtime/executive/canvas.module.css",
     "fingerprint": "2cda63a2caeeec65c4503bc231a0cc64c8bb8c4be139d4ce703aebd1cd253f17",
     "reason": "Style owner of a frozen component",
     "reviewReason": "Browser-reviewed Executive table source drilldown: prevent flex shrinking record tables to zero height inside fixed-height widgets; widget editing, resize controls and specialized presentation retained."
   },
   {
-    "source": "src/components/executive/canvas.tsx",
+    "source": "src/components/runtime/executive/canvas.tsx",
     "fingerprint": "5200251cbd52fa5b0d718e747bd62d4679e67aa4d9001e0b62646c5cf22916a0",
     "reason": "frozen-specialized",
     "reviewReason": "Record drawer owner links and embedded detail adapters; specialized presentation retained."
   },
   {
-    "source": "src/components/executive/chart.tsx",
-    "fingerprint": "d33ac504a8b657ef14b92cd6cc222973aa6820cd4bf880411afdffe2b7388413",
+    "source": "src/components/runtime/executive/chart.tsx",
+    "fingerprint": "ca6053b19fa7499086444f6f98ca45a4ffb8a0efc297e31c943962511a85bebe",
     "reason": "frozen-specialized"
   },
   {
-    "source": "src/components/executive/resizable-widget.tsx",
-    "fingerprint": "8be2e5ed8564e7ac4019e3d4643e0671f0138ae63520c7f6c999f4971211e00d",
+    "source": "src/components/runtime/executive/resizable-widget.tsx",
+    "fingerprint": "4bf622917a97922f12d1d230b81d5b0daaa05a67dc6f9fb72fa374ec36654287",
     "reason": "frozen-specialized"
   },
   {
-    "source": "src/components/executive/widget.tsx",
-    "fingerprint": "c67f1511135cb9525c93e5bb263d34da41bddab0c7e5daca75d7429838be3508",
+    "source": "src/components/runtime/executive/widget.tsx",
+    "fingerprint": "172b5645ae6b7e0a2afc1acb7833df7f2287f3f596419707e5fff84f3c39faf7",
     "reason": "frozen-specialized",
     "reviewReason": "Record drawer owner links and embedded detail adapters; specialized presentation retained."
   },
   {
-    "source": "src/components/features/features.module.css",
+    "source": "src/components/shared/features/features.module.css",
     "fingerprint": "25a2ffaa2f3d78d77a3986b1a9b99c507c0aa725d6741a8869ef31964e64943e",
     "reason": "frozen-specialized imported stylesheet"
   },
   {
-    "source": "src/components/features/layout-editor.tsx",
+    "source": "src/components/shared/features/layout-editor.tsx",
     "fingerprint": "c15291801ec50455f43ddb01379ef693cfbdad38203ef3cdd8f176dc2968ea01",
     "reason": "frozen-specialized",
     "reviewReason": "Refresh pre-existing HEAD fingerprint; this drawer change does not alter this file."
@@ -260,171 +260,174 @@
   },
   {
     "source": "src/components/front/front-language.tsx",
-    "fingerprint": "ac3cfd20b65cbedbd14caa0faac5374e53f623632df31a443110bb5930d5cfda",
+    "fingerprint": "24ebe71599028eed621b9a81d482353b639bef0059a42d311e45497e579ddff6",
     "reason": "deferred-pms-pos"
   },
   {
-    "source": "src/components/hospitality/module-menu.ts",
+    "source": "src/components/shared/hospitality/module-menu.ts",
     "fingerprint": "5b1e3780ec063b1b0937d0098896766d4f9b9faaecdbc3195ca1ae5d4c6f01c5",
     "reason": "deferred-pms-pos"
   },
   {
-    "source": "src/components/hospitality/module-tiles.module.css",
+    "source": "src/components/shared/hospitality/module-tiles.module.css",
     "fingerprint": "5a31cb4c31e756b7f75bcc8aed358f74a0d8f08458363c84906bc2051cddd873",
     "reason": "deferred-pms-pos"
   },
   {
-    "source": "src/components/hospitality/module-tiles.tsx",
-    "fingerprint": "98855c623496fdfd7d0bf40f325169f6662c5968a12c0a60f078e9b9db0af8e6",
+    "source": "src/components/shared/hospitality/module-tiles.tsx",
+    "fingerprint": "9d2e97d7e2fcf01762d42e793ad58bf6b5098715021a77842678aa3ac923f5b6",
     "reason": "deferred-pms-pos"
   },
   {
-    "source": "src/components/hospitality/setup-guide.module.css",
+    "source": "src/components/shared/hospitality/setup-guide.module.css",
     "fingerprint": "aeb654014fb8f59feb5de3087f2aa2f6c1f0ae60f15f12c1257f08df597af0e8",
     "reason": "deferred-pms-pos",
     "reviewReason": "Refresh pre-existing HEAD fingerprint; this drawer change does not alter this file."
   },
   {
-    "source": "src/components/hospitality/setup-guide.tsx",
+    "source": "src/components/shared/hospitality/setup-guide.tsx",
     "fingerprint": "aa34b4eb585264d4aa8844aac85d621307fb28619a4920b3f824016283660a71",
     "reason": "deferred-pms-pos"
   },
   {
-    "source": "src/components/hospitality/tax-document-reference.tsx",
-    "fingerprint": "d655d1bbac577210a2f3d00bb04958a946318fb6412c06c77d07f30e65c40387",
+    "source": "src/components/shared/hospitality/tax-document-reference.tsx",
+    "fingerprint": "5fb37e301ba8c9c1d73de70f3baeb0aba4d22fa53cc1ca2283386219f51c2865",
     "reason": "deferred-pms-pos"
   },
   {
-    "source": "src/components/modules/organization-chart.module.css",
+    "source": "src/components/organization/organization-chart.module.css",
     "fingerprint": "ee89414fa9d66ecb60ee564b2abd32d110c6ab19273bf1f0ed8479a6c00a09d2",
     "reason": "Style owner of a frozen component"
   },
   {
-    "source": "src/components/modules/organization-chart.tsx",
-    "fingerprint": "c0f9c1a5cc7469897bea8cec9890146a346c7d7f9181df3de427c7ace0e9cb78",
+    "source": "src/components/organization/organization-chart.tsx",
+    "fingerprint": "4ea41c39c334c519fcbb73150877ea14c3b16beb619fa08cbfc367d62fb32889",
     "reason": "frozen-specialized"
   },
   {
-    "source": "src/components/modules/organization-person-card.tsx",
-    "fingerprint": "ea56207ccee32f3d5c96e278d9d4a25a67e87dbfae76d6bd2eb97e93f912b6ba",
+    "source": "src/components/organization/organization-person-card.tsx",
+    "fingerprint": "a0250a865e16b5101fb8445ea1d4fa560d9b016e0a08dcd1eea8a5b39160b7f8",
     "reason": "frozen-specialized"
   },
   {
-    "source": "src/components/modules/organization-person-details.tsx",
-    "fingerprint": "1950b607776e3e5c40729c243ffa31c7e753068c1336265182cb75546dc7e524",
+    "source": "src/components/organization/organization-person-details.tsx",
+    "fingerprint": "476266808e04eac506b581ba7fbb303cfb25c1987b1d3a49bc2278117378da50",
     "reason": "frozen-specialized"
   },
   {
-    "source": "src/components/modules/organization-team-view.tsx",
-    "fingerprint": "860800cea23e6aadd9901e1ee837b5240487aaa842398037984c50c76c750bd8",
+    "source": "src/components/organization/organization-team-view.tsx",
+    "fingerprint": "e9163c0604c914a0794a3b9813445b09de4f60eed7883e0a1f6b97328253f6aa",
     "reason": "frozen-specialized"
   },
   {
-    "source": "src/components/people/lifecycle-workspace.tsx",
-    "fingerprint": "ede5c22b679f6a28fa802a4592450f895b773024e512f110ee5e967691a292c3",
-    "reason": "frozen-specialized"
+    "source": "src/components/people_payroll/lifecycle-workspace.tsx",
+    "fingerprint": "78390cd06df878f0dfd1de405dfadae7860553d7ba620a24fadc663eb83fa1a7",
+    "reason": "frozen-specialized",
+    "reviewReason": "User-authorized shared People/Technology presentation: shared tree, list and responsive detail/form drawers; owner commands and permissions retained. Browser and domain acceptance recorded under .scratch/dev/shared-ux/."
   },
   {
-    "source": "src/components/people/lifecycle.module.css",
+    "source": "src/components/people_payroll/lifecycle.module.css",
     "fingerprint": "3baca8bf6190df0c205d7001e7e03b3be7d207d74a5e66b7f67ffc123bf411aa",
     "reason": "frozen-specialized imported stylesheet",
     "reviewReason": "Refresh pre-existing HEAD fingerprint; this drawer change does not alter this file."
   },
   {
-    "source": "src/components/people/organization-draft-workspace.module.css",
+    "source": "src/components/people_payroll/organization-draft-workspace.module.css",
     "fingerprint": "47cae374b530f1a935ffd8d0020b4ad15d922319ab38c43a74be963bbca96780",
     "reason": "Style owner of a frozen component",
     "reviewReason": "Refresh pre-existing HEAD fingerprint; this drawer change does not alter this file."
   },
   {
-    "source": "src/components/people/organization-draft-workspace.tsx",
+    "source": "src/components/people_payroll/organization-draft-workspace.tsx",
     "fingerprint": "03fcd3fa3f5bdc684ef0e806898139f46ec88da9a0a9fe177bb8c5b16cdf4a1d",
     "reason": "frozen-specialized"
   },
   {
-    "source": "src/components/people/organization-explorer.module.css",
+    "source": "src/components/people_payroll/organization-explorer.module.css",
     "fingerprint": "c0fe44b7893b63721ba7f58075101379c7e11b068dbad778d92a2d84eed47272",
     "reason": "Style owner of a frozen component",
     "reviewReason": "Refresh pre-existing HEAD fingerprint; this drawer change does not alter this file."
   },
   {
-    "source": "src/components/people/organization-explorer.tsx",
+    "source": "src/components/people_payroll/organization-explorer.tsx",
     "fingerprint": "fb67fd85709a8d78ff23d82aa7ab2e0b2657cdf7ac547522bd3925774562457e",
     "reason": "frozen-specialized"
   },
   {
-    "source": "src/components/people/organization-panel-rows.module.css",
+    "source": "src/components/people_payroll/organization-panel-rows.module.css",
     "fingerprint": "0067898f60c40b6b126a8e1f072e8fed971dd8a64dfa931320497855a4799674",
     "reason": "Style owner of a frozen component"
   },
   {
-    "source": "src/components/people/organization-panel-rows.tsx",
+    "source": "src/components/people_payroll/organization-panel-rows.tsx",
     "fingerprint": "d06ceaad608ff34e7f578c09aa63e4b67ffc07517011f74fb0606c05ceb85080",
     "reason": "frozen-specialized"
   },
   {
-    "source": "src/components/people/people-directory.module.css",
+    "source": "src/components/people_payroll/people-directory.module.css",
     "fingerprint": "68348708024723ffbb5390d89ee12fc02196faf560772a5de783c67480a3f9f7",
     "reason": "Style owner of a frozen component"
   },
   {
-    "source": "src/components/people/people-directory.tsx",
-    "fingerprint": "abcb293c017d7cd3b9e7843b35174d618e6b5a8f0a6900cec6e1d78e1e94bf0e",
+    "source": "src/components/people_payroll/people-directory.tsx",
+    "fingerprint": "fd7e9db6595ecd09dd571b67df7831553148f2245433e67d3f818d8231254357",
     "reason": "frozen-specialized"
   },
   {
-    "source": "src/components/people/people-hr-settings.module.css",
-    "fingerprint": "e50770db60df477a5cec56bc6784855139108f8eb436cad4ac6b2e3c481892a4",
-    "reason": "frozen-specialized imported stylesheet"
+    "source": "src/components/people_payroll/people-hr-settings.module.css",
+    "fingerprint": "c91093eca90516330aa06d1b9fe5ea970928546ccf41d236633c74c631b2f49a",
+    "reason": "frozen-specialized imported stylesheet",
+    "reviewReason": "User-authorized shared People/Technology presentation: shared tree, list and responsive detail/form drawers; owner commands and permissions retained. Browser and domain acceptance recorded under .scratch/dev/shared-ux/."
   },
   {
-    "source": "src/components/people/people-organization-workspace.module.css",
+    "source": "src/components/people_payroll/people-organization-workspace.module.css",
     "fingerprint": "c5a124e160efd3569e873e3d0edd8f86863043948ac5f51f18e4e926a568b57d",
     "reason": "Style owner of a frozen component",
     "reviewReason": "Refresh pre-existing HEAD fingerprint; this drawer change does not alter this file."
   },
   {
-    "source": "src/components/people/people-organization-workspace.tsx",
+    "source": "src/components/people_payroll/people-organization-workspace.tsx",
     "fingerprint": "a778a94e850d0fec6d82a2b1df16dc5d862e28eba7bf2bdf8987a4b405bc124e",
     "reason": "frozen-specialized"
   },
   {
-    "source": "src/components/people/people-structure-workspace.module.css",
-    "fingerprint": "8edf2feec5e9b406e5d5f7af55c17dd6b09af047a7d2f41e76602ddca409b94c",
+    "source": "src/components/organization/organization-structure.module.css",
+    "fingerprint": "54a27babcc27e8984e9589d0af101638cd8fce2e450372ce40de7bf27ada7f4b",
     "reason": "Style owner of a frozen component",
-    "reviewReason": "Reviewed concurrent hierarchy rail/location/detail styling with the public development People owner panel; no standardization scope change."
+    "reviewReason": "User-authorized shared People/Technology presentation: shared tree, list and responsive detail/form drawers; owner commands and permissions retained. Browser and domain acceptance recorded under .scratch/dev/shared-ux/."
   },
   {
-    "source": "src/components/people/people-structure-workspace.tsx",
-    "fingerprint": "0900e0dae2c335c228e972ecefe3dea2b894a2de3c69c5ceff062c54ff98924a",
+    "source": "src/components/people_payroll/people-structure-workspace.tsx",
+    "fingerprint": "9f47a0bd76ab2b17c3ae08e1569840fe9677828fff2c63d31bfce99610236bd3",
     "reason": "frozen-specialized",
-    "reviewReason": "Reviewed concurrent People hierarchy breadcrumbs, cycle-safe ancestry and native owner detail panel on public development; retains existing scope and editor policies. This change does not implement that hierarchy feature."
+    "reviewReason": "User-authorized shared People/Technology presentation: shared tree, list and responsive detail/form drawers; owner commands and permissions retained. Browser and domain acceptance recorded under .scratch/dev/shared-ux/."
   },
   {
-    "source": "src/components/people/people-team-schedule.tsx",
+    "source": "src/components/people_payroll/people-team-schedule.tsx",
     "fingerprint": "0f0ff5a573403d6084b6aff53ebb87465a52c884f041d78d388e4f66d3d5d0ba",
     "reason": "frozen-specialized"
   },
   {
-    "source": "src/components/people/roster-workspace.tsx",
-    "fingerprint": "c45c04f4ad0bd4446273d353cedbc5b43b55491bb54dffffab9b86d486626eb4",
+    "source": "src/components/people_payroll/roster-workspace.tsx",
+    "fingerprint": "eb8e5a0c09653b917ea4bd957419f578a1ca9ad77487dd2f836707c42b85a68a",
     "reason": "frozen-specialized"
   },
   {
-    "source": "src/components/people/roster.module.css",
+    "source": "src/components/people_payroll/roster.module.css",
     "fingerprint": "bae7c8eca153890422a65cf01553703350de8ee3008443d453769a28cc2504b2",
     "reason": "frozen-specialized imported stylesheet"
   },
   {
-    "source": "src/components/people/user-management.module.css",
-    "fingerprint": "c50111260bce2609b0bb922588dac9fbf9bf24314d675f6daf845520f27fc895",
+    "source": "src/components/people_payroll/user-management.module.css",
+    "fingerprint": "7ab6ff2a24f74416317264b15bdf77226bae2723334cc71ca708df5481a8c87b",
     "reason": "Style owner of a frozen component",
-    "reviewReason": "Refresh pre-existing HEAD fingerprint; this drawer change does not alter this file."
+    "reviewReason": "User-authorized shared People/Technology presentation: shared list, responsive details, separate drag handles and draft/editor handoff; existing command versions and scope retained. Browser acceptance is recorded under .scratch/dev/shared-ux/."
   },
   {
-    "source": "src/components/people/user-management.tsx",
-    "fingerprint": "78fd9ae9cf3115088031426d538bf645a37596b7faaa6ab1b3f109b70e0b0147",
-    "reason": "frozen-specialized"
+    "source": "src/components/people_payroll/user-management.tsx",
+    "fingerprint": "f61059e0d307abb54eb4eadf236bc70267d70d26535e67fa89ac796333f38d71",
+    "reason": "frozen-specialized",
+    "reviewReason": "User-authorized shared People/Technology presentation: shared tree, list and responsive detail/form drawers; owner commands and permissions retained. Browser and domain acceptance recorded under .scratch/dev/shared-ux/."
   },
   {
     "source": "src/components/pms/booking-flow.tsx",
@@ -519,43 +522,45 @@
     "reviewReason": "Record drawer owner links and embedded detail adapters; specialized presentation retained."
   },
   {
-    "source": "src/components/technology/directory-console.module.css",
+    "source": "src/components/identity_access/technology/directory-console.module.css",
     "fingerprint": "d250ab3cadb8720b3596a581a7e80d859d230b267eb1f1af424833b6de48a8e4",
     "reason": "Style owner of a frozen component"
   },
   {
-    "source": "src/components/technology/directory-console.tsx",
-    "fingerprint": "1e16bc266f1f0107f4eb0034c4c2129da2b292777895cc93f5d68679cbe889b1",
-    "reason": "frozen-specialized"
-  },
-  {
-    "source": "src/components/technology/organization-access-workspace.module.css",
-    "fingerprint": "89a7f94d0102fe81a72cd9f41397e99ce213d62c95c3c6c52a9be6b76a39af9b",
-    "reason": "Style owner of a frozen component",
-    "reviewReason": "Refresh pre-existing HEAD fingerprint; this drawer change does not alter this file."
-  },
-  {
-    "source": "src/components/technology/organization-access-workspace.tsx",
-    "fingerprint": "1117b8a0b92a891d46b8ff57b9e4826dde6f7bc107a4f6963694c66439d7f284",
+    "source": "src/components/identity_access/technology/directory-console.tsx",
+    "fingerprint": "c9bcdd1b2cf757a5a58bd86e2530eeba4a0c286175c7f9de6b3347de268e80dd",
     "reason": "frozen-specialized",
-    "reviewReason": "Record drawer owner links and embedded detail adapters; specialized presentation retained."
+    "reviewReason": "User-authorized shared People/Technology presentation: shared list, responsive details, separate drag handles and draft/editor handoff; existing command versions and scope retained. Browser acceptance is recorded under .scratch/dev/shared-ux/."
   },
   {
-    "source": "src/components/technology/position-console.module.css",
+    "source": "src/components/identity_access/technology/organization-access-workspace.module.css",
+    "fingerprint": "33337ef044a636046c4d5b2abb277d5cc056a129af87db959f4f472f2160d349",
+    "reason": "Style owner of a frozen component",
+    "reviewReason": "User-authorized shared People/Technology presentation: shared tree, list and responsive detail/form drawers; owner commands and permissions retained. Browser and domain acceptance recorded under .scratch/dev/shared-ux/."
+  },
+  {
+    "source": "src/components/identity_access/technology/organization-access-workspace.tsx",
+    "fingerprint": "ee5d0de33e0e1dd92ed275fd71eb70bdcd7988a55202a9658a0eac7fbfad3650",
+    "reason": "frozen-specialized",
+    "reviewReason": "User-authorized shared People/Technology presentation: shared tree, list and responsive detail/form drawers; owner commands and permissions retained. Browser and domain acceptance recorded under .scratch/dev/shared-ux/."
+  },
+  {
+    "source": "src/components/identity_access/technology/position-console.module.css",
     "fingerprint": "fbfd73fad39a4cbf0c5cae142fa9b4b0f29d090085c441ab28b6b2636c545bf6",
     "reason": "Style owner of a frozen component",
     "reviewReason": "Refresh pre-existing HEAD fingerprint; this drawer change does not alter this file."
   },
   {
-    "source": "src/components/technology/position-console.tsx",
-    "fingerprint": "eea61f170c4f5f9fd499f0dc4bb431678725c228d9a591939f07e5da5e3d01c2",
+    "source": "src/components/identity_access/technology/position-console.tsx",
+    "fingerprint": "f939263068519a53d2f7a22fb89e8ba5fc9240aaf0708593b9abbb8fed0e93a4",
     "reason": "frozen-specialized",
     "reviewReason": "Record drawer owner links and embedded detail adapters; specialized presentation retained."
   },
   {
-    "source": "src/components/technology/resource-console.module.css",
-    "fingerprint": "c0da1a94ff6f6070c4cb9bb4cbe2d6773f30064fa957491c25e733990814b8ac",
-    "reason": "frozen-specialized imported stylesheet"
+    "source": "src/components/identity_access/technology/resource-console.module.css",
+    "fingerprint": "e9f32f24fa878ea556a640bd69d33d2b55f58b63854636b4ab0e7fb8ca3ad98a",
+    "reason": "frozen-specialized imported stylesheet",
+    "reviewReason": "User-authorized shared People/Technology presentation: shared tree, list and responsive detail/form drawers; owner commands and permissions retained. Browser and domain acceptance recorded under .scratch/dev/shared-ux/."
   },
   {
     "source": "src/components/ui/tokens.css",

@@ -1,8 +1,8 @@
 import {z} from 'zod';
 import type {WorkContext} from '@/server/modules/identity_access/public/authorization';
 import type {FinanceError} from '../domain/invoice-line-revision';
-import {minorToDecimal,multiplyBps} from '@/lib/finance-money';
-import {financeCsvRows} from '@/lib/finance-csv';
+import {minorToDecimal,multiplyBps} from "@/lib/finance/finance-money";
+import {financeCsvRows} from "@/lib/finance/finance-csv";
 import {financeReviewSchema} from '../domain/review';
 import {budgetEditionSchema,forecastEditionSchema,financialReportSchema,reportRowSchema,type BudgetContent,type PlanRow,type PlanAccount as Account,type LedgerLine,type RetainedReport,type PlanningSourceSnapshot} from '../domain/planning';
 type Kind='budget'|'forecast'|'report';type Base=z.infer<typeof budgetEditionSchema>|z.infer<typeof forecastEditionSchema>|z.infer<typeof financialReportSchema>;type Review=z.infer<typeof financeReviewSchema>;

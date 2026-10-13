@@ -1,6 +1,6 @@
 "use client";
 import { Button } from "./button";
-import { mergeAiDraft, type RecoverableDraft, type Citation } from "@/lib/ai-draft";
+import { mergeAiDraft, type RecoverableDraft, type Citation } from "@/lib/shared/ai-draft";
 import { useEffect, useState } from "react";
 
 /** Browser recovery is tied to the server fields, so an upload can refresh safely

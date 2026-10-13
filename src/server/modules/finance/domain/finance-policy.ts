@@ -1,5 +1,5 @@
-import { decimalToMinor as parseMinor } from '@/lib/finance-money';
-import { hasPermission } from '@/lib/permissions';
+import { decimalToMinor as parseMinor } from "@/lib/finance/finance-money";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { WorkContext } from '@/server/modules/identity_access/public/authorization';
 import type { FinanceError } from './invoice-line-revision';
 export function createFinancePolicy(error: FinanceError) {

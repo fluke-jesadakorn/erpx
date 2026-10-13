@@ -1,0 +1,47 @@
+{
+  "run": "dcc2bd1df9bd",
+  "sourceFingerprint": "f5cca5e457f3b61ba58f9b1927fd0f921519614c96c454db27bef88aeb2ea50f",
+  "verificationFingerprint": "769548ecba1c1a720b41b3b3665493fcc84c58e35001d87005419593cfb8a1ea",
+  "release": {
+    "id": "2026-10-09T16-24-37-590Z",
+    "fileManifestSha256": "6b180d20546c87c5fd3655e44403d40c6b897477c56006fba777b1020e215a82"
+  },
+  "scope": "Release HTTP: 3 \u00d7 200 rooms, 730-day synthetic closed stay/reservation/account metadata; 20 distinct normal staff accounts. Historic revenue is not invented.",
+  "applicationPoolMax": 4,
+  "controlPoolMax": 5,
+  "jobsHoldingPoolMax": 1,
+  "counts": [
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    }
+  ],
+  "accounts": 20,
+  "rounds": 10,
+  "durationMs": 18461,
+  "readCount": 84,
+  "writeCount": 40,
+  "readP95Ms": 319.58699999999953,
+  "writeP95Ms": 3656.6640000000007,
+  "failedSamples": 2,
+  "sameProcesses": true,
+  "unchanged": true,
+  "samplesSha256": "947cf1838d6730b4ccc355d83a3a4227284d59631ad81536234688fa1cbe66f0",
+  "passed": false,
+  "acceptance": false,
+  "interpretation": "Configured web pool 4 improved read p95 to 320 ms. First-round logical writes reached p95 3,657 ms and two reservation requests returned non-version 409 conflicts; the run stopped after every in-flight worker finished. Diagnose the conflicts and precondition/retry cost; no SLO acceptance."
+}

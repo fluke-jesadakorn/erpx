@@ -1,0 +1,79 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "status": "Capacity native proofs pass, but the whole-command queue and preflight candidate fails core SLO; replaced by per-attempt fairness without preflight",
+  "source": {
+    "runtime": "f479744b867decefb92f79baabdc53f7569b5a37a5b2648f250fa2c941e14b85",
+    "verification": "ecbc26bc889fd240cadeb7d1a929014a38521b8c3e5b9fb9b55c37129116d7c4"
+  },
+  "worktree": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx",
+  "scope": "Connection capacity scheduling only; all owner reads, PostgreSQL locks, SERIALIZABLE isolation and transaction retries retained",
+  "waiterState": "Empty promises by Pool/namespace/key; no actor, command, authority, Property version or invariant facts",
+  "localWaitTimeoutMs": 10000,
+  "proofs": {
+    "red": {
+      "failedCases": 2,
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-pool-waiters/red.log"
+    },
+    "green": {
+      "passedCases": 2,
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-pool-waiters/green.log"
+    },
+    "preTimeoutRegression": {
+      "cases": 289,
+      "unitCases": 69,
+      "postgresCases": 220,
+      "passed": true,
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-pool-waiters/native-focused.log"
+    },
+    "boundedCurrentRegression": {
+      "cases": 91,
+      "pmsCases": 76,
+      "nativeRuntimeCases": 7,
+      "readMetricsCases": 8,
+      "passed": true,
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-pool-waiters/native-bounded.log"
+    },
+    "fullLoad": {
+      "passed": false,
+      "runId": "66b862601826",
+      "readP95Ms": 439.377667,
+      "coreP95Ms": 2804.375375,
+      "guestSaveP95Ms": 3019.711166,
+      "reservationCreateP95Ms": 2736.5765,
+      "reads": 840,
+      "writes": 843,
+      "invalidResponses": 0,
+      "financialOperationalClosingReconciliationPassed": true,
+      "databaseDeadlocks": 0,
+      "allEightOwnedDatabasesDestroyed": true,
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-pool-waiters/scale-confirmation/strict-acceptance.json",
+      "loadHarnessSourceUnchanged": true,
+      "afterLoadVerificationChangedBecauseNativeFairnessCaseWasAdded": true
+    },
+    "cleanupCompilationAttempt": {
+      "accepted": false,
+      "reason": "Source edit overlapped cleanup helper compilation; guard rejected; subsequent source-stable cleanup succeeded",
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-pool-waiters/destroy-databases-v2.log"
+    }
+  },
+  "pending": [
+    "Strict unchanged complete release load",
+    "Whole candidate native/security/static/browser acceptance",
+    "Final feature and mock-pilot evidence",
+    "Development availability"
+  ],
+  "release": {
+    "id": "2026-10-10T07-18-38-954Z",
+    "built": true
+  },
+  "static": {
+    "typecheck": true,
+    "lint": {
+      "errors": 0,
+      "preexistingWarnings": 3
+    },
+    "architecture": true,
+    "documentation": true
+  }
+}

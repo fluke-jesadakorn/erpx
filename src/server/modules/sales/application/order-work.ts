@@ -1,4 +1,4 @@
-import type {WorkItem} from '@/lib/work-item';
+import type {WorkItem} from "@/lib/work_projection/work-item";
 import type {Row} from '../../commerce/public/commerce';
 import type {resolveFlow} from '../../workflow/public/flow-routing';
 export async function salesOrderWorkItems(rows:Row[],actorId:string,resolve:(id:string)=>Promise<Awaited<ReturnType<typeof resolveFlow>>>):Promise<WorkItem[]>{return Promise.all(rows.map(async row => {

@@ -1,4 +1,4 @@
-import {z} from 'zod';import type {LifecycleInput,LifecyclePreview} from '@/lib/people-lifecycle';export const id = z.string().min(1).max(180);
+import {z} from 'zod';import type {LifecycleInput,LifecyclePreview} from "@/lib/people_payroll/people-lifecycle";export const id = z.string().min(1).max(180);
 export const legacy = z.object({ id, expectedVersion: z.number().int().positive() }).strict();
 export const placementBatchInput = z.object({
   effectiveAt: z.number().int().positive(),

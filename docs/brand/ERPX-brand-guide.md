@@ -24,7 +24,7 @@ Keep clear space of at least one quarter of the ERP letter height around the vis
 
 ## App icons
 
-`src/app/icon.svg` uses the same geometry as `public/brand/erpx-favicon.svg`. Generated assets include a 16/32/48 px multi-resolution favicon, 180 px Apple icon, 192/512 px PWA icons and a 512 px maskable icon. Regenerate them with `bun scripts/generate-brand-assets.ts`; do not upscale a favicon. The maskable icon uses an opaque Electric Blue field and keeps the white E inside the central safe zone.
+`src/app/icon.svg` uses the same geometry as `public/brand/erpx-favicon.svg`. Generated assets include a 16/32/48 px multi-resolution favicon, 180 px Apple icon, 192/512 px PWA icons and a 512 px maskable icon. Regenerate them with `bun scripts/assets/generate-brand-assets.ts`; do not upscale a favicon. The maskable icon uses an opaque Electric Blue field and keeps the white E inside the central safe zone.
 
 ## Customer co-branding
 

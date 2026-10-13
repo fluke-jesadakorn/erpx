@@ -1,4 +1,4 @@
-import type { LifecycleCase } from '@/lib/people-lifecycle';
+import type { LifecycleCase } from "@/lib/people_payroll/people-lifecycle";
 import { caseDate, placementEngagementChanged, type LifecycleEngagementFacts, type LifecyclePositionFacts } from '../domain/people-lifecycle-jobs';
 export interface PeopleLifecycleWorkerRepository {
     readAvailable(): Promise<{

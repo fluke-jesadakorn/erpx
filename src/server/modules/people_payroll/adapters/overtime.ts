@@ -8,7 +8,7 @@ import { peopleRequestRoute } from "@/server/modules/organization/public/departm
 import { approvalView, openApproval, prepareDecision, closeApprovals, participantSql } from "@/server/modules/workflow/public/approvals";
 import { executeCommand, replayCommand } from "@/server/modules/workflow/public/commands";
 import { ApiError } from "@/server/modules/runtime/public/http";
-import { overtimeCommandSchema, type OvertimeDetails } from "@/lib/overtime";
+import { overtimeCommandSchema, type OvertimeDetails } from "@/lib/people_payroll/overtime";
 import { prepareAttachmentBinding } from "@/server/modules/files/public/attachments/service";
 import { isTransactionalSqlDatabase, type SqlStatement } from '../../runtime/public/runtime/types';
 import { BusinessRuleError } from '../../shared';

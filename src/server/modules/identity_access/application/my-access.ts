@@ -1,5 +1,5 @@
-import { evaluateAccess, permissionCatalog } from '@/lib/permissions';
-import type { RoleRevision, AccessDecision } from '@/lib/iam';
+import { evaluateAccess, permissionCatalog } from "@/lib/identity_access/permissions";
+import type { RoleRevision, AccessDecision } from "@/lib/identity_access/iam";
 export function createOwnIamAccess(ports: {
     holdings(): Promise<{
         id: string;

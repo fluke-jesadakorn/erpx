@@ -1,6 +1,6 @@
 import "server-only";
 import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
 import { staffSettings } from "@/server/modules/operations/public/staff-settings";
 import { listProjects } from "@/server/modules/projects/public/staff-projects";

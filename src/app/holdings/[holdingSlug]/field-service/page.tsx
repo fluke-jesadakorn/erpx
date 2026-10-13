@@ -1,9 +1,9 @@
 import { RecordLink as Link } from "@/components/records/record-link";
 import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { fieldServiceWorkspace } from "@/server/modules/field_service/public/field-service";
-import { FieldServiceConsole } from "@/components/modules/field-service-console";
+import { FieldServiceConsole } from "@/components/field_service/field-service-console";
 import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Page({

@@ -1,0 +1,2849 @@
+[
+  {
+    "id": "brand",
+    "name": "Brand",
+    "group": "Marketing & Brand",
+    "icon": "palette",
+    "description": "Consistent identity, across every touchpoint",
+    "recordType": "Brand draft",
+    "action": "Create brand draft",
+    "primary": [
+      "drafts",
+      "identity-preview",
+      "version-history"
+    ],
+    "sections": [
+      {
+        "id": "drafts",
+        "label": "Drafts",
+        "description": "Consistent identity, across every touchpoint",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "identity-preview",
+        "label": "Identity preview",
+        "description": "Consistent identity, across every touchpoint",
+        "kind": "library",
+        "capability": false
+      },
+      {
+        "id": "version-history",
+        "label": "Version history",
+        "description": "Consistent identity, across every touchpoint",
+        "kind": "timeline",
+        "capability": false
+      },
+      {
+        "id": "feature-draft-workspace",
+        "label": "Draft workspace",
+        "description": "Create, save and preview versioned identity drafts",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-category-locks",
+        "label": "Category locks",
+        "description": "Protect approved identity categories",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-published-identity",
+        "label": "Published identity",
+        "description": "Publish, inspect history and roll back a version",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "Consistent identity, across every touchpoint",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "Consistent identity, across every touchpoint",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "Consistent identity, across every touchpoint",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "commercial",
+    "name": "Commercial",
+    "group": "Finance & Legal",
+    "icon": "credit-card",
+    "description": "A clear view of plans and access",
+    "recordType": "Catalog revision",
+    "action": "Create catalog revision",
+    "primary": [
+      "catalog",
+      "subscription",
+      "invoices"
+    ],
+    "sections": [
+      {
+        "id": "catalog",
+        "label": "Catalog",
+        "description": "A clear view of plans and access",
+        "kind": "library",
+        "capability": false
+      },
+      {
+        "id": "subscription",
+        "label": "Subscription",
+        "description": "A clear view of plans and access",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "invoices",
+        "label": "Invoices",
+        "description": "Review provider-mirrored invoices and billing events",
+        "kind": "ledger",
+        "capability": true
+      },
+      {
+        "id": "entitlements",
+        "label": "Entitlements",
+        "description": "Allocate, activate and change company or branch access",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-catalog-plans",
+        "label": "Catalog plans",
+        "description": "Create and publish plans",
+        "kind": "library",
+        "capability": true
+      },
+      {
+        "id": "feature-subscriptions",
+        "label": "Subscriptions",
+        "description": "Inspect checkout, portal and provider-mirrored status",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-grace-recovery",
+        "label": "Grace & recovery",
+        "description": "Grant grace and recover failed billing events",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "A clear view of plans and access",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "A clear view of plans and access",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "A clear view of plans and access",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "identity_access",
+    "name": "Identity & Access",
+    "group": "Platform & IT",
+    "icon": "shield-check",
+    "description": "The right access, for the right time",
+    "recordType": "Role assignment",
+    "action": "Review an assignment",
+    "primary": [
+      "people",
+      "assignments",
+      "access-reviews"
+    ],
+    "sections": [
+      {
+        "id": "people",
+        "label": "People",
+        "description": "The right access, for the right time",
+        "kind": "directory",
+        "capability": false
+      },
+      {
+        "id": "assignments",
+        "label": "Assignments",
+        "description": "Assign, revoke and renew expiring roles",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "access-reviews",
+        "label": "Access reviews",
+        "description": "Inspect expiring roles and access evidence",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-people-principals",
+        "label": "People & principals",
+        "description": "Create, activate, suspend and recover principals",
+        "kind": "directory",
+        "capability": true
+      },
+      {
+        "id": "feature-roles-permissions",
+        "label": "Roles & permissions",
+        "description": "Define roles and review permission sets",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-directory-connectors",
+        "label": "Directory connectors",
+        "description": "Preflight, import, map and reconcile directories",
+        "kind": "health",
+        "capability": true
+      },
+      {
+        "id": "feature-identity-conflicts",
+        "label": "Identity conflicts",
+        "description": "Approve or reject replacement proposals",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "The right access, for the right time",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "The right access, for the right time",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "The right access, for the right time",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "organization",
+    "name": "Organization",
+    "group": "Platform & IT",
+    "icon": "building-2",
+    "description": "One organization, with clear working spaces",
+    "recordType": "Branch",
+    "action": "Add branch",
+    "primary": [
+      "organization-tree",
+      "branches",
+      "departments"
+    ],
+    "sections": [
+      {
+        "id": "organization-tree",
+        "label": "Organization tree",
+        "description": "Create, rename and place organization nodes",
+        "kind": "directory",
+        "capability": true
+      },
+      {
+        "id": "branches",
+        "label": "Branches",
+        "description": "One organization, with clear working spaces",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "departments",
+        "label": "Departments",
+        "description": "One organization, with clear working spaces",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "sharing",
+        "label": "Sharing",
+        "description": "Review explicit audience and branch agreements",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-node-lifecycle",
+        "label": "Node lifecycle",
+        "description": "Activate, suspend and archive nodes",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-business-units",
+        "label": "Business units",
+        "description": "Inspect companies, branches and their configuration",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "One organization, with clear working spaces",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "One organization, with clear working spaces",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "One organization, with clear working spaces",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "platform_administration",
+    "name": "Platform Admin",
+    "group": "Platform & IT",
+    "icon": "server",
+    "description": "Reliable service for every customer",
+    "recordType": "Provisioning job",
+    "action": "Inspect provisioning",
+    "primary": [
+      "service-health",
+      "provisioning",
+      "backups"
+    ],
+    "sections": [
+      {
+        "id": "service-health",
+        "label": "Service health",
+        "description": "Reliable service for every customer",
+        "kind": "health",
+        "capability": false
+      },
+      {
+        "id": "provisioning",
+        "label": "Provisioning",
+        "description": "Provision branches and retry failed work",
+        "kind": "health",
+        "capability": true
+      },
+      {
+        "id": "backups",
+        "label": "Backups",
+        "description": "Reliable service for every customer",
+        "kind": "health",
+        "capability": false
+      },
+      {
+        "id": "feature-holdings",
+        "label": "Holdings",
+        "description": "Register, provision, activate and suspend holdings",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-connectors",
+        "label": "Connectors",
+        "description": "Register and transition platform connectors",
+        "kind": "health",
+        "capability": true
+      },
+      {
+        "id": "feature-infrastructure",
+        "label": "Infrastructure",
+        "description": "Review desired configuration and enrollment",
+        "kind": "health",
+        "capability": true
+      },
+      {
+        "id": "feature-backup-recovery",
+        "label": "Backup & recovery",
+        "description": "Schedule backups and run restore rehearsals",
+        "kind": "health",
+        "capability": true
+      },
+      {
+        "id": "feature-projections-events",
+        "label": "Projections & events",
+        "description": "Rebuild projections and replay failed events",
+        "kind": "health",
+        "capability": true
+      },
+      {
+        "id": "feature-migration-runs",
+        "label": "Migration runs",
+        "description": "Queue work and advance migration phases",
+        "kind": "health",
+        "capability": true
+      },
+      {
+        "id": "feature-temporary-access",
+        "label": "Temporary access",
+        "description": "Request, approve and revoke audited access",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-platform-audit",
+        "label": "Platform audit",
+        "description": "Inspect operational and control history",
+        "kind": "timeline",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "Reliable service for every customer",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "Reliable service for every customer",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "Reliable service for every customer",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "customer_360",
+    "name": "Customer 360",
+    "group": "Customer & Service",
+    "icon": "users",
+    "description": "The customer story, connected",
+    "recordType": "Customer profile",
+    "action": "Open customer profile",
+    "primary": [
+      "profiles",
+      "sales-summary",
+      "service-timeline"
+    ],
+    "sections": [
+      {
+        "id": "profiles",
+        "label": "Profiles",
+        "description": "The customer story, connected",
+        "kind": "directory",
+        "capability": false
+      },
+      {
+        "id": "sales-summary",
+        "label": "Sales summary",
+        "description": "Open related opportunities, quotes and orders",
+        "kind": "analytics",
+        "capability": true
+      },
+      {
+        "id": "service-timeline",
+        "label": "Service timeline",
+        "description": "Open customer conversations and support cases",
+        "kind": "timeline",
+        "capability": true
+      },
+      {
+        "id": "feature-customer-profile",
+        "label": "Customer profile",
+        "description": "Read the composed customer and owning sources",
+        "kind": "directory",
+        "capability": true
+      },
+      {
+        "id": "feature-customer-notes",
+        "label": "Customer notes",
+        "description": "Add a scoped note with source references",
+        "kind": "directory",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "The customer story, connected",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "The customer story, connected",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "The customer story, connected",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "customer_authority",
+    "name": "Customer Authority",
+    "group": "Customer & Service",
+    "icon": "key-round",
+    "description": "Customer authority you can explain",
+    "recordType": "Authority review",
+    "action": "Review duplicate profiles",
+    "primary": [
+      "bindings",
+      "duplicate-review",
+      "access-history"
+    ],
+    "sections": [
+      {
+        "id": "bindings",
+        "label": "Bindings",
+        "description": "Customer authority you can explain",
+        "kind": "directory",
+        "capability": false
+      },
+      {
+        "id": "duplicate-review",
+        "label": "Duplicate review",
+        "description": "Compare and merge customer profiles",
+        "kind": "directory",
+        "capability": true
+      },
+      {
+        "id": "access-history",
+        "label": "Access history",
+        "description": "Inspect the customer access audit",
+        "kind": "timeline",
+        "capability": true
+      },
+      {
+        "id": "feature-authority-bindings",
+        "label": "Authority bindings",
+        "description": "Create, link and unlink customer authority",
+        "kind": "directory",
+        "capability": true
+      },
+      {
+        "id": "feature-identity-changes",
+        "label": "Identity changes",
+        "description": "Update identity and binding status",
+        "kind": "directory",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "Customer authority you can explain",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "Customer authority you can explain",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "Customer authority you can explain",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "support",
+    "name": "Support",
+    "group": "Customer & Service",
+    "icon": "life-buoy",
+    "description": "Help customers without losing the context",
+    "recordType": "Support ticket",
+    "action": "Open ticket",
+    "primary": [
+      "tickets",
+      "sla-watch",
+      "incidents"
+    ],
+    "sections": [
+      {
+        "id": "tickets",
+        "label": "Tickets",
+        "description": "Open, triage, reply and resolve customer tickets",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "sla-watch",
+        "label": "SLA watch",
+        "description": "Prioritize tickets nearing their response target",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "incidents",
+        "label": "Incidents",
+        "description": "Open incidents, add timeline events and broadcast status",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-support-sessions",
+        "label": "Support sessions",
+        "description": "Request, approve and revoke customer sessions",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-capabilities",
+        "label": "Capabilities",
+        "description": "Issue and revoke scoped support capabilities",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-attachments",
+        "label": "Attachments",
+        "description": "Share customer-safe evidence or private internal files",
+        "kind": "library",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "Help customers without losing the context",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "Help customers without losing the context",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "Help customers without losing the context",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "finance",
+    "name": "Finance",
+    "group": "Finance & Legal",
+    "icon": "wallet",
+    "description": "Confidence in every balance",
+    "recordType": "Journal",
+    "action": "Create journal",
+    "primary": [
+      "journals",
+      "receivables",
+      "payables"
+    ],
+    "sections": [
+      {
+        "id": "journals",
+        "label": "Journals",
+        "description": "Create, balance, post and inspect multi-currency journals",
+        "kind": "ledger",
+        "capability": true
+      },
+      {
+        "id": "receivables",
+        "label": "Receivables",
+        "description": "Confidence in every balance",
+        "kind": "ledger",
+        "capability": false
+      },
+      {
+        "id": "payables",
+        "label": "Payables",
+        "description": "Create, post and match supplier invoices",
+        "kind": "ledger",
+        "capability": true
+      },
+      {
+        "id": "banking",
+        "label": "Banking",
+        "description": "Confidence in every balance",
+        "kind": "ledger",
+        "capability": false
+      },
+      {
+        "id": "close-checklist",
+        "label": "Close checklist",
+        "description": "Confidence in every balance",
+        "kind": "ledger",
+        "capability": false
+      },
+      {
+        "id": "feature-chart-of-accounts",
+        "label": "Chart of accounts",
+        "description": "Import a chart, add accounts and change status",
+        "kind": "directory",
+        "capability": true
+      },
+      {
+        "id": "feature-payments",
+        "label": "Payments",
+        "description": "Create, approve and release payments",
+        "kind": "ledger",
+        "capability": true
+      },
+      {
+        "id": "feature-receivables-aging",
+        "label": "Receivables & aging",
+        "description": "Inspect customer balances and aging",
+        "kind": "analytics",
+        "capability": true
+      },
+      {
+        "id": "feature-bank-reconciliation",
+        "label": "Bank reconciliation",
+        "description": "Import CSV, review matches and reconcile",
+        "kind": "ledger",
+        "capability": true
+      },
+      {
+        "id": "feature-reports",
+        "label": "Reports",
+        "description": "Review trial balance and financial statements",
+        "kind": "analytics",
+        "capability": true
+      },
+      {
+        "id": "feature-period-close",
+        "label": "Period close",
+        "description": "Begin, close and reopen periods with separation",
+        "kind": "ledger",
+        "capability": true
+      },
+      {
+        "id": "feature-opening-balances",
+        "label": "Opening balances",
+        "description": "Import and verify the opening trial balance",
+        "kind": "ledger",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "Confidence in every balance",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "Confidence in every balance",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "Confidence in every balance",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "pos",
+    "name": "Point of Sale",
+    "group": "Sales & Revenue",
+    "icon": "shopping-cart",
+    "description": "A smooth checkout, a clear receipt",
+    "recordType": "Register sale",
+    "action": "Start sale",
+    "primary": [
+      "register",
+      "held-sales",
+      "receipts"
+    ],
+    "sections": [
+      {
+        "id": "register",
+        "label": "Register",
+        "description": "A smooth checkout, a clear receipt",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "held-sales",
+        "label": "Held sales",
+        "description": "A smooth checkout, a clear receipt",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "receipts",
+        "label": "Receipts",
+        "description": "A smooth checkout, a clear receipt",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "refunds",
+        "label": "Refunds",
+        "description": "Request, decide, post or cancel bounded refunds",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-register-session",
+        "label": "Register session",
+        "description": "Open and manage the branch register",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-sales-baskets",
+        "label": "Sales & baskets",
+        "description": "Scan lines, hold, resume and complete sales",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-payments-receipts",
+        "label": "Payments & receipts",
+        "description": "Record tender and inspect receipts",
+        "kind": "ledger",
+        "capability": true
+      },
+      {
+        "id": "feature-voids",
+        "label": "Voids",
+        "description": "Review and void eligible sales",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "A smooth checkout, a clear receipt",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "A smooth checkout, a clear receipt",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "A smooth checkout, a clear receipt",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "sales",
+    "name": "Sales",
+    "group": "Sales & Revenue",
+    "icon": "file-text",
+    "description": "From a good conversation to a fulfilled order",
+    "recordType": "Quote",
+    "action": "Create quote",
+    "primary": [
+      "quotes",
+      "orders",
+      "fulfillment"
+    ],
+    "sections": [
+      {
+        "id": "quotes",
+        "label": "Quotes",
+        "description": "Create, send, accept, reject and expire quotes",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "orders",
+        "label": "Orders",
+        "description": "Create and confirm orders from accepted quotes",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "fulfillment",
+        "label": "Fulfillment",
+        "description": "Record partial or complete fulfillment",
+        "kind": "board",
+        "capability": true
+      },
+      {
+        "id": "feature-cancellations",
+        "label": "Cancellations",
+        "description": "Cancel eligible orders with history",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-revenue-handoff",
+        "label": "Revenue handoff",
+        "description": "Open the connected CRM and finance work",
+        "kind": "board",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "From a good conversation to a fulfilled order",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "From a good conversation to a fulfilled order",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "From a good conversation to a fulfilled order",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "assets",
+    "name": "Assets",
+    "group": "Quality & Assets",
+    "icon": "package",
+    "description": "Know the condition of every asset",
+    "recordType": "Asset",
+    "action": "Register asset",
+    "primary": [
+      "asset-register",
+      "condition",
+      "maintenance-history"
+    ],
+    "sections": [
+      {
+        "id": "asset-register",
+        "label": "Asset register",
+        "description": "Create and inspect assets",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "condition",
+        "label": "Condition",
+        "description": "Mark degradation and review condition history",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "maintenance-history",
+        "label": "Maintenance history",
+        "description": "Know the condition of every asset",
+        "kind": "timeline",
+        "capability": false
+      },
+      {
+        "id": "feature-placement",
+        "label": "Placement",
+        "description": "Place assets into service",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-maintenance-lifecycle",
+        "label": "Maintenance lifecycle",
+        "description": "Begin maintenance and return to service",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-retirement",
+        "label": "Retirement",
+        "description": "Retire eligible assets with evidence",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "Know the condition of every asset",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "Know the condition of every asset",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "Know the condition of every asset",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "inventory",
+    "name": "Inventory",
+    "group": "Operations & Supply",
+    "icon": "boxes",
+    "description": "The stock you need, where you need it",
+    "recordType": "Stock receipt",
+    "action": "Receive stock",
+    "primary": [
+      "availability",
+      "movements",
+      "reservations"
+    ],
+    "sections": [
+      {
+        "id": "availability",
+        "label": "Availability",
+        "description": "Inspect the rebuildable stock projection",
+        "kind": "analytics",
+        "capability": true
+      },
+      {
+        "id": "movements",
+        "label": "Movements",
+        "description": "The stock you need, where you need it",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "reservations",
+        "label": "Reservations",
+        "description": "Reserve and release quantities",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-stock-register",
+        "label": "Stock register",
+        "description": "Register items and opening availability",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-receipts",
+        "label": "Receipts",
+        "description": "Receive and put away stock",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-issues-movements",
+        "label": "Issues & movements",
+        "description": "Issue or move available stock",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "The stock you need, where you need it",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "The stock you need, where you need it",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "The stock you need, where you need it",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "maintenance",
+    "name": "Maintenance",
+    "group": "Quality & Assets",
+    "icon": "wrench",
+    "description": "Keep work moving and equipment reliable",
+    "recordType": "Work order",
+    "action": "Open work order",
+    "primary": [
+      "work-orders",
+      "schedule",
+      "downtime"
+    ],
+    "sections": [
+      {
+        "id": "work-orders",
+        "label": "Work orders",
+        "description": "Open, schedule, start and cancel orders",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "schedule",
+        "label": "Schedule",
+        "description": "Keep work moving and equipment reliable",
+        "kind": "timeline",
+        "capability": false
+      },
+      {
+        "id": "downtime",
+        "label": "Downtime",
+        "description": "Record operational downtime",
+        "kind": "timeline",
+        "capability": true
+      },
+      {
+        "id": "feature-blocked-work",
+        "label": "Blocked work",
+        "description": "Block and resume work with a reason",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-completion",
+        "label": "Completion",
+        "description": "Complete with required evidence",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-maintenance-history",
+        "label": "Maintenance history",
+        "description": "Inspect asset-linked history",
+        "kind": "timeline",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "Keep work moving and equipment reliable",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "Keep work moving and equipment reliable",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "Keep work moving and equipment reliable",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "operations",
+    "name": "Operations",
+    "group": "Operations & Supply",
+    "icon": "activity",
+    "description": "A clear next step for every exception",
+    "recordType": "Operational exception",
+    "action": "Open exception",
+    "primary": [
+      "exceptions",
+      "area-queues",
+      "handovers"
+    ],
+    "sections": [
+      {
+        "id": "exceptions",
+        "label": "Exceptions",
+        "description": "A clear next step for every exception",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "area-queues",
+        "label": "Area queues",
+        "description": "A clear next step for every exception",
+        "kind": "board",
+        "capability": false
+      },
+      {
+        "id": "handovers",
+        "label": "Handovers",
+        "description": "A clear next step for every exception",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "feature-exception-queue",
+        "label": "Exception queue",
+        "description": "Acknowledge, assign and prioritize exceptions",
+        "kind": "board",
+        "capability": true
+      },
+      {
+        "id": "feature-escalations",
+        "label": "Escalations",
+        "description": "Escalate exceptions to an operations lead",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-approval-decisions",
+        "label": "Approval decisions",
+        "description": "Record reviewed operational decisions",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-resolution",
+        "label": "Resolution",
+        "description": "Resolve and close exceptions",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-queue-policies",
+        "label": "Queue policies",
+        "description": "Publish and inspect work-queue policies",
+        "kind": "board",
+        "capability": true
+      },
+      {
+        "id": "feature-operations-summary",
+        "label": "Operations summary",
+        "description": "Inspect area health and handovers",
+        "kind": "analytics",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "A clear next step for every exception",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "A clear next step for every exception",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "A clear next step for every exception",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "procurement",
+    "name": "Procurement",
+    "group": "Operations & Supply",
+    "icon": "clipboard-list",
+    "description": "Buy with context, receive with confidence",
+    "recordType": "Requisition",
+    "action": "Create requisition",
+    "primary": [
+      "requisitions",
+      "purchase-orders",
+      "goods-receipts"
+    ],
+    "sections": [
+      {
+        "id": "requisitions",
+        "label": "Requisitions",
+        "description": "Create, submit, approve, reject or cancel requests",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "purchase-orders",
+        "label": "Purchase orders",
+        "description": "Create, release and cancel supplier orders",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "goods-receipts",
+        "label": "Goods receipts",
+        "description": "Create, accept, reject or cancel receipts",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-invoice-match",
+        "label": "Invoice match",
+        "description": "Open related receipt and finance evidence",
+        "kind": "ledger",
+        "capability": true
+      },
+      {
+        "id": "feature-supplier-history",
+        "label": "Supplier history",
+        "description": "Inspect connected supplier work",
+        "kind": "timeline",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "Buy with context, receive with confidence",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "Buy with context, receive with confidence",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "Buy with context, receive with confidence",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "quality",
+    "name": "Quality",
+    "group": "Quality & Assets",
+    "icon": "badge-check",
+    "description": "Visible checks before work moves forward",
+    "recordType": "Quality inspection",
+    "action": "Create inspection",
+    "primary": [
+      "inspections",
+      "results",
+      "release-gates"
+    ],
+    "sections": [
+      {
+        "id": "inspections",
+        "label": "Inspections",
+        "description": "Create and start quality checks",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "results",
+        "label": "Results",
+        "description": "Record measurements and evidence",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "release-gates",
+        "label": "Release gates",
+        "description": "Review and release passing work",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-cancellation",
+        "label": "Cancellation",
+        "description": "Cancel eligible checks without losing history",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "Visible checks before work moves forward",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "Visible checks before work moves forward",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "Visible checks before work moves forward",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "legal",
+    "name": "Legal",
+    "group": "Finance & Legal",
+    "icon": "scale",
+    "description": "Keep commitments and evidence together",
+    "recordType": "Contract",
+    "action": "Create contract",
+    "primary": [
+      "contracts",
+      "document-versions",
+      "holds"
+    ],
+    "sections": [
+      {
+        "id": "contracts",
+        "label": "Contracts",
+        "description": "Create contracts, add parties and transition status",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "document-versions",
+        "label": "Document versions",
+        "description": "Keep commitments and evidence together",
+        "kind": "library",
+        "capability": false
+      },
+      {
+        "id": "holds",
+        "label": "Holds",
+        "description": "Keep commitments and evidence together",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "feature-documents",
+        "label": "Documents",
+        "description": "Create legal documents and add versions",
+        "kind": "library",
+        "capability": true
+      },
+      {
+        "id": "feature-legal-holds",
+        "label": "Legal holds",
+        "description": "Show holds and block incompatible deletion",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-document-access",
+        "label": "Document access",
+        "description": "Record and inspect document access",
+        "kind": "library",
+        "capability": true
+      },
+      {
+        "id": "feature-archive",
+        "label": "Archive",
+        "description": "Archive eligible documents with history",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "Keep commitments and evidence together",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "Keep commitments and evidence together",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "Keep commitments and evidence together",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "people_payroll",
+    "name": "People & Payroll",
+    "group": "People & Talent",
+    "icon": "user",
+    "description": "A better workday starts with supported people",
+    "recordType": "Leave request",
+    "action": "Request leave",
+    "primary": [
+      "my-requests",
+      "team-requests",
+      "employees"
+    ],
+    "sections": [
+      {
+        "id": "my-requests",
+        "label": "My requests",
+        "description": "A better workday starts with supported people",
+        "kind": "directory",
+        "capability": false
+      },
+      {
+        "id": "team-requests",
+        "label": "Team requests",
+        "description": "A better workday starts with supported people",
+        "kind": "directory",
+        "capability": false
+      },
+      {
+        "id": "employees",
+        "label": "Employees",
+        "description": "Hire and transition employee status",
+        "kind": "directory",
+        "capability": true
+      },
+      {
+        "id": "payroll-summaries",
+        "label": "Payroll summaries",
+        "description": "Show restricted payroll projections",
+        "kind": "analytics",
+        "capability": true
+      },
+      {
+        "id": "feature-leave-requests",
+        "label": "Leave requests",
+        "description": "Create and decide leave requests",
+        "kind": "directory",
+        "capability": true
+      },
+      {
+        "id": "feature-expenses",
+        "label": "Expenses",
+        "description": "Create and decide expense claims",
+        "kind": "directory",
+        "capability": true
+      },
+      {
+        "id": "feature-payroll-runs",
+        "label": "Payroll runs",
+        "description": "Create, review and transition payroll runs",
+        "kind": "directory",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "A better workday starts with supported people",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "A better workday starts with supported people",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "A better workday starts with supported people",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "crm",
+    "name": "CRM",
+    "group": "Sales & Revenue",
+    "icon": "heart",
+    "description": "Keep the next customer conversation moving",
+    "recordType": "Opportunity",
+    "action": "Create opportunity",
+    "primary": [
+      "pipeline",
+      "accounts",
+      "activities"
+    ],
+    "sections": [
+      {
+        "id": "pipeline",
+        "label": "Pipeline",
+        "description": "Keep the next customer conversation moving",
+        "kind": "board",
+        "capability": false
+      },
+      {
+        "id": "accounts",
+        "label": "Accounts",
+        "description": "Inspect customer accounts and shared conversations",
+        "kind": "directory",
+        "capability": true
+      },
+      {
+        "id": "activities",
+        "label": "Activities",
+        "description": "Record the next customer interaction",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-leads",
+        "label": "Leads",
+        "description": "Accept marketing leads and inspect attribution",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-opportunities",
+        "label": "Opportunities",
+        "description": "Create, save and transition opportunities",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-sales-handoff",
+        "label": "Sales handoff",
+        "description": "Prepare and open the related sales quote",
+        "kind": "board",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "Keep the next customer conversation moving",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "Keep the next customer conversation moving",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "Keep the next customer conversation moving",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "marketing",
+    "name": "Marketing",
+    "group": "Marketing & Brand",
+    "icon": "megaphone",
+    "description": "Thoughtful campaigns, ready for their audience",
+    "recordType": "Campaign",
+    "action": "Create campaign",
+    "primary": [
+      "campaigns",
+      "content-preview",
+      "channel-readiness"
+    ],
+    "sections": [
+      {
+        "id": "campaigns",
+        "label": "Campaigns",
+        "description": "Thoughtful campaigns, ready for their audience",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "content-preview",
+        "label": "Content preview",
+        "description": "Thoughtful campaigns, ready for their audience",
+        "kind": "library",
+        "capability": false
+      },
+      {
+        "id": "channel-readiness",
+        "label": "Channel readiness",
+        "description": "Thoughtful campaigns, ready for their audience",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "schedule",
+        "label": "Schedule",
+        "description": "Thoughtful campaigns, ready for their audience",
+        "kind": "timeline",
+        "capability": false
+      },
+      {
+        "id": "feature-forms-profiles",
+        "label": "Forms & profiles",
+        "description": "Capture forms and honor profile erasure",
+        "kind": "directory",
+        "capability": true
+      },
+      {
+        "id": "feature-content-previews",
+        "label": "Content & previews",
+        "description": "Issue and revoke scoped previews",
+        "kind": "library",
+        "capability": true
+      },
+      {
+        "id": "feature-domains",
+        "label": "Domains",
+        "description": "Verify and bind marketing domains",
+        "kind": "health",
+        "capability": true
+      },
+      {
+        "id": "feature-provider-readiness",
+        "label": "Provider readiness",
+        "description": "Configure and acknowledge provider accounts",
+        "kind": "analytics",
+        "capability": true
+      },
+      {
+        "id": "feature-lead-candidates",
+        "label": "Lead candidates",
+        "description": "Create, qualify or reject candidates",
+        "kind": "directory",
+        "capability": true
+      },
+      {
+        "id": "feature-engagement",
+        "label": "Engagement",
+        "description": "Capture attribution and customer activity",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "Thoughtful campaigns, ready for their audience",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "Thoughtful campaigns, ready for their audience",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "Thoughtful campaigns, ready for their audience",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "manufacturing",
+    "name": "Manufacturing",
+    "group": "Operations & Supply",
+    "icon": "factory",
+    "description": "Material readiness through finished goods",
+    "recordType": "Manufacturing order",
+    "action": "Create manufacturing order",
+    "primary": [
+      "orders",
+      "material-readiness",
+      "execution"
+    ],
+    "sections": [
+      {
+        "id": "orders",
+        "label": "Orders",
+        "description": "Create, release, start and close manufacturing orders",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "material-readiness",
+        "label": "Material readiness",
+        "description": "Reserve and issue material",
+        "kind": "analytics",
+        "capability": true
+      },
+      {
+        "id": "execution",
+        "label": "Execution",
+        "description": "Material readiness through finished goods",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "quality-disposition",
+        "label": "Quality disposition",
+        "description": "Apply reviewed quality decisions",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-specifications",
+        "label": "Specifications",
+        "description": "Publish product specifications",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-labor-output",
+        "label": "Labor & output",
+        "description": "Report labor, result and yield",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-costs-genealogy",
+        "label": "Costs & genealogy",
+        "description": "Record cost and inspect genealogy or WIP",
+        "kind": "analytics",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "Material readiness through finished goods",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "Material readiness through finished goods",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "Material readiness through finished goods",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "planning",
+    "name": "Planning",
+    "group": "Operations & Supply",
+    "icon": "calendar-days",
+    "description": "Explore the options before committing",
+    "recordType": "Planning scenario",
+    "action": "Create scenario",
+    "primary": [
+      "scenarios",
+      "shortages",
+      "recommendations"
+    ],
+    "sections": [
+      {
+        "id": "scenarios",
+        "label": "Scenarios",
+        "description": "Create, freeze and run planning scenarios",
+        "kind": "library",
+        "capability": true
+      },
+      {
+        "id": "shortages",
+        "label": "Shortages",
+        "description": "Inspect material shortages",
+        "kind": "analytics",
+        "capability": true
+      },
+      {
+        "id": "recommendations",
+        "label": "Recommendations",
+        "description": "Override, approve, reject and release recommendations",
+        "kind": "library",
+        "capability": true
+      },
+      {
+        "id": "comparison",
+        "label": "Comparison",
+        "description": "Explore the options before committing",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "feature-capacity",
+        "label": "Capacity",
+        "description": "Inspect capacity overloads",
+        "kind": "analytics",
+        "capability": true
+      },
+      {
+        "id": "feature-plan-comparison",
+        "label": "Plan comparison",
+        "description": "Compare released plan outcomes",
+        "kind": "analytics",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "Explore the options before committing",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "Explore the options before committing",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "Explore the options before committing",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "projects",
+    "name": "Projects",
+    "group": "Operations & Supply",
+    "icon": "kanban",
+    "description": "Every milestone has people and dependencies",
+    "recordType": "Project work item",
+    "action": "Add work item",
+    "primary": [
+      "work-breakdown",
+      "board",
+      "dependencies"
+    ],
+    "sections": [
+      {
+        "id": "work-breakdown",
+        "label": "Work breakdown",
+        "description": "Every milestone has people and dependencies",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "board",
+        "label": "Board",
+        "description": "Every milestone has people and dependencies",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "dependencies",
+        "label": "Dependencies",
+        "description": "Propose, decide, revoke and cancel dependencies",
+        "kind": "board",
+        "capability": true
+      },
+      {
+        "id": "progress",
+        "label": "Progress",
+        "description": "Every milestone has people and dependencies",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "feature-projects-wbs",
+        "label": "Projects & WBS",
+        "description": "Create projects; add, move and transition nodes",
+        "kind": "board",
+        "capability": true
+      },
+      {
+        "id": "feature-handoffs",
+        "label": "Handoffs",
+        "description": "Propose, approve, mark ready and reconcile handoffs",
+        "kind": "board",
+        "capability": true
+      },
+      {
+        "id": "feature-time-costs",
+        "label": "Time & costs",
+        "description": "Record node time and cost",
+        "kind": "analytics",
+        "capability": true
+      },
+      {
+        "id": "feature-attachments",
+        "label": "Attachments",
+        "description": "Attach files and related records to WBS nodes",
+        "kind": "library",
+        "capability": true
+      },
+      {
+        "id": "feature-project-graph",
+        "label": "Project graph",
+        "description": "Inspect the connected project graph",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "Every milestone has people and dependencies",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "Every milestone has people and dependencies",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "Every milestone has people and dependencies",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "ecommerce",
+    "name": "E-commerce",
+    "group": "Sales & Revenue",
+    "icon": "store",
+    "description": "From product discovery to a reliable handoff",
+    "recordType": "Product listing",
+    "action": "Create listing",
+    "primary": [
+      "channels",
+      "listings",
+      "orders"
+    ],
+    "sections": [
+      {
+        "id": "channels",
+        "label": "Channels",
+        "description": "Create, approve and transition channels",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "listings",
+        "label": "Listings",
+        "description": "Create, approve, publish or withdraw listings",
+        "kind": "library",
+        "capability": true
+      },
+      {
+        "id": "orders",
+        "label": "Orders",
+        "description": "From product discovery to a reliable handoff",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "returns",
+        "label": "Returns",
+        "description": "Request returns and reconcile disposition or refund",
+        "kind": "board",
+        "capability": true
+      },
+      {
+        "id": "feature-carts",
+        "label": "Carts",
+        "description": "Build and lock customer carts",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-checkout",
+        "label": "Checkout",
+        "description": "Reconcile validation, stock, payment and order stages",
+        "kind": "board",
+        "capability": true
+      },
+      {
+        "id": "feature-fulfillment",
+        "label": "Fulfillment",
+        "description": "Propose and transition fulfillment",
+        "kind": "board",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "From product discovery to a reliable handoff",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "From product discovery to a reliable handoff",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "From product discovery to a reliable handoff",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "benefits",
+    "name": "Benefits",
+    "group": "People & Talent",
+    "icon": "gift",
+    "description": "Benefits that are easy to understand",
+    "recordType": "Benefit enrollment",
+    "action": "Choose coverage",
+    "primary": [
+      "available-plans",
+      "enrollment",
+      "dependents"
+    ],
+    "sections": [
+      {
+        "id": "available-plans",
+        "label": "Available plans",
+        "description": "Benefits that are easy to understand",
+        "kind": "library",
+        "capability": false
+      },
+      {
+        "id": "enrollment",
+        "label": "Enrollment",
+        "description": "Benefits that are easy to understand",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "dependents",
+        "label": "Dependents",
+        "description": "Add and validate dependents",
+        "kind": "directory",
+        "capability": true
+      },
+      {
+        "id": "coverage",
+        "label": "Coverage",
+        "description": "Elect and validate coverage",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-plans",
+        "label": "Plans",
+        "description": "Publish benefit plans",
+        "kind": "library",
+        "capability": true
+      },
+      {
+        "id": "feature-enrollment-windows",
+        "label": "Enrollment windows",
+        "description": "Open and inspect enrollment periods",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-provider-payroll",
+        "label": "Provider & payroll",
+        "description": "Submit, acknowledge and release payroll changes",
+        "kind": "health",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "Benefits that are easy to understand",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "Benefits that are easy to understand",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "Benefits that are easy to understand",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "learning",
+    "name": "Learning",
+    "group": "People & Talent",
+    "icon": "graduation-cap",
+    "description": "Small lessons that help every day",
+    "recordType": "Course enrollment",
+    "action": "Open assigned course",
+    "primary": [
+      "assigned-courses",
+      "course-catalog",
+      "progress"
+    ],
+    "sections": [
+      {
+        "id": "assigned-courses",
+        "label": "Assigned courses",
+        "description": "Small lessons that help every day",
+        "kind": "library",
+        "capability": false
+      },
+      {
+        "id": "course-catalog",
+        "label": "Course catalog",
+        "description": "Publish and retire courses",
+        "kind": "library",
+        "capability": true
+      },
+      {
+        "id": "progress",
+        "label": "Progress",
+        "description": "Small lessons that help every day",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "results",
+        "label": "Results",
+        "description": "Small lessons that help every day",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "feature-assignments",
+        "label": "Assignments",
+        "description": "Assign courses to permitted people",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-attendance-results",
+        "label": "Attendance & results",
+        "description": "Record attendance and provider results",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-completion",
+        "label": "Completion",
+        "description": "Complete or waive enrollments",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-eligibility-handoff",
+        "label": "Eligibility handoff",
+        "description": "Open related benefits eligibility",
+        "kind": "board",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "Small lessons that help every day",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "Small lessons that help every day",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "Small lessons that help every day",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "talent",
+    "name": "Talent",
+    "group": "People & Talent",
+    "icon": "user-plus",
+    "description": "A thoughtful, traceable hiring experience",
+    "recordType": "Hiring application",
+    "action": "Review application",
+    "primary": [
+      "requisitions",
+      "applications",
+      "interviews"
+    ],
+    "sections": [
+      {
+        "id": "requisitions",
+        "label": "Requisitions",
+        "description": "Create, approve and transition requisitions",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "applications",
+        "label": "Applications",
+        "description": "Submit, interview, select or withdraw applications",
+        "kind": "board",
+        "capability": true
+      },
+      {
+        "id": "interviews",
+        "label": "Interviews",
+        "description": "A thoughtful, traceable hiring experience",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "offers",
+        "label": "Offers",
+        "description": "Create, approve, present and decide offers",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-candidates-privacy",
+        "label": "Candidates & privacy",
+        "description": "Create profiles, holds and erasure requests",
+        "kind": "directory",
+        "capability": true
+      },
+      {
+        "id": "feature-hire-handoffs",
+        "label": "Hire handoffs",
+        "description": "Request and reconcile employee onboarding",
+        "kind": "board",
+        "capability": true
+      },
+      {
+        "id": "feature-proposals",
+        "label": "Proposals",
+        "description": "Create, submit, approve and reconcile proposals",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "A thoughtful, traceable hiring experience",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "A thoughtful, traceable hiring experience",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "A thoughtful, traceable hiring experience",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "field_service",
+    "name": "Field Service",
+    "group": "Customer & Service",
+    "icon": "hard-hat",
+    "description": "The right person, prepared for the visit",
+    "recordType": "Service order",
+    "action": "Create service order",
+    "primary": [
+      "dispatch-schedule",
+      "service-orders",
+      "parts"
+    ],
+    "sections": [
+      {
+        "id": "dispatch-schedule",
+        "label": "Dispatch schedule",
+        "description": "The right person, prepared for the visit",
+        "kind": "timeline",
+        "capability": false
+      },
+      {
+        "id": "service-orders",
+        "label": "Service orders",
+        "description": "Create and schedule orders",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "parts",
+        "label": "Parts",
+        "description": "The right person, prepared for the visit",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "visit-evidence",
+        "label": "Visit evidence",
+        "description": "The right person, prepared for the visit",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "feature-agreements",
+        "label": "Agreements",
+        "description": "Activate service agreements with approval",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-dispatch",
+        "label": "Dispatch",
+        "description": "Reserve parts and dispatch technicians",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-visits",
+        "label": "Visits",
+        "description": "Start visits, issue parts and capture evidence",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-exceptions",
+        "label": "Exceptions",
+        "description": "Record site or service exceptions",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-billing-release",
+        "label": "Billing release",
+        "description": "Complete visits and release connected billing",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "The right person, prepared for the visit",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "The right person, prepared for the visit",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "The right person, prepared for the visit",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "agent",
+    "name": "Agents",
+    "group": "Platform & IT",
+    "icon": "bot",
+    "description": "Helpful drafts, accountable decisions",
+    "recordType": "Agent assignment",
+    "action": "Start sample assignment",
+    "primary": [
+      "agent-catalog",
+      "versions",
+      "assignments"
+    ],
+    "sections": [
+      {
+        "id": "agent-catalog",
+        "label": "Agent catalog",
+        "description": "Register, suspend and retire agent definitions",
+        "kind": "library",
+        "capability": true
+      },
+      {
+        "id": "versions",
+        "label": "Versions",
+        "description": "Add and approve agent versions",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "assignments",
+        "label": "Assignments",
+        "description": "Start, delegate, retry or cancel assignments",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "proposals",
+        "label": "Proposals",
+        "description": "Helpful drafts, accountable decisions",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "feature-pools-routing",
+        "label": "Pools & routing",
+        "description": "Register pools, replace members and inspect routing",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-private-sessions",
+        "label": "Private sessions",
+        "description": "Run private, held or expiring sessions",
+        "kind": "conversation",
+        "capability": true
+      },
+      {
+        "id": "feature-field-suggestions",
+        "label": "Field suggestions",
+        "description": "Request, review, apply or reject evidence-backed changes",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-invocation-evidence",
+        "label": "Invocation evidence",
+        "description": "Inspect attributable agent activity",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "Helpful drafts, accountable decisions",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "Helpful drafts, accountable decisions",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "Helpful drafts, accountable decisions",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "collaboration",
+    "name": "Collaboration",
+    "group": "Platform & IT",
+    "icon": "messages-square",
+    "description": "Conversations close to the work",
+    "recordType": "Discussion thread",
+    "action": "Create discussion",
+    "primary": [
+      "threads",
+      "mentions",
+      "following"
+    ],
+    "sections": [
+      {
+        "id": "threads",
+        "label": "Threads",
+        "description": "Create, search and resolve record conversations",
+        "kind": "conversation",
+        "capability": true
+      },
+      {
+        "id": "mentions",
+        "label": "Mentions",
+        "description": "Autocomplete scoped people and record targets",
+        "kind": "conversation",
+        "capability": true
+      },
+      {
+        "id": "following",
+        "label": "Following",
+        "description": "Conversations close to the work",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "topics",
+        "label": "Topics",
+        "description": "Conversations close to the work",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "feature-comments-moderation",
+        "label": "Comments & moderation",
+        "description": "Reply, edit and tombstone comments",
+        "kind": "conversation",
+        "capability": true
+      },
+      {
+        "id": "feature-following-reactions",
+        "label": "Following & reactions",
+        "description": "Follow work and add non-decision signals",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-topics-feed",
+        "label": "Topics & feed",
+        "description": "Publish posts and follow governed hashtags",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-attachments",
+        "label": "Attachments",
+        "description": "Upload and download authorized thread files",
+        "kind": "library",
+        "capability": true
+      },
+      {
+        "id": "feature-action-cards",
+        "label": "Action cards",
+        "description": "Propose and confirm reviewed actions",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "feature-record-relations",
+        "label": "Record relations",
+        "description": "Add, order, inspect and revoke typed links",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "Conversations close to the work",
+        "kind": "analytics",
+        "capability": false
+      },
+      {
+        "id": "records",
+        "label": "All records",
+        "description": "Conversations close to the work",
+        "kind": "workflow",
+        "capability": false
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "description": "Conversations close to the work",
+        "kind": "timeline",
+        "capability": false
+      }
+    ]
+  },
+  {
+    "id": "pms",
+    "name": "Hotel PMS",
+    "group": "04",
+    "icon": "hotel",
+    "description": "Reservations, front office, housekeeping and connected hotel accounting.",
+    "recordType": "reservation",
+    "action": "Manage hotel",
+    "primary": [
+      "dashboard",
+      "reservations",
+      "front-desk",
+      "housekeeping"
+    ],
+    "sections": [
+      {
+        "id": "dashboard",
+        "label": "Overview",
+        "description": "Overview",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "reservations",
+        "label": "Reservations",
+        "description": "Reservations",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "front-desk",
+        "label": "Front Office",
+        "description": "Front Office",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "rooms",
+        "label": "Rooms",
+        "description": "Rooms",
+        "kind": "board",
+        "capability": true
+      },
+      {
+        "id": "housekeeping",
+        "label": "Housekeeping",
+        "description": "Housekeeping",
+        "kind": "board",
+        "capability": true
+      },
+      {
+        "id": "folios",
+        "label": "Folios & payments",
+        "description": "Folios & payments",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "cashier",
+        "label": "Cashier shifts",
+        "description": "Cashier shifts",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "inventory",
+        "label": "Minibar & linen",
+        "description": "Minibar & linen",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "guests",
+        "label": "Guests",
+        "description": "Guests",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "reports",
+        "label": "Reports",
+        "description": "Reports",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "night-audit",
+        "label": "Night Audit",
+        "description": "Night Audit",
+        "kind": "workflow",
+        "capability": true
+      },
+      {
+        "id": "settings",
+        "label": "Settings",
+        "description": "Settings",
+        "kind": "workflow",
+        "capability": true
+      }
+    ]
+  },
+  {
+    "id": "manage_erpx",
+    "name": "ERPX Management",
+    "group": "ERPX Management",
+    "icon": "server",
+    "description": "Customer and Platform administration for ERPX",
+    "recordType": "Platform operation",
+    "action": "Open Manage ERPX",
+    "primary": [
+      "overview",
+      "billing",
+      "iam",
+      "executive"
+    ],
+    "sections": [
+      {
+        "id": "overview",
+        "label": "Overview",
+        "description": "Customer health, provisioning, migrations and recovery",
+        "kind": "health",
+        "capability": true
+      },
+      {
+        "id": "billing",
+        "label": "Customer billing",
+        "description": "Customer billing administration",
+        "kind": "ledger",
+        "capability": true
+      },
+      {
+        "id": "iam",
+        "label": "Platform IAM",
+        "description": "Platform access administration",
+        "kind": "directory",
+        "capability": true
+      },
+      {
+        "id": "executive",
+        "label": "Platform Executive",
+        "description": "Control-plane reporting",
+        "kind": "analytics",
+        "capability": true
+      }
+    ]
+  }
+]

@@ -1,9 +1,9 @@
 import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { leaveSummary } from "@/server/modules/people_payroll/public/leave-self-service";
 import { leaveListFilterSchema } from "@/server/modules/people_payroll/public/leave-self-service";
-import { LeaveSelfService } from "@/components/leave/leave-self-service";
-import { today } from "@/lib/calendar-date";
+import { LeaveSelfService } from "@/components/people_payroll/leave/leave-self-service";
+import { today } from "@/lib/work_projection/calendar-date";
 
 export const dynamic = "force-dynamic";
 

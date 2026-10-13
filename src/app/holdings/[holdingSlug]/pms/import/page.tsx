@@ -4,8 +4,8 @@ import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { requireWorkContext,publicScope } from "@/server/modules/identity_access/public/authorization";
 import { requirePermission } from "@/server/modules/identity_access/public/iam-permissions";
 
-import { hasPermission } from "@/lib/permissions";
-import { workspaceBase } from "@/lib/workspace";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 
 
 import { PmsImport } from "@/components/pms/import";

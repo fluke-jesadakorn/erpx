@@ -1,6 +1,6 @@
 # People evaluation owner contract
 
-People owns Skills, Performance & Compensation at `/holdings/{holdingSlug}/people/evaluation`. Talent remains recruitment. Person, Engagement, Position, Staff Level, Learning, Tasks and Projects keep their existing ownership. Research and product defaults are distinguished in [research evidence](../../testing/workforce-compensation-research-2026-10-05.md).
+People owns Skills, Performance & Compensation at `/holdings/{holdingSlug}/people/evaluation`. Talent remains recruitment. Person, Engagement, Position, Staff Level, Learning, Tasks and Projects keep their existing ownership. Research and product defaults are distinguished in [research evidence](../../research/workforce-compensation-research-2026-10-05.md).
 
 ## Criteria and review
 

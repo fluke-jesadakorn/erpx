@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { WorkItem } from "@/lib/work-item";
+import type { WorkItem } from "@/lib/work_projection/work-item";
 import { BusinessRuleError, consumptionLotSchema } from "../../shared";
 
 const reason = z.string().trim().min(3).max(3000), version = z.number().int().positive();

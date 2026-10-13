@@ -1,36 +1,37 @@
-import {AgentGovernanceConsole} from "@/components/modules/agent-governance-console";
-import {FinanceGroupEditionControls} from "@/components/finance/finance-group-edition-controls";
-import {FinanceInstrumentControls} from "@/components/finance/finance-instrument-controls";
-import {FinanceAssetPolicyControls} from "@/components/finance/finance-asset-policy-controls";
-import {FinanceBusinessContractControls} from "@/components/finance/finance-business-contract-controls";
-import {FinanceBankAutomationControls} from "@/components/finance/finance-bank-automation-controls";
-import {FinanceCollectionControls} from "@/components/finance/finance-collection-controls";
-import {BookingRefunds} from "@/components/pms/booking-refunds";
-import {CounterRefunds} from "@/components/pms/counter-refunds";
-import {FinanceBookControls} from "@/components/finance/finance-book-controls";
-import {FinancePlanningControls} from "@/components/finance/finance-planning-controls";
-import { BankMatch } from "@/components/modules/bank-controls";
-import { InventoryReorderConsole } from "@/components/modules/inventory-reorder-console";
+import type { ComponentProps } from "react";
+import { AgentGovernanceConsole } from "@/components/records/loaders/modules--agent-governance-console";
+import { FinanceGroupEditionControls } from "@/components/records/loaders/finance--finance-group-edition-controls";
+import { FinanceInstrumentControls } from "@/components/records/loaders/finance--finance-instrument-controls";
+import { FinanceAssetPolicyControls } from "@/components/records/loaders/finance--finance-asset-policy-controls";
+import { FinanceBusinessContractControls } from "@/components/records/loaders/finance--finance-business-contract-controls";
+import { FinanceBankAutomationControls } from "@/components/records/loaders/finance--finance-bank-automation-controls";
+import { FinanceCollectionControls } from "@/components/records/loaders/finance--finance-collection-controls";
+import { BookingRefunds } from "@/components/records/loaders/pms--booking-refunds";
+import { CounterRefunds } from "@/components/records/loaders/pms--counter-refunds";
+import { FinanceBookControls } from "@/components/records/loaders/finance--finance-book-controls";
+import { FinancePlanningControls } from "@/components/records/loaders/finance--finance-planning-controls";
+import { BankMatch } from "@/components/records/loaders/modules--bank-controls";
+import { InventoryReorderConsole } from "@/components/records/loaders/modules--inventory-reorder-console";
 import { canPrepareCounts, canApproveCounts } from "@/server/modules/inventory/public/inventory-counts";
 import { RecordDomainControls } from "./record-domain-controls";
 import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { recordSupplementData } from "@/server/modules/records/public/record-details";
-import { type RecordTarget, recordDrawerHref, recordCanonicalHref } from "@/lib/record-drawer";
+import { type RecordTarget, recordDrawerHref, recordCanonicalHref } from "@/lib/records/record-drawer";
 import { RecordLink } from "./record-link";
-import { CalculationDecision } from "@/components/finance/finance-engine-controls";
-import { AccrualScheduleConsole } from "@/components/finance/finance-accrual-controls";
-import { IntercompanyConsole } from "@/components/finance/intercompany-console";
-import { ConsolidationRunConsole } from "@/components/finance/consolidation-run-console";
-import { SalesPricingConsole } from "@/components/modules/sales-pricing-console";
-import { hasPermission } from "@/lib/permissions";
-import { MasterEditor } from "@/components/modules/commerce-controls";
-import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
+import { CalculationDecision } from "@/components/records/loaders/finance--finance-engine-controls";
+import { AccrualScheduleConsole } from "@/components/records/loaders/finance--finance-accrual-controls";
+import { IntercompanyConsole } from "@/components/records/loaders/finance--intercompany-console";
+import { ConsolidationRunConsole } from "@/components/records/loaders/finance--consolidation-run-console";
+import { SalesPricingConsole } from "@/components/records/loaders/modules--sales-pricing-console";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { MasterEditor } from "@/components/records/loaders/modules--commerce-controls";
+import { RecordDocumentPanel } from "@/components/records/loaders/attachments--record-document-panel";
 import { Table, TableFrame } from "@/components/ui/table";
-import { minorToDecimal } from "@/lib/finance-money";
+import { minorToDecimal } from "@/lib/finance/finance-money";
 import { ApiError } from "@/server/modules/runtime/public/http";
 import { currentPagePath } from "@/server/modules/work_projection/public/page-error";
-import { TimeText } from "@/components/time/time-preference-context";
+import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 import type { Row } from "@/server/modules/commerce/public/commerce";
 const fields: [string,string][]=[['outcome','Outcome'],['input_tokens','Input tokens'],['output_tokens','Output tokens'],['question_digest','Question digest'],['sources_digest','Source digest'],['error','Error'],['user_id','Recorded user'],['effective_status','Effective state'],['generation','Generation'],['expires_at','Expires'],['legal_hold','Evidence hold'],['last_reason','Retention reason'],['source_number','Source reference'],['movement_date','Movement date'],['source_type','Source type'],['external_id','Reference'],['statement_number','Statement'],['transaction_date','Date'],['statement_date','Statement date'],['match_status','Matching'],['source','Source'],['last_review_reason','Review reason'],['sku','SKU'],['code','Code'],['name','Name'],['title','Title'],['mode','Mode'],['revision','Revision'],['scope_path','Scope'],['version_number','Version number'],['due_date','Due'],['employee_contribution_minor','Employee contribution'],['employer_contribution_minor','Employer contribution'],['required_score','Required score'],['description','Description'],['unit','Unit'],['tracking_mode','Tracking'],['warehouse_name','Warehouse'],['branch_name','Branch'],['kind','Type'],['currency','Currency'],['payment_terms_days','Payment terms (days)'],['notification_email','Contact email'],['notification_consent','Notification consent'],['lot_code','Lot'],['serial_number','Serial number'],['manufactured_date','Manufactured'],['expiry_date','Expires'],['category','Category'],['control_kind','Control account'],['status','Status'],['debit','Posted debit'],['credit','Posted credit'],['balance','Posted balance'],['asOf','As of'],['count','Documents'],['reference','Reference'],['version','Version'],['created_by','Created by'],['prepared_by','Prepared by'],['requested_by','Requested by'],['approved_by','Approved by'],['reviewed_by','Reviewed by'],['next_run_date','Next run'],['start_date','Start'],['end_date','End'],['frequency','Frequency'],['debit_code','Debit account'],['credit_code','Credit account'],['warehouse_id','Warehouse'],['product_name','Product'],['valid_from','Valid from'],['valid_until','Valid until'],['customer_name','Customer'],['as_of_date','As of'],['reported_total','Reported total'],['presentation_currency','Currency']];
 export async function RecordSupplement({ holdingSlug, target, args }: { holdingSlug: string; target: RecordTarget; args: Record<string,string> }) {
@@ -50,15 +51,15 @@ export async function RecordSupplement({ holdingSlug, target, args }: { holdingS
    {'retainedLines' in data&&data.retainedLines&&<section><h2>Retained journal lines</h2><Table><thead><tr><th>Account</th><th>Debit / credit</th><th>Base debit / credit</th><th>Dimensions</th></tr></thead><tbody>{data.retainedLines.map(line=><tr key={String(line.id)}><td>{row.company_id===actor.companyId?<RecordLink href={recordCanonicalHref(base,{kind:'finance_account',id:String(line.account_id)})}>{String(line.code)} · {String(line.name)}</RecordLink>:`${line.code} · ${line.name}`}</td><td>{String(line.currency??row.currency??'')} {minorToDecimal(Number(line.debit_minor))} / {minorToDecimal(Number(line.credit_minor))}</td><td>{minorToDecimal(Number(line.base_debit_minor))} / {minorToDecimal(Number(line.base_credit_minor))}</td><td><RecordValues value={JSON.parse(String(line.dimension_json??'{}'))}/></td></tr>)}</tbody></Table></section>}
    {'calculationEvidence' in data&&<details><summary>Retained calculation and adjustments</summary><RecordValues value={data.calculationEvidence}/></details>}
    {['value_minor','opening_balance_minor','closing_balance_minor','amount_minor' ,'total_minor','gross_minor','deductions_minor','employer_cost_minor','net_minor','outstanding'].filter(key=>row[key]!==undefined).map(key=><p key={key}>{key.replace(/_minor$/,'').replaceAll('_',' ')}: {String(row.currency??row.presentation_currency??'')} {minorToDecimal(Number(row[key]))}</p>)}
-   {'data' in data&&['finance_business_contract','finance_business_bill','finance_recognition','finance_obligation'].includes(data.kind??'')&&<FinanceBusinessContractControls base={base} data={data.data as unknown as Parameters<typeof FinanceBusinessContractControls>[0]['data']} canWrite={hasPermission(actor,'finance.write')} canApprove={hasPermission(actor,'finance.approve')} userId={actor.userId}/>}
-   {'data' in data&&['bank_match_group','bank_profile'].includes(data.kind??'')&&<FinanceBankAutomationControls base={base} data={data.data as unknown as Parameters<typeof FinanceBankAutomationControls>[0]['data']} accounts={[]} canWrite={hasPermission(actor,'finance.write')} canApprove={hasPermission(actor,'finance.approve')} userId={actor.userId}/>}
+   {'data' in data&&['finance_business_contract','finance_business_bill','finance_recognition','finance_obligation'].includes(data.kind??'')&&<FinanceBusinessContractControls base={base} data={data.data as unknown as ComponentProps<typeof FinanceBusinessContractControls>['data']} canWrite={hasPermission(actor,'finance.write')} canApprove={hasPermission(actor,'finance.approve')} userId={actor.userId}/>}
+   {'data' in data&&['bank_match_group','bank_profile'].includes(data.kind??'')&&<FinanceBankAutomationControls base={base} data={data.data as unknown as ComponentProps<typeof FinanceBankAutomationControls>['data']} accounts={[]} canWrite={hasPermission(actor,'finance.write')} canApprove={hasPermission(actor,'finance.approve')} userId={actor.userId}/>}
    {'data' in data&&data.kind==='collection_case'&&<FinanceCollectionControls base={base} data={data.data} forecast={{currency:'',opening:'',basis:'',months:[]}} canWrite={hasPermission(actor,'finance.write')} canApprove={hasPermission(actor,'finance.approve')} userId={actor.userId}/>}
    {'data' in data&&data.kind==='finance_book'&&<FinanceBookControls base={base} data={data.data} canWrite={hasPermission(actor,'finance.write')} canApprove={hasPermission(actor,'finance.approve')} userId={actor.userId}/>}
    {'data' in data&&data.kind==='finance_plan'&&<FinancePlanningControls base={base} chartId={String(data.row.chart_id)} data={data.data} canWrite={hasPermission(actor,'finance.write')} canApprove={hasPermission(actor,'finance.approve')} userId={actor.userId}/>}
    {'data' in data&&data.kind==='bank_transaction'&&hasPermission(actor,'finance.approve')&&row.match_status!=='matched'&&<BankMatch base={base} transaction={data.row} payments={data.data.payments}/>}
    {'options' in data&&data.kind==='reorder_policy'&&<InventoryReorderConsole base={base} readerId={actor.userId} canPrepare={canPrepareCounts(actor)} canApprove={canApproveCounts(actor)} policies={[data.row]} warehouses={data.options.warehouses.map(r=>({id:String(r.id),name:String(r.name),status:String(r.status)}))} products={data.options.products.map(r=>({id:String(r.id),name:String(r.name),sku:String(r.sku),unit:String(r.unit),status:String(r.status)}))}/>}
-   {'refundKind' in data&&data.refundKind==='booking'&&<BookingRefunds base={base} rows={[data.row as unknown as Parameters<typeof BookingRefunds>[0]['rows'][number]]} canApprove={hasPermission(actor,'finance.approve')}/>}
-   {'refundKind' in data&&data.refundKind==='counter'&&<CounterRefunds base={base} rows={[data.row as unknown as Parameters<typeof CounterRefunds>[0]['rows'][number]]} canApprove={hasPermission(actor,'finance.approve')}/>}
+   {'refundKind' in data&&data.refundKind==='booking'&&<BookingRefunds base={base} rows={[data.row as unknown as ComponentProps<typeof BookingRefunds>['rows'][number]]} canApprove={hasPermission(actor,'finance.approve')}/>}
+   {'refundKind' in data&&data.refundKind==='counter'&&<CounterRefunds base={base} rows={[data.row as unknown as ComponentProps<typeof CounterRefunds>['rows'][number]]} canApprove={hasPermission(actor,'finance.approve')}/>}
    {target.kind==='pms_snapshot_entry'&&<><RecordValues value={Object.fromEntries(Object.entries(row).filter(([key])=>!['net','service','tax','total'].includes(key)))}/><dl className="ui-form-grid">{['net','service','tax','total'].map(key=><div key={key}><dt>{key}</dt><dd>{String(row.currency)} {minorToDecimal(Number(row[key]))}</dd></div>)}</dl></>}
    {target.kind==='finance_report_snapshot'&&<RecordValues value={row.result}/>}
    {'sessionData' in data&&data.sessionData&&hasPermission(actor,'ai.manage')&&<AgentGovernanceConsole base={base} data={data.sessionData} recordOnly/>}

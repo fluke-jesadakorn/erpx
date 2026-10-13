@@ -11,17 +11,55 @@ import { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgr
 import { betterAuth } from "better-auth";
 import { multiSession } from "better-auth/plugins";
 import { runtimeEnv } from "@/server/modules/runtime/public/runtime";
-import { queueAccountRecovery, recordAccountRecoveryCompleted, } from "@/server/account-recovery";
+import { queueAccountRecovery, recordAccountRecoveryCompleted, } from "@/server/modules/identity_access/public/account-recovery";
+import { createHash } from "node:crypto";
+type AuthRuntime = Awaited<ReturnType<typeof runtimeEnv>>;
+type AuthFactory = Awaited<ReturnType<typeof buildAuth>>;
+const ordinaryAuthFactories = new WeakMap<AuthRuntime, {
+    database: AuthRuntime['CONTROL_DB'];
+    pool: PostgresDatabase['pool'];
+    factories: Map<string, Promise<AuthFactory>>;
+}>();
 export async function createAuth(requestOrigin?: string, directoryId?: string, legalInvitationEmail?: string) {
     const env = await runtimeEnv();
     const local = env.ERPX_ENVIRONMENT === "local";
     const beta = env.ERPX_PUBLIC_BETA === "true";
-    const policy = authPolicy({ local, defaultOrigin: env.BETTER_AUTH_URL, pmsOrigin: process.env.ERPX_FRONT_PMS_ORIGIN, posOrigin: process.env.ERPX_FRONT_POS_ORIGIN, beta, legalInvitationEmail }, requestOrigin), { baseURL, cookiePrefix } = policy;
+    const policy = authPolicy({ local, defaultOrigin: env.BETTER_AUTH_URL, pmsOrigin: process.env.ERPX_FRONT_PMS_ORIGIN, posOrigin: process.env.ERPX_FRONT_POS_ORIGIN, beta, legalInvitationEmail }, requestOrigin);
+    // Provider configuration and invitation identity are evaluated on every call.
+    if (directoryId || legalInvitationEmail) return buildAuth(env, local, policy, directoryId, legalInvitationEmail);
+    const pool = (env.CONTROL_DB as PostgresDatabase).pool;
+    let bucket = ordinaryAuthFactories.get(env);
+    if (!bucket || bucket.database !== env.CONTROL_DB || bucket.pool !== pool) {
+        bucket = { database: env.CONTROL_DB, pool, factories: new Map() };
+        ordinaryAuthFactories.set(env, bucket);
+    }
+    const key = createHash('sha256').update(JSON.stringify({ local, policy, secret: env.BETTER_AUTH_SECRET })).digest('hex');
+    const existing = bucket.factories.get(key);
+    if (existing) {
+        bucket.factories.delete(key);
+        bucket.factories.set(key, existing);
+        return existing;
+    }
+    // Local origins may vary: bound initialization resources to sixteen policies.
+    if (bucket.factories.size >= 16) bucket.factories.delete(bucket.factories.keys().next().value!);
+    const created = buildAuth(env, local, policy).then(async auth => {
+        await auth.$context;
+        return auth;
+    });
+    bucket.factories.set(key, created);
+    const factories = bucket.factories;
+    void created.catch(() => { if (factories.get(key) === created) factories.delete(key); });
+    // Only factory initialization is shared. Better Auth creates per-request
+    // context and reads the joined user/session row on each getSession call.
+    return created;
+}
+async function buildAuth(env: AuthRuntime, local: boolean, policy: ReturnType<typeof authPolicy>, directoryId?: string, legalInvitationEmail?: string) {
+    const { baseURL, cookiePrefix } = policy;
     return betterAuth({
-        database: drizzleAdapter(drizzle((env.CONTROL_DB as PostgresDatabase).pool), { provider: "pg", schema: authSchema, transaction: true }),
+        database: drizzleAdapter(drizzle((env.CONTROL_DB as PostgresDatabase).pool, { schema: authSchema }), { provider: "pg", schema: authSchema, transaction: true }),
         baseURL,
         secret: env.BETTER_AUTH_SECRET,
-        advanced: { cookiePrefix, useSecureCookies: !local, ...(!local ? { ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] } } : {}) },
+        advanced: { database: { joins: true }, cookiePrefix, useSecureCookies: !local, ...(!local ? { ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] } } : {}) },
         emailAndPassword: {
             enabled: true,
             disableSignUp: policy.disableSignUp,

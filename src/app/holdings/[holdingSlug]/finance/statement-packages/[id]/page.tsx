@@ -1,10 +1,10 @@
 import { RecordLink as Link } from "@/components/records/record-link";
-import {FeaturePage} from "@/components/features/feature-page";
+import {FeaturePage} from "@/components/shared/features/feature-page";
 import {Table,TableFrame} from "@/components/ui/foundation";
-import {recordCanonicalHref} from "@/lib/record-drawer";
-import {minorToDecimal} from "@/lib/finance-money";
-import {financialNoteTitles,financialPresentation,type FinancialPresentationCode} from "@/lib/finance-reporting";
-import {workspaceBase} from "@/lib/workspace";
+import {recordCanonicalHref} from "@/lib/records/record-drawer";
+import {minorToDecimal} from "@/lib/finance/finance-money";
+import {financialNoteTitles,financialPresentation,type FinancialPresentationCode} from "@/lib/finance/finance-reporting";
+import {workspaceBase} from "@/lib/work_projection/workspace";
 import {publicScope,requireWorkContext} from "@/server/modules/identity_access/public/authorization";
 import {statementPackageDetail} from "@/server/modules/finance/public/finance-reporting";
 import {pageError} from "@/server/modules/work_projection/public/page-error";

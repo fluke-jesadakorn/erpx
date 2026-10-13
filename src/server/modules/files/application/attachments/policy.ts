@@ -1,6 +1,6 @@
 import {hasModuleAccess} from "@/data/module-access";
-import {hasPermission,permissionCatalog} from "@/lib/permissions";
-import {modulesForRole} from "@/lib/business-roles";
+import {hasPermission,permissionCatalog} from "@/lib/identity_access/permissions";
+import {modulesForRole} from "@/lib/identity_access/business-roles";
 import type {WorkContext} from "../../../identity_access/public/authorization";
 import type {Clock} from "../../../shared/application/ports";
 import type {AttachmentComponentKind,AttachmentOperation,AttachmentPolicy,AttachmentTargetScope} from "../../domain/attachments/types";

@@ -42,7 +42,7 @@ Registers support filters, pagination, saved views, validated import preview/ato
 
 ## Setup and operations
 
-Runtime: pinned Node 24.20.0, Bun 1.2.17, PostgreSQL, private files and durable jobs. Run `bun scripts/legal/setup.ts` to install the pinned Python validation environment, verify official English/Thai OCR model hashes and execute signed-PDF fixtures. Poppler and Tesseract must be installed by the operator. Executables run without a shell with bounded input, output and timeouts.
+Runtime target: Node.js 26.11.1 and Bun 1.4.3 with PostgreSQL, private files and durable jobs. The installed private production service remains on Node.js 24.20.0 until a reviewed release is deployed. Run `bun scripts/legal/setup.ts` to install the pinned Python validation environment, verify official English/Thai OCR model hashes and execute signed-PDF fixtures. Poppler and Tesseract must be installed by the operator. Executables run without a shell with bounded input, output and timeouts.
 
 Configure absolute persistent paths in deployment: `ERPX_LEGAL_PYTHON`, `ERPX_TESSDATA_DIR`, `ERPX_TESSERACT_BIN`, `ERPX_PDFINFO_BIN`, `ERPX_PDFTOPPM_BIN`, `ERPX_PDFTOTEXT_BIN`; OCR defaults to `eng+tha`. See `.env.example`. Release builds include validation scripts and a bundled DOCX extractor; Python environments and OCR data are operator-managed dependencies outside the release directory. Documents are limited to 10 MB; scanned PDF OCR is limited to 25 pages.
 

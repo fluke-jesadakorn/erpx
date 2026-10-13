@@ -1,2 +1,2 @@
 /** Compatibility entry; its legacy implementation is tracked in ownership.json. */
-export { drainSupportSla, supportAlerts, getSupportAlert, acknowledgeSupportAlert, supportAlertWork } from "../../../support-sla-alerts";
+export { drainSupportSla, supportAlerts, getSupportAlert, acknowledgeSupportAlert, supportAlertWork } from "@/server/modules/support/adapters/support-sla-alerts";

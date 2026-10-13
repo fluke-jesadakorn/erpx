@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { type RoutineRule } from "@/lib/routine-calendar";
+import { type RoutineRule } from "@/lib/work_projection/routine-calendar";
 import type { RecordScope } from "@/server/modules/operations/public/staff-policy";
 import { taskFieldsSchema } from './staff-tasks';
 export const templateSchema = taskFieldsSchema

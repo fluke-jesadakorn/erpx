@@ -1,14 +1,14 @@
-import { selfServiceHref } from "@/lib/self-service";
+import { selfServiceHref } from "@/lib/work_projection/self-service";
 
 import {
   workCardCatalog,
   type WorkActionCard,
   type WorkCapabilities,
-} from "@/lib/work-cards";
+} from "@/lib/work_projection/work-cards";
 import { mergeWorkItems, type WorkSnapshot } from "./work-items";
-import { isApprovalAction } from "@/lib/work-item";
-import { shortcutDestinationIds } from "@/lib/workplace-catalogue";
-import { workplaceNavigation, type NavigationContext } from "@/lib/workplace-navigation";
+import { isApprovalAction } from "@/lib/work_projection/work-item";
+import { shortcutDestinationIds } from "@/lib/work_projection/workplace-catalogue";
+import { workplaceNavigation, type NavigationContext } from "@/lib/work_projection/workplace-navigation";
 
 export function buildWorkCards(
   base: string,

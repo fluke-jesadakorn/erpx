@@ -1,2 +1,0 @@
-export {agentSourceAllowed,validateAssistantGovernance,assistantGovernanceGuards,agentWorkspace,createAgent,createAgentVersion,createAgentPool,changeAgentPool,changePrivateSession,createAgentAssignment,changeAgentRecord,assistantGovernanceContext,recordAssistantInvocation,agentEvidenceRecord} from './modules/agent/adapters/agent-governance';
-export type {AssistantGovernance} from './modules/agent/adapters/agent-governance';

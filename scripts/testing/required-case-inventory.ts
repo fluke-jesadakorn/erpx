@@ -53,11 +53,11 @@ export function browserRequiredCaseBaseline(value: unknown): BrowserCaseBaseline
   return { version: 1, cases, excludedCases };
 }
 export function loadBrowserCaseBaseline(root = rootDirectory): BrowserCaseBaseline {
-  return browserRequiredCaseBaseline(JSON.parse(readFileSync(resolve(root, "tests/required-browser-cases.json"), "utf8")));
+  return browserRequiredCaseBaseline(JSON.parse(readFileSync(resolve(root, "tests/catalogue/required-browser-cases.json"), "utf8")));
 }
 // This retained case calls the actual Stripe Sandbox. Moving any other required
 // case into the provider lane must not silently remove internal acceptance.
-const providerExemptions = new Set([requiredCaseKey({ runner: "vitest", file: "tests/billing-stripe-sandbox.test.ts", title: "runs reviewed manual and auto collection against actual Stripe Sandbox, with isolated accounts and an injected clock" })]);
+const providerExemptions = new Set([requiredCaseKey({ runner: "vitest", file: "tests/provider/commercial/billing-stripe-sandbox.test.ts", title: "runs reviewed manual and auto collection against actual Stripe Sandbox, with isolated accounts and an injected clock" })]);
 export function internalRequiredCases(required: readonly RequiredCaseIdentity[], suites: readonly { files: readonly string[]; lane: string }[]): RequiredCaseIdentity[] {
   return required.filter(test => {
     const suite = suites.find(suite => suite.files.includes(test.file));
@@ -70,13 +70,13 @@ export function internalRequiredCases(required: readonly RequiredCaseIdentity[],
 
 /** Retained reviewed registers, independent of whatever a changed test file discovers. */
 export function loadRequiredCases(root = rootDirectory): RequiredCaseIdentity[] {
-  const read = (file: string): unknown => JSON.parse(readFileSync(resolve(root, "docs/testing", file), "utf8"));
+  const read = (file: string): unknown => JSON.parse(readFileSync(resolve(root, "tests/catalogue", file), "utf8"));
   const manifest = read("engineering-scenarios.json") as { capabilities: { cases: unknown[] }[] };
   const gates = read("engineering-gate-scenarios.json") as Record<string, unknown[]>;
   const attachments = read("engineering-attachment-owner-cases.json") as { cases: unknown[] }[];
   const legal = read("legal-uat-engineering-cases.json") as { file: string; title: string; projects: unknown[] }[];
   const matrix = read("uat-route-inventory.json") as { entries: Parameters<typeof requiredUatMatrixCases>[0] };
-  const current = currentRequiredCases(JSON.parse(readFileSync(resolve(root, "tests/required-cases.json"), "utf8")));
+  const current = currentRequiredCases(JSON.parse(readFileSync(resolve(root, "tests/catalogue/required-cases.json"), "utf8")));
   const baseline = loadBrowserCaseBaseline(root);
   const values = [...manifest.capabilities.flatMap(capability => capability.cases), ...Object.values(gates).flat(), ...attachments.flatMap(owner => owner.cases),
     ...legal.flatMap(test => test.projects.map(project => ({ runner: "playwright", file: test.file, title: test.title, project }))), ...requiredUatMatrixCases(matrix.entries), ...current, ...baseline.cases];

@@ -11,11 +11,12 @@ import {
   TextInput,
 } from "@/components/ui/foundation";
 
+import { PmsChoiceSelect } from "./choice-select";
 import { BookingGallery } from "./booking-gallery";
 import { useEffect, useRef, useState } from "react";
 import { money, plusDays, type Guest } from "@/server/modules/pms/public/rules/pms-model";
 import type { BookingQuote, RoomSelection } from "@/server/modules/pms/public/rules/pms-booking";
-import { workFetch } from "@/lib/work-fetch";
+import { workFetch } from "@/lib/work_projection/work-fetch";
 import { FrontLocalizedTree } from "@/components/front/front-language";
 import {BookingPolicySummary} from "./booking-policy-summary";
 import styles from "./booking.module.css";
@@ -128,7 +129,8 @@ export function BookingFlow({
   const [quote, setQuote] = useState<BookingQuote | null>(null),
     [quoteToken, setQuoteToken] = useState(""),
     [guest, setGuest] = useState({ name: "", email: "", phone: "" }),
-    [guestId, setGuestId] = useState("");
+    [guestId, setGuestId] = useState(""),
+    [selectedGuestLabel, setSelectedGuestLabel] = useState("");
   const [notes, setNotes] = useState(""),
     [source, setSource] = useState("direct"),
     [campaignCode, setCampaignCode] = useState(""),
@@ -347,14 +349,7 @@ export function BookingFlow({
                     {staff && (
                       <Field>
                         Group allocation
-                        <Select value={blockId} onChange={(e) => setBlockId(e.target.value)}>
-                          <option value="">None</option>
-                          {staff.blocks.map((b) => (
-                            <option key={b.id} value={b.id}>
-                              {b.name}
-                            </option>
-                          ))}
-                        </Select>
+                        <PmsChoiceSelect api={`/api/v1${staff.base}/pms`} propertyId={staff.propertyId} kind="block" label="Group allocation" options={staff.blocks} value={blockId} onChange={setBlockId} emptyLabel="None" />
                       </Field>
                     )}
                     <Field>
@@ -545,14 +540,7 @@ export function BookingFlow({
                 {staff && (
                   <Field className={styles.field}>
                     Guest profile
-                    <Select value={guestId} onChange={(e) => setGuestId(e.target.value)}>
-                      <option value="">Create a guest with this booking</option>
-                      {staff.guests.map((g) => (
-                        <option key={g.id} value={g.id}>
-                          {g.data.name} · {g.data.email}
-                        </option>
-                      ))}
-                    </Select>
+                    <PmsChoiceSelect api={`/api/v1${staff.base}/pms`} propertyId={staff.propertyId} kind="guest" label="Guest profile" options={staff.guests.map(g=>({id:g.id,name:g.data.name+(g.data.email?" · "+g.data.email:"" )}))} value={guestId} onChange={(id,option)=>{setGuestId(id);setSelectedGuestLabel(option?.name??"");}} emptyLabel="Create a guest with this booking" />
                   </Field>
                 )}
                 {!guestId && (
@@ -649,14 +637,7 @@ export function BookingFlow({
                     </Field>
                     <Field>
                       Group allocation
-                      <Select value={blockId} onChange={(e) => setBlockId(e.target.value)}>
-                        <option value="">None</option>
-                        {staff.blocks.map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {b.name}
-                          </option>
-                        ))}
-                      </Select>
+                      <PmsChoiceSelect api={`/api/v1${staff.base}/pms`} propertyId={staff.propertyId} kind="block" label="Group allocation" options={staff.blocks} value={blockId} onChange={setBlockId} emptyLabel="None" />
                     </Field>
                   </div>
                 )}
@@ -724,8 +705,7 @@ export function BookingFlow({
               >
                 <h2>Review your stay</h2>
                 <p>
-                  {guestId ? staff?.guests.find((g) => g.id === guestId)?.data.name : guest.name} ·{" "}
-                  {guestId ? staff?.guests.find((g) => g.id === guestId)?.data.email : guest.email}
+                  {guestId ? selectedGuestLabel || staff?.guests.find((g) => g.id === guestId)?.data.name : [guest.name, guest.email].filter(Boolean).join(" · ")}
                 </p>
                 <QuoteDetails quote={quote} />
                 <Field orientation="inline" className={styles.check}>

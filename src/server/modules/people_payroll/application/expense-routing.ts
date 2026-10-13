@@ -1,7 +1,7 @@
 import type { OrganizationPerson } from "@/server/modules/organization/public/profile-facts";
 import type { RecordScope, RouteStep, StaffPerson } from "@/server/modules/operations/public/staff-policy";
 import type { ApprovalInstance, ApprovalStep } from "@/server/modules/workflow/public/approvals";
-import type { SpendingKind, SpendingTemplate } from "@/lib/spending";
+import type { SpendingKind, SpendingTemplate } from "@/lib/shared/spending";
 import { hasIndependentSpendingTeam, independentAccountingCandidates, selectSpendingException } from "../domain/expense-routing-rules";
 import type { ExpenseCommandPort } from "./expense-commands";
 

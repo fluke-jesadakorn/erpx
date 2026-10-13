@@ -2,9 +2,9 @@ type CalendarReadResult<Row> = {
     results: Row[];
 };
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
-import { expandCalendarSeries, type RecurrenceRule } from "@/lib/calendar-recurrence";
-import { localMinuteAt } from "@/lib/calendar-timeline";
-import { localDateTimeToInstant } from "@/lib/calendar-timeline";
+import { expandCalendarSeries, type RecurrenceRule } from "@/lib/work_projection/calendar-recurrence";
+import { localMinuteAt } from "@/lib/work_projection/calendar-timeline";
+import { localDateTimeToInstant } from "@/lib/work_projection/calendar-timeline";
 import { addDays } from "@/server/modules/people_payroll/public/rules/people-roster-domain";
 import type { Clock } from "../../../shared/application/ports";
 export type CalendarAvailabilityUnit = {

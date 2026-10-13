@@ -1,5 +1,5 @@
 import { ArrowRight, Users } from "lucide-react";
-import type { WorkItem } from "@/lib/work-item";
+import type { WorkItem } from "@/lib/work_projection/work-item";
 import { PersonAvatar } from "@/components/ui/person-avatar";
 import styles from "./work-list.module.css";
 

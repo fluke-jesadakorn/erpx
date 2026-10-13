@@ -1,0 +1,56 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "status": "Rejected and removed after unchanged capacity regressions; original separate owner reads restored",
+  "semantics": {
+    "sameLockedSerializableTransaction": true,
+    "singleFreshModuleReceiptHeaderRead": true,
+    "completeAuthoritativeHeader": true,
+    "originalGuestRecordReader": true,
+    "originalGuestWritesAndVersionIncrements": true,
+    "originalReceiptFingerprintAndCurrentAuthority": true,
+    "noPreTransactionRejection": true,
+    "noCrossRequestAuthorityCache": true,
+    "noUiSnapshotAuthority": true,
+    "noUnchangedDataShortcut": true,
+    "originalRetryLimits": true
+  },
+  "green": {
+    "passed": 210,
+    "files": 6,
+    "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-transaction-frame/green-focused.log"
+  },
+  "pending": [
+    "Unchanged full compiled capacity",
+    "Whole native/security/recovery",
+    "178 required browser plus 38 route cases",
+    "Final mock pilot and environment"
+  ],
+  "rolloutRegression": {
+    "passed": 85,
+    "pms": 81,
+    "batch": 4,
+    "fixtureCorrection": "Use schema-defined off; blocked is invalid and the first 84/85 receipt is retained",
+    "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-transaction-frame/green-rollout-corrected.log"
+  },
+  "candidate": {
+    "runtimeFingerprint": "ccfaa632304e2bf838e9f0e03978e35821de890483972403a4932e1ed35e4f07",
+    "verificationFingerprint": "0e178f0bf88085612752295bbf7935e7c11ecbb09196e3b7e77288c0c039da63",
+    "release": "2026-10-10T10-44-05-096Z",
+    "isolatedBuildPassed": true
+  },
+  "static": {
+    "typecheck": true,
+    "lintErrors": 0,
+    "existingWarnings": 3,
+    "architecture": true,
+    "documentation": true
+  },
+  "capacity": {
+    "passed": false,
+    "guestP95Ms": 2371.248333,
+    "reservationP95Ms": 2165.144,
+    "invalidSamples": 0,
+    "ownedDatabasesDestroyed": 8
+  }
+}

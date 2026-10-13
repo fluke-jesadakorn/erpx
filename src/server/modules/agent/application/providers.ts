@@ -1,4 +1,4 @@
-import {aiPresets,supportedModelProtocol,supportedModels,unsupportedModelMessage,presetForUrl} from '@/lib/ai/providers';
+import {aiPresets,supportedModelProtocol,supportedModels,unsupportedModelMessage,presetForUrl} from "@/lib/shared/ai/providers";
 import {z} from 'zod';
 import type {StaffActor} from '../../operations/public/staff-policy';
 import {BusinessRuleError,type Clock} from '../../shared';

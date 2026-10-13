@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
-import type { WorkItem } from "@/lib/work-item";
-import { hasPermission } from "@/lib/permissions";
+import type { WorkItem } from "@/lib/work_projection/work-item";
+import { hasPermission } from "@/lib/identity_access/permissions";
 export type SupportAlert = {
     id: string;
     ticket_id: string;

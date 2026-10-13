@@ -1,4 +1,4 @@
-import { hasPermission } from '@/lib/permissions';
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { WorkContext } from '../../identity_access/public/authorization';
 import type { AttachmentManifestItem } from '../../files/public/attachments/types';
 import type { ApprovalView } from '../../workflow/public/approvals';

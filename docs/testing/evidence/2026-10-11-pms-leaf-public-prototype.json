@@ -1,0 +1,33 @@
+{
+  "checkedAt": "2026-10-11T03:50:49.619997+00:00",
+  "source": {
+    "runtime": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+    "verification": "da3577cbc0866b9770ad0279a6a5b54fe7f71120501f1846d6d2cea38c2b43f5",
+    "mainRuntime": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+    "mainVerification": "da3577cbc0866b9770ad0279a6a5b54fe7f71120501f1846d6d2cea38c2b43f5",
+    "releaseDirectory": null
+  },
+  "publicUrl": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms?variant=A&prototype=1&screen=dashboard",
+  "authentication": "Existing normal Console session",
+  "actualRenderedProof": {
+    "extraConsoleLanguageSelector": false,
+    "h1": "เห็นทุกงานของวันนี้",
+    "sampleNotice": "โรงแรมสมมติ · ภาพตัวอย่างสร้างด้วย AI · ทุกการกระทำอยู่ในแท็บนี้เท่านั้น",
+    "variant": "A"
+  },
+  "samplePropertyRoomCounts": [
+    40,
+    100,
+    200
+  ],
+  "currentPixelsVisuallyInspected": true,
+  "viewportOverridesApplied": false,
+  "businessCommandsPerformed": 0,
+  "ownedDeliverableTab": "1050192511",
+  "screenshot": {
+    "file": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-native-language-2026-10-11/prototype-a-f13.png",
+    "sha256": "0883b9641093f0bde413d22efec30abfa43b760ed0a69f36025106f73a8e7efe"
+  },
+  "qualifiedNavigationAttempt": "Initial browser navigate command timed out; the same created tab was recovered and loaded the intended page. No duplicate server or tab was started.",
+  "wholePlanAccepted": false
+}

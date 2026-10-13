@@ -1,4 +1,4 @@
-import type {HoldingPeopleDirectory} from '../../organization/public/holding-people-directory';import type {OrganizationAccessData} from '@/lib/organization-access';
+import type {HoldingPeopleDirectory} from '../../organization/public/holding-people-directory';import type {OrganizationAccessData} from "@/lib/organization/organization-access";
 export type PeopleMoveKind = "person" | "position" | "department";
 export type PeopleMoveTargetKind = "position" | "department" | "level" | "branch";
 export type PeopleMoveContext = {

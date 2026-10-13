@@ -1,6 +1,6 @@
 import type {WorkContext} from '../../identity_access/public/authorization';
 import type {SqlDatabase} from '../../runtime/public/runtime/types';
-import type {FlowKind} from '@/lib/flow';
+import type {FlowKind} from "@/lib/shared/flow";
 import {holdingResources} from '../../runtime/public/runtime';
 import {createFlowAccessApplication} from '../application/flow-access';
 import {flowRecord} from '../public/flow-routing';

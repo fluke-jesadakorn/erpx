@@ -1,6 +1,6 @@
 import type { StaffActor } from "@/server/modules/operations/public/staff-policy";
 import type { AiClaim, EvidenceDocument } from "@/server/modules/people_payroll/public/expense-ai-source";
-import type { ExpenseAiResult } from "@/lib/expense-ai";
+import type { ExpenseAiResult } from "@/lib/people_payroll/expense-ai";
 import { expenseAiDocuments } from "../domain/expense-ai-rules";
 import { expenseAiEvidencePages, expenseAiFailure, reconcileExpenseAiResults, validateExpenseAiResult } from "../domain/expense-ai-processing";
 import type { ExpenseCommandPort, ExpenseMutation, ExpenseRecord } from "./expense-commands";

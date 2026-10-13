@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { roomSchema, teamSchema, channelSchema, manageSchema, messageSchema } from '../domain/messaging';
 import type { SqlDatabase, SqlStatement } from '../../runtime/public/runtime/types';
 import type { WorkContext } from '../../identity_access/public/authorization';
-import type { MessagingRoom, MessagingTeam, MessagingMessage, MessagingFile } from '@/lib/messaging';
+import type { MessagingRoom, MessagingTeam, MessagingMessage, MessagingFile } from "@/lib/collaboration/messaging";
 import { assertion, executeCommand, replayCommand } from '../../workflow/public/commands';
 import { prepareAttachmentBinding } from '../../files/public/attachments/service';
 import { ensureOrganizationChannels } from '../../organization/public/organization-channels';

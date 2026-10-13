@@ -1,4 +1,4 @@
-import {billingMonth,monthBounds} from "@/lib/billing";
+import {billingMonth,monthBounds} from "@/lib/billing/billing";
 import {BusinessRuleError} from "../../shared/domain/error";
 export type UsageMetrics = {
   ai: { requests: number; inputTokens: number; outputTokens: number };

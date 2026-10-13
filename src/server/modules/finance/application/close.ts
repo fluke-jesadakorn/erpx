@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { cancelCloseSchema, closeProofSchema, type FinanceRow, type CloseReconciliation } from '../domain/finance';
 import type { VatCloseEvidence } from '../domain/close';
 import { createFinancePolicy } from '../domain/finance-policy';
-import { hasPermission } from '@/lib/permissions';
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { FinanceError } from '../domain/invoice-line-revision';
 import type { WorkContext } from '@/server/modules/identity_access/public/authorization';
 export type CancelCloseInput = z.infer<typeof cancelCloseSchema>;

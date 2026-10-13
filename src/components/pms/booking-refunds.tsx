@@ -1,12 +1,13 @@
 "use client";
+import {FrontLocalizedTree} from "@/components/front/front-language";
 import {RecordLink} from "@/components/records/record-link";
-import {recordCanonicalHref} from "@/lib/record-drawer";
+import {recordCanonicalHref} from "@/lib/records/record-drawer";
 import { Button, Table, TableFrame } from "@/components/ui/foundation";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { workFetch } from "@/lib/work-fetch";
-import { minorToDecimal } from "@/lib/finance-money";
+import { workFetch } from "@/lib/work_projection/work-fetch";
+import { minorToDecimal } from "@/lib/finance/finance-money";
 import {BookingRefundRecovery} from "./booking-refund-recovery";
 
 type Refund = {
@@ -22,17 +23,19 @@ export function BookingRefunds({
   base,
   rows,
   canApprove,
+  canRecoverReceipt = false,
 }: {
   base: string;
   rows: Refund[];
   canApprove: boolean;
+  canRecoverReceipt?: boolean;
 }) {
   const router = useRouter(),
     [error, setError] = useState(""),
     [busy, setBusy] = useState("");
-  if (!rows.length) return <p>No online booking refunds require review.</p>;
+  if (!rows.length) return <FrontLocalizedTree><p>No online booking refunds require review.</p></FrontLocalizedTree>;
   return (
-    <section className="card">
+    <FrontLocalizedTree><section className="card">
       <h2>Online booking refunds</h2>
       {error && <p role="alert">{error}</p>}
       <TableFrame label="Records" className="business-table-wrap">
@@ -55,7 +58,7 @@ export function BookingRefunds({
                   {row.last_error && <p>{row.last_error}</p>}
                 </td>
                 <td>
-                  {canApprove && (row.needs_receipt_recovery || row.refund_state === 'failed') ? <BookingRefundRecovery base={base} id={row.id} receipt={row.needs_receipt_recovery} onSaved={()=>router.refresh()}/> : canApprove && row.refund_state === "requested" ? (
+                  {(row.needs_receipt_recovery ? canRecoverReceipt : canApprove && row.refund_state === 'failed') ? <BookingRefundRecovery base={base} id={row.id} receipt={row.needs_receipt_recovery} onSaved={()=>router.refresh()}/> : canApprove && row.refund_state === "requested" ? (
                     <Button
                       type="submit"
                       variant="primary"
@@ -97,6 +100,6 @@ export function BookingRefunds({
           </tbody>
         </Table>
       </TableFrame>
-    </section>
+    </section></FrontLocalizedTree>
   );
 }

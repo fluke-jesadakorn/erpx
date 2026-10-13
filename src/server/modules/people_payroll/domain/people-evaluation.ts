@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { bandSchema, compensationMetrics, evaluationDate, evaluationMetrics, type AssessmentContent, type Compensation, type PayBasis, type RoleProfile } from "@/lib/people-evaluation";
+import { bandSchema, compensationMetrics, evaluationDate, evaluationMetrics, type AssessmentContent, type Compensation, type PayBasis, type RoleProfile } from "@/lib/people_payroll/people-evaluation";
 export const reason = z.string().trim().min(3).max(4000), idSchema = z.string().min(1).max(180), version = z.number().int().positive();
 export type Row = Record<string, unknown>;
 export type AssessmentRow = {

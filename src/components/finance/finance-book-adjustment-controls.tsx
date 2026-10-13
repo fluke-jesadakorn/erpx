@@ -2,8 +2,8 @@
 import {FinanceEvidenceDocuments} from "./finance-evidence-documents";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { financeCommandFetch as workFetch } from "@/lib/finance-command-fetch";
-import { financeCsvRows } from "@/lib/finance-csv";
+import { financeCommandFetch as workFetch } from "@/lib/finance/finance-command-fetch";
+import { financeCsvRows } from "@/lib/finance/finance-csv";
 import {
   Button,
   Card,

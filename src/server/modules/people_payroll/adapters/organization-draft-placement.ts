@@ -1,10 +1,10 @@
 import {recordPeoplePlacementLevelHistory} from "../../organization/public/people-placement-level-history";
 import type {SqlDatabase} from '../../runtime/public/runtime/types';
 import type {ClaimedDraftRequest} from '../../organization/public/draft-contract';
-import type {DraftDefinition} from '@/lib/organization-draft';
-import type {OrganizationAccessData} from '@/lib/organization-access';
+import type {DraftDefinition} from "@/lib/organization/organization-draft";
+import type {OrganizationAccessData} from "@/lib/organization/organization-access";
 import type {WorkContext} from '../../identity_access/public/authorization';
-import {personPlacement} from '@/lib/organization-draft';
+import {personPlacement} from "@/lib/organization/organization-draft";
 export async function applyOrganizationDraftPlacement(db:SqlDatabase,row:ClaimedDraftRequest,actor:WorkContext,definition:DraftDefinition,person:OrganizationAccessData['people'][number],before:OrganizationAccessData['people'][number],now:number){
           await db.prepare("UPDATE hr_engagements SET position_id=?,branch_id=?,department_id=?,level_id=?,manager_person_id=?,job_title=?,version=version+1,updated_at=? WHERE company_id=? AND id=?")
             .bind(person.position_id,person.branch_id,person.department_id,person.level_id,person.manager_person_id,person.job_title,now,row.company_id,person.engagement_id).run();

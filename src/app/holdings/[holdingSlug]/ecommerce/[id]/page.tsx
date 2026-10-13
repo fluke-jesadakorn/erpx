@@ -2,10 +2,10 @@
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { ecommerceDetail } from "@/server/modules/ecommerce/public/ecommerce";
-import { EcommerceCheckoutControls } from "@/components/modules/ecommerce-checkout-controls";
+import { EcommerceCheckoutControls } from "@/components/records/loaders/modules--ecommerce-checkout-controls";
 import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Page({

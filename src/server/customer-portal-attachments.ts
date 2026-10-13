@@ -1,2 +1,0 @@
-export { customerPortalAttachmentContext, customerPortalAttachmentSession, customerPortalAttachmentTarget, customerPortalBindingScope, customerPortalSharedFiles, customerPortalSharedPreview, customerPortalWorkContext } from "./modules/customer_360/public/customer-portal-attachments";
-export type { CustomerPortalBindingScope, CustomerPortalSessionActor, CustomerSharedFile } from "./modules/customer_360/public/customer-portal-attachments";

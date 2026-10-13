@@ -1,8 +1,8 @@
 import { z } from "zod";
-import type { WorkItem } from "@/lib/work-item";
-import { hasPermission } from "@/lib/permissions";
+import type { WorkItem } from "@/lib/work_projection/work-item";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { hasModuleAccess } from "@/data/module-access";
-import { samePerson } from "@/lib/iam";
+import { samePerson } from "@/lib/identity_access/iam";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { AuthorizedSourceRecord } from "@/server/modules/records/public/source-record-policy";
 import type { requirePermission } from "@/server/modules/identity_access/public/iam-permissions";

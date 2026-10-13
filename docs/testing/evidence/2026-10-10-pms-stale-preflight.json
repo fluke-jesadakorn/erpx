@@ -1,0 +1,79 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "status": "Native semantics and static checks pass; unchanged full release load fails core guest/reservation latency limits",
+  "source": {
+    "runtime": "1f8cbd5eeda037eaefdaf79c5e9cc173fbb3e354d152e46b97e37cebadcceef6",
+    "verification": "91bea2aa68582287a9508040e04a23a5a75e675ac6a6677ea25272850fd4e032"
+  },
+  "worktree": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx",
+  "previousReservationP95Ms": 2125.865166,
+  "semantics": {
+    "onlyGuestSaveAndReservationCreate": true,
+    "onlyCommittedVersionGreaterThanExpectedRejected": true,
+    "authoritativeHeaderWithoutLock": true,
+    "lockedTransactionStillAuthoritative": true,
+    "futureExpectedVersionStillQueues": true,
+    "receiptReplayAndPayloadHashRetained": true,
+    "branchVersionDisclosurePrevented": true,
+    "workersUnchanged": true,
+    "noAuthorityCache": true
+  },
+  "proofs": {
+    "red": {
+      "failedCases": 2,
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-stale-preflight/red.log"
+    },
+    "green": {
+      "passedCases": 2,
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-stale-preflight/green.log"
+    },
+    "regression": {
+      "passed": true,
+      "cases": 168,
+      "pmsCases": 73,
+      "directBookingCases": 37,
+      "unitCases": 58,
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-stale-preflight/native-regression-v2.log"
+    },
+    "incorrectRunnerAttempt": {
+      "accepted": false,
+      "reason": "Bun test lacks native Vitest server conditions; retained as runner error",
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-stale-preflight/native-regression.log"
+    },
+    "fullLoad": {
+      "passed": false,
+      "runId": "9404812e33b6",
+      "readP95Ms": 468.953083,
+      "coreP95Ms": 2498.19,
+      "guestSaveP95Ms": 2460.090958,
+      "reservationCreateP95Ms": 2509.832834,
+      "reads": 840,
+      "writes": 843,
+      "invalidResponses": 0,
+      "databaseDeadlocks": 0,
+      "financialOperationalClosingReconciliationPassed": true,
+      "allEightOwnedDatabasesDestroyed": true,
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-stale-preflight/scale-confirmation/strict-acceptance.json"
+    }
+  },
+  "pending": [
+    "Strict complete release load",
+    "Complete native/security/static/browser acceptance",
+    "Final feature and mock-pilot evidence",
+    "Development availability"
+  ],
+  "release": {
+    "id": "2026-10-10T07-00-05-778Z",
+    "built": true
+  },
+  "static": {
+    "typecheck": true,
+    "lint": {
+      "errors": 0,
+      "preexistingWarnings": 3
+    },
+    "architecture": true,
+    "documentation": true
+  }
+}

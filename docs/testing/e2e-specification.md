@@ -1,6 +1,6 @@
 # ERPX end-to-end specification and test cases
 
-This document defines the foundation authentication/Work browser cases first reviewed on 2026-09-12. Full-catalogue engineering cases are mapped in [the current scenario register](engineering-scenarios.json); [the verification inventory](../status/capability-delivery-matrix.md) records the dated result separately. This specification does not certify every source revision.
+This document defines the foundation authentication/Work browser cases first reviewed on 2026-09-12. Full-catalogue engineering cases are mapped in [the current scenario register](../../tests/catalogue/engineering-scenarios.json); [the verification inventory](../status/capability-delivery-matrix.md) records the dated result separately. This specification does not certify every source revision.
 
 ## Scope and sources
 
@@ -18,9 +18,9 @@ Read alongside these implementation sources:
   [results](../../src/components/workplace/work-list.tsx), and
   [new-work dialog](../../src/components/workplace/new-work.tsx).
 - [Request editor and actions](../../src/components/workplace/request-controls.tsx),
-  [request service](../../src/server/employee-requests.ts),
+  [request service](../../src/server/modules/records/public/employee-requests.ts),
   [browser draft recovery](../../src/components/ui/use-recoverable-draft.tsx), and
-  [command retry](../../src/components/modules/staff-work-controls.tsx).
+  [command retry](../../src/components/work_projection/staff-work-controls.tsx).
 - [Named workflow handoffs](../production-plan.md),
   [local personas and connected examples](../local-seed.md), and
   [module inventory](../production-plan.md).
@@ -65,7 +65,7 @@ Document each run's command, date, project, pass/fail/skip count, and blocker.
 
 ## New executable Work cases
 
-All cases below map to [work-journeys.spec.ts](../../tests/e2e/work-journeys.spec.ts).
+All cases below map to [work-journeys.spec.ts](../../tests/journeys/shared.work/work-journeys.spec.ts).
 
 | ID / priority | Preconditions | Steps | Expected result |
 | --- | --- | --- | --- |
@@ -78,7 +78,7 @@ All cases below map to [work-journeys.spec.ts](../../tests/e2e/work-journeys.spe
 
 ## Authentication baseline
 
-[auth-smoke.spec.ts](../../tests/e2e/auth-smoke.spec.ts) implements these cases;
+[auth-smoke.spec.ts](../../tests/e2e/identity_access/auth-smoke.spec.ts) implements these cases;
 the IDs here are documentation references, not existing title prefixes.
 
 | ID | Steps | Expected result |
@@ -121,10 +121,10 @@ Fixture dependencies:
 | Spec | Required setup / limitation |
 | --- | --- |
 | `staff-work`, `leave-approval`, `administration`, `social-beta`, `enterprise-ui` | Documented seeded personas; some tests create persistent acceptance records or skip mobile duplicates |
-| `expense-v2` | `.scratch/expense-v2/fixture.json` via `scripts/seed-expense-e2e.ts`; explicitly set the local `ERPX_E2E_BASE_URL` because helper cookie defaults still use 8787 |
-| `shared-workspace` | `.scratch/shared-workspace/fixture.json` or `ERPX_SERVICES_FIXTURE`, via `scripts/seed-services-e2e.ts`; set explicit local base URL |
-| `work-cards` | `.scratch/work-cards/fixture.json` via `scripts/seed-work-cards-e2e.ts`; set explicit local base URL because helper default differs from runner |
-| `messaging` | `.scratch/messaging/fixture.json` via `scripts/seed-messaging-e2e.ts`; explicit local base URL required |
+| `expense-v2` | `.scratch/expense-v2/fixture.json` via `scripts/seed/seed-expense-e2e.ts`; explicitly set the local `ERPX_E2E_BASE_URL` because helper cookie defaults still use 8787 |
+| `shared-workspace` | `.scratch/shared-workspace/fixture.json` or `ERPX_SERVICES_FIXTURE`, via `scripts/seed/seed-services-e2e.ts`; set explicit local base URL |
+| `work-cards` | `.scratch/work-cards/fixture.json` via `scripts/seed/seed-work-cards-e2e.ts`; set explicit local base URL because helper default differs from runner |
+| `messaging` | `.scratch/messaging/fixture.json` via `scripts/seed/seed-messaging-e2e.ts`; explicit local base URL required |
 | `local-review` | Imports Wrangler `getPlatformProxy`; audit/migrate this historical fixture access before native runtime acceptance |
 
 Do not execute all fixture scripts blindly: review their target guards and the

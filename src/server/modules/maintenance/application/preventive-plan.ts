@@ -1,7 +1,7 @@
 import { preventivePlanSchema, preventiveActionSchema, type Plan, type PreventivePlanRow, type PreventiveInput, type PreventiveAction } from "../domain/preventive-plan";
 import { wallClock, nextOccurrence } from "../domain/recurrence";
-import { localDateTimeCandidates } from "@/lib/calendar-timeline";
-import type { WorkItem } from "@/lib/work-item";
+import { localDateTimeCandidates } from "@/lib/work_projection/calendar-timeline";
+import type { WorkItem } from "@/lib/work_projection/work-item";
 import { BusinessRuleError } from "../../shared/index";
 import type { Clock } from "../../shared/application/ports";
 import type { MaintenanceCreateInput } from "../domain/work";

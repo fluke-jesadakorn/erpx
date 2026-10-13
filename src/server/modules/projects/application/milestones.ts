@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { samePerson } from '@/lib/iam';
+import { samePerson } from "@/lib/identity_access/iam";
 import type { WorkContext } from '../../identity_access/public/authorization';
 import type { StaffActor, StaffPerson } from '../../operations/public/staff-policy';
 import type { ProjectRow } from '../domain/staff-projects';

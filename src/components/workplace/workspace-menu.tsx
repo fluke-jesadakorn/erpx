@@ -9,9 +9,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Building2, ChevronDown, Network, ShieldCheck } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
-import { workFetch } from "@/lib/work-fetch";
-import { waitForWorkspaceMemory } from "@/lib/workspace-memory-client";
-import { leavePushForWorkspaceChange } from "@/lib/push-client";
+import { workFetch } from "@/lib/work_projection/work-fetch";
+import { waitForWorkspaceMemory } from "@/lib/work_projection/workspace-memory-client";
+import { leavePushForWorkspaceChange } from "@/lib/shared/push-client";
 import type {
   CurrentWorkspaceChoice,
   WorkspaceBranchChoice,
@@ -19,7 +19,7 @@ import type {
   WorkspaceCompanyChoice,
   WorkspaceDepartmentChoice,
   WorkspaceChoiceBrand,
-} from "@/lib/workspace-choice";
+} from "@/lib/work_projection/workspace-choice";
 import styles from "./shell.module.css";
 import { type UiAppearance } from "@/components/ui/foundation";
 

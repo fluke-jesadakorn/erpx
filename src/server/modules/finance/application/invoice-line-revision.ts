@@ -1,7 +1,7 @@
 import { calculateInvoiceLines } from "../domain/finance-invoice-lines";
 import type { FinanceError, InvoiceHeader, InvoiceAccount, PersistedInvoiceLine, InvoiceRevisionPlan, InvoicePostingGuard, InvoicePostingLine } from "../domain/invoice-line-revision";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
-import { minorToDecimal } from "@/lib/finance-money";
+import { minorToDecimal } from "@/lib/finance/finance-money";
 export interface InvoiceLineRepository {
     accounts(companyId: string, ids: string[]): Promise<InvoiceAccount[]>;
     party(companyId: string, partyId: string): Promise<Record<string, unknown> | null>;

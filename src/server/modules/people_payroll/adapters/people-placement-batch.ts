@@ -5,7 +5,7 @@ import { requirePermission } from "@/server/modules/identity_access/public/iam-p
 import { ApiError } from "@/server/modules/runtime/public/http";
 import type { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
-import { previewLifecycle, saveLifecycle } from "@/server/people-lifecycle";
+import { previewLifecycle, saveLifecycle } from "@/server/modules/people_payroll/adapters/people-lifecycle";
 import { executeCommand, replayCommand } from "@/server/modules/workflow/public/commands";
 import { isTransactionalSqlDatabase, type SqlStatement } from '../../runtime/public/runtime/types';
 import { BusinessRuleError } from '../../shared';

@@ -1,6 +1,0 @@
-import { expect, it } from 'vitest';
-import { responsibilityContext, responsibilityRoles, hasBusinessRole } from '../src/lib/responsibilities';
-import type { WorkContext } from '../src/server/authorization';
-const actor = { userId:'user', role:'employee', assignmentId:'employee', companyId:'co', scope:{kind:'holding',companyId:'co'}, assignments:[{id:'owner',role:'holding_owner',companyId:'co',scopeKind:'holding',modules:['finance']},{id:'finance',role:'finance_approver',companyId:'co',scopeKind:'holding',modules:['finance']},{id:'employee',role:'employee',companyId:'co',scopeKind:'holding',modules:[]}], modules:[] } as unknown as WorkContext;
-it('never uses another assignment to authorize an action',()=>{expect(responsibilityContext(actor,['holding_owner','finance_approver'])).toBeNull();expect(hasBusinessRole(actor,['treasury','hr_admin'])).toBe(false);expect(responsibilityRoles(actor)).toEqual(['employee']);});
-it('uses only the explicitly selected finance assignment',()=>{const finance={...actor,role:'finance_approver',assignmentId:'finance'};expect(responsibilityContext(finance,['holding_owner','finance_approver'])?.assignmentId).toBe('finance');expect(responsibilityContext(finance,['treasury'])).toBeNull();});

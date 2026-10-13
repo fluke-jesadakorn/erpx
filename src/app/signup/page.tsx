@@ -1,4 +1,4 @@
-import { BetaAuthForm } from "@/components/beta/auth-form";
+import { BetaAuthForm } from "@/components/collaboration/auth-form";
 import { AuthShell } from "@/components/workplace/auth-shell";
 import { publicBetaEnabled } from "@/server/modules/runtime/public/presentation-configuration";
 export const dynamic = "force-dynamic";

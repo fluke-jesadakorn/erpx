@@ -1,2 +1,0 @@
-/** Compatibility export; the Platform Administration public boundary owns this API. */
-export { acceptedReleasePredicate,bindReleaseEvidence,companyReleaseStatus,currentReleaseInputs,releaseAcceptance,releaseReviewSchema,releaseRevisionTable,releaseRevokeSchema,releaseSubmitSchema,reviewReleaseAcceptance,revokeReleaseAcceptance,submitReleaseAcceptance } from "@/server/modules/platform_administration/public/release-acceptance";

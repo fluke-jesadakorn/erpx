@@ -1,5 +1,5 @@
-import {compareWork,isMyAction,type WorkItem} from "@/lib/work-item";
-import {sourceRecordLabel} from "@/lib/source-record";
+import {compareWork,isMyAction,type WorkItem} from "@/lib/work_projection/work-item";
+import {sourceRecordLabel} from "@/lib/records/source-record";
 export type WorkSnapshot = { items: WorkItem[]; unavailableSources: string[] };
 
 export function mergeWorkItems(rows: WorkItem[]) {

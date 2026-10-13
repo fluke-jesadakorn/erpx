@@ -1,0 +1,24 @@
+{
+  "checkedAt": "2026-10-11T20:38:00.740151+00:00",
+  "scope": "Two original required desktop/mobile cases only; full 180 acceptance remains pending",
+  "runtimeFingerprint": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+  "verificationFingerprint": "299c85a71a3f9bd369189710e8dcf8db9da956177f559f49d4f857d6767dd362",
+  "receipt": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-11T20-31-30-388Z/receipt.json",
+  "receiptSHA256": "5058de5123efa78bc57d9198bd086a4b429da3439b373173919c171b243fe564",
+  "existingCaseTitle": "keeps hotel drafts scoped while refresh fences stale cash and an inspected higher room type upgrades through the drawer",
+  "changedSource": "tests/e2e/demo-hospitality-setup.spec.ts",
+  "sourceSHA256": "708925ab72a865d311f28e455b67528d8fbaf6ce23aedd73784c55f4d4a3caaa",
+  "assertions": {
+    "timeoutSecondsUnchanged": 90,
+    "allBusinessAssertionsRetained": true,
+    "pollingGateInstalledBeforeFrontNavigation": true,
+    "onlyPagePmsGETHeld": true,
+    "normalRscAndApiRequestContextUntouched": true,
+    "noSyntheticResponse": true,
+    "samePropertyFreshHeadingRequired": true,
+    "pollingReleasedAndUnroutedInFinally": true
+  },
+  "passedCases": 2,
+  "retainedDiagnostic": "Earlier full invocation stopped at 11 PASS / one mobile timeout while awaiting response.finished() on the RSC body. A successful response header and merged DOM witness do not prove that streaming response body completion. This diagnostic remains unresolved.",
+  "wholePlanAccepted": false
+}

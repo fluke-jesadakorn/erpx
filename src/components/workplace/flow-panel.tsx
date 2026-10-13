@@ -1,4 +1,4 @@
-import type { FlowKind, FlowView } from "@/lib/flow";
+import type { FlowKind, FlowView } from "@/lib/shared/flow";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { documentFlow } from "@/server/modules/workflow/public/document-flow";
 export { documentFlow } from "@/server/modules/workflow/public/document-flow";

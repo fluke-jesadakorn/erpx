@@ -1,6 +1,6 @@
 import {BusinessRuleError} from '../../shared';
 import type {Clock} from '../../shared';
-import type {WorkItem} from '@/lib/work-item';
+import type {WorkItem} from "@/lib/work_projection/work-item";
 import {acknowledgeSchema,qualityTerminalStates,qualityAlertDate,type QualityAlert,type QualityAlertAcknowledgement,type QualityAlertResult} from '../domain/alerts';
 export interface QualityAlertRepository{
  alerts():Promise<QualityAlert[]>;replay(key:string,operation:string,id:string,input:unknown):Promise<Record<string,unknown>|null>;

@@ -1,5 +1,5 @@
 import { portalCollaborationAttachmentPolicies } from "../../domain/attachments/portal-collaboration-policy";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { WorkContext } from "../../../identity_access/public/authorization";
 import type { PostRow } from "../../../collaboration/public/social-source";
 import type { Clock } from "../../../shared/application/ports";

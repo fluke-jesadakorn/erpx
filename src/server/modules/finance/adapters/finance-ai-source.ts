@@ -7,7 +7,7 @@ import {sha256} from '@/server/modules/runtime/public/crypto';
 import {getInvoice,statements} from '@/server/modules/finance/public/finance';
 import {closeWorkspace,financeWorkbench} from '@/server/modules/finance/public/finance-workspace';
 import {vatWorkspace} from '@/server/modules/finance/public/finance-tax-register';
-import {financeAiDate} from '@/lib/finance-ai';
+import {financeAiDate} from "@/lib/finance/finance-ai";
 import {financeAiScope,validateFinanceAiResult as validate,type FinanceAiInput,type FinanceAiSnapshot} from '../domain/ai-source';
 import {createFinanceAiSource} from '../application/ai-source';
 export type {FinanceAiInput,FinanceAiSource,FinanceAiSnapshot} from '../domain/ai-source';

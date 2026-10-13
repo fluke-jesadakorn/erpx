@@ -1,8 +1,8 @@
 import "server-only";
-import { type ClearanceKind, type ClearanceReference } from "@/lib/retirement";
+import { type ClearanceKind, type ClearanceReference } from "@/lib/people_payroll/retirement";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
-import type { PreparationTask } from "@/lib/people-lifecycle";
+import type { PreparationTask } from "@/lib/people_payroll/people-lifecycle";
 import { ApiError } from "@/server/modules/runtime/public/http";
 import { requireFlowAccess } from "@/server/modules/workflow/public/flow-access";
 import { BusinessRuleError } from '../../shared';

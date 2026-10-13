@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { samePerson } from '@/lib/iam';
+import { samePerson } from "@/lib/identity_access/iam";
 import { accountingProfileSchema, accountingProfileDecisionSchema, financialEventsSchema, type AccountingProfile, type ProfileInput, type ProfileDecision, type FinancialEventsQuery } from '../domain/accounting-profiles';
 import type { WorkContext } from '@/server/modules/identity_access/public/authorization';
 import type { FinanceError } from '../domain/invoice-line-revision';

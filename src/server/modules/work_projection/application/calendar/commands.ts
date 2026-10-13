@@ -1,11 +1,11 @@
 type CalendarReadResult<Row>={results:Row[]};
-import type { PreparationTask } from "@/lib/people-lifecycle";
+import type { PreparationTask } from "@/lib/people_payroll/people-lifecycle";
 import { calendarCommandSchema, type CalendarCommand } from "@/server/modules/work_projection/public/rules/calendar-domain";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { addDays } from "@/server/modules/people_payroll/public/rules/people-roster-domain";
-import { expandCalendarSeries, type RecurrenceRule } from "@/lib/calendar-recurrence";
-import { localDateTimeToInstant, localMinuteAt } from "@/lib/calendar-timeline";
+import { expandCalendarSeries, type RecurrenceRule } from "@/lib/work_projection/calendar-recurrence";
+import { localDateTimeToInstant, localMinuteAt } from "@/lib/work_projection/calendar-timeline";
 import type {CalendarAccess} from "../../domain/calendar/access";
 import type {Result,SeriesRow} from "../../domain/calendar/commands";
 import type {Clock,IdentifierSource} from "../../../shared/application/ports";

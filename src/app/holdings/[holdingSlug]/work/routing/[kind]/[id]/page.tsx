@@ -1,8 +1,8 @@
 import { RecordLink as Link } from "@/components/records/record-link";
 import {z} from 'zod';
-import {flowKinds} from '@/lib/flow';
+import {flowKinds} from "@/lib/shared/flow";
 import {requireWorkContext,publicScope} from "@/server/modules/identity_access/public/authorization";
-import {workspaceBase} from '@/lib/workspace';
+import {workspaceBase} from "@/lib/work_projection/workspace";
 import {requireRoutingManager} from "@/server/modules/workflow/public/routing-attention";
 import {requireFlowAccess} from "@/server/modules/workflow/public/flow-access";
 import {FlowPanel} from '@/components/workplace/flow-panel';

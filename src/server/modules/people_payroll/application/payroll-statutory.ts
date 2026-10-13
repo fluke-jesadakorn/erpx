@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { samePerson } from '@/lib/iam';
+import { samePerson } from "@/lib/identity_access/iam";
 import type { WorkContext } from '../../identity_access/public/authorization';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '../../shared';
-import { thaiPayroll2026Pack, thaiPayrollAdapterId } from '@/lib/thai-payroll-pack';
-import { calculateThaiPayroll, type ThaiPayrollCalculation } from '@/lib/thai-payroll-rules';
-import { calculateThaiPayrollAdjustment, type ThaiPayrollAdjustmentInput } from '@/lib/thai-payroll-adjustment';
+import { thaiPayroll2026Pack, thaiPayrollAdapterId } from "@/lib/people_payroll/thai-payroll-pack";
+import { calculateThaiPayroll, type ThaiPayrollCalculation } from "@/lib/people_payroll/thai-payroll-rules";
+import { calculateThaiPayrollAdjustment, type ThaiPayrollAdjustmentInput } from "@/lib/people_payroll/thai-payroll-adjustment";
 import { type PayrollStatutoryRun, type PackRow, thaiPayrollProfileSchema, thaiPayrollProfileDecisionSchema, type Profile, type PriorItem, type ThaiPayrollEvidence, canonical, companyScope, applyThaiStatutory } from '../domain/payroll-statutory';
 export interface PayrollStatutoryCommands<Effect> {
     replay<Result = Record<string, unknown>>(actor: WorkContext, key: string, operation: string, id: string, input: unknown): Promise<Result | null>;

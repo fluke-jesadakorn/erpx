@@ -1,16 +1,19 @@
+import { peopleSettingsHref } from "@/lib/people_payroll/people-route-context";
 import { peoplePayrollPresentationQueries } from "@/server/modules/people_payroll/public/presentation-queries";
+import { PeopleAccessWorkspace } from "@/components/identity_access/people-access-workspace";
+import { iamPresentationQueries } from "@/server/modules/identity_access/public/presentation-context-queries";
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
-import { BetaPeople } from "@/components/beta/people-page";
-import { FeaturePage, FeatureWidget, WidgetGrid } from "@/components/features/feature-page";
-import { MemberProfile } from "@/components/modules/member-profile";
-import { PeopleNavigation } from "@/components/modules/people-navigation";
-import { PeopleDirectory } from "@/components/people/people-directory";
+import { BetaPeople } from "@/components/collaboration/people-page";
+import { FeaturePage, FeatureWidget, WidgetGrid } from "@/components/shared/features/feature-page";
+import { MemberProfile } from "@/components/identity_access/member-profile";
+import { PeopleNavigation } from "@/components/people_payroll/people-navigation";
+import { PeopleDirectory } from "@/components/people_payroll/people-directory";
 import { ListPagination } from "@/components/ui/list-pagination";
 import { PageHeader } from "@/components/ui/primitives";
 import { PeopleEditor } from "@/components/workplace/work-editors";
-import { hasPermission } from "@/lib/permissions";
-import { workspaceBase } from "@/lib/workspace";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { workspaceBase, workspaceApiHref } from "@/lib/work_projection/workspace";
 import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 
@@ -34,6 +37,7 @@ export default async function PeoplePage({
 }: {
   params: Promise<{ holdingSlug: string }>;
   searchParams: Promise<{
+    panel?: string; editor?: string; unit?: string; company?: string;
     display?: string;
     new?: string;
     person?: string;
@@ -46,6 +50,7 @@ export default async function PeoplePage({
     department?: string;
     team?: string;
     view?: string;
+    section?: string;
     member?: string;
     position?:string;
     case?:string;
@@ -56,9 +61,17 @@ export default async function PeoplePage({
   const { holdingSlug } = await params;
   const actor = await requireWorkContext(holdingSlug);
   const search = await searchParams;
+  if (search.panel === "settings") redirect(peopleSettingsHref(workspaceBase(publicScope(actor)), search));
   if (search.view === "payroll" && !actor.beta) redirect(`${workspaceBase(publicScope(actor))}/people/payroll`);
   if (actor.beta) return <BetaPeople actor={actor} member={search.member} />;
   const base = workspaceBase(publicScope(actor));
+  if (!search.view && hasPermission(actor, "iam.read") && !hasPermission(actor, "people.read") && !actor.branchId && !actor.departmentId) redirect(`${base}/people?view=users`);
+  if (search.view === "users") {
+    if (!hasPermission(actor, "iam.read")) forbidden();
+    const {queries,actor:iam} = await iamPresentationQueries(holdingSlug);
+    const data = await queries.peopleAccessSnapshot(iam).catch(error=>pageError(error,holdingSlug));
+    return <FeaturePage className="content-stack" data-source="live"><PageHeader appearance="standard" eyebrow="People" title="Users & Access" description="Manage internal accounts, external organizations and teams, and scoped access." /><PeopleNavigation base={base} actor={actor} scopeKind={actor.scope.kind} active="users" /><PeopleAccessWorkspace initial={data} initialView={search.section === "roles" ? "roles" : "users"} api={workspaceApiHref(publicScope(actor),"iam/people-access")} /></FeaturePage>;
+  }
   const archived = search.status === "archived";
   const canManage = canManagePeople(actor);
   if (!canManage && (archived || search.new === "person" || search.member || search.case)) forbidden();

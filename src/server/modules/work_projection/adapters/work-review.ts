@@ -6,7 +6,7 @@ import { expenseDetail } from "@/server/modules/people_payroll/public/expenses";
 import { getLeave } from "@/server/modules/people_payroll/public/leave";
 import { taskDetail } from "@/server/modules/operations/public/staff-tasks";
 import { resolveFlow } from "@/server/modules/workflow/public/flow-routing";
-import { attachmentContentUrl } from "@/lib/attachment-client";
+import { attachmentContentUrl } from "@/lib/files/attachment-client";
 import { ApiError } from "@/server/modules/runtime/public/http";
 import type { SqlDatabase } from "../../runtime/public/runtime/types";
 import { createWorkRead } from "../application/work";

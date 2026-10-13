@@ -3,7 +3,7 @@ import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 
 import { Button, Field, TextInput, Popover, PopoverTrigger, PopoverContent, type UiAppearance } from "@/components/ui/foundation";
 
-import { workFetch } from "@/lib/work-fetch";
+import { workFetch } from "@/lib/work_projection/work-fetch";
 import { RoleSelect } from "@/components/workplace/role-select";
 import { PersonAvatar } from "@/components/ui/person-avatar";
 import { useHydrated } from "@/components/ui/use-hydrated";
@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, LogIn, LogOut, Plus, UserRound } from "lucide-react";
 import styles from "@/components/workplace/account.module.css";
 import { Appearance } from "@/components/workplace/workplace-controls";
-import { leavePushSession } from "@/lib/push-client";
+import { leavePushSession } from "@/lib/shared/push-client";
 import { useContextSwitch } from "@/components/workplace/context-switch-provider";
 
 type DeviceSession = {
@@ -52,7 +52,7 @@ export function AccountSwitcher({
   const [sessions, setSessions] = useState<DeviceSession[]>([]);
 
   async function loadAccounts() {
-    const { authClient } = await import("@/lib/auth-client");
+    const { authClient } = await import("@/lib/identity_access/auth-client");
     const result = await authClient.multiSession.listDeviceSessions();
     if (result.data) setSessions(result.data as DeviceSession[]);
   }
@@ -113,7 +113,7 @@ export function AccountSwitcher({
         onCommitted: () => setOpen(false),
         action: async () => {
           if (workspaceBase !== "/platform") await leavePushSession(workspaceBase);
-          const { authClient } = await import("@/lib/auth-client");
+          const { authClient } = await import("@/lib/identity_access/auth-client");
           const result = await authClient.multiSession.setActive({
             sessionToken: session.session.token,
           });
@@ -140,7 +140,7 @@ export function AccountSwitcher({
         onCommitted: () => setOpen(false),
         action: async () => {
           if (workspaceBase !== "/platform") await leavePushSession(workspaceBase);
-          const { authClient } = await import("@/lib/auth-client");
+          const { authClient } = await import("@/lib/identity_access/auth-client");
           const result = await authClient.signIn.email({
             email: String(form.get("email")),
             password: String(form.get("password")),
@@ -198,7 +198,7 @@ export function AccountSwitcher({
     } catch {
       /* Revoking the auth session also blocks future sends. */
     }
-    const { authClient } = await import("@/lib/auth-client");
+    const { authClient } = await import("@/lib/identity_access/auth-client");
     await authClient.signOut();
     window.location.replace(new URL("/login", window.location.origin));
   }
@@ -305,7 +305,7 @@ export function AccountSwitcher({
                   <RoleSelect appearance={appearance}
                     assignments={assignments}
                     value={preferredAssignmentId ?? ""}
-                    disabled={Boolean(pending)}
+                    disabled={Boolean(pending) || busy}
                     onChange={(value) => void chooseRole(value)}
                   />
                   <p className="role-hint">

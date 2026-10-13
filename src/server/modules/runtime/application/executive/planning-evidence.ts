@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { hasModuleAccess } from "@/data/module-access";
 import { filtersSchema } from "@/server/modules/runtime/public/rules/canvas-domain";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { PlanningExecutiveEvidenceMetric } from "@/server/modules/manufacturing/public/production";
 import { planningEvidenceMetrics, type PlanningEvidenceMetric, providerId, inputSchema, type EvidenceRow, fieldsFor, scopeKey, parseCursor, safeRevision, safeWholeText, safeTimestamp, safeDate, shortages, notFound } from '../../domain/executive/planning-evidence';

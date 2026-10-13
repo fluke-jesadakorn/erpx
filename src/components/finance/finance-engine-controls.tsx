@@ -5,7 +5,7 @@ import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { financeCommandFetch as workFetch } from "@/lib/finance-command-fetch";
+import { financeCommandFetch as workFetch } from "@/lib/finance/finance-command-fetch";
 import { Card, FormGrid } from "@/components/ui/foundation";
 
 type Row = Record<string, string | number | null>;

@@ -1,2 +1,0 @@
-/** Compatibility entry point; legacy implementation belongs to identity_access. */
-export {accessReviewCampaignInput,accessReviewDecisionInput,applyIamRevocation,cancelAccessReviewCampaign,decideAccessReviewItem,decideIamReview,grantIamAccess,grantInput,iamAuditHistory,iamOverview,insertIamGrant,listIamRoles,proposeIamReview,reviewInput,revokeIamAssignment,roleInput,saveIamRole,startAccessReviewCampaign,validateIamGrant} from "@/server/modules/identity_access/adapters/iam-service";

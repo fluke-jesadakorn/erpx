@@ -1,0 +1,141 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "focusedFixPassed": true,
+  "pmsNativeSelectionPassed": true,
+  "sourceFingerprint": "ae1151f8ca066275826f73e8a70d72f9a7d0cf9a7def61ccdaad5ce41e7100c7",
+  "verificationFingerprint": "6de0681e883125fa70f8ca0d2d8a327d3a925d111e96acb5e8383c670d141bf1",
+  "release": {
+    "id": "2026-10-09T22-52-37-754Z",
+    "fileManifestSha256": "398f9a1077aaf8e0fcc8fe24a7b7a9fbf42970c2f72eabb4d6f60ee25cbae4e4"
+  },
+  "scope": "Current registered unit/integration selection: bun run test --module=pms; forward order. This is native PMS selection evidence, not browser or entire catalogue acceptance.",
+  "tests": {
+    "unitFiles": 77,
+    "unitCases": 774,
+    "integrationFiles": 49,
+    "integrationCases": 513,
+    "totalFiles": 126,
+    "totalCases": 1287,
+    "failedCases": 0,
+    "separateFocusedPlatformCompanyNativeCases": 33,
+    "separateIdentityDirectoryPoolUnitCases": 90,
+    "separateFocusedCountsOverlapAndAreNotAddedToTotal": true
+  },
+  "unchanged": {
+    "runtime": true,
+    "verification": true,
+    "matchesIsolatedRelease": true
+  },
+  "checks": {
+    "typecheck": true,
+    "lint": true,
+    "lintExistingWarnings": 3,
+    "architecture": true,
+    "isolatedReleaseBuild": true,
+    "wholeDirtyTreeDiffCheck": true
+  },
+  "regression": {
+    "earlierEvidence": "2026-10-10-pms-release-scale-control-eight.json",
+    "red": "Three existing Platform access cases fail against Control because loadIamAuthority references hr_people, which belongs only to Holding databases. PostgreSQL resolves relations even for an excluded CASE branch.",
+    "fix": "Platform substitutes typed NULL SQL fragments for Holding-only HR fallback/engagement/appointment relations. Company fragments and fresh single-snapshot role/member/person/alias/emergency/HR policy remain unchanged. No fake HR schema, permission bypass or cross-invocation authority cache.",
+    "green": "All four engineering-platform-access cases pass in both focused and full native selection, including independent connector activation and current expiry/revocation guards. The separate Company IAM suite passes scoped fallback aliases, fresh member suspension and withdrawn grants."
+  },
+  "limitation": "No release load or final browser/mock-pilot acceptance on this fixed candidate yet. Prior load candidate fails core/reservation SLO and is retained separately. SiteMinder/government/live-payment/production remain separately phased.",
+  "logs": {
+    "native": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-platform-scope-native.log",
+      "sha256": "ba4c7fe48cd8820e5849257da4fc7289d6849cb62c5eda94fce6b84c72abed66"
+    },
+    "unit": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-platform-scope-unit.log",
+      "sha256": "688d2c232279f7e6a2fc306745988a8641ee84335678b2cd13a1a68c4a9404ca"
+    },
+    "moduleNative": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-platform-scope-module-native.log",
+      "sha256": "67ad3763af6308933a2ae1013d3450fab777cd3541b94511f62b753c37fbd7be"
+    },
+    "suiteBefore": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-platform-scope-suite-before.json",
+      "sha256": "ec26e53a3179ab5611eabea4f67cdd144dd6891254d51132bec8002a7c7fa40f"
+    },
+    "suiteAfter": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-platform-scope-suite-after.json",
+      "sha256": "ec26e53a3179ab5611eabea4f67cdd144dd6891254d51132bec8002a7c7fa40f"
+    },
+    "typecheck": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-platform-scope-typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "lint": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-platform-scope-lint.log",
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    },
+    "architecture": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-platform-scope-architecture.log",
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    "build": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-platform-scope-build.log",
+      "sha256": "afc9f60fe1a9d8334b473d884855d9eb05706225db460108ee281f6b795fc45d"
+    },
+    "docs": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-platform-scope-docs.log",
+      "sha256": "34a2d97c7d9cd682d35de6c5061295deb6b36d0ee77bc0b210d9b5bcec464459"
+    },
+    "health": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-platform-scope-health.json",
+      "sha256": "dc400e2663809a54eac1755136553249647218db71fa7758965859c0fbf3b035"
+    },
+    "finalDocs": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-platform-scope-final-docs.log",
+      "sha256": "58a772ed8fe7b4b45c64d94cf0d35c26143a3d50a0df6f3ad62a73490d85c662"
+    },
+    "finalHealth": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-platform-scope-final-health.json",
+      "sha256": "be8409b64f464d920374dad0b5204ec7e755b3ebdbcc731a1e69f1c9f224d60c"
+    }
+  },
+  "environment": {
+    "checkedAt": "2026-10-09T23:00:18.122251+00:00",
+    "health": [
+      {
+        "url": "http://127.0.0.1:3100/api/health",
+        "status": "200",
+        "exit": 0
+      },
+      {
+        "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+        "status": "200",
+        "exit": 0
+      },
+      {
+        "url": "http://127.0.0.1:3101/api/health",
+        "status": "200",
+        "exit": 0
+      }
+    ],
+    "developmentListener": {
+      "pid": 58873,
+      "parentPid": 81955,
+      "cwd": "/Users/fluke/Desktop/Work/erpx"
+    },
+    "postgresListenerPid": 909,
+    "simulationPortFree": true,
+    "stagingAccess": false,
+    "productionChanged": false,
+    "publicPage": {
+      "entry": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms",
+      "gateway": "https://console-dev-erpx.jesadakorn.com/front/acme/acme-co/pms/holding",
+      "resolved": "https://dev-pms.jesadakorn.com/acme/acme-co/holding",
+      "authenticated": true,
+      "observed": "Company Today renders Online with hotel and operational priorities using the existing normal session. Read-only verification; no UI transactions."
+    }
+  },
+  "documentation": {
+    "passed": true,
+    "markdownFiles": 248,
+    "localLinks": 1294,
+    "ledgerFiles": 213
+  }
+}

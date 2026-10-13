@@ -6,10 +6,11 @@ import { runtimeSourceFingerprint } from "./source-fingerprint";
 const root = resolve(import.meta.dir, "../.."), requested = process.argv[2];
 if (!requested) throw new Error("EXACT_REPOSITORY_SERVER_SCRIPT_REQUIRED");
 const entry = resolve(root, requested);
-if (!entry.startsWith(resolve(root, "scripts") + sep) || !entry.endsWith(".ts") || entry === resolve(import.meta.filename))
+const fixtureBuilder = /^fixtures\/[a-z_]+\/builders\/[^/]+\.ts$/.test(relative(root, entry).replaceAll("\\", "/"));
+if ((!entry.startsWith(resolve(root, "scripts") + sep) && !fixtureBuilder) || !entry.endsWith(".ts") || entry === resolve(import.meta.filename))
   throw new Error("REPOSITORY_SERVER_SCRIPT_REQUIRED");
-const node = resolve(process.env.ERPX_NODE_BIN ?? resolve(root, ".runtime/node/node-v24.20.0-darwin-arm64/bin/node"));
-if (Bun.version !== "1.2.17" || Bun.spawnSync([node, "--version"]).stdout.toString().trim() !== "v24.20.0")
+const node = resolve(process.env.ERPX_NODE_BIN ?? resolve(root, ".runtime/node/node-v26.11.1-darwin-arm64/bin/node"));
+if (Bun.version !== "1.4.3" || Bun.spawnSync([node, "--version"]).stdout.toString().trim() !== "v26.11.1")
   throw new Error("PINNED_TOOLCHAIN_REQUIRED");
 const directory = resolve(root, ".scratch/dev/server-scripts", relative(root, entry).replaceAll(/[^a-zA-Z0-9_-]/g, "_"));
 await mkdir(directory, { recursive: true, mode: 0o700 });

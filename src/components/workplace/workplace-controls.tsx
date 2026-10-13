@@ -3,7 +3,7 @@ import { Button, TextInput, type UiAppearance } from "@/components/ui/foundation
 
 import { AppNavigation } from "./app-navigation";
 import { useHydrated } from "@/components/ui/use-hydrated";
-import { navigationSearch } from "@/lib/navigation-catalog";
+import { navigationSearch } from "@/lib/work_projection/navigation-catalog";
 import Link from "next/link";
 import { useCallback, useEffect, useId, useState, useSyncExternalStore } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -60,7 +60,7 @@ import {
   type NavigationApp,
   type NavigationIconId,
   type NavigationItem,
-} from "@/lib/workplace-navigation";
+} from "@/lib/work_projection/workplace-navigation";
 import { Dialog } from "@/components/ui/dialog";
 import { useNavigationCounts } from "./navigation-counts";
 import styles from "./shell.module.css";

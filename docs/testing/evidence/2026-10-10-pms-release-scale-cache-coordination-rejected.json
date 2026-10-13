@@ -1,0 +1,647 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "experimentAccepted": false,
+  "experiment": "Acquire a shared database-scoped PMS cache dependency advisory lock before the existing Property session lock and SERIALIZABLE snapshot. Removed because original core latency gate still fails and the broad coordination worsens other phase latency. No owner invariant or threshold changed.",
+  "retainedProof": {
+    "file": "tests/pms.test.ts",
+    "actualSqlstate": "40001",
+    "differentProperties": true,
+    "counterAfterFailedAttempt": 1,
+    "counterAfterCoordinatedCommits": 3,
+    "baselinePmsCasesPassed": 67,
+    "scope": "Mechanism reproduced in native PostgreSQL. Sanitized earlier release traces do not retain SQLSTATE codes; do not attribute every earlier SQL error to this mechanism."
+  },
+  "result": {
+    "run": "18a73e6a0b00",
+    "sourceFingerprint": "9f7906818a717439cbcb70c67186791b4f31d8f1f5c82a9da20d10954ea4cec0",
+    "verificationFingerprint": "f1a007efddd939eddae36fd5596fa667cd23d20eeecf48b61151641aa73a0e74",
+    "release": {
+      "id": "2026-10-09T23-49-38-502Z",
+      "fileManifestSha256": "889d35aa8eaf33c6bdecfa83ba960012c7cac702201e9a1cf0d7943131e096ee"
+    },
+    "scope": "Release HTTP: 3 \u00d7 200 rooms, 730-day synthetic closed stay/reservation/account metadata; 20 distinct normal staff accounts. Historic revenue is not invented.",
+    "applicationPoolMax": 8,
+    "controlPoolMax": 5,
+    "jobsHoldingPoolMax": 1,
+    "counts": [
+      {
+        "rooms": 200,
+        "archived_stays": 73000,
+        "reservations": 73000,
+        "archived_accounts": 73000
+      },
+      {
+        "rooms": 200,
+        "archived_stays": 73000,
+        "reservations": 73000,
+        "archived_accounts": 73000
+      },
+      {
+        "rooms": 200,
+        "archived_stays": 73000,
+        "reservations": 73000,
+        "archived_accounts": 73000
+      }
+    ],
+    "accounts": 20,
+    "rounds": 10,
+    "durationMs": 90609,
+    "readCount": 840,
+    "writeCount": 843,
+    "readP95Ms": 314.0935830000017,
+    "writeP95Ms": 2161.525499999996,
+    "coreReadCount": 840,
+    "coreWriteCount": 400,
+    "financialEnabled": true,
+    "financialWriteCount": 200,
+    "financialWriteP95Ms": 1688.0182919999934,
+    "financialOperations": [
+      {
+        "operation": "shift.open",
+        "count": 20,
+        "p95Ms": 1511.5080000000016
+      },
+      {
+        "operation": "charge.add",
+        "count": 20,
+        "p95Ms": 1693.7140839999993
+      },
+      {
+        "operation": "payment.receive",
+        "count": 40,
+        "p95Ms": 1690.9467909999948
+      },
+      {
+        "operation": "payment.deposit",
+        "count": 20,
+        "p95Ms": 1709.7129170000044
+      },
+      {
+        "operation": "refund.request",
+        "count": 20,
+        "p95Ms": 1488.5457919999972
+      },
+      {
+        "operation": "refund.approve",
+        "count": 20,
+        "p95Ms": 210.92558300000383
+      },
+      {
+        "operation": "refund.pay",
+        "count": 20,
+        "p95Ms": 1691.3076250000086
+      },
+      {
+        "operation": "shift.close",
+        "count": 20,
+        "p95Ms": 1480.7139159999933
+      },
+      {
+        "operation": "shift.review",
+        "count": 20,
+        "p95Ms": 208.8104580000072
+      }
+    ],
+    "financialReconciliation": {
+      "history": {
+        "records": 657000,
+        "versions": "657000"
+      },
+      "balances": {
+        "accounts": 20,
+        "due": "0",
+        "advance": "200000",
+        "deposit": "40000"
+      },
+      "cash": {
+        "shifts": 20,
+        "cash": "475400",
+        "reviewed": true
+      },
+      "receipts": {
+        "receipts": 60,
+        "refunds": 20,
+        "received": "495400",
+        "refunded": "20000",
+        "settled": true
+      },
+      "journals": {
+        "debit": "999280",
+        "credit": "999280"
+      }
+    },
+    "operationalEnabled": true,
+    "operationalWriteCount": 220,
+    "operationalWriteP95Ms": 1662.81700000001,
+    "operationalOperations": [
+      {
+        "operation": "reservation.create",
+        "count": 20,
+        "p95Ms": 1504.9606670000067
+      },
+      {
+        "operation": "stay.assign",
+        "count": 20,
+        "p95Ms": 1500.7799579999992
+      },
+      {
+        "operation": "stay.check_in",
+        "count": 20,
+        "p95Ms": 1548.3105000000069
+      },
+      {
+        "operation": "stay.move",
+        "count": 20,
+        "p95Ms": 1568.835666999992
+      },
+      {
+        "operation": "stay.change_dates",
+        "count": 20,
+        "p95Ms": 1610.6720410000125
+      },
+      {
+        "operation": "stay.preview_checkout",
+        "count": 20,
+        "p95Ms": 1826.758541999996
+      },
+      {
+        "operation": "shift.open",
+        "count": 20,
+        "p95Ms": 1452.643167000002
+      },
+      {
+        "operation": "payment.receive",
+        "count": 20,
+        "p95Ms": 1798.2395419999957
+      },
+      {
+        "operation": "stay.check_out",
+        "count": 20,
+        "p95Ms": 1575.121708000006
+      },
+      {
+        "operation": "shift.close",
+        "count": 20,
+        "p95Ms": 1425.3552080000081
+      },
+      {
+        "operation": "shift.review",
+        "count": 20,
+        "p95Ms": 220.81808399999863
+      }
+    ],
+    "operationalReconciliation": {
+      "occupancy": {
+        "stays": 20,
+        "completed": true
+      },
+      "balances": {
+        "accounts": 20,
+        "due": "0",
+        "advance": "0",
+        "deposit": "0"
+      },
+      "cash": {
+        "shifts": 20,
+        "cash": "7062000",
+        "reviewed": true
+      },
+      "rooms": {
+        "rooms": 40,
+        "dirty": true
+      },
+      "charges": {
+        "charges": 20,
+        "total": "7062000"
+      },
+      "receipts": {
+        "receipts": 20,
+        "received": "7062000",
+        "settled": true
+      },
+      "journals": {
+        "debit": "22185280",
+        "credit": "22185280"
+      },
+      "history": {
+        "records": 657000,
+        "versions": "657000"
+      }
+    },
+    "closingEnabled": true,
+    "closingWriteCount": 23,
+    "closingWriteP95Ms": 1534.9403750000056,
+    "closingOperations": [
+      {
+        "operation": "guest_account.close",
+        "count": 20,
+        "p95Ms": 1534.9403750000056
+      },
+      {
+        "operation": "night.start",
+        "count": 3,
+        "p95Ms": 216.18850000000384
+      }
+    ],
+    "closingReconciliation": {
+      "invoices": {
+        "invoices": 20,
+        "total": "7062000",
+        "outstanding": "0",
+        "paid": true
+      },
+      "days": {
+        "hotels": 3,
+        "advanced": true
+      },
+      "nights": {
+        "nights": 3,
+        "capacity": 600,
+        "sold": 20,
+        "completed": true
+      },
+      "journals": {
+        "debit": "22185280",
+        "credit": "22185280"
+      },
+      "history": {
+        "records": 657000,
+        "versions": "657000"
+      }
+    },
+    "failedSamples": 0,
+    "sameProcesses": true,
+    "unchanged": true,
+    "samplesSha256": "ce2f0d258943e62ff83bbde703158f9adbc898e80e198865dbe3cf0979814117",
+    "passed": false
+  },
+  "analysis": {
+    "guest.save": {
+      "count": 200,
+      "p95Ms": 2316.202000000001,
+      "attempts": {
+        "1": 36,
+        "2": 37,
+        "3": 25,
+        "4": 21,
+        "5": 25,
+        "6": 19,
+        "7": 12,
+        "8": 5,
+        "10": 6,
+        "9": 9,
+        "12": 2,
+        "11": 3
+      }
+    },
+    "reservation.create": {
+      "count": 200,
+      "p95Ms": 1981.4487919999992,
+      "attempts": {
+        "4": 25,
+        "5": 42,
+        "6": 46,
+        "7": 55,
+        "2": 8,
+        "8": 11,
+        "3": 8,
+        "1": 4,
+        "9": 1
+      }
+    },
+    "commandPhases": 4127,
+    "queryErrors": {
+      "0": 4123,
+      "1": 4
+    }
+  },
+  "experimentalVerification": {
+    "nativeFiles": 4,
+    "nativeCases": 139,
+    "unitCases": 58,
+    "typecheck": true,
+    "lintErrors": 0,
+    "existingLintWarnings": 3,
+    "architecture": true,
+    "releaseBuild": true,
+    "initialTypecheckFailure": "New native helper first() lacked number generic; fixed before compiled trial.",
+    "fullSelection": false
+  },
+  "restored": {
+    "runtime": "fa4ec6ebb2814d3a04c1edf7681948971837b366ab464692c8cfd737b0243708",
+    "verification": "100f03cf1e1c02f93816607a51e50607ff7dc292c89ce485b1d8ee4a8c6071cb"
+  },
+  "restoredVerification": {
+    "nativeRuntimeCases": 7,
+    "typecheck": true,
+    "initialCommandFailure": "UNKNOWN_TEST_FILE:native-runtime.test.ts; corrected with tests/ prefix. No test ran in the rejected invocation.",
+    "wholeCandidateAcceptance": false
+  },
+  "cleanup": {
+    "run": "18a73e6a0b00",
+    "destroyed": true,
+    "ownedDatabasesRemoved": 8,
+    "port3104Free": true
+  },
+  "database": {
+    "before": {
+      "run": "18a73e6a0b00",
+      "stats": [
+        {
+          "datid": 613998205,
+          "deadlocks": "0",
+          "conflicts": "0"
+        }
+      ],
+      "triggers": [
+        {
+          "tgname": "release_configuration_changed"
+        },
+        {
+          "tgname": "work_cache_change"
+        },
+        {
+          "tgname": "work_cache_pms_booking_observation"
+        },
+        {
+          "tgname": "work_cache_truncate"
+        }
+      ]
+    },
+    "after": {
+      "run": "18a73e6a0b00",
+      "stats": [
+        {
+          "datid": 613998205,
+          "deadlocks": "0",
+          "conflicts": "0"
+        }
+      ],
+      "triggers": [
+        {
+          "tgname": "release_configuration_changed"
+        },
+        {
+          "tgname": "work_cache_change"
+        },
+        {
+          "tgname": "work_cache_pms_booking_observation"
+        },
+        {
+          "tgname": "work_cache_truncate"
+        }
+      ]
+    },
+    "conflictsAreStandbyConflicts": true
+  },
+  "connectionSamples": [
+    {
+      "run": "18a73e6a0b00",
+      "limits": {
+        "max_connections": 180,
+        "reserved": 3
+      },
+      "observed": {
+        "total_connections": 35,
+        "owned_control_app_connections": 0,
+        "owned_control_jobs_connections": 2
+      }
+    },
+    {
+      "run": "18a73e6a0b00",
+      "limits": {
+        "max_connections": 180,
+        "reserved": 3
+      },
+      "observed": {
+        "total_connections": 60,
+        "owned_control_app_connections": 9,
+        "owned_control_jobs_connections": 2
+      }
+    },
+    {
+      "run": "18a73e6a0b00",
+      "limits": {
+        "max_connections": 180,
+        "reserved": 3
+      },
+      "observed": {
+        "total_connections": 48,
+        "owned_control_app_connections": 5,
+        "owned_control_jobs_connections": 2
+      }
+    }
+  ],
+  "samplingLimitation": "Samples are not a peak measurement; runtime pool max is not a process-global cap.",
+  "environment": {
+    "checkedAt": "2026-10-09T23:58:49.713314+00:00",
+    "checks": [
+      {
+        "url": "http://127.0.0.1:3100/api/health",
+        "status": 200,
+        "exitCode": 0
+      },
+      {
+        "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+        "status": 200,
+        "exitCode": 0
+      },
+      {
+        "url": "http://127.0.0.1:3101/api/health",
+        "status": 200,
+        "exitCode": 0
+      }
+    ],
+    "listeners": {
+      "3100": "COMMAND   PID  USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME\nnode    58873 fluke   13u  IPv6 0xc4d6f8978281bcb4      0t0  TCP *:3100 (LISTEN)",
+      "3104": "",
+      "5432": "COMMAND  PID  USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME\npostgres 909 fluke    5u  IPv4 0xab194641205d693c      0t0  TCP 127.0.0.1:5432 (LISTEN)"
+    },
+    "stagingAccessed": false,
+    "installedProductionHealthOnly": true,
+    "publicUi": {
+      "entry": "https://console-dev-erpx.jesadakorn.com/front/acme/acme-co/pms/holding",
+      "normalAuthenticated": true,
+      "companyTodayOnline": true,
+      "guestAccountRendered": true,
+      "balanceAdvanceDepositEntriesVisible": true,
+      "transactionsSubmitted": false,
+      "compiledCandidateAcceptance": false
+    },
+    "developmentCwd": "p58873\nfcwd\nn/Users/fluke/Desktop/Work/erpx"
+  },
+  "artifacts": {
+    "adapter-before.ts": {
+      "path": ".scratch/dev/pms-cache-coordination/adapter-before.ts",
+      "sha256": "b03aae2e13a4999128d0019a1e93789cd6da3ae07d2cd615b2fb5ba1f32125e0"
+    },
+    "adapter-experimental.ts": {
+      "path": ".scratch/dev/pms-cache-coordination/adapter-experimental.ts",
+      "sha256": "138997ae26ecfcc8ceabe60fd8d8e71a5d54a147efd47109a68212a985d1bfee"
+    },
+    "architecture.log": {
+      "path": ".scratch/dev/pms-cache-coordination/architecture.log",
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    "budget-after.json": {
+      "path": ".scratch/dev/pms-cache-coordination/budget-after.json",
+      "sha256": "f0faf0b4c33dc8d1f395a3d0ee6178ebbe8c085b43308d09b5a8a3efe2d8cf8f"
+    },
+    "budget-before.json": {
+      "path": ".scratch/dev/pms-cache-coordination/budget-before.json",
+      "sha256": "038840bc26927189c9995c2878e9b6c12d2bbb423ebac62b109bc06495bed57a"
+    },
+    "budget-load.json": {
+      "path": ".scratch/dev/pms-cache-coordination/budget-load.json",
+      "sha256": "65b2c01e8c142b3bb34cfc13336a087971f0420443dfc925aca4b2708dc323dd"
+    },
+    "build.log": {
+      "path": ".scratch/dev/pms-cache-coordination/build.log",
+      "sha256": "4a39152d640e499f55385f6b5c9838ba956f4c5fb0f334cc57fc4051cd333db5"
+    },
+    "db-after.json": {
+      "path": ".scratch/dev/pms-cache-coordination/db-after.json",
+      "sha256": "14ee49396f63ec5a4b7082cf2da616093a7993da1cd7950a772a28d2563ae19a"
+    },
+    "db-before.json": {
+      "path": ".scratch/dev/pms-cache-coordination/db-before.json",
+      "sha256": "14ee49396f63ec5a4b7082cf2da616093a7993da1cd7950a772a28d2563ae19a"
+    },
+    "destroy-databases.log": {
+      "path": ".scratch/dev/pms-cache-coordination/destroy-databases.log",
+      "sha256": "aea86d73a10e609fa247a4cc579b36b5315bb3dc2177633cd3b3d44d7eaefb43"
+    },
+    "destroy-stop.log": {
+      "path": ".scratch/dev/pms-cache-coordination/destroy-stop.log",
+      "sha256": "9433b2c3e2a037ffbe4ba14de7be4e94b79607fb0e26aa684effca0f93869bbb"
+    },
+    "final-health.json": {
+      "path": ".scratch/dev/pms-cache-coordination/final-health.json",
+      "sha256": "89907b725831bae31073d57b2850f911c232b2899c2e441dba9d8342a06780f1"
+    },
+    "lint.log": {
+      "path": ".scratch/dev/pms-cache-coordination/lint.log",
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    },
+    "native-experimental.log": {
+      "path": ".scratch/dev/pms-cache-coordination/native-experimental.log",
+      "sha256": "baad445d19b39923dc1ac54557304e466201ba4f3d824cc042b004232c893d92"
+    },
+    "native-proof.log": {
+      "path": ".scratch/dev/pms-cache-coordination/native-proof.log",
+      "sha256": "dfbaee5a875b2ef6354bc7d495f7d87e4386a39a9184961470faa3883a9e655f"
+    },
+    "performance.log": {
+      "path": ".scratch/dev/pms-cache-coordination/performance.log",
+      "sha256": "4d400e2fb3aae90451324e840b188e02933223249e456dc714e8e1aeb08fbe79"
+    },
+    "pms-proof-test.ts": {
+      "path": ".scratch/dev/pms-cache-coordination/pms-proof-test.ts",
+      "sha256": "681faef8abac374cea74fd872d8dba5f23a21e1da3849b738bcee16adec70f2e"
+    },
+    "postgres-before.ts": {
+      "path": ".scratch/dev/pms-cache-coordination/postgres-before.ts",
+      "sha256": "4d3feeca50300e0788533998c6454ba6a1c981d1d8f4d89ab86c78d419bdaae2"
+    },
+    "postgres-experimental.ts": {
+      "path": ".scratch/dev/pms-cache-coordination/postgres-experimental.ts",
+      "sha256": "e0989ebd443887c8b6c4a114de162c9b51dcd3a1bcafd4b3a0bfa57d864f312d"
+    },
+    "prepare.log": {
+      "path": ".scratch/dev/pms-cache-coordination/prepare.log",
+      "sha256": "9c0b03b8558e67a1c76b276fc466f6423d87bfe0468ebe52537d526ca176b22d"
+    },
+    "restored-native-corrected.log": {
+      "path": ".scratch/dev/pms-cache-coordination/restored-native-corrected.log",
+      "sha256": "ea6f2efda8f2a1efc9474b63621af41938f483b106936e3d407eac310ecca1fc"
+    },
+    "restored-native.log": {
+      "path": ".scratch/dev/pms-cache-coordination/restored-native.log",
+      "sha256": "738360fb144fbf6466117123c7af67efdeb5cd1214cb4688ece560078de3fc32"
+    },
+    "restored-typecheck.log": {
+      "path": ".scratch/dev/pms-cache-coordination/restored-typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "runtime-test-experimental.ts": {
+      "path": ".scratch/dev/pms-cache-coordination/runtime-test-experimental.ts",
+      "sha256": "86c4144fe833d0dd236dc689f22ed2d6e392cc5f76d085d87bb558095fcd78cf"
+    },
+    "scale-result/analysis.json": {
+      "path": ".scratch/dev/pms-cache-coordination/scale-result/analysis.json",
+      "sha256": "487b503373f6ee7d5037db7ba0ab616e228c5fad917882f6c8d3b989e9261a3b"
+    },
+    "scale-result/requests.jsonl": {
+      "path": ".scratch/dev/pms-cache-coordination/scale-result/requests.jsonl",
+      "sha256": "215fc49e9125501e71c1ca8d9da9542ecb821e5ae4829f6d042d005265ce4721"
+    },
+    "scale-result/result.json": {
+      "path": ".scratch/dev/pms-cache-coordination/scale-result/result.json",
+      "sha256": "f944db883254cf128303b563e02340b79a0855a271e104dcc6154646bc28156a"
+    },
+    "scale-result/samples.jsonl": {
+      "path": ".scratch/dev/pms-cache-coordination/scale-result/samples.jsonl",
+      "sha256": "ce2f0d258943e62ff83bbde703158f9adbc898e80e198865dbe3cf0979814117"
+    },
+    "scale-result/timings.jsonl": {
+      "path": ".scratch/dev/pms-cache-coordination/scale-result/timings.jsonl",
+      "sha256": "3517709e8d60944b9e4d5db7f7460a665a724b8f27cafef8764f5e885fc962bb"
+    },
+    "source-before.json": {
+      "path": ".scratch/dev/pms-cache-coordination/source-before.json",
+      "sha256": "edff02a532632267c57b36c5a8a4dc660b49ae3ae076985fa964bdf6388d32c5"
+    },
+    "source-final.json": {
+      "path": ".scratch/dev/pms-cache-coordination/source-final.json",
+      "sha256": "927be7fc9ff5045048301761664ff42fe49a376837a0882af74bfeda1370d699"
+    },
+    "source-restored.json": {
+      "path": ".scratch/dev/pms-cache-coordination/source-restored.json",
+      "sha256": "dc3a10f41ca9369f3c8ae046d8bb965bccebc35a08c22ee30baeca7c912264d9"
+    },
+    "start.log": {
+      "path": ".scratch/dev/pms-cache-coordination/start.log",
+      "sha256": "665335acc3db71412f9ad64c220991ace42ee571c65fce7d31b4fd76e905e5d1"
+    },
+    "typecheck-corrected.log": {
+      "path": ".scratch/dev/pms-cache-coordination/typecheck-corrected.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "typecheck.log": {
+      "path": ".scratch/dev/pms-cache-coordination/typecheck.log",
+      "sha256": "02102dd287943e08eae49d4a5ceef86604c74ceabbb4a95a18875b312b6028c8"
+    },
+    "types-before.ts": {
+      "path": ".scratch/dev/pms-cache-coordination/types-before.ts",
+      "sha256": "8c96b42e1c8854ba688f99b139d97ecbcc35daa9b7f400a46065dcb64266362d"
+    },
+    "types-experimental.ts": {
+      "path": ".scratch/dev/pms-cache-coordination/types-experimental.ts",
+      "sha256": "94b3b1e9741b2622e2cbe0b96ed7f7979147158d56dbae60c3ab0580a9ba21fa"
+    },
+    "unit.log": {
+      "path": ".scratch/dev/pms-cache-coordination/unit.log",
+      "sha256": "6e05e1eda531ddb03039f80c0991727c77b134dc5c11eef5aa6f933e0dffc9e2"
+    },
+    "docs.log": {
+      "path": ".scratch/dev/pms-cache-coordination/docs.log",
+      "sha256": "fe1e4facae5c24dedc39bb0070e14e963599e06e99980ac27985e88101547f86"
+    },
+    "diff-check.log": {
+      "path": ".scratch/dev/pms-cache-coordination/diff-check.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "release": {
+    "id": "2026-10-09T23-49-38-502Z",
+    "metadataSha256": "78d971c1ef85237a842ddcc882522ac7d9e86af8575ec88a5701b1f9460722e0"
+  },
+  "documentation": {
+    "passed": true,
+    "markdownFiles": 248,
+    "localLinks": 1302,
+    "ledgerFiles": 213,
+    "wholeTreeDiffCheck": true
+  }
+}

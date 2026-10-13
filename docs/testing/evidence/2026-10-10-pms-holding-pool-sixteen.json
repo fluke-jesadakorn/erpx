@@ -1,0 +1,722 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "performanceAccepted": false,
+  "status": "Holding 16 / Control 8 release load completed: strict write SLO failed; all money/front-desk/day-close reconciliation passed; owned cohort removed",
+  "source": {
+    "runtime": "067ee9f9c4edd63b7270686db68e1c11b2bf9328061f1b8d0866d3bae7fec615",
+    "verification": "8988e494fee0feb8b78f014aa10f1ed9149861e475df6cdfdd13596262119a13"
+  },
+  "configuration": {
+    "holdingApplicationPoolMax": 16,
+    "controlApplicationPoolMax": 8,
+    "holdingJobsPoolMax": 1,
+    "controlJobsPoolMax": 2,
+    "installedConfigurationChanged": false
+  },
+  "implementation": "Add existing supported Holding pool 16 to exact-owned scale fixture and benchmark configuration guards only. No product runtime, command/reader/IAM/transaction/cache/counter, workload, retry, or acceptance threshold change.",
+  "fidelity": {
+    "simulationSourceOnlyPoolOptionChanged": true,
+    "benchmarkSourceOnlyPoolOptionChanged": true,
+    "compiledHarnessOnlyPoolOptionChanged": true,
+    "priorWholePmsNativeReceipt": "docs/testing/evidence/2026-10-10-pms-front-navigation.json",
+    "priorNativeCountsNotClaimedForNewCandidate": true
+  },
+  "liveHandles": {},
+  "artifacts": {
+    "simulation-before.ts": {
+      "path": ".scratch/dev/pms-holding-sixteen/simulation-before.ts",
+      "sha256": "d4c9285436a9be8b09a1924359d1f0e04e919c83d9a8667669c3da49b164c124"
+    },
+    "simulation-candidate.ts": {
+      "path": ".scratch/dev/pms-holding-sixteen/simulation-candidate.ts",
+      "sha256": "10e1634d73924f860d7642d98ffc8170e40058c40b787e149360af0a3ace1a0b"
+    },
+    "performance-before.ts": {
+      "path": ".scratch/dev/pms-holding-sixteen/performance-before.ts",
+      "sha256": "ba39683fbf539bbf52e9e689caeed45c5b8acbcf72a2d96f45c92cd2295e940b"
+    },
+    "performance-candidate.ts": {
+      "path": ".scratch/dev/pms-holding-sixteen/performance-candidate.ts",
+      "sha256": "cf6f5a66962615995bd6af10c9a2808b0d08f90af9cd9dc35e279411c0ac6953"
+    },
+    "compiled-performance-before.mjs": {
+      "path": ".scratch/dev/pms-holding-sixteen/compiled-performance-before.mjs",
+      "sha256": "8b4ae3b21e6b3c3e013cd39d697b5b702afcfc897b0a8126e929b4b878160ec6"
+    },
+    "compiled-performance-candidate.mjs": {
+      "path": ".scratch/dev/pms-holding-sixteen/compiled-performance-candidate.mjs",
+      "sha256": "f12b4f297d6c069fd033cdd72ea87c7c58db0a98b0c8ccaaad25253da8bb819b"
+    },
+    "harness-build.log": {
+      "path": ".scratch/dev/pms-holding-sixteen/harness-build.log",
+      "sha256": "2cac105116b42391ce0edc9dda2919dda99b1cd1fa752735b1200f7e6b54f61e"
+    },
+    "source-before.json": {
+      "path": ".scratch/dev/pms-holding-sixteen-final/source-before.json",
+      "sha256": "69dedce25d29c223c69b7b1b62057a0cafdd66c27ce35aa32cf00994c0a05d31"
+    },
+    "unit.log": {
+      "path": ".scratch/dev/pms-holding-sixteen/unit.log",
+      "sha256": "42800f9e2dac44a877be405ee71efb5fec4b4aac9593147ddbe0c9c56ed01e72"
+    },
+    "native.log": {
+      "path": ".scratch/dev/pms-holding-sixteen/native.log",
+      "sha256": "5d6771f5c7587b5b873e149191e9374e910629551ff5a2b33df5173688880664"
+    },
+    "typecheck.log": {
+      "path": ".scratch/dev/pms-holding-sixteen/typecheck.log",
+      "sha256": "706bd9a7378fc8648a0ffb8674bf08ac0cb2da19f1edbfa82bd8c8587329e69e"
+    },
+    "typecheck-repeat.log": {
+      "path": ".scratch/dev/pms-holding-sixteen/typecheck-repeat.log",
+      "sha256": "68996dac11b3684b07ad415f99415af2abfe919bdd8712ca7e509b7ff9867012"
+    },
+    "typecheck-regenerated.log": {
+      "path": ".scratch/dev/pms-holding-sixteen/typecheck-regenerated.log",
+      "sha256": "46c298e3026eb49728f7ba89fdd70863ba64ba8fa6d970a0cbd3c3545afc8d37"
+    },
+    "typecheck-settled.log": {
+      "path": ".scratch/dev/pms-holding-sixteen/typecheck-settled.log",
+      "sha256": "0fb605edef6e19eb4b428be354f12c2ea51ca38edfc983475781074f5c81ef49"
+    },
+    "lint.log": {
+      "path": ".scratch/dev/pms-holding-sixteen/lint.log",
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    },
+    "architecture.log": {
+      "path": ".scratch/dev/pms-holding-sixteen/architecture.log",
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    "build.log": {
+      "path": ".scratch/dev/pms-holding-sixteen/build.log",
+      "sha256": "79febf932f63c06236ac0d28b4f862add70ef016fb2352e2ddf4e8e670a4ebe8"
+    },
+    "routes-invalid.d.ts": {
+      "path": ".scratch/dev/pms-holding-sixteen/routes-invalid.d.ts",
+      "sha256": "68637c9bcc807bf741935c60f6008f0226ee90f4dc4ade6876bc90a178172de7"
+    },
+    "restart-development.log": {
+      "path": ".scratch/dev/pms-holding-sixteen/restart-development.log",
+      "sha256": "bae19d13a49fd9ed076bf28a94a2e2c0b0d6a674e8384c6cf2a443f84b4e11ad"
+    },
+    "budget-after.json": {
+      "path": ".scratch/dev/pms-holding-sixteen-final/budget-after.json",
+      "sha256": "e7491d9ff1ea76c446c5cd9b2ccb03cfc12d352943f64495365eb55a8e910170"
+    },
+    "budget-before.json": {
+      "path": ".scratch/dev/pms-holding-sixteen-final/budget-before.json",
+      "sha256": "c47d33fd3eb250da417736ce6a64d3469d424f9c70dc1d092d5f860314531320"
+    },
+    "budget-load.json": {
+      "path": ".scratch/dev/pms-holding-sixteen-final/budget-load.json",
+      "sha256": "1a5c948ee9c3ca90ba80b5a79cc65c557fa6eb170599a998fda74a5765f01b26"
+    },
+    "db-after.json": {
+      "path": ".scratch/dev/pms-holding-sixteen-final/db-after.json",
+      "sha256": "3c24903e671e0e60fbaee58b2eb5eb3ac340efe402cb7151eac8d85de37f315a"
+    },
+    "db-before.json": {
+      "path": ".scratch/dev/pms-holding-sixteen-final/db-before.json",
+      "sha256": "3c24903e671e0e60fbaee58b2eb5eb3ac340efe402cb7151eac8d85de37f315a"
+    },
+    "destroy-databases.log": {
+      "path": ".scratch/dev/pms-holding-sixteen-final/destroy-databases.log",
+      "sha256": "7363be82e564cc708e947f64590b878e430109bd65d252be4f8b712fe9e2ad4a"
+    },
+    "destroy-stop.log": {
+      "path": ".scratch/dev/pms-holding-sixteen-final/destroy-stop.log",
+      "sha256": "6ee241d6361ae30369bf0586d4879359d1fe485bf3e64fe94a2d7b1c55b67de5"
+    },
+    "performance.log": {
+      "path": ".scratch/dev/pms-holding-sixteen-final/performance.log",
+      "sha256": "4464dd656c75589c00e19a19094ae425cffc9c37f76b5698bb0548e148c645b8"
+    },
+    "prepare.log": {
+      "path": ".scratch/dev/pms-holding-sixteen-final/prepare.log",
+      "sha256": "f2de0216fb33303d7999e2e8d3dd2a339b9c1be6a0cc255f25152e4d8704f565"
+    },
+    "run.txt": {
+      "path": ".scratch/dev/pms-holding-sixteen-final/run.txt",
+      "sha256": "a743c985e249cf66a01b64603d46a3a7d6d47a1d7a8de80951d94588824d223d"
+    },
+    "scale-result/analysis.json": {
+      "path": ".scratch/dev/pms-holding-sixteen-final/scale-result/analysis.json",
+      "sha256": "54737f519b88e77cfba4d6294bdaf631a44d588567bd069e2671a432137dc89a"
+    },
+    "scale-result/result.json": {
+      "path": ".scratch/dev/pms-holding-sixteen-final/scale-result/result.json",
+      "sha256": "ccab811ed16d0eee0360a450af9a42f5f461ce74b19c6316742661441a69398f"
+    },
+    "source-after.json": {
+      "path": ".scratch/dev/pms-holding-sixteen-final/source-after.json",
+      "sha256": "69dedce25d29c223c69b7b1b62057a0cafdd66c27ce35aa32cf00994c0a05d31"
+    },
+    "start-with-run.log": {
+      "path": ".scratch/dev/pms-holding-sixteen-final/start-with-run.log",
+      "sha256": "b83d698b982ed0c76c9ef7f95d161c53ada052c3f09bc4ef6a984945ac9b5e36"
+    },
+    "start.log": {
+      "path": ".scratch/dev/pms-holding-sixteen-final/start.log",
+      "sha256": "d097e8f019f79afa816cc436ff995293a170afbbe0b0c3a2f7ca4531ae5ef7a1"
+    }
+  },
+  "release": "2026-10-10T01-06-58-106Z",
+  "focused": {
+    "units": 9,
+    "nativeRuntime": 7,
+    "passed": true,
+    "source": "Superseded pre-atomic source; final candidate full native suite running separately"
+  },
+  "staticVerification": {
+    "typecheck": true,
+    "lintErrors": 0,
+    "existingWarnings": 3,
+    "architecture": true,
+    "isolatedBuild": true,
+    "receipt": "docs/testing/evidence/2026-10-10-pms-dev-type-writes.json"
+  },
+  "previousSourceTrial": {
+    "release": {
+      "id": "2026-10-10T00-58-16-653Z",
+      "runtime": "f94005b2d32d4827657ce31e3d74a90d236f219b441fabbd5c3fd7b5aeacf64e",
+      "metadataSha256": "326e6fba582641df61c04741c4bbd78dc52594c33639a800a556851d2f5eabe2"
+    },
+    "source": {
+      "runtime": "f94005b2d32d4827657ce31e3d74a90d236f219b441fabbd5c3fd7b5aeacf64e",
+      "verification": "3953f91abe72bd9329d7a55d6e5c646253f067be0937677e4d78e1eca11e01bf"
+    },
+    "scaleStarted": false,
+    "reason": "Superseded after dev generated type corruption was fixed"
+  },
+  "run": "f23b4e35ebbf",
+  "installedConfigurationChanged": false,
+  "performance": {
+    "durationMs": 85179,
+    "readCount": 840,
+    "writeCount": 843,
+    "readP95Ms": 297.2740829999966,
+    "writeP95Ms": 2363.651417000001,
+    "coreReadCount": 840,
+    "coreWriteCount": 400,
+    "financialWriteCount": 200,
+    "financialWriteP95Ms": 1638.824916000005,
+    "financialOperations": [
+      {
+        "operation": "shift.open",
+        "count": 20,
+        "p95Ms": 1480.2439589999994
+      },
+      {
+        "operation": "charge.add",
+        "count": 20,
+        "p95Ms": 1823.469416
+      },
+      {
+        "operation": "payment.receive",
+        "count": 40,
+        "p95Ms": 1706.3489580000023
+      },
+      {
+        "operation": "payment.deposit",
+        "count": 20,
+        "p95Ms": 1581.654208
+      },
+      {
+        "operation": "refund.request",
+        "count": 20,
+        "p95Ms": 1357.0382499999978
+      },
+      {
+        "operation": "refund.approve",
+        "count": 20,
+        "p95Ms": 212.17270799999824
+      },
+      {
+        "operation": "refund.pay",
+        "count": 20,
+        "p95Ms": 1638.824916000005
+      },
+      {
+        "operation": "shift.close",
+        "count": 20,
+        "p95Ms": 1332.1153750000085
+      },
+      {
+        "operation": "shift.review",
+        "count": 20,
+        "p95Ms": 271.0006250000006
+      }
+    ],
+    "financialReconciliation": {
+      "history": {
+        "records": 657000,
+        "versions": "657000"
+      },
+      "balances": {
+        "accounts": 20,
+        "due": "0",
+        "advance": "200000",
+        "deposit": "40000"
+      },
+      "cash": {
+        "shifts": 20,
+        "cash": "475400",
+        "reviewed": true
+      },
+      "receipts": {
+        "receipts": 60,
+        "refunds": 20,
+        "received": "495400",
+        "refunded": "20000",
+        "settled": true
+      },
+      "journals": {
+        "debit": "999280",
+        "credit": "999280"
+      }
+    },
+    "operationalWriteCount": 220,
+    "operationalWriteP95Ms": 1471.877999999997,
+    "operationalOperations": [
+      {
+        "operation": "reservation.create",
+        "count": 20,
+        "p95Ms": 1452.911666999993
+      },
+      {
+        "operation": "stay.assign",
+        "count": 20,
+        "p95Ms": 1415.967374999993
+      },
+      {
+        "operation": "stay.check_in",
+        "count": 20,
+        "p95Ms": 1401.3161249999976
+      },
+      {
+        "operation": "stay.move",
+        "count": 20,
+        "p95Ms": 1429.7062920000026
+      },
+      {
+        "operation": "stay.change_dates",
+        "count": 20,
+        "p95Ms": 1429.1036250000034
+      },
+      {
+        "operation": "stay.preview_checkout",
+        "count": 20,
+        "p95Ms": 1681.616458000004
+      },
+      {
+        "operation": "shift.open",
+        "count": 20,
+        "p95Ms": 1411.378040999989
+      },
+      {
+        "operation": "payment.receive",
+        "count": 20,
+        "p95Ms": 1752.5280410000123
+      },
+      {
+        "operation": "stay.check_out",
+        "count": 20,
+        "p95Ms": 1443.257500000007
+      },
+      {
+        "operation": "shift.close",
+        "count": 20,
+        "p95Ms": 1317.951000000001
+      },
+      {
+        "operation": "shift.review",
+        "count": 20,
+        "p95Ms": 223.81041600000754
+      }
+    ],
+    "operationalReconciliation": {
+      "occupancy": {
+        "stays": 20,
+        "completed": true
+      },
+      "balances": {
+        "accounts": 20,
+        "due": "0",
+        "advance": "0",
+        "deposit": "0"
+      },
+      "cash": {
+        "shifts": 20,
+        "cash": "7062000",
+        "reviewed": true
+      },
+      "rooms": {
+        "rooms": 40,
+        "dirty": true
+      },
+      "charges": {
+        "charges": 20,
+        "total": "7062000"
+      },
+      "receipts": {
+        "receipts": 20,
+        "received": "7062000",
+        "settled": true
+      },
+      "journals": {
+        "debit": "22185280",
+        "credit": "22185280"
+      },
+      "history": {
+        "records": 657000,
+        "versions": "657000"
+      }
+    },
+    "closingWriteCount": 23,
+    "closingWriteP95Ms": 1424.769333999997,
+    "closingOperations": [
+      {
+        "operation": "guest_account.close",
+        "count": 20,
+        "p95Ms": 1424.769333999997
+      },
+      {
+        "operation": "night.start",
+        "count": 3,
+        "p95Ms": 203.1649999999936
+      }
+    ],
+    "closingReconciliation": {
+      "invoices": {
+        "invoices": 20,
+        "total": "7062000",
+        "outstanding": "0",
+        "paid": true
+      },
+      "days": {
+        "hotels": 3,
+        "advanced": true
+      },
+      "nights": {
+        "nights": 3,
+        "capacity": 600,
+        "sold": 20,
+        "completed": true
+      },
+      "journals": {
+        "debit": "22185280",
+        "credit": "22185280"
+      },
+      "history": {
+        "records": 657000,
+        "versions": "657000"
+      }
+    },
+    "failedSamples": 0,
+    "passed": false,
+    "limitsMs": {
+      "reads": 1000,
+      "generalCommands": 2000
+    }
+  },
+  "analysis": {
+    "phases": {
+      "session": {
+        "count": 6101,
+        "queries": {
+          "1": 6101
+        },
+        "queryErrors": {
+          "0": 6101
+        },
+        "latency": {
+          "queryMs": {
+            "p95Ms": 20.778959000002942,
+            "sumMs": 26585.142751000232
+          },
+          "poolWaitMs": {
+            "p95Ms": 1.9232499999998254,
+            "sumMs": 2598.2754759999734
+          },
+          "durationMs": {
+            "p95Ms": 76.16691699999501,
+            "sumMs": 102804.55889500059
+          }
+        }
+      },
+      "account_access": {
+        "count": 5840,
+        "queries": {
+          "6": 1742,
+          "5": 4058,
+          "7": 40
+        },
+        "queryErrors": {
+          "0": 5840
+        },
+        "latency": {
+          "queryMs": {
+            "p95Ms": 68.68329100000483,
+            "sumMs": 128861.92881400028
+          },
+          "poolWaitMs": {
+            "p95Ms": 18.04891700000735,
+            "sumMs": 25650.285493999938
+          },
+          "durationMs": {
+            "p95Ms": 111.50029200000063,
+            "sumMs": 229130.70368599976
+          }
+        }
+      },
+      "pms_command": {
+        "count": 4052,
+        "queries": {
+          "21": 20,
+          "7": 1795,
+          "15": 18,
+          "28": 158,
+          "12": 637,
+          "16": 455,
+          "35": 6,
+          "55": 8,
+          "44": 6,
+          "57": 1,
+          "53": 2,
+          "24": 40,
+          "46": 17,
+          "29": 2,
+          "25": 100,
+          "37": 49,
+          "22": 186,
+          "31": 123,
+          "40": 7,
+          "36": 8,
+          "34": 20,
+          "30": 1,
+          "61": 12,
+          "85": 3,
+          "49": 1,
+          "89": 1,
+          "33": 47,
+          "59": 10,
+          "63": 16,
+          "81": 22,
+          "83": 11,
+          "105": 3,
+          "109": 2,
+          "78": 10,
+          "80": 6,
+          "106": 2,
+          "102": 3,
+          "62": 21,
+          "64": 12,
+          "86": 5,
+          "90": 2,
+          "43": 1,
+          "52": 1,
+          "17": 101,
+          "27": 20,
+          "26": 30,
+          "47": 1,
+          "65": 5,
+          "32": 29,
+          "92": 2,
+          "88": 3,
+          "42": 4,
+          "129": 1,
+          "135": 1,
+          "19": 1,
+          "56": 1,
+          "58": 1,
+          "60": 1,
+          "158": 1
+        },
+        "queryErrors": {
+          "0": 3092,
+          "1": 879,
+          "3": 10,
+          "2": 67,
+          "4": 4
+        },
+        "latency": {
+          "queryMs": {
+            "p95Ms": 263.8939999999857,
+            "sumMs": 500227.975769999
+          },
+          "poolWaitMs": {
+            "p95Ms": 9.711042000002635,
+            "sumMs": 6787.585695000424
+          },
+          "durationMs": {
+            "p95Ms": 270.77695799999856,
+            "sumMs": 516579.3201090001
+          }
+        }
+      }
+    },
+    "operations": {
+      "guest.save": {
+        "count": 200,
+        "p95Ms": 2518.647874999995,
+        "attempts": {
+          "1": 35,
+          "2": 28,
+          "3": 26,
+          "4": 15,
+          "5": 20,
+          "6": 14,
+          "9": 15,
+          "7": 15,
+          "8": 14,
+          "10": 9,
+          "12": 2,
+          "11": 6,
+          "13": 1
+        }
+      },
+      "reservation.create": {
+        "count": 200,
+        "p95Ms": 2130.275290999998,
+        "attempts": {
+          "4": 31,
+          "3": 34,
+          "6": 24,
+          "5": 15,
+          "7": 11,
+          "2": 48,
+          "9": 7,
+          "10": 8,
+          "8": 7,
+          "11": 6,
+          "1": 8,
+          "12": 1
+        }
+      }
+    }
+  },
+  "analysisLimitations": [
+    "SQL error phases count failures, not retained SQLSTATE codes. Do not attribute every error to serialization.",
+    "Connection measurements are samples, not peaks. Pool maxima apply per binding, not globally.",
+    "The account_access phase includes Holding queries; its waiting time is not exclusively Control waiting."
+  ],
+  "sessionQueryCounts": {
+    "1": 6101
+  },
+  "databaseBefore": {
+    "run": "f23b4e35ebbf",
+    "stats": [
+      {
+        "datid": 617390131,
+        "deadlocks": "0",
+        "conflicts": "0"
+      }
+    ],
+    "triggers": [
+      {
+        "tgname": "release_configuration_changed"
+      },
+      {
+        "tgname": "work_cache_change"
+      },
+      {
+        "tgname": "work_cache_pms_booking_observation"
+      },
+      {
+        "tgname": "work_cache_truncate"
+      }
+    ]
+  },
+  "databaseAfter": {
+    "run": "f23b4e35ebbf",
+    "stats": [
+      {
+        "datid": 617390131,
+        "deadlocks": "0",
+        "conflicts": "0"
+      }
+    ],
+    "triggers": [
+      {
+        "tgname": "release_configuration_changed"
+      },
+      {
+        "tgname": "work_cache_change"
+      },
+      {
+        "tgname": "work_cache_pms_booking_observation"
+      },
+      {
+        "tgname": "work_cache_truncate"
+      }
+    ]
+  },
+  "connectionBudgetSamples": [
+    {
+      "run": "f23b4e35ebbf",
+      "limits": {
+        "max_connections": 180,
+        "reserved": 3
+      },
+      "observed": {
+        "total_connections": 42,
+        "owned_control_app_connections": 1,
+        "owned_control_jobs_connections": 2,
+        "owned_holding_app_connections": 1,
+        "owned_holding_jobs_connections": 1,
+        "owned_holding_waiting_locks": 0
+      }
+    },
+    {
+      "run": "f23b4e35ebbf",
+      "limits": {
+        "max_connections": 180,
+        "reserved": 3
+      },
+      "observed": {
+        "total_connections": 85,
+        "owned_control_app_connections": 14,
+        "owned_control_jobs_connections": 2,
+        "owned_holding_app_connections": 32,
+        "owned_holding_jobs_connections": 1,
+        "owned_holding_waiting_locks": 10
+      }
+    },
+    {
+      "run": "f23b4e35ebbf",
+      "limits": {
+        "max_connections": 180,
+        "reserved": 3
+      },
+      "observed": {
+        "total_connections": 39,
+        "owned_control_app_connections": 0,
+        "owned_control_jobs_connections": 2,
+        "owned_holding_app_connections": 0,
+        "owned_holding_jobs_connections": 1,
+        "owned_holding_waiting_locks": 0
+      }
+    }
+  ],
+  "sameSourceAfterLoad": true,
+  "cleanup": {
+    "stoppedOwnedWebAndJobs": true,
+    "removedOwnedEightDatabases": true,
+    "destroyExitCode": 0,
+    "port3104Free": true
+  },
+  "initialStartRejected": "First start omitted required positional run ID and was rejected before launching any service; corrected invocation then started and health returned 200.",
+  "remaining": [
+    "General-command write latency below two seconds",
+    "Final same-candidate native/browser/mock-pilot acceptance"
+  ],
+  "finalFullNative": {
+    "unitCases": 779,
+    "integrationCases": 518,
+    "totalCases": 1297,
+    "passed": true,
+    "sameSourceBeforeAfter": true,
+    "receipt": "docs/testing/evidence/2026-10-10-pms-dev-type-writes.json"
+  }
+}

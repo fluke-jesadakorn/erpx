@@ -1,5 +1,5 @@
 import "server-only";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { WorkContext } from "../../identity_access/public/authorization";
 import { canManagePeople, directoryOptions, personAccess } from "../../people_payroll/public/people-directory";
 import { staffSettings } from "../../operations/public/staff-settings";

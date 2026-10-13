@@ -1,5 +1,5 @@
 import "server-only";
-import {samePerson} from "@/lib/iam";
+import {samePerson} from "@/lib/identity_access/iam";
 import type {SqlDatabase,SqlStatement} from "../../../runtime/public/runtime/types";
 import {ApiError} from "../../../runtime/public/http";
 import type {WorkContext} from "../../../identity_access/public/authorization";
@@ -7,7 +7,7 @@ import {requirePermission} from "../../../identity_access/public/iam-permissions
 import {executeCommand,replayCommand} from "../../../workflow/public/commands";
 import {access,guards,eligible,personGuard,lock} from "./access";
 import type {LegalWrite} from "../../application/service";
-import {featureSpecs,featureKinds,type FeatureRow} from "@/lib/legal/features";
+import {featureSpecs,featureKinds,type FeatureRow} from "@/lib/legal/legal/features";
 import {createLegalFeaturesApplication} from "../../application/features";
 function application(db:SqlDatabase,a:WorkContext){const nativeWrites=new WeakMap<LegalWrite,SqlStatement>();const stage=(statement:SqlStatement):LegalWrite=>{const write:LegalWrite={owner:"legal"};nativeWrites.set(write,statement);return write;};
 return createLegalFeaturesApplication({actor:a,access:(id,p)=>access(db,a,id,p),eligible:(id,item,p)=>eligible(db,a,id,item,p),samePerson:id=>samePerson(a,id),require:permission=>requirePermission(a,permission),clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},error:(status,code,message)=>new ApiError(status,code,message),repository:{

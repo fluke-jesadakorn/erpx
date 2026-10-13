@@ -1,14 +1,14 @@
 import { collaborationPresentationQueries } from "@/server/modules/collaboration/public/presentation-queries";
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
-import { FeaturePage, FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
-import { PeopleNavigation } from "@/components/modules/people-navigation";
+import { FeaturePage, FeatureWidget,WidgetGrid } from "@/components/shared/features/feature-page";
+import { PeopleNavigation } from "@/components/people_payroll/people-navigation";
 import { ListFilters } from "@/components/ui/list-filters";
 import { ListPagination } from "@/components/ui/list-pagination";
 import { EmptyState,PageHeader } from "@/components/ui/primitives";
 import { HandbookEditors } from "@/components/workplace/handbook-controls";
 import styles from "@/components/workplace/services.module.css";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 
 import { companyMembers } from "@/server/modules/organization/public/member-directory";

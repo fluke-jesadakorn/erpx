@@ -1,4 +1,4 @@
-import { expenseAiResultSchema } from "@/lib/expense-ai";
+import { expenseAiResultSchema } from "@/lib/people_payroll/expense-ai";
 import { currentExpenseAiProposal, expenseAiDocuments, incompleteExpenseAiDocuments, type ExpenseAiEvidenceFacts, type ExpenseAiProposalFacts } from "../domain/expense-ai-rules";
 
 export type ExpenseAiStatusProposal = ExpenseAiProposalFacts & { id: string; state: string; result_json: string | null; error: string | null };

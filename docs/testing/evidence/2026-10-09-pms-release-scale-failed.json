@@ -1,0 +1,44 @@
+{
+  "run": "27752af641f5",
+  "sourceFingerprint": "db09d9f9a167ff1ae4f227b1af59c8ade0a681d471f2aa19bef198623aa6b2b0",
+  "verificationFingerprint": "f20905a52ce66748547f7509e9409400de74c0888c40247dbff219b64458f721",
+  "release": {
+    "id": "2026-10-09T15-43-28-576Z",
+    "fileManifestSha256": "3bc369f1f84638f541eed869ba57677abdda3f7dacbc140e7aa130a4f7f8edb5"
+  },
+  "scope": "Release HTTP: 3 \u00d7 200 rooms, 730-day synthetic closed stay/reservation/account metadata; 20 distinct normal staff accounts. Historic revenue is not invented.",
+  "counts": [
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    }
+  ],
+  "accounts": 20,
+  "rounds": 10,
+  "durationMs": 38917,
+  "readCount": 82,
+  "writeCount": 16,
+  "readP95Ms": 5883.346916000002,
+  "writeP95Ms": null,
+  "failedSamples": 18,
+  "sameProcesses": true,
+  "unchanged": true,
+  "samplesSha256": "21560866bb5513c3063d48a4caf537a00a7e6498fba55d7e676af10cfe7054d5",
+  "passed": false,
+  "acceptance": false,
+  "interpretation": "Failed diagnostic run. The original Promise.all runner closed contexts while other workers were still in flight; late failed samples and a null write percentile are not a complete load-test result. SQL diagnostics identified a 51,099,300-pair pace join and full-history Guest Account dependency scans. No SLO acceptance."
+}

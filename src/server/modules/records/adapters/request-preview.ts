@@ -3,7 +3,7 @@ import "server-only";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { ApprovalRoute } from "@/server/modules/operations/public/staff-policy";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
-import type { RequestPreview } from "@/lib/request-preview";
+import type { RequestPreview } from "@/lib/work_projection/request-preview";
 import { holdingResources as nativeHoldingResources } from '../../runtime/public/runtime';
 import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '../../identity_access/public/iam-read-snapshot';
 import { replayCommand as nativeReplayCommand, executeCommand as nativeExecuteCommand } from '../../workflow/public/commands';

@@ -1,5 +1,5 @@
 import "server-only";
-import { registeredDatabases, type RegistryEnv } from "@/lib/holding-registry";
+import { registeredDatabases, type RegistryEnv } from "@/lib/runtime/holding-registry";
 import { isTransactionalSqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import type { StripeObject } from "@/server/modules/billing/public/billing-stripe";
 import { createBillingTestFinanceApplication, type BillingTestFinanceUnit } from "../application/billing-test-finance";

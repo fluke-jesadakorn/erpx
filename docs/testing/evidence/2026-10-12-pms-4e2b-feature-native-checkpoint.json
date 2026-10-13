@@ -1,0 +1,2057 @@
+{
+  "checkedAt": "2026-10-12T03:26:58.169424+00:00",
+  "scope": "Fresh current4e2b actual1447 native receipt revalidation including required1365 and explicit CRM/IAM extras, with compiled group/rooming supplement; final semantic gates pending",
+  "candidate": {
+    "runtime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+    "verification": "50bce33b697dd5343dd05fc591c756a31133479048c287a2345a0dea218da7db",
+    "mainRuntime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+    "mainVerification": "50bce33b697dd5343dd05fc591c756a31133479048c287a2345a0dea218da7db",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-12T03-06-23-612Z",
+    "releaseId": "2026-10-12T03-06-23-612Z",
+    "fileManifestSha256": "9bd3aa57f8e6d8e4b2b89ce95f83b8779b83319b6d749207d052cec130ac09d4",
+    "releaseReusedForIdenticalRuntime": false
+  },
+  "features": [
+    {
+      "id": "property-01",
+      "group": "Properties, rooms & media",
+      "name": "Property/Branch setup",
+      "owner": "PMS / Files",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "property-01",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "blocks unauthorized, cross-company and revoked actors without business writes",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "property-01",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "filters setup details and resumes from owner records without admitting other branches",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "property-01",
+          "file": "tests/pms-read-model.test.ts",
+          "actualPassingTitle": "retains fresh permission, company and branch privacy for every query model",
+          "sourceSHA256": "5f048f35c31ebfd7012eb92462340a884969c7fed13aeb2598352561879070c3",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Actual upload/publication, revocation and hotel-specific content signoff",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "property-02",
+      "group": "Properties, rooms & media",
+      "name": "Room types, buildings, floors",
+      "owner": "PMS / Files",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "property-02",
+          "file": "tests/pms-read-model.test.ts",
+          "actualPassingTitle": "filters room type, building and floor before pagination without losing a selected detail",
+          "sourceSHA256": "5f048f35c31ebfd7012eb92462340a884969c7fed13aeb2598352561879070c3",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "property-02",
+          "file": "tests/pms-read-model.test.ts",
+          "actualPassingTitle": "protects off-page room assignments, duplicate numbers and maintenance capacity under inventory command locks",
+          "sourceSHA256": "5f048f35c31ebfd7012eb92462340a884969c7fed13aeb2598352561879070c3",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Actual upload/publication, revocation and hotel-specific content signoff",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "property-03",
+      "group": "Properties, rooms & media",
+      "name": "Beds, capacity, amenities",
+      "owner": "PMS / Files",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "property-03",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "shares exact nightly prices, child occupancy and policy snapshots",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "property-03",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "handles timezone cutoffs and rejects missing child pricing",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Actual upload/publication, revocation and hotel-specific content signoff",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "property-04",
+      "group": "Properties, rooms & media",
+      "name": "Reviewed photo galleries",
+      "owner": "PMS / Files",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "property-04",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "binds room-task photos in the PMS action transaction and leaves stale evidence draft",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "property-04",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "requires explicit publication and prevents selling private rates",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Actual upload/publication, revocation and hotel-specific content signoff",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "rates-01",
+      "group": "Rates & policies",
+      "name": "Daily/seasonal rates",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "rates-01",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "uses daily prices and stop-sell without repricing an existing reservation",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Complete child/rate/policy browser matrix on final candidate",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "rates-02",
+      "group": "Rates & policies",
+      "name": "Company/agent rates",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "rates-02",
+          "file": "tests/pms-booking.test.ts",
+          "title": "allows authorized staff to review an active private company rate while public offers exclude it",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "actualPassingCaseEvidence": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "scope": "Additional exact native identity; feature acceptance still pending",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Complete child/rate/policy browser matrix on final candidate",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "rates-03",
+      "group": "Rates & policies",
+      "name": "Packages and extra adults/child bands",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "rates-03",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "shares exact nightly prices, child occupancy and policy snapshots",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "rates-03",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "handles timezone cutoffs and rejects missing child pricing",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Complete child/rate/policy browser matrix on final candidate",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "rates-04",
+      "group": "Rates & policies",
+      "name": "Arrival/departure restrictions",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "rates-04",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "uses daily prices and stop-sell without repricing an existing reservation",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "rates-04",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "withdraws inventory after maintenance and rejects a previously available quote",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Complete child/rate/policy browser matrix on final candidate",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "rates-05",
+      "group": "Rates & policies",
+      "name": "Frozen booking terms",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "rates-05",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "preserves reviewed night prices and original deposit FX through concurrent partial refunds and reload",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "rates-05",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "rejects stale price, stale policy, forged and expired quotes",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "rates-05",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "applies a paid change with accepted prices even when a rate is edited during Checkout",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Complete child/rate/policy browser matrix on final candidate",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "reservations-01",
+      "group": "Reservations & groups",
+      "name": "Multiple rooms/date sets",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "reservations-01",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "holds two rooms, then confirms and allocates each guest account only after Stripe verifies the direct charge",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "reservations-01",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "collects a 30% room advance and combines pay-at-hotel rooms without inventing income",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Final candidate group/rooming-list and front-desk UAT",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "reservations-02",
+      "group": "Reservations & groups",
+      "name": "Walk-in/phone/manual OTA",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "reservations-02",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "rejects double booking, duplicate OTA references and stale versions",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "reservations-02",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "settles a manually entered OTA reservation against approved credit and net bank proceeds",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Final candidate group/rooming-list and front-desk UAT",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "reservations-03",
+      "group": "Reservations & groups",
+      "name": "Group allotments and pickup",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "reservations-03",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "keeps group pickup from consuming inventory twice and allows back-to-back stays",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "reservations-03",
+          "file": "tests/unit/pms-application.test.ts",
+          "title": "reuses cancelled group quota while preserving both historical pickup IDs",
+          "sourceSHA256": "4db8e9cb6e5720e8c902dccb9fe6e400675132ac0001b1824c1672a9395dff65",
+          "actualPassingCaseEvidence": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "scope": "Additional exact native identity; feature acceptance still pending",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "reservations-03",
+          "file": "tests/unit/pms-application.test.ts",
+          "title": "supports back-to-back group pickups but rejects overlapping use of the same quota",
+          "sourceSHA256": "4db8e9cb6e5720e8c902dccb9fe6e400675132ac0001b1824c1672a9395dff65",
+          "actualPassingCaseEvidence": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "scope": "Additional exact native identity; feature acceptance still pending",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "reservations-03",
+          "file": "tests/unit/pms-application.test.ts",
+          "title": "changes pickup dates into its own remaining allotment without double-counting held capacity",
+          "sourceSHA256": "4db8e9cb6e5720e8c902dccb9fe6e400675132ac0001b1824c1672a9395dff65",
+          "actualPassingCaseEvidence": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "scope": "Additional exact native identity; feature acceptance still pending",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "reservations-03",
+          "file": "tests/unit/pms-application.test.ts",
+          "title": "returns remaining source-type group quota after upgrade and consumes target capacity exactly once",
+          "sourceSHA256": "4db8e9cb6e5720e8c902dccb9fe6e400675132ac0001b1824c1672a9395dff65",
+          "actualPassingCaseEvidence": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "scope": "Additional exact native identity; feature acceptance still pending",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "reservations-03",
+          "file": "tests/unit/pms-application.test.ts",
+          "title": "counts durable pending group claims once and returns the allotment when the hold expires",
+          "sourceSHA256": "4db8e9cb6e5720e8c902dccb9fe6e400675132ac0001b1824c1672a9395dff65",
+          "actualPassingCaseEvidence": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "scope": "Additional exact native identity; feature acceptance still pending",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "reservations-03",
+          "file": "tests/unit/pms-application.test.ts",
+          "title": "keeps a quota-only revision claim from consuming physical room capacity twice",
+          "sourceSHA256": "4db8e9cb6e5720e8c902dccb9fe6e400675132ac0001b1824c1672a9395dff65",
+          "actualPassingCaseEvidence": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "scope": "Additional exact native identity; feature acceptance still pending",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "reservations-03",
+          "file": "tests/pms-booking.test.ts",
+          "title": "reviews and applies a staff group pickup date change within its held allotment without extra payment",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "actualPassingCaseEvidence": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "scope": "Additional exact native identity; feature acceptance still pending",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "reservations-03",
+          "file": "tests/pms-booking.test.ts",
+          "title": "protects own group quota while an additional-payment date change is pending and applies it once after payment",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "actualPassingCaseEvidence": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "scope": "Additional exact native identity; feature acceptance still pending",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "reservations-03",
+          "file": "tests/pms-booking.test.ts",
+          "title": "refuses staff pickup of an internal provider hold without changing its capacity or booking",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "actualPassingCaseEvidence": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "scope": "Additional exact native identity; feature acceptance still pending",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "reservations-03",
+          "file": "tests/pms-booking.test.ts",
+          "title": "refuses ordinary staff release of an internal provider hold without changing its capacity or booking",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "actualPassingCaseEvidence": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "scope": "Additional exact native identity; feature acceptance still pending",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "reservations-03",
+          "file": "tests/pms.test.ts",
+          "title": "serializes concurrent last group pickups and returns quota after cancellation without erasing pickup history",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "actualPassingCaseEvidence": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "scope": "Additional exact native identity; feature acceptance still pending",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "[Per-night native repair](evidence/2026-10-12-pms-upgrade-group-native-iteration.json), [signed staff review](evidence/2026-10-12-pms-staff-group-review-native.json) and [pending paid quota proof](evidence/2026-10-12-pms-paid-group-manual-funding-iteration.json) retain cancellation history, allow non-overlapping pickups, use own allotment and protect quota during mocked payment. Final compiled group/rooming-list, browser and combined acceptance remain pending.",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate",
+      "currentCompiledSupplement": "2026-10-12-pms-group-rooming-and-choice-ui.json"
+    },
+    {
+      "id": "reservations-04",
+      "group": "Reservations & groups",
+      "name": "Rooming list",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "reservations-04",
+          "file": "tests/pms-read-model.test.ts",
+          "actualPassingTitle": "offers bounded searchable guest and group choices without history or foreign-property data",
+          "sourceSHA256": "5f048f35c31ebfd7012eb92462340a884969c7fed13aeb2598352561879070c3",
+          "scope": "Bounded selector dependency and privacy; persisted rooming behavior is proved by supplemental compiled UI6 separately"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Final candidate group/rooming-list and front-desk UAT Persisted command boundary remains unverified: native84 contains no `stay.guest` invocation; pure-engine18 does not prove authenticated persistence. Same-release normal-account HTTP proof is prepared and waits for original178+38 cleanup. See [current source audit](evidence/2026-10-11-pms-main-aligned-native-sources.json).",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate",
+      "currentCompiledSupplement": "2026-10-12-pms-group-rooming-and-choice-ui.json"
+    },
+    {
+      "id": "reservations-05",
+      "group": "Reservations & groups",
+      "name": "Cancellation/no-show",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "reservations-05",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "cancels an unarrived room in a partially checked-in group and ignores stale housekeeping cycles",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "reservations-05",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "cancels all rooms once and restores inventory without fees",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "reservations-05",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "rejects cancellation at the exact cutoff and after partial arrival or financial activity",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Final candidate group/rooming-list and front-desk UAT",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "front-desk-01",
+      "group": "Front desk",
+      "name": "Arrival/departure queues",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "front-desk-01",
+          "file": "tests/pms-read-model.test.ts",
+          "actualPassingTitle": "does not hide overdue stays or unreviewed cash shifts when paging day-close history",
+          "sourceSHA256": "5f048f35c31ebfd7012eb92462340a884969c7fed13aeb2598352561879070c3",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "front-desk-01",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "keeps overdue arrivals outside the current UI window as Night Audit blockers",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Full arrival-through-departure desktop/mobile journey",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "front-desk-02",
+      "group": "Front desk",
+      "name": "Assignment and check-in/out",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "front-desk-02",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "completes deposit, stay, durable night audit, checkout and invoice without duplicate revenue",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "front-desk-02",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "requires inspected rooms and independent inspection; maintenance cannot displace guests",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Full arrival-through-departure desktop/mobile journey",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "front-desk-03",
+      "group": "Front desk",
+      "name": "Move/upgrade/extend",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "front-desk-03",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "moves an in-house guest, extends safely and preserves room history",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "front-desk-03",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "room move supersedes every old-room task beyond a UI page without modifying unrelated closed-account history",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "front-desk-03",
+          "file": "tests/unit/pms-application.test.ts",
+          "title": "upgrades only remaining nights and retains past prices, type occupancy and original money records",
+          "sourceSHA256": "4db8e9cb6e5720e8c902dccb9fe6e400675132ac0001b1824c1672a9395dff65",
+          "actualPassingCaseEvidence": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "scope": "Additional exact native identity; feature acceptance still pending",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "front-desk-03",
+          "file": "tests/unit/pms-application.test.ts",
+          "title": "repeated upgrades on one business date retain both decisions without zero-length inventory periods",
+          "sourceSHA256": "4db8e9cb6e5720e8c902dccb9fe6e400675132ac0001b1824c1672a9395dff65",
+          "actualPassingCaseEvidence": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "scope": "Additional exact native identity; feature acceptance still pending",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "front-desk-03",
+          "file": "tests/unit/pms-application.test.ts",
+          "title": "upgrade rejects uninspected rooms, incompatible rates, and issued destination bills before changing the stay",
+          "sourceSHA256": "4db8e9cb6e5720e8c902dccb9fe6e400675132ac0001b1824c1672a9395dff65",
+          "actualPassingCaseEvidence": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "scope": "Additional exact native identity; feature acceptance still pending",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "front-desk-03",
+          "file": "tests/unit/pms-application.test.ts",
+          "title": "extends upgraded stays without reassigning past room type or nightly price",
+          "sourceSHA256": "4db8e9cb6e5720e8c902dccb9fe6e400675132ac0001b1824c1672a9395dff65",
+          "actualPassingCaseEvidence": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "scope": "Additional exact native identity; feature acceptance still pending",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "front-desk-03",
+          "file": "tests/pms.test.ts",
+          "title": "commits an in-house room upgrade once with version fencing and immutable original receipt evidence",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "actualPassingCaseEvidence": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "scope": "Additional exact native identity; feature acceptance still pending",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "[Actual upgrade native proof](evidence/2026-10-12-pms-upgrade-group-native-iteration.json) adds in-house cross-type upgrade, past-night price/type retention, inspected room and rate checks, original receipt immutability, version fencing and replay. [Earlier implementation gap](evidence/2026-10-11-pms-ac53-upgrade-gap.json) remains historical. Final compiled desktop/mobile upgrade, rollback/recovery and combined acceptance are still pending. [Financial-boundary review](evidence/2026-10-12-pms-upgrade-financial-boundary-review.json) distinguishes pending online payments and posted-night/issued-account fences from a blanket paid-upgrade refusal. The exact native case receives a cash advance before upgrading and preserves original entries/documents. A direct-provider-funded upgrade is not separately claimed as executed.",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "front-desk-04",
+      "group": "Front desk",
+      "name": "Early departure",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "front-desk-04",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "releases unused future room nights on early departure without duplicate revenue or checkout",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Full arrival-through-departure desktop/mobile journey; Explicit early departure proof: four-night stay settles one consumed night, releases unused future capacity, preserves ledger and checkout replay. Native command assertions pass in the refreshed 84-case PMS file; combined browser acceptance still pending. See `docs/testing/evidence/2026-10-11-pms-operational-acceptance-extension.json`.",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "housekeeping-01",
+      "group": "Housekeeping & maintenance",
+      "name": "Dirty/clean/inspected",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "housekeeping-01",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "requires inspected rooms and independent inspection; maintenance cannot displace guests",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Independent inspectors, stale cycles and mobile UAT",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "housekeeping-02",
+      "group": "Housekeeping & maintenance",
+      "name": "DND and occupancy discrepancy",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "housekeeping-02",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "honors DND for room work and resumes the same cycle only after its release",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "housekeeping-02",
+          "file": "tests/pms-read-model.test.ts",
+          "actualPassingTitle": "uses authoritative room occupancy and all room tasks for housekeeping commands beyond a UI page",
+          "sourceSHA256": "5f048f35c31ebfd7012eb92462340a884969c7fed13aeb2598352561879070c3",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Independent inspectors, stale cycles and mobile UAT; Explicit DND command proof: start/complete must refuse without changing room/task/version; release resumes the same cleaning cycle. Native command assertions pass in the refreshed 84-case PMS file; combined browser acceptance still pending. See `docs/testing/evidence/2026-10-11-pms-operational-acceptance-extension.json`.",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "housekeeping-03",
+      "group": "Housekeeping & maintenance",
+      "name": "Checklist/assignment/independent inspection",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "housekeeping-03",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "binds room-task photos in the PMS action transaction and leaves stale evidence draft",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "housekeeping-03",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "requires inspected rooms and independent inspection; maintenance cannot displace guests",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "housekeeping-03",
+          "file": "tests/pms-read-model.test.ts",
+          "actualPassingTitle": "uses authoritative room occupancy and all room tasks for housekeeping commands beyond a UI page",
+          "sourceSHA256": "5f048f35c31ebfd7012eb92462340a884969c7fed13aeb2598352561879070c3",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Independent inspectors, stale cycles and mobile UAT",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "housekeeping-04",
+      "group": "Housekeeping & maintenance",
+      "name": "Maintenance release",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "housekeeping-04",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "requires inspected rooms and independent inspection; maintenance cannot displace guests",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "housekeeping-04",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "withdraws inventory after maintenance and rejects a previously available quote",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "housekeeping-04",
+          "file": "tests/pms-read-model.test.ts",
+          "actualPassingTitle": "protects off-page room assignments, duplicate numbers and maintenance capacity under inventory command locks",
+          "sourceSHA256": "5f048f35c31ebfd7012eb92462340a884969c7fed13aeb2598352561879070c3",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Independent inspectors, stale cycles and mobile UAT",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "housekeeping-05",
+      "group": "Housekeeping & maintenance",
+      "name": "Lost property",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "housekeeping-05",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "binds lost-property handover evidence in the release transaction",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Independent inspectors, stale cycles and mobile UAT",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "accounts-01",
+      "group": "Guest Accounts",
+      "name": "Individual/company/agent payers",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "accounts-01",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "settles a manually entered OTA reservation against approved credit and net bank proceeds",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "accounts-01",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "checkout includes all same-party credit exposure beyond a page and excludes unrelated parties without losing account funding",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Final multi-role operational and Finance review matrix",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "accounts-02",
+      "group": "Guest Accounts",
+      "name": "Charge routing, split and merge",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "accounts-02",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "splits and merges charges without repeating revenue and reverses the recipient entry once",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Final multi-role operational and Finance review matrix",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "accounts-03",
+      "group": "Guest Accounts",
+      "name": "Credit and corrections",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "accounts-03",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "retains historical occupancy capacity and posts corrections in the open business date",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "accounts-03",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "blocks closed accounting periods and keeps the payment and guest account atomic",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Final multi-role operational and Finance review matrix",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "accounts-04",
+      "group": "Guest Accounts",
+      "name": "Original receipt funding",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "accounts-04",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "protects allocated receipt links and journal lines from deletion outside the subledger",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "accounts-04",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "uses complete original receipt funding beyond a UI page while preserving unrelated closed account history",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "accounts-04",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "checkout preserves original receipt allocations of another issued credit account for the same payer",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Final multi-role operational and Finance review matrix",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "cashier-01",
+      "group": "Payments & cashier",
+      "name": "Cash/transfer/EDC",
+      "owner": "PMS / Finance",
+      "phase": "direct",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "cashier-01",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "settles a pending hotel transfer only after independent exact bank evidence",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "cashier-01",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "cancels an unverified hotel transfer without changing guest account or ledger",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "cashier-01",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "completes deposit, stay, durable night audit, checkout and invoice without duplicate revenue",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Signed webhooks, payout/bank reconciliation and controlled recipient delivery; live gates remain separate",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "cashier-02",
+      "group": "Payments & cashier",
+      "name": "Card/PromptPay sandbox",
+      "owner": "PMS / Finance",
+      "phase": "direct",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "cashier-02",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "posts a counter PromptPay room payment and deposit only after Stripe confirms each intent",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "cashier-02",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "requires an independent Finance approval and Stripe confirmation for a counter refund",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Signed webhooks, payout/bank reconciliation and controlled recipient delivery; live gates remain separate",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "cashier-03",
+      "group": "Payments & cashier",
+      "name": "Advances vs security deposits",
+      "owner": "PMS / Finance",
+      "phase": "direct",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "cashier-03",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "separates security deposits, enforces refund independence and reverses advance VAT once",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "cashier-03",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "allocates new receipts after an earlier deposit was refunded",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "cashier-03",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "collects a 30% room advance and combines pay-at-hotel rooms without inventing income",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "cashier-03",
+          "file": "tests/pms-booking.test.ts",
+          "title": "deducts an existing manual room advance from additional collection during a staff booking review",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "actualPassingCaseEvidence": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "scope": "Additional exact native identity; feature acceptance still pending",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "cashier-03",
+          "file": "tests/pms-booking.test.ts",
+          "title": "retains a manual advance on pay-at-hotel review and rejects stale funding before confirmation",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "actualPassingCaseEvidence": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "scope": "Additional exact native identity; feature acceptance still pending",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Signed webhooks, payout/bank reconciliation and controlled recipient delivery; live gates remain separate",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "cashier-04",
+      "group": "Payments & cashier",
+      "name": "Partial refunds",
+      "owner": "PMS / Finance",
+      "phase": "direct",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "cashier-04",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "reserves partial refunds cumulatively and rejects an approval by the requester",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "cashier-04",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "retains counter partial refund generations and recovers a failed provider attempt without posting debt twice",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "cashier-04",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "recovers a partial booking refund after the provider accepts it but its response is lost",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "cashier-04",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "serializes a damage-deposit refund against applying the same deposit to a charge",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "cashier-04",
+          "file": "tests/pms-booking.test.ts",
+          "title": "requests excess manual advance refund on a staff revision without changing its issued receipt",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "actualPassingCaseEvidence": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "scope": "Additional exact native identity; feature acceptance still pending",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Signed webhooks, payout/bank reconciliation and controlled recipient delivery; live gates remain separate",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "cashier-05",
+      "group": "Payments & cashier",
+      "name": "Cash shift variance/handover",
+      "owner": "PMS / Finance",
+      "phase": "direct",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "cashier-05",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "holds Night Audit for restaurant cash, variance and unverified transfer controls",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "cashier-05",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "settles the original opening receivable and invoices only new hotel service across two business days",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Signed webhooks, payout/bank reconciliation and controlled recipient delivery; live gates remain separate",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "direct-01",
+      "group": "Direct booking & guest self-service",
+      "name": "Search/quote/gallery",
+      "owner": "PMS / Files",
+      "phase": "direct",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "direct-01",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "requires explicit publication and prevents selling private rates",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "direct-01",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "filters inventory reads and public responses away from guest and financial history",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Full final candidate guest return/change/refund journey and real email to authorized recipients",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "direct-02",
+      "group": "Direct booking & guest self-service",
+      "name": "Multiple rooms and rates",
+      "owner": "PMS / Files",
+      "phase": "direct",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "direct-02",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "holds two rooms, then confirms and allocates each guest account only after Stripe verifies the direct charge",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "direct-02",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "collects a 30% room advance and combines pay-at-hotel rooms without inventing income",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Full final candidate guest return/change/refund journey and real email to authorized recipients",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "direct-03",
+      "group": "Direct booking & guest self-service",
+      "name": "Pay at hotel/full/deposit",
+      "owner": "PMS / Files",
+      "phase": "direct",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "direct-03",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "holds two rooms, then confirms and allocates each guest account only after Stripe verifies the direct charge",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "direct-03",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "collects a 30% room advance and combines pay-at-hotel rooms without inventing income",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Full final candidate guest return/change/refund journey and real email to authorized recipients",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "direct-04",
+      "group": "Direct booking & guest self-service",
+      "name": "Manage/change/cancel/recover",
+      "owner": "PMS / Files",
+      "phase": "direct",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "direct-04",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "changes an unpaid future stay at equal price and releases only selected cancelled rooms",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "direct-04",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "keeps the original stay while a more expensive change expires and holds only added capacity",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "direct-04",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "applies a paid change with accepted prices even when a rate is edited during Checkout",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "direct-04",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "confirms a timely provider payment after local hold expiry only when capacity is still available",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "direct-04",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "records unallocated money once when a timely late webhook loses the last room",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "direct-04",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "recovers a provider success after the local accounting transaction fails without taking another payment",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "direct-04",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "deduplicates signed booking payment callbacks through durable jobs and rejects tampered payloads",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Full final candidate guest return/change/refund journey and real email to authorized recipients",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "direct-05",
+      "group": "Direct booking & guest self-service",
+      "name": "Email and private documents",
+      "owner": "PMS / Files",
+      "phase": "direct",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "direct-05",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "retries email failures while keeping the booking confirmed",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "direct-05",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "delivers a queued confirmation in a release process without enabling live payments",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "direct-05",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "expires access links and provides non-enumerating email recovery",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "direct-05",
+          "file": "tests/pms-booking.test.ts",
+          "actualPassingTitle": "serves only guest documents belonging to the management token and excludes private accounting fields",
+          "sourceSHA256": "dabdcad759b2264bc98a46ae757bee71d2a7d793a30532ca3eb12232ed30d182",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "direct-05",
+          "file": "tests/unit/pms-application.test.ts",
+          "actualPassingTitle": "guest document lookup is bound to the authorized hotel and booking",
+          "sourceSHA256": "4db8e9cb6e5720e8c902dccb9fe6e400675132ac0001b1824c1672a9395dff65",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "direct-05",
+          "file": "tests/unit/pms-application.test.ts",
+          "actualPassingTitle": "guest document preserves its issued amounts and excludes Finance and personal identifiers",
+          "sourceSHA256": "4db8e9cb6e5720e8c902dccb9fe6e400675132ac0001b1824c1672a9395dff65",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Full final candidate guest return/change/refund journey and real email to authorized recipients",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "guests-01",
+      "group": "Guest services & CRM",
+      "name": "Guest history and identity files",
+      "owner": "PMS / CRM",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "guests-01",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "loads real workspace selectors and redacts financial and guest data for housekeeping",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "guests-01",
+          "file": "tests/pms-front-attachments.test.ts",
+          "actualPassingTitle": "keeps private room evidence on Front through intake, scan and the hotel action binding",
+          "sourceSHA256": "5df55aed2215b7297f69b1ae883e4ef23a3da1f422584e86037071f38c5f8302",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Preferences/requests, reviewed CRM links and explicit service-history grant/revocation implemented; final candidate browser and scope acceptance pending",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "guests-02",
+      "group": "Guest services & CRM",
+      "name": "Preferences and service requests",
+      "owner": "PMS / CRM",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "guests-02",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "retains guest preferences and immutable service request history across legacy edits and retries",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Preferences/requests, reviewed CRM links and explicit service-history grant/revocation implemented; final candidate browser and scope acceptance pending",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "guests-03",
+      "group": "Guest services & CRM",
+      "name": "Reviewed CRM links",
+      "owner": "PMS / CRM",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "guests-03",
+          "file": "tests/crm-marketing-analytics.test.ts",
+          "actualPassingTitle": "keeps a confirmed PMS win after cancellation and only counts posted journal revenue",
+          "sourceSHA256": "50bf3e0e5997c89937c83f64e73866fce17dd8e148f59956b04cf0d1e0b58267",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "guests-03",
+          "file": "tests/crm-marketing-analytics.test.ts",
+          "actualPassingTitle": "keeps hotel history private until authority is reviewed and hides it after withdrawal",
+          "sourceSHA256": "50bf3e0e5997c89937c83f64e73866fce17dd8e148f59956b04cf0d1e0b58267",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Preferences/requests, reviewed CRM links and explicit service-history grant/revocation implemented; final candidate browser and scope acceptance pending",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "guests-04",
+      "group": "Guest services & CRM",
+      "name": "Scoped privacy and consent",
+      "owner": "PMS / CRM",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "guests-04",
+          "file": "tests/crm-marketing-analytics.test.ts",
+          "actualPassingTitle": "keeps hotel history private until authority is reviewed and hides it after withdrawal",
+          "sourceSHA256": "50bf3e0e5997c89937c83f64e73866fce17dd8e148f59956b04cf0d1e0b58267",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "guests-04",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "blocks unauthorized, cross-company and revoked actors without business writes",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "guests-04",
+          "file": "tests/unit/pms-application.test.ts",
+          "actualPassingTitle": "PMS source rules keep housekeeping away from guest account and refund money",
+          "sourceSHA256": "4db8e9cb6e5720e8c902dccb9fe6e400675132ac0001b1824c1672a9395dff65",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "guests-04",
+          "file": "tests/pms-read-model.test.ts",
+          "title": "keeps room and supply context while withholding pricing and upgrade reasons from housekeeping reads",
+          "sourceSHA256": "5f048f35c31ebfd7012eb92462340a884969c7fed13aeb2598352561879070c3",
+          "actualPassingCaseEvidence": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "scope": "Additional exact native identity; feature acceptance still pending",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Preferences/requests, reviewed CRM links and explicit service-history grant/revocation implemented; final candidate browser and scope acceptance pending",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "pos-stock-01",
+      "group": "POS, minibar & linen",
+      "name": "Atomic full-bill room charge",
+      "owner": "POS / PMS / Inventory",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "pos-stock-01",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "defines a POS room-charge contract that rejects foreign scope and already recognized revenue",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "pos-stock-01",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "POS room charge allocates complete original advance sources beyond a UI page",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Complete POS/PMS reviewer browser journeys; production room-charge gate remains off",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "pos-stock-02",
+      "group": "POS, minibar & linen",
+      "name": "Independent reversal decisions",
+      "owner": "POS / PMS / Inventory",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "pos-stock-02",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "POS reversal detects an original reversal outside the charged account",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "pos-stock-02",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "splits and merges charges without repeating revenue and reverses the recipient entry once",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Complete POS/PMS reviewer browser journeys; production room-charge gate remains off",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "pos-stock-03",
+      "group": "POS, minibar & linen",
+      "name": "Minibar/consumables",
+      "owner": "POS / PMS / Inventory",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "pos-stock-03",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "posts minibar and inventory cost together, rolling back insufficient stock",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Complete POS/PMS reviewer browser journeys; production room-charge gate remains off",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "pos-stock-04",
+      "group": "POS, minibar & linen",
+      "name": "Linen/laundry/loss custody",
+      "owner": "POS / PMS / Inventory",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "pos-stock-04",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "preserves linen custody and original stock cost through replay, laundry and loss",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Complete POS/PMS reviewer browser journeys; production room-charge gate remains off; Explicit linen custody proof: receive/issue/return/wash/clean/loss, warehouse/GL atomicity, underflow, reason and same-key replay. Native command assertions pass in the refreshed 84-case PMS file; combined browser acceptance still pending. See `docs/testing/evidence/2026-10-11-pms-operational-acceptance-extension.json`.",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "night-01",
+      "group": "Night Audit & recovery",
+      "name": "Explicit Business Date",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "night-01",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "completes deposit, stay, durable night audit, checkout and invoice without duplicate revenue",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "night-01",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "settles the original opening receivable and invoices only new hotel service across two business days",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Two consecutive closes with failure/restart and independent Finance acceptance",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "night-02",
+      "group": "Night Audit & recovery",
+      "name": "Cash/POS/financial blockers",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "night-02",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "holds Night Audit for restaurant cash, variance and unverified transfer controls",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "night-02",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "keeps overdue arrivals outside the current UI window as Night Audit blockers",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "night-02",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "retains an older open shift behind reviewed history before closing a hotel day",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "night-02",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "does not treat an older closed shift with unknown variance as reconciled",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Two consecutive closes with failure/restart and independent Finance acceptance",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "night-03",
+      "group": "Night Audit & recovery",
+      "name": "Durable room-night jobs",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "night-03",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "durably blocks failed night audit and resumes under a valid auditor",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "night-03",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "resumes a multi-chunk night from committed sources and serializes competing workers",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Two consecutive closes with failure/restart and independent Finance acceptance",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "night-04",
+      "group": "Night Audit & recovery",
+      "name": "Resume without duplicate revenue",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "night-04",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "durably blocks failed night audit and resumes under a valid auditor",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "night-04",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "resumes a multi-chunk night from committed sources and serializes competing workers",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "night-04",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "locks closing-day commands and blocks workers whose originating authority was revoked",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Two consecutive closes with failure/restart and independent Finance acceptance",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "reports-01",
+      "group": "Hotel reporting",
+      "name": "Occupancy/ADR/RevPAR",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "reports-01",
+          "file": "tests/pms-reports.test.ts",
+          "actualPassingTitle": "uses corrected room-night revenue for ADR and includes other services only in net revenue",
+          "sourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "reports-01",
+          "file": "tests/unit/pms-application.test.ts",
+          "actualPassingTitle": "PMS report aggregates integer revenue, occupancy and liability signs from provided facts",
+          "sourceSHA256": "4db8e9cb6e5720e8c902dccb9fe6e400675132ac0001b1824c1672a9395dff65",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Current channel/gross pickup and append-only historical net pace implemented; pre-observation history stays unknown; final candidate report/browser reconciliation pending",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "reports-02",
+      "group": "Hotel reporting",
+      "name": "Revenue/balances/refunds",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "reports-02",
+          "file": "tests/pms-reports.test.ts",
+          "actualPassingTitle": "uses corrected room-night revenue for ADR and includes other services only in net revenue",
+          "sourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "reports-02",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "settles the original opening receivable and invoices only new hotel service across two business days",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Current channel/gross pickup and append-only historical net pace implemented; pre-observation history stays unknown; final candidate report/browser reconciliation pending",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "reports-03",
+      "group": "Hotel reporting",
+      "name": "Channel performance",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "reports-03",
+          "file": "tests/pms-reports.test.ts",
+          "actualPassingTitle": "attributes current room nights by channel using original creation evidence rather than edit time",
+          "sourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Current channel/gross pickup and append-only historical net pace implemented; pre-observation history stays unknown; final candidate report/browser reconciliation pending",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "reports-04",
+      "group": "Hotel reporting",
+      "name": "Booking pace/pickup",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "reports-04",
+          "file": "tests/pms-reports.test.ts",
+          "actualPassingTitle": "retains historical prices and room nights after date changes and partial cancellation",
+          "sourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "reports-04",
+          "file": "tests/pms-reports.test.ts",
+          "actualPassingTitle": "reports unknown pace before coverage instead of inventing legacy observations",
+          "sourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "reports-04",
+          "file": "tests/pms-reports.test.ts",
+          "actualPassingTitle": "retains completed reservation room nights in the historical booked stay period",
+          "sourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Current channel/gross pickup and append-only historical net pace implemented; pre-observation history stays unknown; final candidate report/browser reconciliation pending",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "reports-05",
+      "group": "Hotel reporting",
+      "name": "CSV and drill-down",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "reports-05",
+          "file": "tests/pms-reports.test.ts",
+          "actualPassingTitle": "bounds ranges, drill-down pages and scope",
+          "sourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "reports-05",
+          "file": "tests/unit/pms-application.test.ts",
+          "actualPassingTitle": "PMS report pagination keeps exactly fifty rows and signals the next page",
+          "sourceSHA256": "4db8e9cb6e5720e8c902dccb9fe6e400675132ac0001b1824c1672a9395dff65",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Current channel/gross pickup and append-only historical net pace implemented; pre-observation history stays unknown; final candidate report/browser reconciliation pending",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "group-01",
+      "group": "Multi-property & authority",
+      "name": "Company/Branch Today",
+      "owner": "PMS / IAM",
+      "phase": "pilot",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "group-01",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "aggregates accessible hotels without choosing one and keeps guest amounts private from housekeeping",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "3 \u00d7 200 rooms, two-year history, concurrency and scope verification",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "group-02",
+      "group": "Multi-property & authority",
+      "name": "Property-scoped operations",
+      "owner": "PMS / IAM",
+      "phase": "pilot",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "group-02",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "blocks unauthorized, cross-company and revoked actors without business writes",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "group-02",
+          "file": "tests/pms-read-model.test.ts",
+          "actualPassingTitle": "retains fresh permission, company and branch privacy for every query model",
+          "sourceSHA256": "5f048f35c31ebfd7012eb92462340a884969c7fed13aeb2598352561879070c3",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "3 \u00d7 200 rooms, two-year history, concurrency and scope verification",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "group-03",
+      "group": "Multi-property & authority",
+      "name": "Role and assignment revocation",
+      "owner": "PMS / IAM",
+      "phase": "pilot",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "group-03",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "blocks unauthorized, cross-company and revoked actors without business writes",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "group-03",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "locks closing-day commands and blocks workers whose originating authority was revoked",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "group-03",
+          "file": "tests/unit/pms-application.test.ts",
+          "actualPassingTitle": "PMS report permission withdrawal prevents all repository reads",
+          "sourceSHA256": "4db8e9cb6e5720e8c902dccb9fe6e400675132ac0001b1824c1672a9395dff65",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "3 \u00d7 200 rooms, two-year history, concurrency and scope verification",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "group-04",
+      "group": "Multi-property & authority",
+      "name": "Cross-property overview",
+      "owner": "PMS / IAM",
+      "phase": "pilot",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "group-04",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "aggregates accessible hotels without choosing one and keeps guest amounts private from housekeeping",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "group-04",
+          "file": "tests/pms-read-model.test.ts",
+          "actualPassingTitle": "measures scoped room reads and guest writes with three 200-room properties and two-year synthetic history",
+          "sourceSHA256": "5f048f35c31ebfd7012eb92462340a884969c7fed13aeb2598352561879070c3",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "3 \u00d7 200 rooms, two-year history, concurrency and scope verification",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "cutover-01",
+      "group": "Documents, import & export",
+      "name": "Issued snapshots/internal tax documents",
+      "owner": "PMS / Finance / Files",
+      "phase": "pilot",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "cutover-01",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "completes deposit, stay, durable night audit, checkout and invoice without duplicate revenue",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "cutover-01",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "protects PMS invoices and payments from generic finance mutations",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "cutover-01",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "settles the original opening receivable and invoices only new hotel service across two business days",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Mock opening balance agreement, migration/restore/export and reviewer engineering UAT; real-hotel rollout remains separate",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "cutover-02",
+      "group": "Documents, import & export",
+      "name": "Reviewed opening balances",
+      "owner": "PMS / Finance / Files",
+      "phase": "pilot",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "cutover-02",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "previews import errors without writing hotel records and requires independent unchanged approval",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "cutover-02",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "traces imported advance and deposit to the approved opening journal and reconciles partial refunds",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "cutover-02",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "settles the original opening receivable and invoices only new hotel service across two business days",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Mock opening balance agreement, migration/restore/export and reviewer engineering UAT; real-hotel rollout remains separate",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "cutover-03",
+      "group": "Documents, import & export",
+      "name": "Atomic import/replay",
+      "owner": "PMS / Finance / Files",
+      "phase": "pilot",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "cutover-03",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "previews import errors without writing hotel records and requires independent unchanged approval",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "cutover-03",
+          "file": "tests/pms.test.ts",
+          "actualPassingTitle": "applies approved imported in-house stays atomically and resumes a repeated apply without past room revenue",
+          "sourceSHA256": "226a8cc1aa115982c6b9450beef3470846a27338d8b0d06643830e120c314968",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Mock opening balance agreement, migration/restore/export and reviewer engineering UAT; real-hotel rollout remains separate",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "cutover-04",
+      "group": "Documents, import & export",
+      "name": "Data export and restore rehearsal",
+      "owner": "PMS / Finance / Files",
+      "phase": "pilot",
+      "status": "\u0e23\u0e2d\u0e15\u0e23\u0e27\u0e08\u0e23\u0e31\u0e1a",
+      "actualNativeCaseBindings": [
+        {
+          "feature": "cutover-04",
+          "file": "tests/engineering-recovery.test.ts",
+          "actualPassingTitle": "encrypts a complete isolated snapshot, restores immutable money and files, and rolls back only compatible releases",
+          "sourceSHA256": "eba0733f74e1a8569f7862361cc0905a45ec10366dcf5137622610d812b6fc8e",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "cutover-04",
+          "file": "tests/engineering-migration-upgrade.test.ts",
+          "actualPassingTitle": "upgrades populated pre-completion databases without changing posted money or files and replays canonical backfill once",
+          "sourceSHA256": "c9993f5b4616c2e905b9b24f204384b9bc51264afa04fa78b71402cb5c3bc3d7",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "cutover-04",
+          "file": "tests/pms-cache-upgrade.test.ts",
+          "actualPassingTitle": "preserves every original cache revision on the populated 1037 upgrade and replays 1038 once",
+          "sourceSHA256": "e6061ccbdacabef4ec6dffc5e2ac555736d098dfe06340602d1eebe4c66d927b",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        },
+        {
+          "feature": "cutover-04",
+          "file": "tests/pms-read-model.test.ts",
+          "title": "retains legacy PMS rows and rejects malformed optional upgrade and pending-quota containers",
+          "sourceSHA256": "5f048f35c31ebfd7012eb92462340a884969c7fed13aeb2598352561879070c3",
+          "actualPassingCaseEvidence": "docs/testing/evidence/2026-10-12-pms-final299-native.json",
+          "scope": "Additional exact native identity; feature acceptance still pending",
+          "currentRequiredReceipt": "2026-10-12-pms-4e2b-native1365.json"
+        }
+      ],
+      "remainingCanonicalAcceptance": "Mock opening balance agreement, migration/restore/export and reviewer engineering UAT; real-hotel rollout remains separate",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "integrations-01",
+      "group": "Partner ecosystem",
+      "name": "OTA/SiteMinder",
+      "owner": "PMS / Finance / CRM",
+      "phase": "after-pilot",
+      "status": "\u0e15\u0e49\u0e2d\u0e07\u0e40\u0e1e\u0e34\u0e48\u0e21",
+      "actualNativeCaseBindings": [],
+      "remainingCanonicalAcceptance": "Separate partner contracts, sandbox/certification and approvals after pilot",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "integrations-02",
+      "group": "Partner ecosystem",
+      "name": "TM30/e-Tax",
+      "owner": "PMS / Finance / CRM",
+      "phase": "after-pilot",
+      "status": "\u0e15\u0e49\u0e2d\u0e07\u0e40\u0e1e\u0e34\u0e48\u0e21",
+      "actualNativeCaseBindings": [],
+      "remainingCanonicalAcceptance": "Separate partner contracts, sandbox/certification and approvals after pilot",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "integrations-03",
+      "group": "Partner ecosystem",
+      "name": "RMS/loyalty",
+      "owner": "PMS / Finance / CRM",
+      "phase": "after-pilot",
+      "status": "\u0e15\u0e49\u0e2d\u0e07\u0e40\u0e1e\u0e34\u0e48\u0e21",
+      "actualNativeCaseBindings": [],
+      "remainingCanonicalAcceptance": "Separate partner contracts, sandbox/certification and approvals after pilot",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "integrations-04",
+      "group": "Partner ecosystem",
+      "name": "Digital keys/messaging",
+      "owner": "PMS / Finance / CRM",
+      "phase": "after-pilot",
+      "status": "\u0e15\u0e49\u0e2d\u0e07\u0e40\u0e1e\u0e34\u0e48\u0e21",
+      "actualNativeCaseBindings": [],
+      "remainingCanonicalAcceptance": "Separate partner contracts, sandbox/certification and approvals after pilot",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    },
+    {
+      "id": "integrations-05",
+      "group": "Partner ecosystem",
+      "name": "Specialist services",
+      "owner": "PMS / Finance / CRM",
+      "phase": "after-pilot",
+      "status": "\u0e15\u0e49\u0e2d\u0e07\u0e40\u0e1e\u0e34\u0e48\u0e21",
+      "actualNativeCaseBindings": [],
+      "remainingCanonicalAcceptance": "Separate partner contracts, sandbox/certification and approvals after pilot",
+      "semanticFeatureAcceptance": "not-yet-accepted",
+      "liveBoundary": "Fictional mock engineering only; live activation and real-hotel operational acceptance remain separate"
+    }
+  ],
+  "actualCurrentNativeBindings": 160,
+  "requiredNativeCases": 1365,
+  "rawNativePasses": 1447,
+  "featuresWithNativeBindings": 62,
+  "browser180Pending": true,
+  "route134Pending": true,
+  "metadata8Pending": true,
+  "capacityAndProviderPending": true,
+  "wholePlanAccepted": false
+}

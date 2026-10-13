@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import catalogue from "../../tests/catalogue/suite-manifest.json";
 import type { BrowserCase } from "./browser-results";
 import { assertRequiredCaseInventory, assertRequiredCaseResults, type CaseObservation, type RequiredCaseIdentity } from "./required-case-inventory";
 import { validateBrowserIsolation, type BrowserIsolationProof } from "./browser-isolation-receipts";
@@ -26,7 +27,10 @@ function validateBrowserShard(shard: BrowserShard): void {
 }
 export function browserCaseKey(test: BrowserCaseIdentity): string {
   const file = test.file.replaceAll("\\", "/");
-  const relativeFile = !file.includes("/") ? `tests/e2e/${file}` : file.slice(file.indexOf("tests/e2e/") >= 0 ? file.indexOf("tests/e2e/") : 0);
+  const registered = catalogue.suites.flatMap(suite => suite.files).filter(candidate => candidate === file || candidate.endsWith(`/${file}`));
+  const index = file.indexOf("tests/");
+  const relativeFile = registered.length === 1 ? registered[0]
+    : index >= 0 ? file.slice(index) : !file.includes("/") ? `tests/e2e/${file}` : file;
   return JSON.stringify([test.suite, relativeFile, test.project, test.title]);
 }
 export function assignedBrowserShard(suiteId: string, wanted: Pick<BrowserCase, "file" | "title" | "project">, shard: BrowserShard): boolean {

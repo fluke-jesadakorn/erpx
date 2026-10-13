@@ -13,13 +13,15 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
-import { useEffect, useId, useRef, useState, type ComponentType } from "react";
+import { Suspense, useEffect, useId, useRef, useState, type ComponentType } from "react";
 import { Dialog } from "@/components/ui/dialog";
+import dynamic from "next/dynamic";
+const WorkShortcuts = dynamic(() => import("./work-shortcuts").then(module => module.WorkShortcuts), { ssr: false });
 import {
   navigationAccordionStorageKey,
   navigationLauncher,
   navigationRailStorageKey,
-} from "@/lib/navigation-catalog";
+} from "@/lib/work_projection/navigation-catalog";
 import {
   navigationCategory,
   pmsSidebarHref,
@@ -29,12 +31,12 @@ import {
   type NavigationContext,
   type NavigationIconId,
   type NavigationItem,
-} from "@/lib/workplace-navigation";
-import { useNavigationCounts } from "./navigation-counts";
+} from "@/lib/work_projection/workplace-navigation";
+import { NavigationBadge } from "./navigation-badge";
+import { useNavigationState } from "./navigation-counts";
 import { NewWork } from "./new-work";
-import { WorkShortcuts } from "./work-shortcuts";
-import { StartActions } from "@/components/today/start-actions";
-import { hasPermission } from "@/lib/permissions";
+import { StartActions } from "@/components/work_projection/today/start-actions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import styles from "./shell.module.css";
 import appStyles from "./app-navigation.module.css";
 
@@ -56,7 +58,7 @@ export function AppNavigation({
   Icon: IconComponent;
 }) {
   const base = context.workspaceBase;
-  const { counts, readHome, workViewAvailability } = useNavigationCounts();
+  const { readHome, workViewAvailability } = useNavigationState();
   const model = workplaceNavigation({ ...context, workViewAvailability });
   const pathname = usePathname();
   const query = useSearchParams();
@@ -217,7 +219,6 @@ export function AppNavigation({
   }
 
   function primaryLink(item: NavigationItem) {
-    const count = counts[item.id as "home" | "work"];
     const submodules = !mobile && !rail ? item.submodules : undefined;
     const link = (
       <Link
@@ -241,13 +242,10 @@ export function AppNavigation({
       >
         <Icon id={item.icon} />
         <span>{item.label}</span>
-        {(item.id === "work" || (item.id === "home" && count !== 0)) && (
-          <span
-            className={styles.navBadge}
-            title={item.id === "work" ? "My actions; – means incomplete" : "New team updates"}
-          >
-            {count ?? "–"}
-          </span>
+        {(item.id === "work" || item.id === "home") && (
+          <Suspense fallback={<span className={styles.navBadge}>–</span>}>
+            <NavigationBadge kind={item.id} />
+          </Suspense>
         )}
       </Link>
     );
@@ -357,7 +355,10 @@ export function AppNavigation({
       ];
       return destinations.map((entry) => appLink(entry, inFlyout));
     });
-    return [...links, ...(category.secondaryItems?.length ? [<details key={`${category.id}-more`} className={appStyles.moreNav} open={category.secondaryItems.some(item => item.id === active.activeId)}><summary>More</summary>{category.secondaryItems.map(item => appLink(item, inFlyout))}</details>] : [])];
+    return [
+      ...links,
+      ...(category.secondaryItems ?? []).map((item) => appLink(item, inFlyout)),
+    ];
   }
 
   function categorySection(category: NavigationCategory) {
@@ -467,7 +468,7 @@ export function AppNavigation({
         </Button>
       )}
       {!mobile && !rail && base !== "/platform" && (
-        <WorkShortcuts base={base} role={context.role} />
+        <WorkShortcuts key={`${base}:${context.role}`} base={base} role={context.role} />
       )}
       {!mobile &&
         model.categories
@@ -541,8 +542,8 @@ export function AppNavigation({
         presentation="responsive-panel"
       >
         <div className={appStyles.content}>
-          {base !== "/platform" && !search.trim() && (
-            <WorkShortcuts base={base} role={context.role} placement="panel" onNavigate={() => setLauncherOpen(false)} />
+          {launcherOpen && base !== "/platform" && !search.trim() && (
+            <WorkShortcuts key={`${base}:${context.role}`} base={base} role={context.role} placement="panel" onNavigate={() => setLauncherOpen(false)} />
           )}
           {model.primary.some((entry) => entry.id === "calendar") && (
             <Link
@@ -582,7 +583,7 @@ export function AppNavigation({
                       launcherRow(submodule, item.label),
                     ]),
                   ])}
-                  {!!category.secondaryItems?.length && <details className={appStyles.moreNav}><summary>More</summary>{category.secondaryItems.map(item => launcherRow(item))}</details>}
+                  {(category.secondaryItems ?? []).map((item) => launcherRow(item))}
                 </section>
               ))}
             </div>

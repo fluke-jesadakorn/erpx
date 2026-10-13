@@ -1,4 +1,4 @@
-import type { SpendingException, SpendingKind } from "@/lib/spending";
+import type { SpendingException, SpendingKind } from "@/lib/shared/spending";
 
 /** Specific position exceptions precede request-kind and company-wide exceptions. */
 export function selectSpendingException(exceptions: SpendingException[], positionId: string | null, kind: SpendingKind) {

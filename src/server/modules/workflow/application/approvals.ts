@@ -1,4 +1,4 @@
-import { hasWorkflowPermission } from "@/lib/permissions";
+import { hasWorkflowPermission } from "@/lib/identity_access/permissions";
 import type { ApprovalRoute, RecordScope, StaffActor } from "@/server/modules/operations/public/staff-policy";
 import type { departmentRoute } from "@/server/modules/organization/public/department-authority";
 import type { personIdentityIds } from "@/server/modules/identity_access/public/iam-person";

@@ -1,0 +1,11 @@
+# ADR-040: Hospitality module ownership and Guest Accounts
+
+**Status:** Accepted for implementation · 2026-10-08
+
+PMS owns reservations, stays, Guest Accounts, hotel receipts/refunds and Night Audit. POS owns catalog, tables, sales, kitchen, cash shifts, discounts, operational refunds and restaurant day preparation. Finance owns chart mapping, bank evidence, reconciliation, settlement and daily accounting confirmation. The modules share PostgreSQL and IAM; each request uses the selected assignment and its Company/Branch scope. Existing approved custom role combinations remain valid.
+
+**Guest Account / บัญชีผู้เข้าพัก** replaces the former operational account name in current interfaces. It supports individual, company and agent payers and multiple accounts per reservation. IDs, balances, relationships and transactions survive the rename. Historical migrations, issued snapshots, audit events and command receipts retain their original bytes. One central compatibility adapter reads historical references and recognizes original command fingerprints; current responses use canonical names. Historical page URLs redirect.
+
+POS calls the PMS public interface for the minimum eligible room/stay choices. Registers explicitly identify their linked hotel; independent shops close their own days. Room-charge sales, stock consumption and PMS-owned revenue commit atomically. Corrections freeze the original sale/property versions, amount, reason and stock selections, then require an independent POS reviewer and another PMS reviewer. Neither reviewer may be the requester or original operator. Requests and POS approval produce no money or stock effects; final PMS approval commits the entire correction in one transaction. Changes require rejection and a new request. Finance grants cannot substitute for either operational approval.
+
+This avoids cross-module operational authority while retaining atomic money/stock behavior and existing evidence. Operational store configuration is separate from independently reviewed accounting mapping. Production room charging remains gated until browser and business acceptance pass. This implementation authorizes development migrations and verification only; it does not authorize staging or production deployment.

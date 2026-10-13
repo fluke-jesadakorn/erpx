@@ -1,2 +1,0 @@
-/** Compatibility entry point for the Procurement application. */
-export {confirmSupplierInstruction,createSupplierBatch,decideSupplierBatch,exportSupplierBatch,getSupplierBatch,listSupplierBatches,recordSupplierResult,recoverSupplierExport,supplierBatchSchema,supplierBatchWork,supplierBatchWorkspace,supplierConfirmSchema,supplierDecisionSchema,supplierExportSchema,supplierResultSchema} from "@/server/modules/procurement/adapters/supplier-payments";

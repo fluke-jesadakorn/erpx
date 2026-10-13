@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { hasModuleAccess } from "@/data/module-access";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { filtersSchema, type Filters } from "@/server/modules/runtime/public/rules/canvas-domain";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { crmEvidenceMetrics, type CrmEvidenceMetric, opportunityProviderId, opportunityMetricId, followupProviderId, followupMetricId, openStages, fields, followupFields, inputSchema, type OpportunityRow, type FollowupRow, parseCursor, encodeCursor, parseFollowupCursor, encodeFollowupCursor, exactVersion, exactMinor, notFound, auditRecords } from '../../domain/executive/crm-evidence';

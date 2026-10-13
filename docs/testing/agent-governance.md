@@ -8,4 +8,4 @@ Agent catalog และ version ต้องผ่าน independent approval; v
 
 Workspace Assistant เดิมยังเป็น read-only และสร้าง private session แยก company/user/assignment/authority scope/conversation. ทุก provider attempt บันทึก immutable invocation evidence ทั้ง success/failure ได้แก่ version ที่ route ได้, question/source digests, authority/provider snapshots, token usage และ error โดยไม่เก็บสิทธิ์ใหม่ให้ AI
 
-หลักฐาน `tests/agent-governance.test.ts`, `tests/workspace-assistant.test.ts` และ migration replay รวม 9 tests อยู่ที่ `docs/testing/evidence/2026-09-21-agent-governance-tests.txt`. ยังเหลือ source adapters ทุก domain, evaluation/monitoring, pool balancing, retention/export/legal hold, browser หลายบทบาท, provider/production และ business acceptance
+หลักฐาน `tests/integration/agent/agent-governance.test.ts`, `tests/integration/agent/workspace-assistant.test.ts` และ migration replay รวม 9 tests อยู่ที่ `docs/testing/evidence/2026-09-21-agent-governance-tests.txt`. ยังเหลือ source adapters ทุก domain, evaluation/monitoring, pool balancing, retention/export/legal hold, browser หลายบทบาท, provider/production และ business acceptance

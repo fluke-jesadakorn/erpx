@@ -1,5 +1,5 @@
-import {workspaceHref,type WorkspaceScope} from "@/lib/workspace";
-import {safeReturnPath,type AccessProblem} from "@/lib/access-problem";
+import {workspaceHref,type WorkspaceScope} from "@/lib/work_projection/workspace";
+import {safeReturnPath,type AccessProblem} from "@/lib/shared/access-problem";
 export type PageApiError=Error&{code:string;status:number};
 export function createPageErrorService(ports:{headers():Promise<Pick<Headers,"get">>;requestedHoldingScope(slug:string):Promise<WorkspaceScope>;forbidden():never;notFound():never;redirect(path:string):never;unstableRethrow(error:unknown):void;isApiError(error:unknown):error is PageApiError}) {
 async function currentPagePath(holdingSlug?: string) {

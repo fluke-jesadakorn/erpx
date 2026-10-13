@@ -1,10 +1,12 @@
 import { plusDays, type Kind, type PmsRecord } from "../domain/pms-model";
-import type { PmsReadSelection } from "@/lib/pms-read-selection";
-import type { PmsSetupFacts } from "@/lib/pms-read";
+import type { PmsReadSelection } from "@/lib/pms/pms-read-selection";
+import type { PmsSetupFacts } from "@/lib/pms/pms-read";
 export type PmsReadRows<Row> = {
     results: Row[];
 };
+export type PmsRoomSummary = {total:number;active:number;dirty:number;clean:number;inspected:number;dnd:number;occupied:number};
 export type PmsReadRepository = {
+    roomSummary(facts:{propertyId:string;businessDate:string;status:string;q:string;building:string;floor:string;typeId:string}):Promise<PmsRoomSummary|null>;
     operationsPage(facts: {
         propertyId: string;
         kind: "reservation" | "stay";
@@ -27,11 +29,14 @@ export type PmsReadRepository = {
     }>>;
     sectionPage(facts: {
         propertyId: string;
-        kind: "shift" | "room" | "guest" | "folio" | "item" | "night";
+        kind: "shift" | "room" | "guest" | "guest_account" | "item" | "night";
         status: "" | "arrivals" | "departures" | "reserved" | "in_house" | "cancelled" | "no_show" | "completed" | "checked_out" | "payment_pending" | "confirmed" | "open" | "closed" | "reviewed" | "dirty" | "clean" | "inspected" | "running" | "blocked";
         status2: "" | "arrivals" | "departures" | "reserved" | "in_house" | "cancelled" | "no_show" | "completed" | "checked_out" | "payment_pending" | "confirmed" | "open" | "closed" | "reviewed" | "dirty" | "clean" | "inspected" | "running" | "blocked";
         q: string;
         q2: string;
+        building: string;
+        floor: string;
+        typeId: string;
         from: string;
         to: string;
         offset: number;
@@ -130,22 +135,23 @@ export async function readPmsOperationsList(db: PmsReadRepository, propertyId: s
     const selected = (await db.operationsPage({ propertyId: propertyId, kind: kind, status: selection.status, status2: selection.status, status3: selection.status, businessDate: businessDate, status4: selection.status, businessDate2: businessDate, status5: selection.status, to: to, from: from, to2: to, from2: from, q: selection.q, q2: selection.q, offset: selection.page * 50 })).results;
     const ids = selected.slice(0, 50).map(r => r.id), seeds = [...ids, ...(selection.selectedId ? [selection.selectedId] : [])];
     const records = await db.operationRelatedRecords({ propertyId: propertyId, seedsJson: JSON.stringify(seeds), propertyId2: propertyId, propertyId3: propertyId });
-    return { records, listMeta: { section: selection.section, kind, ids, from, to, page: selection.page, q: selection.q, status: selection.status, hasNext: selected.length > 50, selectedId: selection.selectedId } };
+    return { records, listMeta: { section: selection.section, kind, ids, from, to, page: selection.page, q: selection.q, status: selection.status, building: (selection.building??""), floor: (selection.floor??""), typeId: (selection.typeId??""), hasNext: selected.length > 50, selectedId: selection.selectedId } };
 }
 /** Primary records are paged; related facts never expand into the hotel's history. */
 async function readPmsSectionList(db: PmsReadRepository, propertyId: string, businessDate: string, selection: Extract<PmsReadSelection, {
     view: 'list';
 }>) {
     const section = selection.section;
-    const kind: Kind = section === 'rooms' || section === 'housekeeping' ? 'room' : section === 'folios' ? 'folio' : section === 'cashier' ? 'shift' : section === 'inventory' ? 'item' : section === 'guests' ? 'guest' : 'night';
+    const kind: Kind = section === 'rooms' || section === 'housekeeping' ? 'room' : section === 'guest-accounts' ? 'guest_account' : section === 'cashier' ? 'shift' : section === 'inventory' ? 'item' : section === 'guests' ? 'guest' : 'night';
     const from = selection.from ?? plusDays(businessDate, -30), to = selection.to ?? plusDays(from, 90);
     if (from > to || Date.parse(to) - Date.parse(from) > 93 * 86400000)
         throw new Error('PMS_LIST_RANGE_INVALID');
-    const selected = (await db.sectionPage({ propertyId: propertyId, kind: kind, status: selection.status, status2: selection.status, q: selection.q, q2: selection.q, from: from, to: to, offset: selection.page * 50 })).results;
+    const selected = (await db.sectionPage({ propertyId: propertyId, kind: kind, status: selection.status, status2: selection.status, q: selection.q, q2: selection.q, building: (selection.building??""), floor: (selection.floor??""), typeId: (selection.typeId??""), from: from, to: to, offset: selection.page * 50 })).results;
     const ids = selected.slice(0, 50).map(row => row.id), seeds = [...ids, ...(selection.selectedId ? [selection.selectedId] : [])];
     const roomView = section === 'rooms' || section === 'housekeeping', nightView = section === 'night-audit', inventoryView = section === 'inventory';
-    const records = await db.sectionRelatedRecords({ propertyId: propertyId, seedsJson: JSON.stringify(seeds), propertyId2: propertyId, propertyId3: propertyId, roomView: roomView, inventoryView: inventoryView, nightView: nightView, businessDate: businessDate, propertyId4: propertyId, roomView2: roomView, propertyId5: propertyId, inventoryView2: inventoryView, from: from, to: to, from2: from, to2: to, propertyId6: propertyId, inventoryView3: inventoryView, inventoryView4: inventoryView, propertyId7: propertyId, roomView3: roomView, nightView2: nightView, roomView4: roomView, roomView5: roomView, fact24: section === 'folios', nightView3: nightView, nightView4: nightView });
-    return { records, listMeta: { section, kind, ids, from, to, page: selection.page, q: selection.q, status: selection.status, hasNext: selected.length > 50, selectedId: selection.selectedId } };
+    const records = await db.sectionRelatedRecords({ propertyId: propertyId, seedsJson: JSON.stringify(seeds), propertyId2: propertyId, propertyId3: propertyId, roomView: roomView, inventoryView: inventoryView, nightView: nightView, businessDate: businessDate, propertyId4: propertyId, roomView2: roomView, propertyId5: propertyId, inventoryView2: inventoryView, from: from, to: to, from2: from, to2: to, propertyId6: propertyId, inventoryView3: inventoryView, inventoryView4: inventoryView, propertyId7: propertyId, roomView3: roomView, nightView2: nightView, roomView4: roomView, roomView5: roomView, fact24: section === 'guest-accounts', nightView3: nightView, nightView4: nightView });
+    const roomSummary = roomView ? await db.roomSummary({propertyId,businessDate,status:selection.status,q:selection.q,building:(selection.building??""),floor:(selection.floor??""),typeId:selection.typeId??""}) : undefined;
+    return { records, listMeta: {roomSummary:roomSummary??undefined, section, kind, ids, from, to, page: selection.page, q: selection.q, status: selection.status, building: (selection.building??""), floor: (selection.floor??""), typeId: (selection.typeId??""), hasNext: selected.length > 50, selectedId: selection.selectedId } };
 }
 /** Setup readiness describes the property, independently of a bounded view. */
 export async function readPmsSetupFacts(db: PmsReadRepository, propertyId: string): Promise<PmsSetupFacts> {

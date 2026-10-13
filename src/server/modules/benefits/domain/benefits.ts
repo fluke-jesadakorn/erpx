@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { BusinessRuleError } from "../../shared";
-import type { WorkItem } from "@/lib/work-item";
+import type { WorkItem } from "@/lib/work_projection/work-item";
 
 export type BenefitRow = Record<string, string | number | null>;
 export type BenefitRecordKind = "plan" | "window" | "dependent" | "election";

@@ -1,7 +1,7 @@
-import { getRuntime,closeRuntime } from '../../src/server/runtime/env';
-import { resourceSlots } from '../../src/lib/holding-registry';
+import { getRuntime,closeRuntime } from "../../src/server/modules/runtime/adapters/runtime/env";
+import { resourceSlots } from "../../src/lib/runtime/holding-registry";
 import { dirname,join } from 'node:path';
-import type { SqlDatabase } from '../../src/server/runtime/types';
+import type { SqlDatabase } from "../../src/server/modules/runtime/adapters/runtime/types";
 
 export async function ensureFixtureLevel(db:SqlDatabase,companyId:string){
   const id=`acceptance-level-${companyId}`,now=Date.now();

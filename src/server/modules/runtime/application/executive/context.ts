@@ -1,4 +1,4 @@
-import {moduleRegistry} from '@/data/module-registry';import {hasPermission,permissionCatalog} from '@/lib/permissions';
+import {moduleRegistry} from '@/data/module-registry';import {hasPermission,permissionCatalog} from "@/lib/identity_access/permissions";
 import type {Filters,MetricInfo,MetricData,MetricId,Breakdown} from "@/server/modules/runtime/public/rules/canvas-domain";
 import type {WorkContext} from '../../../identity_access/public/authorization';
 import type {Clock} from '../../../shared';

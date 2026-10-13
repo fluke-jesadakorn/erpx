@@ -1,7 +1,7 @@
 import type { FinanceError } from './invoice-line-revision';
 import { z } from 'zod';
-import { thaiFinanceTaxPack, type ThaiWithholdingCategory } from '@/lib/thai-finance-tax-pack';
-import { minorToDecimal } from '@/lib/finance-money';
+import { thaiFinanceTaxPack, type ThaiWithholdingCategory } from "@/lib/finance/thai-finance-tax-pack";
+import { minorToDecimal } from "@/lib/finance/finance-money";
 import type { TaxIdentity } from './tax-identities';
 export type Row = Record<string, string | number | null>;
 export type WorkspaceInvoice = Row & {

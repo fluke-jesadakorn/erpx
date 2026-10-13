@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { frontAppForHost } from "@/lib/front-host";
+import { frontAppForHost } from "@/lib/shared/front-host";
 import { currentSession } from "@/server/modules/identity_access/public/authorization";
 import { frontCompanyChoices, frontCompanyItems } from "@/server/modules/work_projection/public/front-quick-access";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";

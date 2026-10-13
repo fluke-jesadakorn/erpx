@@ -1,7 +1,7 @@
 import type {WorkContext} from '../public/authorization';
-import {hasPermission} from '@/lib/permissions';
+import {hasPermission} from "@/lib/identity_access/permissions";
 import {z} from 'zod';
-import type {GpoRule,GpoRuleTarget} from '@/lib/gpo-rules';
+import type {GpoRule,GpoRuleTarget} from "@/lib/organization/gpo-rules";
 export type GpoRuleRow = {
   id: string; company_id: string; target_kind: GpoRuleTarget["kind"]; target_id: string;
   version: number; revision: number; connection_id: string; gpo_id: string;

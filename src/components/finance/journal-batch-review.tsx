@@ -6,8 +6,8 @@ import { Button, Field, Table, TableFrame, TextArea, TextInput } from "@/compone
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { workFetch } from "@/lib/work-fetch";
-import { minorToDecimal } from "@/lib/finance-money";
+import { workFetch } from "@/lib/work_projection/work-fetch";
+import { minorToDecimal } from "@/lib/finance/finance-money";
 import type { LedgerRow } from "@/server/modules/finance/public/ledger";
 import { Card } from "@/components/ui/foundation";
 

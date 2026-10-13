@@ -16,6 +16,6 @@ PO ที่อนุมัติแล้วเป็นเจ้าของ�
 
 API: `/api/v1/holdings/{holdingSlug}/supplier-promises/{orderId}` — GET อ่านประวัติ/ยอดค้าง, POST บันทึก confirmation หรือ withdrawal ด้วย Idempotency-Key
 
-หลักฐานอัตโนมัติอยู่ใน `tests/supplier-promises.test.ts`: split/partial receipts, unconfirmed shortfall, replacement/withdrawal, replay/stale/concurrency, revoked/scope guards, immutable history, source completion และ Work/Inbox/Calendar
+หลักฐานอัตโนมัติอยู่ใน `tests/integration/procurement/supplier-promises.test.ts`: split/partial receipts, unconfirmed shortfall, replacement/withdrawal, replay/stale/concurrency, revoked/scope guards, immutable history, source completion และ Work/Inbox/Calendar
 
 ยังไม่ปิด RFQ/เปรียบเทียบราคา, supplier portal, การจับคู่ invoice variance, planning/customer delivery promise, business-calendar SLA หรือการส่ง Email ให้ลูกค้า การยืนยันวันส่งจากผู้ขายเพียงอย่างเดียวไม่ใช่หลักฐานว่าลูกค้าจะได้รับสินค้าตามวันนั้น

@@ -1,2 +1,0 @@
-/** Compatibility entry point; implementation belongs to finance. */
-export {billingRevisionSchema,businessBillingSchema,businessContractConfiguration,businessContractSchema,businessContractWorkspace,businessDecisionSchema,decideBusinessContract,decideNoChargeBilling,decideRecognitionRun,prepareBusinessBilling,prepareBusinessBillingRevision,prepareBusinessContract,prepareRecognitionRun,recognitionReversalSchema,recognitionRunSchema,reverseRecognitionRun} from "@/server/modules/finance/adapters/finance-business-contracts";

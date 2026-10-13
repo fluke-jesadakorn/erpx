@@ -1,4 +1,4 @@
-import { samePerson } from "@/lib/iam";
+import { samePerson } from "@/lib/identity_access/iam";
 import { z } from "zod";
 import type { ApprovalView } from "@/server/modules/workflow/public/approvals";
 import type { RecordScope, StaffActor } from "@/server/modules/operations/public/staff-policy";

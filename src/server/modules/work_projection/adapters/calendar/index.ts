@@ -1,6 +1,6 @@
 import { ApiError } from "../../../runtime/public/http";
 import "server-only";
-import { type CalendarLayer } from "@/lib/calendar";
+import { type CalendarLayer } from "@/lib/work_projection/calendar";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { appointmentWarningMessages } from "./appointments";

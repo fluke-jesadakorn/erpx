@@ -2,7 +2,7 @@ import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Table } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { listTransit } from "@/server/modules/inventory/public/inventory-transit";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { PageContent, Card, TableFrame } from "@/components/ui/foundation";

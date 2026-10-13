@@ -1,10 +1,10 @@
 
-import betaStyles from "@/components/beta/beta.module.css";
+import betaStyles from "@/components/collaboration/beta.module.css";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createAuth } from "@/server/modules/identity_access/public/auth";
 
-import { OnboardingForm } from "@/components/beta/onboarding-form";
+import { OnboardingForm } from "@/components/collaboration/onboarding-form";
 import { onboardingPresentationQueries } from "@/server/modules/manage_erpx/public/onboarding-presentation-query";
 export const dynamic = "force-dynamic";
 export default async function Onboarding() {

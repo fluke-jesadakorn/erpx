@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ThaiDocumentSnapshot } from '@/lib/finance-thai-document';
+import type { ThaiDocumentSnapshot } from "@/lib/finance/finance-thai-document";
 import type { TaxIdentity } from './tax-identities';
 export type IssuedDocument = {
     id: string;

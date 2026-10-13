@@ -1,0 +1,113 @@
+{
+  "checkedAt": "2026-10-12T02:44:07.653315+00:00",
+  "scope": "Bounded property/permission-scoped choice/search implementation and actualPG regression; current compiled GUI/full gates still pending",
+  "runtime": "f6f6b128392534e93de44abc1192ebc612aa0f137b21b1331cf0583002da196d",
+  "verification": "80f30dbf6978607023b9288e6bffb4405055f9087baffb52da007030551eef34",
+  "implementation": [
+    "Choice view returns up to50 matches plus explicitly retained same-property selected ID",
+    "Minimal guest name/email/emptyphone projection; ordinary active groups exclude internal claims",
+    "Operational permissions checked after existing Property scope; command lock rejects all bounded selection",
+    "Operations list supplies at most50 active group dependencies; unauthorized guest/group visibility remains redacted",
+    "Booking and rooming use bounded search instead of loading hotel history",
+    "Current lifecycle cancels keyed latest reads on cleanup and retains search results when controlled selection changes"
+  ],
+  "actualTests": {
+    "red": "Newcase failed unsupported choices discriminator;20other cases intentionally not selected",
+    "greenFile": "21/21 actual PG read-model cases passed before expanded same-company foreignProperty/exact projection assertions",
+    "expandedGreen": "Updated case1passed;20 intentionally not selected, not a new whole21 invocation",
+    "existingOriginalNativeRequirementsRetained": 1342,
+    "previousAdditional22Retained": 22,
+    "newRequiredNativeIdentity": {
+      "file": "tests/pms-read-model.test.ts",
+      "title": "offers bounded searchable guest and group choices without history or foreign-property data"
+    },
+    "newExactRequiredNativeTotal": 1365
+  },
+  "rawEvidence": [
+    {
+      "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-group-admin-candidate-2026-10-12/choice-regression-red.log",
+      "SHA256": "f700bc0fc85f9f712cec69d38f74049e7fbb3b8f7f90540dcad74884e554ed91"
+    },
+    {
+      "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-group-admin-candidate-2026-10-12/choice-regression-green.log",
+      "SHA256": "ea3b768572bf1d63970cdca7503075c4f5b6b22482bac8f1cb8e28b46c9baa8e"
+    },
+    {
+      "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-group-admin-candidate-2026-10-12/choice-expanded-green.log",
+      "SHA256": "6ff600d4cb0a9c45b30d2adb2326a12540700b335019577ddce7a534892a8cb3"
+    },
+    {
+      "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-group-admin-candidate-2026-10-12/choice-typecheck.log",
+      "SHA256": "0f1a5c912b2f87c61490bf88f9f3b00a7f7cf1da545000023fc6e951c16fb926"
+    },
+    {
+      "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-group-admin-candidate-2026-10-12/choice-typecheck-repair.log",
+      "SHA256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    {
+      "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-group-admin-candidate-2026-10-12/choice-lint.log",
+      "SHA256": "39515323f39c3a2393d163c2c1a735814e84dd8c61b163b6dd56267d0c4e9a83"
+    },
+    {
+      "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-group-admin-candidate-2026-10-12/choice-lint-repair.log",
+      "SHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-group-admin-candidate-2026-10-12/choice-lifecycle-lint.log",
+      "SHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "currentSourceFiles": [
+    {
+      "file": "src/lib/pms-read-selection.ts",
+      "SHA256": "2ee425cda7c91f922eff31ebd3a0c7f9ee1be9f18a1311ed24dff7a89b01d751"
+    },
+    {
+      "file": "src/server/modules/pms/application/pms.ts",
+      "SHA256": "eb7dea86bb5dcd4e89894ba8e6b63ef95d4ea38ce6eb5ff87e79a5482facf1f7"
+    },
+    {
+      "file": "src/server/modules/pms/adapters/pms.ts",
+      "SHA256": "d6da0ce196ebcf5612dd4e67ba62e1634cbf5cf3ca2dc17804559caa1f896f78"
+    },
+    {
+      "file": "src/server/modules/pms/adapters/pms/read-repository.ts",
+      "SHA256": "18abe34c2bf5a134a25dc0deabd600b2004773ebff4e52835cc49a444c5b1732"
+    },
+    {
+      "file": "src/server/modules/pms/public/pms/read-repository.ts",
+      "SHA256": "68e5860d4c7a624ff914857ab3ddb0aa205205394be86468512169505b0f8956"
+    },
+    {
+      "file": "src/components/pms/choice-select.tsx",
+      "SHA256": "52a50d9d223fdbf3918c0975f569c02d95ce773ec438c54977a2596ff278b6fb"
+    },
+    {
+      "file": "src/components/pms/booking-flow.tsx",
+      "SHA256": "83feec1f1bc7f668adee2d5c0d2bac04e127f11a3a3bc51c1844bef947d1a591"
+    },
+    {
+      "file": "src/components/pms/pms-front-workspace.tsx",
+      "SHA256": "44dd634296902226aec554d6c8ecfc877ad2aeb518903c4ead270b32b6afd700"
+    },
+    {
+      "file": "src/components/pms/pms-backoffice-workspace.tsx",
+      "SHA256": "d4cb206212e0c766182bdbe77b12fc4a04340837aae0634b64a63a06fe1f0e6f"
+    },
+    {
+      "file": "src/lib/front-language.ts",
+      "SHA256": "72f34c13c07111fbe28c6efacd52d6011cfde267558b0d82906de5d9ec59b1e1"
+    },
+    {
+      "file": "tests/pms-read-model.test.ts",
+      "SHA256": "5f048f35c31ebfd7012eb92462340a884969c7fed13aeb2598352561879070c3"
+    }
+  ],
+  "currentStaticReleaseDriver": {
+    "pid": 89791,
+    "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-choices-lifecycle-candidate-2026-10-12/static-release-driver.ts",
+    "terminal": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-choices-lifecycle-candidate-2026-10-12/static-release-terminal.json"
+  },
+  "latestLifecycleCodeGuiValidated": false,
+  "wholePlanAccepted": false
+}

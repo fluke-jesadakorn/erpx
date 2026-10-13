@@ -1,1 +1,1 @@
-export {pmsCrossLinks} from '@/lib/pms-cross-links';
+export {pmsCrossLinks} from "@/lib/pms/pms-cross-links";

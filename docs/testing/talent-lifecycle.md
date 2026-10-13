@@ -17,6 +17,6 @@
 
 ## หลักฐานและ gate ที่เหลือ
 
-- `tests/talent.test.ts` ตรวจ complete lifecycle, privacy, stale source, self-review, owner revocation/reassignment และ immutable handoff
+- `tests/integration/talent/talent.test.ts` ตรวจ complete lifecycle, privacy, stale source, self-review, owner revocation/reassignment และ immutable handoff
 - regression รวม People lifecycle, Work views และ migration replay: `docs/testing/evidence/2026-09-20-talent-tests.txt`
 - ยังเหลือ candidate self-service/verified email, interview scheduling/Calendar, offer e-signature/background check, People onboarding consumer, retention erasure/export, browser หลายบทบาท, UAT และ production sign-off

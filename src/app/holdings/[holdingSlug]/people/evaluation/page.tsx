@@ -1,8 +1,8 @@
-import { FeaturePage } from "@/components/features/feature-page";
-import { PeopleNavigation } from "@/components/modules/people-navigation";
-import { EvaluationConsole } from "@/components/people/evaluation-console";
+import { FeaturePage } from "@/components/shared/features/feature-page";
+import { PeopleNavigation } from "@/components/people_payroll/people-navigation";
+import { EvaluationConsole } from "@/components/people_payroll/evaluation-console";
 import { PageHeader } from "@/components/ui/primitives";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { evaluationWorkspace } from "@/server/modules/people_payroll/public/people-evaluation";
 import { pageError } from "@/server/modules/work_projection/public/page-error";

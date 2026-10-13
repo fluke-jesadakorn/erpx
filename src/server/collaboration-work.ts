@@ -1,1 +1,0 @@
-export {collaborationWorkspace,collaborationExport,collaborationActionDetail,createRecordRelation,removeRecordRelation,createActionCard,changeActionCard,collaborationActionWork} from './modules/collaboration/public/collaboration-work';

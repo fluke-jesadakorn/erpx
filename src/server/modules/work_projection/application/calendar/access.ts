@@ -1,4 +1,4 @@
-import {hasPermission} from "@/lib/permissions";
+import {hasPermission} from "@/lib/identity_access/permissions";
 import type {WorkContext} from "../../../identity_access/public/authorization";
 import type {StaffPerson} from "../../../operations/public/staff-policy";
 import type {CalendarNode,CalendarPerson,CalendarHierarchy} from "@/server/modules/work_projection/public/rules/calendar-domain";

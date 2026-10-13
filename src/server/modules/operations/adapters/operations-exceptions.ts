@@ -1,7 +1,7 @@
 import "server-only";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase, SqlStatement } from "@/server/modules/runtime/public/runtime/types";
-import type { WorkItem } from "@/lib/work-item";
+import type { WorkItem } from "@/lib/work_projection/work-item";
 import { requirePermission } from "@/server/modules/identity_access/public/iam-permissions";
 import { assertion } from "@/server/modules/workflow/public/commands";
 import { readSourceRecord, visibleSourceRecord, sourceRecordGuards } from "@/server/modules/records/public/source-record-policy";

@@ -1,0 +1,54 @@
+{
+  "recordedAt": "2026-10-11T15:57:10.541347+00:00",
+  "scope": "Intentionally interrupted baseline checkpoint, not final aggregate acceptance",
+  "runtimeFingerprint": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+  "verificationFingerprint": "2b5548f6a40109638ade47957d999315dcfe0579627aa5879abc537632f257ce",
+  "candidateRelease": "2026-10-11T10-52-06-388Z",
+  "browserRun": "2026-10-11T15-01-04-555Z",
+  "driverTerminal": {
+    "finishedAt": "2026-10-11T15:54:28.423Z",
+    "passed": false,
+    "failure": "browser178_EXIT_1"
+  },
+  "browserPassed": false,
+  "interrupted": "SIGINT",
+  "partialPassingCases": 74,
+  "interruptedCases": 1,
+  "requiredFinalScopeUnchanged": {
+    "nativeOriginal": 1342,
+    "browserOriginal": 178,
+    "routesOriginalPms38PlusFinance96": 134,
+    "persistedHttp": 40,
+    "strictCapacityReads": 840,
+    "strictCapacityWrites": 843,
+    "roomMetadataSupplemental": 8,
+    "providerSandboxSeparate": 7
+  },
+  "cleanup": {
+    "ownedCohortCount": 102,
+    "exactDatabaseNamesChecked": 816,
+    "remainingOwnedDatabases": [],
+    "remainingOwnedDirectories": [],
+    "retainedPidsChecked": 150,
+    "aliveRetainedPids": [],
+    "gatePidsAlive": [],
+    "temporaryListenersAbsent": true,
+    "cleanupFailures": []
+  },
+  "privateRawChecksums": {
+    ".scratch/dev/test-suites/browser/2026-10-11T15-01-04-555Z/receipt.json": "5b268c9c4a5500d5d61b82cff9117dafb186f36bd39c62f94d51bb0d36778a59",
+    ".scratch/dev/pms-sealed-ac53-gates-2026-10-11/terminal.json": "3f1af76813587b246416547fc9b56655ebdc7a2ed6ee23f38eb1d7e63ee6e03d",
+    ".scratch/dev/pms-sealed-ac53-gates-2026-10-11/baseline-interruption-intent.json": "6e88f1f1f5e87983158bade6ca4be648153df1756711f7f8ae9535d3e69ef981",
+    ".scratch/dev/pms-sealed-ac53-gates-2026-10-11/baseline-interruption-cleanup-audit.json": "4a2053cb246c636b958e46b2ca8a8b2317c727a50604abdb7d697a4dffce7981"
+  },
+  "reason": "Reserved performance and required in-house cross-type upgrade/group-quota repairs will change the candidate. Stop baseline without accepting it, then run unchanged full final gates after the repairs.",
+  "coordination": "Explicit revised sequence accepted by authorized performance peer 01a12408-1eff-7940-a873-5993463a181c before handoff",
+  "sequence": [
+    "actual baseline terminal interruption and exact owned cleanup",
+    "reserved guarded performance window",
+    "upgrade and group-quota business repairs",
+    "fresh final same-candidate checks and per-feature reconciliation"
+  ],
+  "wholePlanAccepted": false,
+  "featureStatusesPromoted": false
+}

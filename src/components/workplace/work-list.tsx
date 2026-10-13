@@ -2,14 +2,14 @@ import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Button, RecordList, RecordListItem } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { StatusBadge, EmptyState } from "@/components/ui/primitives";
-import { workTypes, workItemHref, isApprovalAction, type WorkItem } from "@/lib/work-item";
-import { supportsWorkReview } from "@/lib/work-review";
-import { workBlocker } from "@/lib/work-attention";
+import { workTypes, workItemHref, isApprovalAction, type WorkItem } from "@/lib/work_projection/work-item";
+import { supportsWorkReview } from "@/lib/work_projection/work-review";
+import { workBlocker } from "@/lib/work_projection/work-attention";
 import { WorkFlow } from "./work-flow";
-import { operationFromWork } from "@/lib/operation-presentation";
-import { workTypeTone } from "@/lib/work-category-tone";
+import { operationFromWork } from "@/lib/shared/operation-presentation";
+import { workTypeTone } from "@/lib/work_projection/work-category-tone";
 import styles from "./work-list.module.css";
-import { TimeText } from "@/components/time/time-preference-context";
+import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 export function WorkList({
   base,
   items,

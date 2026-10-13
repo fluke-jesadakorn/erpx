@@ -5,14 +5,15 @@ import { useHydrated } from "@/components/ui/use-hydrated";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ComponentProps } from "react";
 import { DraftFormDrawer } from "@/components/ui/draft-form-drawer";
-import { ExpenseEditor } from "@/components/modules/expense-editor";
-import { LeaveEditor } from "@/components/self-service/leave-editor";
-import { RequestEditor } from "./request-controls";
-import { workFetch } from "@/lib/work-fetch";
+import dynamic from "next/dynamic";
+const ExpenseEditor = dynamic(() => import("@/components/people_payroll/expense-editor").then(module => module.ExpenseEditor), { ssr: false });
+const LeaveEditor = dynamic(() => import("@/components/people_payroll/self-service/leave-editor").then(module => module.LeaveEditor), { ssr: false });
+const RequestEditor = dynamic(() => import("./request-controls").then(module => module.RequestEditor), { ssr: false });
+import { workFetch } from "@/lib/work_projection/work-fetch";
 type Intake = {kind:"expense";options:ComponentProps<typeof ExpenseEditor>["options"]}|{kind:"leave";summary:{balances:ComponentProps<typeof LeaveEditor>["types"];setupMessage:string|null};companyId:string;userId:string;assignmentId:string}|{kind:"purchase_request"|"service_request";options:ComponentProps<typeof RequestEditor>["options"]};
 import { Dialog } from "@/components/ui/dialog";
-import { newWorkHref, type WorkCreation } from "@/lib/work-cards";
-import { requestActions } from "@/lib/request-actions";
+import { newWorkHref, type WorkCreation } from "@/lib/work_projection/work-cards";
+import { requestActions } from "@/lib/work_projection/request-actions";
 const descriptions: Record<string, [string, string]> = {
   ...Object.fromEntries(Object.entries(requestActions).map(([kind,action])=>[kind,[action.label,action.objective]])),
   task: ["Create a task", "Assign and track a piece of work, such as preparing a team report."],

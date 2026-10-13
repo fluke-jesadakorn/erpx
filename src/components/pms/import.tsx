@@ -1,10 +1,11 @@
 "use client";
+import {FrontLocalizedTree} from "@/components/front/front-language";
 import { Button, Field, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { betaFetch } from "@/lib/beta-client";
+import { betaFetch } from "@/lib/shared/beta-client";
 import type { PmsImportReport } from "@/server/modules/pms/public/rules/pms-import";
 
 type ImportBatch = {
@@ -77,7 +78,7 @@ export function PmsImport({
     }
   }
   return (
-    <div className="content-stack">
+    <FrontLocalizedTree><div className="content-stack">
       <p>
         Preview rooms, rates, guests and open stays before saving. Amounts are THB satang. Cutover
         must match the hotel&apos;s business date: <strong>{businessDate}</strong>.
@@ -212,6 +213,6 @@ export function PmsImport({
         </section>
       ))}
       {!batches.length && <p>No import batches for this hotel yet.</p>}
-    </div>
+    </div></FrontLocalizedTree>
   );
 }

@@ -1,1 +1,0 @@
-export {sensitiveAttachmentPolicies,isSensitiveAttachmentTarget,authorizeSensitiveAttachmentTarget,sensitiveAttachmentTargetVersionGuard,sensitiveAttachmentRecordVersionStep} from "@/server/modules/files/public/attachments/sensitive-policy";

@@ -1,2 +1,0 @@
-export { documentBrandModes, resolveWorkspaceBrand, resolveDocumentBrand, recordBranchId, listBrandProfiles, readStorefrontAppBrand, requireBrandManagement, normalizeBrandImage, completeBrandUpload, completeStorefrontBrandUpload, updateStorefrontAppBrand, updateBrandProfile, brandProfileEvidenceRow } from "./modules/brand/adapters/branding";
-export type { DocumentBrandMode, BrandVariant, WorkspaceBrand, StorefrontAppBrand, DocumentBrand } from "./modules/brand/domain/branding";

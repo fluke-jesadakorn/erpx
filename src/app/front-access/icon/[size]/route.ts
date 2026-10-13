@@ -1,4 +1,4 @@
-import { frontAppForHost } from "@/lib/front-host";
+import { frontAppForHost } from "@/lib/shared/front-host";
 import { storefrontAppIconPng } from "@/server/modules/work_projection/public/front-icon";
 export async function GET(request:Request,{params}:{params:Promise<{size:string}>}) {
   const app=frontAppForHost(request.headers.get("host"));

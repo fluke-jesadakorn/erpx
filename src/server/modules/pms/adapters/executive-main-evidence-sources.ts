@@ -1,9 +1,9 @@
 import { hospitalityOwnerProjectionSources as financeProjectionSources } from "../../finance/public/hospitality-owner-projection-sources";
 import "server-only";
-import { type Filters } from "@/lib/executive/canvas";
+import { type Filters } from "@/lib/shared/executive/canvas";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
-import { hotelOccupancyMetric, HotelRoomRevenueMetric, HotelOccupancyEvidenceRow, HotelFolioBalanceEvidenceRow, HotelNightAuditBlockerEvidenceRow } from '@/server/modules/runtime/public/executive/evidence-contract';
+import { hotelOccupancyMetric, HotelRoomRevenueMetric, HotelOccupancyEvidenceRow, HotelGuestAccountBalanceEvidenceRow, HotelNightAuditBlockerEvidenceRow } from '@/server/modules/runtime/public/executive/evidence-contract';
 function hotelOccupancyRows(db: SqlDatabase, actor: WorkContext, filters: Filters, metric: typeof hotelOccupancyMetric | HotelRoomRevenueMetric = hotelOccupancyMetric, query = "", cursor?: {
     businessDate: string;
     id: string;
@@ -45,7 +45,7 @@ function hotelOccupancyValidSql(alias = "r") {
     const sold = `(${alias}.data_json::jsonb->'roomMetrics'->>'sold')`;
     return `(CASE WHEN ${capacity} ~ '^[1-9][0-9]{0,8}$' AND ${sold} ~ '^(0|[1-9][0-9]{0,8})$' THEN CASE WHEN ${capacity}::numeric>0 THEN ${sold}::numeric<=${capacity}::numeric ELSE FALSE END ELSE FALSE END)`;
 }
-function hotelFolioBalanceRows(db: SqlDatabase, actor: WorkContext, filters: Filters, query = "", cursor?: {
+function hotelGuestAccountBalanceRows(db: SqlDatabase, actor: WorkContext, filters: Filters, query = "", cursor?: {
     propertyId: string;
     id: string;
 }, recordId?: string, limit = 25) {
@@ -53,7 +53,7 @@ function hotelFolioBalanceRows(db: SqlDatabase, actor: WorkContext, filters: Fil
         "p.company_id=?",
         "(?::text IS NULL OR p.branch_id=?)",
         "p.config_json::jsonb->>'currency'=?",
-        "f.kind='folio'",
+        "f.kind='guest_account'",
         "f.data_json::jsonb->>'state' IN ('open','credit')",
         "e.kind='entry'",
         "j.company_id=p.company_id",
@@ -78,7 +78,7 @@ function hotelFolioBalanceRows(db: SqlDatabase, actor: WorkContext, filters: Fil
       sum(l.debit_minor::numeric-l.credit_minor::numeric)::text balance_minor,f.version
     FROM pms_records f
     JOIN pms_properties p ON p.id=f.property_id
-    JOIN pms_records e ON e.property_id=p.id AND e.kind='entry' AND e.data_json::jsonb->>'folioId'=f.id
+    JOIN pms_records e ON e.property_id=p.id AND e.kind='entry' AND e.data_json::jsonb->>'guestAccountId'=f.id
     JOIN pms_postings pp ON pp.property_id=p.id AND pp.record_id=e.id
     JOIN (${financeProjectionSources.finance_journals}) j ON j.id=pp.journal_id
     JOIN (${financeProjectionSources.finance_journal_lines}) l ON l.journal_id=j.id
@@ -170,7 +170,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
             currency: string;
         }, metric: "hotel-occupancy" | "hotel-adr" | "hotel-revpar", recordId: string): Promise<{
             row: HotelOccupancyEvidenceRow | null;
-        }> { const row = await hotelOccupancyRows(db, actor, filters, metric, "", undefined, recordId, 1).first<HotelOccupancyEvidenceRow>(); return { row }; }, async factsSearchHotelFolioBalanceEvidence(actor: WorkContext, input: {
+        }> { const row = await hotelOccupancyRows(db, actor, filters, metric, "", undefined, recordId, 1).first<HotelOccupancyEvidenceRow>(); return { row }; }, async factsSearchHotelGuestAccountBalanceEvidence(actor: WorkContext, input: {
             filters: {
                 from: string;
                 to: string;
@@ -178,20 +178,20 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
             };
             query: string;
             limit: number;
-            metric: "hotel-folio-balance";
+            metric: "hotel-guest-account-balance";
             cursor?: string | undefined;
         }, cursor: {
             propertyId: string;
             id: string;
         } | null): Promise<{
-            rows: HotelFolioBalanceEvidenceRow[];
-        }> { const rows = (await hotelFolioBalanceRows(db, actor, input.filters, input.query, cursor ?? undefined, undefined, input.limit).all<HotelFolioBalanceEvidenceRow>()).results; return { rows }; }, async factsReadHotelFolioBalanceEvidence(actor: WorkContext, filters: {
+            rows: HotelGuestAccountBalanceEvidenceRow[];
+        }> { const rows = (await hotelGuestAccountBalanceRows(db, actor, input.filters, input.query, cursor ?? undefined, undefined, input.limit).all<HotelGuestAccountBalanceEvidenceRow>()).results; return { rows }; }, async factsReadHotelGuestAccountBalanceEvidence(actor: WorkContext, filters: {
             from: string;
             to: string;
             currency: string;
         }, recordId: string): Promise<{
-            row: HotelFolioBalanceEvidenceRow | null;
-        }> { const row = await hotelFolioBalanceRows(db, actor, filters, "", undefined, recordId, 1).first<HotelFolioBalanceEvidenceRow>(); return { row }; }, async factsSearchHotelNightAuditBlockerEvidence(actor: WorkContext, input: {
+            row: HotelGuestAccountBalanceEvidenceRow | null;
+        }> { const row = await hotelGuestAccountBalanceRows(db, actor, filters, "", undefined, recordId, 1).first<HotelGuestAccountBalanceEvidenceRow>(); return { row }; }, async factsSearchHotelNightAuditBlockerEvidence(actor: WorkContext, input: {
             filters: {
                 from: string;
                 to: string;

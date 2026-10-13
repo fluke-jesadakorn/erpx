@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import type {AiProtocol,AiPreset} from '@/lib/ai/providers';
+import type {AiProtocol,AiPreset} from "@/lib/shared/ai/providers";
 export const aiConnectionSchema = z.object({
   expectedVersion: z.number().int().nonnegative().default(0),
   name: z.string().trim().min(2).max(100),

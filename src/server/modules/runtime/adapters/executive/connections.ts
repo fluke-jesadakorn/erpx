@@ -1,6 +1,6 @@
 import "server-only";
 import { randomBytes, randomUUID } from "node:crypto";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { WorkContext } from "../../../identity_access/public/authorization";
 import { holdingBindingBySlug, holdingResources } from "../../public/runtime";
 import type { SqlDatabase } from "../../public/runtime/types";

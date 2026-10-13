@@ -6,11 +6,11 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { TimeText } from "@/components/time/time-preference-context";
+import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 import { useCallback, useEffect, useState } from "react";
-import { QuickAccessShelf } from "@/components/quick-access/shelf";
-import type { QuickAccessItem, QuickAccessPreference } from "@/lib/quick-access";
-import rail from "@/components/quick-access/area-rail.module.css";
+import { QuickAccessShelf } from "@/components/work_projection/quick-access/shelf";
+import type { QuickAccessItem, QuickAccessPreference } from "@/lib/work_projection/quick-access";
+import rail from "@/components/work_projection/quick-access/area-rail.module.css";
 import s from "./legal.module.css";
 type Shared = {
   shareId: string;

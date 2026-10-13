@@ -6,7 +6,7 @@ import {requirePermission} from "@/server/modules/identity_access/public/iam-per
 import {hasModuleAccess} from "@/data/module-access";
 import {executeCommand,replayCommand} from "@/server/modules/workflow/public/commands";
 import {ApiError} from "@/server/modules/runtime/public/http";
-import {decimalToMinor} from "@/lib/finance-money";
+import {decimalToMinor} from "@/lib/finance/finance-money";
 import {BusinessRuleError} from "../../shared";
 import {createBenefitPlanApplication, type BenefitPlanInputPorts} from "../application/plan";
 export async function createBenefitPlan(a:WorkContext,raw:unknown,key:string){

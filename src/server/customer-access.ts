@@ -1,1 +1,0 @@
-export { customerAccessBinding,customerAccessWorkspace,requestCustomerAccess,changeCustomerAccess,customerAccessHistory,customerAccessWork,customerAccessRequestSchema } from "./modules/customer_authority/public/customer-access";

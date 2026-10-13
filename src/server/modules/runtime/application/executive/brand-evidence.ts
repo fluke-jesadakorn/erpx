@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { hasModuleAccess } from "@/data/module-access";
 import { filtersSchema } from "@/server/modules/runtime/public/rules/canvas-domain";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { brandEvidenceMetrics, type BrandEvidenceMetric, providerId, fields, inputSchema, type BrandProfileRow, parseCursor, encodeCursor, safeRevision, notFound, timeRange } from '../../domain/executive/brand-evidence';
 import { BusinessRuleError, type Clock } from '../../../shared';

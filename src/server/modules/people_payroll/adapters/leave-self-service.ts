@@ -6,7 +6,7 @@ import { activeStaff, requireCompanyAuthority } from "@/server/modules/operation
 import { ApiError } from "@/server/modules/runtime/public/http";
 import { executeCommand, replayCommand } from "@/server/modules/workflow/public/commands";
 import { openApproval } from "@/server/modules/workflow/public/approvals";
-import { leaveCreateSchema, leavePreviewSchema } from "@/lib/leave-self-service";
+import { leaveCreateSchema, leavePreviewSchema } from "@/lib/people_payroll/leave-self-service";
 import { z } from "zod";
 import { peopleRequestRoute } from "@/server/modules/organization/public/department-authority";
 import { scheduledFeaturePredicate } from "@/server/modules/pms/public/hospitality-rollout";

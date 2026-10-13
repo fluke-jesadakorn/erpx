@@ -1,4 +1,4 @@
-import { resolveRate, decimalUnits, type ManualRate } from '@/lib/company-money';
+import { resolveRate, decimalUnits, type ManualRate } from "@/lib/finance/company-money";
 import type { WorkContext } from '@/server/modules/identity_access/public/authorization';
 import type { FinanceError } from '../domain/invoice-line-revision';
 export function createFunctionalFx(ports: {

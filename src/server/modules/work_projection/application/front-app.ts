@@ -1,7 +1,7 @@
-import type {HoldingWorkspaceScope} from "@/lib/workspace";
-import type {WorkspaceHoldingChoice} from "@/lib/workspace-choice";
+import type {HoldingWorkspaceScope} from "@/lib/work_projection/workspace";
+import type {WorkspaceHoldingChoice} from "@/lib/work_projection/workspace-choice";
 import type {WorkContext,AccountAccessContext} from "../../identity_access/public/authorization";
-import {assignmentApplies} from "@/lib/workspace-access";
+import {assignmentApplies} from "@/server/modules/identity_access/public/rules/workspace-access";
 import {frontVisibleLocation} from "../domain/front-path";
 import {frontRouteForLocation,localPathFromDestination,type FrontAppKind,type FrontCompanyApp,type FrontCompanyBrand,type FrontLocation} from "../domain/front-app";
 import type {readWorkSelection,selectWorkRole} from "../public/work-role-store";

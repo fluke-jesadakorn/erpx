@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requirePlatformContext, requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
-import { parseHoldingWorkspace, workspaceBase, workspaceHref } from '@/lib/workspace';
+import { parseHoldingWorkspace, workspaceBase, workspaceHref } from "@/lib/work_projection/workspace";
 import { runtimeEnv } from "@/server/modules/runtime/public/runtime";
 import { rememberWorkspace } from "@/server/modules/work_projection/public/workspace-preferences";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";

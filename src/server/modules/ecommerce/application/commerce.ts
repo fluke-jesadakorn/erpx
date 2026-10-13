@@ -3,7 +3,7 @@ import type { Row } from "../../commerce/public/commerce";
 import type { ChannelCommand } from "../domain/channel";
 import { createChannelApplication } from "./channel";
 import { listingSchema, cartSchema, lineSchema, checkoutSchema, actionSchema, cartLineCurrent, reviewTransition, type ListingInput, type CartInput, type CartLineInput, type CheckoutInput, type EcommerceAction, type EcommerceRecordKind } from "../domain/commerce";
-import { decimalToMinor, minorToDecimal } from "@/lib/finance-money";
+import { decimalToMinor, minorToDecimal } from "@/lib/finance/finance-money";
 import type { Clock } from "../../shared/application/ports";
 
 export type EcommerceCommand<Input = unknown> = { key: string; operation: string; id: string; input: Input };

@@ -1,5 +1,5 @@
 import { reportingIssues, type OrganizationPerson, type OrganizationPosition } from "@/server/modules/organization/public/rules/organization-domain";
-import type { OrganizationAccessData } from "@/lib/organization-access";
+import type { OrganizationAccessData } from "@/lib/organization/organization-access";
 import { BusinessRuleError } from "../../shared";
 
 export type OrganizationAccessActor = { actorId: string; branchId: string | null; departmentId: string | null; scopeKind: string; assignmentScope: string; mayReadIam: boolean; mayManagePeople: boolean; mayManageOrganization: boolean };

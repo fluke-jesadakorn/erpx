@@ -9,7 +9,7 @@ import { holdingResources } from "@/server/modules/runtime/public/runtime";
 import type { SqlDatabase, SqlStatement } from "@/server/modules/runtime/public/runtime/types";
 import { snapshotMoney } from "@/server/modules/finance/public/company-money";
 import { assertProductionModuleEnabled, productionFeatureGuard } from "@/server/modules/pms/public/hospitality-rollout";
-import { thaiEvidenceForEmployee, thaiEvidenceGuards, thaiPackForRun, type PayrollStatutoryRun } from "@/server/payroll-statutory";
+import { thaiEvidenceForEmployee, thaiEvidenceGuards, thaiPackForRun, type PayrollStatutoryRun } from "@/server/modules/people_payroll/adapters/payroll-statutory";
 import { BusinessRuleError } from '../../shared';
 import { type Row, payrollAdjustmentCreateSchema, payrollAdjustmentEditSchema } from '../domain/payroll-adjustments';
 import { createPayrollAdjustmentApplication, type PayrollAdjustmentRepository } from '../application/payroll-adjustments';

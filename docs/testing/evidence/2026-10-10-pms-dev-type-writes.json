@@ -1,0 +1,246 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "status": "Atomic dev type writes, static build, public navigation and full 1297-case native selection passed; general-command SLO and consolidated acceptance remain open",
+  "implementation": "Pinned Next 16.3.4 development-only setup-dev-bundler callers write routes.d.ts and validator.ts through per-file ordered temporary-file rename. Preserve generator inputs, same directory, strict-route setting, reader-visible complete files and failure recovery; original shared production typegen and product runtime unchanged. Apply through the existing version-checked prepareNextDevelopment and reapply after installs.",
+  "source": {
+    "runtime": "067ee9f9c4edd63b7270686db68e1c11b2bf9328061f1b8d0866d3bae7fec615",
+    "verification": "8988e494fee0feb8b78f014aa10f1ed9149861e475df6cdfdd13596262119a13"
+  },
+  "evidence": {
+    "actualPriorGeneratedFilesMalformed": true,
+    "actualUnprotectedWriterExposesPartialFile": true,
+    "actualGuardedReaderKeepsPreviousCompleteFile": true,
+    "overlappingGenerationsOrdered": true,
+    "failedGenerationPreservesPreviousFile": true,
+    "queueRecoversAfterFailure": true,
+    "temporaryFilesCleaned": true,
+    "upstreamGuardIdempotent": true,
+    "units": {
+      "files": 4,
+      "cases": 48,
+      "passed": true
+    },
+    "newFilesystemCases": 3,
+    "existingDebugCases": 12,
+    "existingPoolCases": 9,
+    "otherToolingCases": 24,
+    "generatedParse": {
+      "routes.d.ts": 0,
+      "validator.ts": 0
+    },
+    "unitRegistrationFailureResolved": "The new cases were incorporated into the existing registered development-tooling test file after the runner rejected an unregistered extra file. Final selected suite passes 48 cases; initial rejected invocation retained.",
+    "generatedParseAfterPublic": {
+      "routes.d.ts": 0,
+      "validator.ts": 0
+    },
+    "generatedParseFinal": {
+      "routes.d.ts": 0,
+      "validator.ts": 0
+    }
+  },
+  "environment": {
+    "developmentPid": 89739,
+    "detachedLauncherPid": 89722,
+    "localDevelopmentHealth": 200,
+    "stagingAccessed": false,
+    "privateProductionChanged": false
+  },
+  "liveHandles": {},
+  "remaining": [
+    "General-command write latency below two seconds",
+    "Selected Property on dashboard queue cards",
+    "Compiled browser and consolidated mock-pilot acceptance"
+  ],
+  "artifacts": {
+    "prepare-before.ts": {
+      "path": ".scratch/dev/pms-dev-type-writes/prepare-before.ts",
+      "sha256": "68058fe74197ca666d5af20a845d5dbe6c8fe70711a77460fbdfdb3f49b51470"
+    },
+    "prepare-candidate.ts": {
+      "path": ".scratch/dev/pms-dev-type-writes/prepare-candidate.ts",
+      "sha256": "fc492e76a3ab26a4f0710c2c4fa8df3e08d952b8eab6015c75d5ec34bf015cef"
+    },
+    "test-candidate.ts": {
+      "path": ".scratch/dev/pms-dev-type-writes/test-candidate.ts",
+      "sha256": "4d540896005aff9c69754410f7c86e9e70192ed6eae58bd1c5a17582f300b40a"
+    },
+    "routes-invalid.d.ts": {
+      "path": ".scratch/dev/pms-dev-type-writes/routes-invalid.d.ts",
+      "sha256": "92789604f0528d3970ce3cf6a153e1aae2f5a5690a4de6c5c6ca00b8995b9f3e"
+    },
+    "validator-invalid.ts": {
+      "path": ".scratch/dev/pms-dev-type-writes/validator-invalid.ts",
+      "sha256": "b8beff8826a220136b9d9ac37ce2c0888ca4fe7cbe1f3e226e6ea7f755abea88"
+    },
+    "unit.log": {
+      "path": ".scratch/dev/pms-dev-type-writes/unit.log",
+      "sha256": "8643498a9b6220bb1e15fa0a91f96704ca58b81016b2bd75bb8f454cfc45d121"
+    },
+    "unit-registered.log": {
+      "path": ".scratch/dev/pms-dev-type-writes/unit-registered.log",
+      "sha256": "c6680f6c6d920491a17f512f423251dac0e9c4b32b053fc20c58c4af396a5173"
+    },
+    "generated-parse.jsonl": {
+      "path": ".scratch/dev/pms-dev-type-writes/generated-parse.jsonl",
+      "sha256": "529638c40e0b7b2ad32445998ba2c9e0aa4d6ecca6596d35264f6b3888b80378"
+    },
+    "restart-development.py": {
+      "path": ".scratch/dev/pms-dev-type-writes/restart-development.py",
+      "sha256": "1c8092e23c5025062e0e10f6ba82745a72a2f00af37dfbd24a865a45b6cb20bb"
+    },
+    "restart-development.log": {
+      "path": ".scratch/dev/pms-dev-type-writes/restart-development.log",
+      "sha256": "877d4bf84d0df0e9ead0c1ea81c07c62f8f6beb4472d1ce1b8fe338cf868f299"
+    },
+    "source-before.json": {
+      "path": ".scratch/dev/pms-dev-type-writes/source-before.json",
+      "sha256": "69dedce25d29c223c69b7b1b62057a0cafdd66c27ce35aa32cf00994c0a05d31"
+    },
+    "typecheck.log": {
+      "path": ".scratch/dev/pms-dev-type-writes/typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "lint.log": {
+      "path": ".scratch/dev/pms-dev-type-writes/lint.log",
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    },
+    "architecture.log": {
+      "path": ".scratch/dev/pms-dev-type-writes/architecture.log",
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    "generated-parse-after-public.jsonl": {
+      "path": ".scratch/dev/pms-dev-type-writes/generated-parse-after-public.jsonl",
+      "sha256": "529638c40e0b7b2ad32445998ba2c9e0aa4d6ecca6596d35264f6b3888b80378"
+    },
+    "public-guest-account.jpg": {
+      "path": ".scratch/dev/pms-dev-type-writes/public-guest-account.jpg",
+      "sha256": "b33005f5ea3a4651b3ba8df2b26cca0c518026ef645515ba40b00632b13fa39d"
+    },
+    "build.log": {
+      "path": ".scratch/dev/pms-dev-type-writes/build.log",
+      "sha256": "e9893b8680970ad17a4d2ee49077eb65b3051e3e221adac747d00b9594aea7b8"
+    },
+    "native-full.log": {
+      "path": ".scratch/dev/pms-dev-type-writes/native-full.log",
+      "sha256": "a905211b68dc4ea297e2d1ff9c52aa767cdbd2d2af792ed89c15bdfe33884acd"
+    },
+    "source-after-full.json": {
+      "path": ".scratch/dev/pms-dev-type-writes/source-after-full.json",
+      "sha256": "69dedce25d29c223c69b7b1b62057a0cafdd66c27ce35aa32cf00994c0a05d31"
+    },
+    "generated-parse-final.jsonl": {
+      "path": ".scratch/dev/pms-dev-type-writes/generated-parse-final.jsonl",
+      "sha256": "2a3229791fa3c65774a032e10bebe0c6b243fb7bccb5910681723dcce2ba7aec"
+    },
+    "public-today-final.jpg": {
+      "path": ".scratch/dev/pms-dev-type-writes/public-today-final.jpg",
+      "sha256": "1955ba174b712d1e9628928f761762d3f4305f90aabee8c5542e28cafa974754"
+    },
+    "environment-end.json": {
+      "path": ".scratch/dev/pms-dev-type-writes/environment-end.json",
+      "sha256": "b2758a0629be157298791f177e3e8f4e3583218c58ce1e9eff607f8a06e6ee19"
+    },
+    "docs-final.log": {
+      "path": ".scratch/dev/pms-dev-type-writes/docs-final.log",
+      "sha256": "fca8e78d1eebe6892c6c95facdd04bc41606540f0c55dd8347ffc9960e671924"
+    },
+    "diff-check-final.log": {
+      "path": ".scratch/dev/pms-dev-type-writes/diff-check-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "staticVerification": {
+    "typecheck": true,
+    "lintErrors": 0,
+    "existingWarnings": 3,
+    "architecture": true,
+    "isolatedBuild": true
+  },
+  "publicUi": {
+    "entry": "https://console-dev-erpx.jesadakorn.com/front/acme/acme-co/pms/holding",
+    "normalExistingSession": true,
+    "initialNavigationTimedOut": true,
+    "sameTabReachedDestinationWithoutRestart": true,
+    "companyTodayOnline": true,
+    "thaiToggleEnabled": true,
+    "eightTaskLinks": true,
+    "guestAccountNavigationSucceeded": true,
+    "transactionsSubmitted": false,
+    "compiledCandidateAcceptance": false,
+    "afterScaleTodayNavigationSucceeded": true,
+    "selectedHotelPreservedByHeaderTaskLink": true,
+    "dashboardCardPropertyGap": "Observed queue cards omit the selected Property; a separate follow-up is required after this frozen candidate."
+  },
+  "release": "2026-10-10T01-06-58-106Z",
+  "holding16ScaleReceipt": "docs/testing/evidence/2026-10-10-pms-holding-pool-sixteen.json",
+  "fullNativeProgress": {
+    "unitFiles": 77,
+    "unitCases": 779,
+    "integrationFiles": 49,
+    "integrationCases": 518,
+    "totalFiles": 126,
+    "totalCases": 1297,
+    "unitsPassed": true,
+    "integration": "passed",
+    "runnerExitCode": 0,
+    "unitDurationSeconds": 19.48,
+    "integrationDurationSeconds": 361.2,
+    "sameSourceBeforeAfter": true,
+    "wholeAcceptance": false
+  },
+  "documentationCheck": {
+    "markdownFiles": 248,
+    "linksAndAnchors": 1312,
+    "ledgerFiles": 213,
+    "passed": true
+  },
+  "environmentEnd": {
+    "listeners": {
+      "3100": [
+        "89739"
+      ],
+      "3101": [],
+      "5432": [
+        "909"
+      ],
+      "3104": []
+    },
+    "stagingAccessed": false,
+    "developmentCwd": [
+      "/Users/fluke/Desktop/Work/erpx"
+    ],
+    "initialHealthProbe": {
+      "localDevelopment": {
+        "url": "http://127.0.0.1:3100/api/health",
+        "status": 200
+      },
+      "publicDevelopment": {
+        "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+        "error": "HTTPError"
+      },
+      "privateProduction": {
+        "url": "http://127.0.0.1:3101/api/health",
+        "status": 200
+      }
+    },
+    "health": {
+      "localDevelopment": {
+        "url": "http://127.0.0.1:3100/api/health",
+        "status": 200,
+        "curlExitCode": 0
+      },
+      "publicDevelopment": {
+        "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+        "status": 200,
+        "curlExitCode": 0
+      },
+      "privateProduction": {
+        "url": "http://127.0.0.1:3101/api/health",
+        "status": 200,
+        "curlExitCode": 0
+      }
+    },
+    "listenerObservationLimit": "Current user lsof shows no private-production PID despite successful HTTP 200; no production process change performed."
+  }
+}

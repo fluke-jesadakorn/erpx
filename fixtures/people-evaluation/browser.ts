@@ -1,5 +1,5 @@
-import { defaultEvaluationPolicy, emptyAssessment, evaluationMetrics, compensationMetrics, type AssessmentContent, type RoleProfile } from "../../src/lib/people-evaluation";
-import type { EvaluationWorkspace, EvaluationRow } from "../../src/server/people-evaluation";
+import { defaultEvaluationPolicy, emptyAssessment, evaluationMetrics, compensationMetrics, type AssessmentContent, type RoleProfile } from "../../src/lib/people_payroll/people-evaluation";
+import type { EvaluationWorkspace, EvaluationRow } from "../../src/server/modules/people_payroll/public/people-evaluation";
 
 /** Synthetic browser acceptance data; never persisted or substituted in the live workspace. */
 export function evaluationBrowserFixture(): EvaluationWorkspace {

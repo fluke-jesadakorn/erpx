@@ -1,21 +1,21 @@
-import type {HoldingWorkspaceScope} from "@/lib/workspace";
+import type {HoldingWorkspaceScope} from "@/lib/work_projection/workspace";
 export type FrontAppKind = "pos" | "pms";
 export type FrontLocation = { key: string; label: string; path: string };
 const frontPosOperations = new Set([
   "sale.create", "sale.add", "sale.remove", "sale.hold", "sale.resume",
   "sale.update_line", "sale.discount", "sale.customer", "sale.move_table", "sale.split", "sale.merge", "customer.create",
   "sale.cancel", "sale.complete", "sale.charge_to_room", "payment.create", "payment.retry",
-  "payment.cancel", "payment.cancel_transfer", "refund.request",
+  "payment.cancel", "payment.cancel_transfer", "refund.request", "room_charge_reversal.request", "room_charge_reversal.approve_pos", "room_charge_reversal.reject_pos",
   "kitchen.send", "kitchen.start", "kitchen.ready", "kitchen.deliver",
   "kitchen.cancel", "shift.open", "shift.close", "cash.create",
 ]);
 const frontPmsOperations = new Set([
   "reservation.create", "reservation.cancel", "reservation.no_show",
-  "stay.cancel", "stay.no_show", "stay.assign", "stay.move", "stay.guest",
-  "stay.route_folio", "stay.check_in", "stay.preview_checkout",
+  "stay.cancel", "stay.no_show", "stay.assign", "stay.move", "stay.upgrade", "stay.guest",
+  "stay.route_guest_account", "stay.check_in", "stay.preview_checkout",
   "stay.check_out", "stay.change_dates", "charge.add", "payment.receive",
   "payment.deposit", "payment.apply_deposit", "payment.request_transfer",
-  "payment.cancel_transfer", "refund.request", "refund.pay", "charge.correction.request", "folio.close", "shift.open",
+  "payment.cancel_transfer", "refund.request", "refund.pay", "charge.correction.request", "guest_account.close", "shift.open",
   "cash.move", "shift.close", "task.create", "task.assign", "task.start",
   "task.complete", "task.inspect", "room.dnd", "room.observe",
   "maintenance.open", "maintenance.close",
@@ -23,7 +23,7 @@ const frontPmsOperations = new Set([
 ]);
 export const frontPmsSections = new Set([
   "dashboard", "reservations", "front-desk", "rooms", "housekeeping",
-  "folios", "cashier", "night-audit",
+  "guest-accounts", "cashier", "night-audit",
 ]);
 export type FrontCompanyBrand = {
   holdingId: string;

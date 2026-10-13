@@ -1,2 +1,0 @@
-/** Compatibility entry point; legacy implementation belongs to people_payroll. */
-export {assertPayrollRecoveryDeductionLimits,consentPayrollRecovery,payrollRecoveryAgreement,payrollRecoveryConsentSchema,payrollRecoveryPage,payrollRecoveryPolicy,payrollRecoveryRecognizeSchema,payrollRecoveryRequestSchema,payrollRecoveryReviewSchema,recognizePayrollRecovery,requestPayrollRecovery,reviewPayrollRecovery} from "@/server/modules/people_payroll/adapters/payroll-recoveries";

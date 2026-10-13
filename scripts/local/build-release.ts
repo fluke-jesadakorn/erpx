@@ -3,18 +3,19 @@ import { constants } from 'node:fs';
 import { join,resolve,relative } from 'node:path';
 import { createHash } from 'node:crypto';
 import { runtimeSourceFingerprint } from './source-fingerprint';
+import { relocateStandaloneLinks } from './standalone-links';
 
 const root=process.cwd(), id=new Date().toISOString().replace(/[:.]/g,'-');
 const sourceFingerprint=await runtimeSourceFingerprint(root);
 const work=join(root,'.runtime/build',id),release=join(root,'.runtime/releases',id);
-const node=resolve(process.env.ERPX_NODE_BIN??'.runtime/node/node-v24.20.0-darwin-arm64/bin/node');
-if(Bun.spawnSync([node,'--version']).stdout.toString().trim()!=='v24.20.0')throw new Error('NODE_24_20_REQUIRED');
-const acceptanceCheck=Bun.spawn([process.execPath,join(root,'scripts/generate-capability-matrix.ts'),'--check'],{cwd:root,stdout:'inherit',stderr:'inherit'});
+const node=resolve(process.env.ERPX_NODE_BIN??'.runtime/node/node-v26.11.1-darwin-arm64/bin/node');
+if(Bun.spawnSync([node,'--version']).stdout.toString().trim()!=='v26.11.1')throw new Error('NODE_26_11_1_REQUIRED');
+const acceptanceCheck=Bun.spawn([process.execPath,join(root,'scripts/docs/generate-capability-matrix.ts'),'--check'],{cwd:root,stdout:'inherit',stderr:'inherit'});
 if(await acceptanceCheck.exited!==0)throw new Error('BUSINESS_ACCEPTANCE_SNAPSHOT_STALE');
-const hospitalityCheck=Bun.spawn([process.execPath,join(root,'scripts/generate-hospitality-evidence.ts'),'--check'],{cwd:root,stdout:'inherit',stderr:'inherit'});
+const hospitalityCheck=Bun.spawn([process.execPath,join(root,'scripts/docs/generate-hospitality-evidence.ts'),'--check'],{cwd:root,stdout:'inherit',stderr:'inherit'});
 if(await hospitalityCheck.exited!==0)throw new Error('HOSPITALITY_EVIDENCE_SNAPSHOT_STALE');
 await mkdir(work,{recursive:true});await mkdir(release,{recursive:true});
-for(const name of ['src','public','scripts','fixtures','tests/helpers','migrations/postgres','package.json','bun.lock','next.config.ts','tsconfig.json','tsconfig.engineering-tests.json','next-env.d.ts','postcss.config.mjs'])
+for(const name of ['src','public','scripts','fixtures','tests/support','tests/catalogue','tests/config','migrations/postgres','package.json','bun.lock','next.config.ts','tsconfig.json','next-env.d.ts','postcss.config.mjs'])
   await cp(join(root,name),join(work,name),{recursive:true,mode:constants.COPYFILE_FICLONE});
 await mkdir(join(work,'ops/macos'),{recursive:true});
 await cp(join(root,'ops/macos/clamav'),join(work,'ops/macos/clamav'),{recursive:true,mode:constants.COPYFILE_FICLONE});
@@ -32,6 +33,7 @@ await writeFile(join(work,'src/data/release-artifact.json'),JSON.stringify({soft
 const child=Bun.spawn([node,join(work,'node_modules/next/dist/bin/next'),'build'],{cwd:work,stdout:'inherit',stderr:'inherit',env:{...process.env,NODE_ENV:'production',NEXT_DEPLOYMENT_ID:softwareVersion,ERPX_BUILD_DIR:'.next'}});
 if(await child.exited!==0)throw new Error('NEXT_BUILD_FAILED');
 await cp(join(work,'.next/standalone'),release,{recursive:true,mode:constants.COPYFILE_FICLONE});
+await relocateStandaloneLinks(join(work,'.next/standalone'),release);
 await cp(join(work,'.next/static'),join(release,'.next/static'),{recursive:true,mode:constants.COPYFILE_FICLONE});
 await cp(join(work,'public'),join(release,'public'),{recursive:true,mode:constants.COPYFILE_FICLONE});
 await cp(join(work,'migrations/postgres'),join(release,'migrations/postgres'),{recursive:true});
@@ -41,6 +43,9 @@ await cp(join(work,'ops/macos/install-attachment-runtime.py'),join(release,'ops/
 await cp(join(work,'ops/macos/attachment-rollout.md'),join(release,'ops/macos/attachment-rollout.md'));
 for(const name of ['erpxctl.py','offsite.py','recovery_status.py'])await cp(join(work,'ops/macos',name),join(release,'ops/macos',name));
 await cp(join(work,'scripts/legal'),join(release,'scripts/legal'),{recursive:true});
+// Disabled unless the isolated booking launcher attests an exact fictional cohort.
+await mkdir(join(release,'tools'),{recursive:true});
+await cp(join(work,'scripts/local/pms-provider-fixture.mjs'),join(release,'tools/pms-provider-fixture.mjs'));
 const productionDefines={'process.env.NODE_ENV':JSON.stringify('production')};
 const extraction=await Bun.build({entrypoints:[join(work,'scripts/legal/extract_docx.mjs')],outdir:join(release,'scripts/legal'),target:'node',format:'esm',naming:'extract_docx.mjs',env:'disable',define:productionDefines});
 if(!extraction.success)throw new Error('LEGAL_EXTRACTOR_BUILD_FAILED');
@@ -61,7 +66,10 @@ for(const file of (await readdir(release,{recursive:true,withFileTypes:true})).f
   artifacts[relative(release,file)]=createHash('sha256').update(await readFile(file)).digest('hex');
 const artifactManifest=JSON.stringify(artifacts,null,2)+'\n';
 await writeFile(join(release,'release-files.json'),artifactManifest);
-const manifest={id,softwareVersion,sourceFingerprint,deploymentId:softwareVersion,node:'24.20.0',postgres:'18.6',attachmentRuntime,createdAt:new Date().toISOString(),schemaSha256:schemaHash.digest('hex'),lockfileSha256:createHash('sha256').update(await readFile(join(work,'bun.lock'))).digest('hex'),fileManifestSha256:createHash('sha256').update(artifactManifest).digest('hex')};
+const manifest={id,softwareVersion,sourceFingerprint,deploymentId:softwareVersion,node:'26.11.1',postgres:'18.6',attachmentRuntime,createdAt:new Date().toISOString(),schemaSha256:schemaHash.digest('hex'),lockfileSha256:createHash('sha256').update(await readFile(join(work,'bun.lock'))).digest('hex'),fileManifestSha256:createHash('sha256').update(artifactManifest).digest('hex')};
 await writeFile(join(release,'release.json'),JSON.stringify(manifest,null,2));
 await rm(join(root,'.runtime/releases/latest'),{force:true});await symlink(release,join(root,'.runtime/releases/latest'));
+// Remove only this build's completed workspace. Releases may still be referenced
+// by running verification, retained evidence or rollback requirements.
+await rm(work,{recursive:true,force:true});
 console.log(`Release: ${release}`);

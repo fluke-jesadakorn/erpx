@@ -1,0 +1,47 @@
+{
+  "run": "6e8765a38863",
+  "sourceFingerprint": "a3694b4162412a843d054b4e49b24f33ada682981c99fa209db793482b44bbd4",
+  "verificationFingerprint": "0f6c233281f731beaf37ceab72ef8915315c0b6b9b658d3715c23f7328ecb056",
+  "release": {
+    "id": "2026-10-09T16-37-49-713Z",
+    "fileManifestSha256": "1c25e88dbab504ac97c0eda2662419940cbf89de20031551647c8b2187095ab6"
+  },
+  "scope": "Release HTTP: 3 \u00d7 200 rooms, 730-day synthetic closed stay/reservation/account metadata; 20 distinct normal staff accounts. Historic revenue is not invented.",
+  "applicationPoolMax": 4,
+  "controlPoolMax": 5,
+  "jobsHoldingPoolMax": 1,
+  "counts": [
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    }
+  ],
+  "accounts": 20,
+  "rounds": 10,
+  "durationMs": 61455,
+  "readCount": 840,
+  "writeCount": 400,
+  "readP95Ms": 321.7536670000045,
+  "writeP95Ms": 2589.4212909999987,
+  "failedSamples": 0,
+  "sameProcesses": true,
+  "unchanged": true,
+  "samplesSha256": "c0a4b53d1e0ef27c3b2b661e7cbf631545d26946386dc66c9da18456047239df",
+  "passed": false,
+  "acceptance": false,
+  "interpretation": "10 rounds completed: 840 valid reads and 400 valid writes, including all conflict retries and original-envelope replay. Reconciliation passed. Read p95 322 ms; logical write p95 2,589 ms still failed its target. A subsequent audit fixed omitted expectedVersion handling and added pre-snapshot per-property coordination; this receipt does not verify that new candidate."
+}

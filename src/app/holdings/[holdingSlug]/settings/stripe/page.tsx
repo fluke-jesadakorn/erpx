@@ -3,8 +3,8 @@ import { posPresentationQueries } from "@/server/modules/pos/public/presentation
 import { RecordLink as Link } from "@/components/records/record-link";
 import {requireWorkContext,publicScope} from "@/server/modules/identity_access/public/authorization";
 
-import {hasPermission} from '@/lib/permissions';
-import {workspaceBase} from '@/lib/workspace';
+import {hasPermission} from "@/lib/identity_access/permissions";
+import {workspaceBase} from "@/lib/work_projection/workspace";
 import {accessPage} from "@/server/modules/work_projection/public/page-error";
 import {CompanyStripe} from '@/components/finance/company-stripe';
 import { PageContent } from "@/components/ui/foundation";

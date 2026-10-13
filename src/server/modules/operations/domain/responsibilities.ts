@@ -1,5 +1,5 @@
 // Database-only domain code shared by the Next.js server and jobs Worker.
-import {hasPermission,permissionForRoles} from "@/lib/permissions";
+import {hasPermission,permissionForRoles} from "@/lib/identity_access/permissions";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import {BusinessRuleError} from "../../shared";
 

@@ -2,7 +2,7 @@ import {peoplePayrollFinalOwnerProjections as organizationFinalOwnerProjections}
 const organizationFinalSources=organizationFinalOwnerProjections();
 import {peopleEvaluationStaffWorkFacts} from '../../operations/public/people-evaluation-work-facts';
 import "server-only";
-import { type Compensation, type DefinitionKind } from "@/lib/people-evaluation";
+import { type Compensation, type DefinitionKind } from "@/lib/people_payroll/people-evaluation";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { assertion, executeCommand, replayCommand } from "@/server/modules/workflow/public/commands";
 import { ApiError } from "@/server/modules/runtime/public/http";

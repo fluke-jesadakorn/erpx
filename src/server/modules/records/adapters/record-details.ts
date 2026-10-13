@@ -27,7 +27,7 @@ import { intercompanyDetail } from "@/server/modules/finance/public/finance-inte
 import { consolidationDetail, consolidationEliminationDetail } from "@/server/modules/finance/public/finance-consolidation";
 import { pricingWorkspace } from "@/server/modules/sales/public/sales-pricing";
 import { listInventoryReorderPolicies } from "@/server/modules/inventory/public/inventory-reorder-policies";
-import type { RecordTarget } from "@/lib/record-drawer";
+import type { RecordTarget } from "@/lib/records/record-drawer";
 import { posReportReceipts } from "@/server/modules/pos/public/pos";
 import { statementSourceAccounts } from "@/server/modules/finance/public/finance-reporting";
 import { financePlanRecord, budgetSourceRecords, financialReportSourceRecords } from "@/server/modules/finance/public/finance-planning";

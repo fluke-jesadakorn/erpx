@@ -1,0 +1,232 @@
+{
+  "date": "2026-10-11",
+  "scope": "Actual saved image deliverables reviewed; no hotel media publication",
+  "generatedWith": "imagegen",
+  "generatedOn": "2026-10-09",
+  "fictionalHotel": true,
+  "actualAssets": 12,
+  "workspaceAndCandidateBytesMatch": true,
+  "reviewedAll12Pixels": true,
+  "continuity": {
+    "standard": "Three views: one queen bed, oak desk, sage chair, single vanity and shower without bathtub.",
+    "deluxe": "Three views: two single beds, oak furniture, sage seating, generous vanity and shower without bathtub.",
+    "suite": "Three views: separate king bedroom/living area, cream sofa, sage chair, kitchenette, double vanity, shower and bathtub.",
+    "common": "Lobby, pool and breakfast retain contemporary oak/cream/sage/tropical palette."
+  },
+  "limits": "Reference-conditioned sample views are visual approximations, not a measured floor plan or real hotel inventory.",
+  "replaceBeforeLiveSale": true,
+  "assets": [
+    {
+      "file": "public/pms-demo/rooms/breakfast.webp",
+      "bytes": 221522,
+      "sha256": "1eee4a5044a5131db639fb3439f370909707d184e016dc1931e2e038f8f08a23"
+    },
+    {
+      "file": "public/pms-demo/rooms/deluxe-bathroom.webp",
+      "bytes": 126950,
+      "sha256": "cae4c562be8259b599eb2fcc56ec73a3a98943e4b7bcfa00d4407b664011cbec"
+    },
+    {
+      "file": "public/pms-demo/rooms/deluxe-main.webp",
+      "bytes": 145312,
+      "sha256": "a3d934458d1d0ca0208956cb76164b552610d95670f274ba97981b07975d5009"
+    },
+    {
+      "file": "public/pms-demo/rooms/deluxe-window.webp",
+      "bytes": 133120,
+      "sha256": "1090d96db3fc8c88bd50f00e19b659bf0f217840bea3ee86d96ea2ba726d5c18"
+    },
+    {
+      "file": "public/pms-demo/rooms/lobby.webp",
+      "bytes": 240810,
+      "sha256": "716c085c04815da7fd1f7852016fe868dc41401b56dec2b94a18c67c8b5fd3e9"
+    },
+    {
+      "file": "public/pms-demo/rooms/pool.webp",
+      "bytes": 311232,
+      "sha256": "1a3caf8484e335f4a5c5c0d79daf2a408cc53ab845c1b20394bd91f4630f89a3"
+    },
+    {
+      "file": "public/pms-demo/rooms/standard-bathroom.webp",
+      "bytes": 107988,
+      "sha256": "d7b1e715b3cd67c65b0fa000756f777478c51b926b74d56c438731b7ec0cc743"
+    },
+    {
+      "file": "public/pms-demo/rooms/standard-main.webp",
+      "bytes": 142636,
+      "sha256": "dfbe0f900f0e87fa2d6d593096853fcad400021849b4f24097d071e12cbb0f87"
+    },
+    {
+      "file": "public/pms-demo/rooms/standard-window.webp",
+      "bytes": 138636,
+      "sha256": "739fb195d38b034ce01eb5b0488b091e942d26c4073c4c43272a1aa3a77aad95"
+    },
+    {
+      "file": "public/pms-demo/rooms/suite-bathroom.webp",
+      "bytes": 150448,
+      "sha256": "bba910be439893ef81af94668657b8047eb9d1bb6b9ecee8aa9c59507fecf9ad"
+    },
+    {
+      "file": "public/pms-demo/rooms/suite-living.webp",
+      "bytes": 119454,
+      "sha256": "1245c4af7f29a54efaf0a2dce8e40ea883d0babec3fa4ed7a69409ceb2b29a33"
+    },
+    {
+      "file": "public/pms-demo/rooms/suite-main.webp",
+      "bytes": 180386,
+      "sha256": "f1923cbbe7a89cf08a8298dca72c9e5fb5633e5d45ac3f6c174b6b5768fb7706"
+    }
+  ],
+  "wholePlanComplete": false,
+  "compiledAssetsAudit": {
+    "checkedAt": "2026-10-10T20:33:38.710115+00:00",
+    "runtime": "61d02a05665bdec4bc25a5b25cb9af9b40140960da76ed51b0228f9a37652581",
+    "release": "2026-10-10T18-04-29-147Z",
+    "releaseFileManifestSHA256": "680c215798fa5e9c8241d07f0d16900a84074fb2484af3f382262f6403de9a0a",
+    "manifestDigestValid": true,
+    "assets": [
+      {
+        "file": "public/pms-demo/rooms/breakfast.webp",
+        "sha256": "1eee4a5044a5131db639fb3439f370909707d184e016dc1931e2e038f8f08a23",
+        "mainCandidateReleaseMatched": true
+      },
+      {
+        "file": "public/pms-demo/rooms/deluxe-bathroom.webp",
+        "sha256": "cae4c562be8259b599eb2fcc56ec73a3a98943e4b7bcfa00d4407b664011cbec",
+        "mainCandidateReleaseMatched": true
+      },
+      {
+        "file": "public/pms-demo/rooms/deluxe-main.webp",
+        "sha256": "a3d934458d1d0ca0208956cb76164b552610d95670f274ba97981b07975d5009",
+        "mainCandidateReleaseMatched": true
+      },
+      {
+        "file": "public/pms-demo/rooms/deluxe-window.webp",
+        "sha256": "1090d96db3fc8c88bd50f00e19b659bf0f217840bea3ee86d96ea2ba726d5c18",
+        "mainCandidateReleaseMatched": true
+      },
+      {
+        "file": "public/pms-demo/rooms/lobby.webp",
+        "sha256": "716c085c04815da7fd1f7852016fe868dc41401b56dec2b94a18c67c8b5fd3e9",
+        "mainCandidateReleaseMatched": true
+      },
+      {
+        "file": "public/pms-demo/rooms/pool.webp",
+        "sha256": "1a3caf8484e335f4a5c5c0d79daf2a408cc53ab845c1b20394bd91f4630f89a3",
+        "mainCandidateReleaseMatched": true
+      },
+      {
+        "file": "public/pms-demo/rooms/standard-bathroom.webp",
+        "sha256": "d7b1e715b3cd67c65b0fa000756f777478c51b926b74d56c438731b7ec0cc743",
+        "mainCandidateReleaseMatched": true
+      },
+      {
+        "file": "public/pms-demo/rooms/standard-main.webp",
+        "sha256": "dfbe0f900f0e87fa2d6d593096853fcad400021849b4f24097d071e12cbb0f87",
+        "mainCandidateReleaseMatched": true
+      },
+      {
+        "file": "public/pms-demo/rooms/standard-window.webp",
+        "sha256": "739fb195d38b034ce01eb5b0488b091e942d26c4073c4c43272a1aa3a77aad95",
+        "mainCandidateReleaseMatched": true
+      },
+      {
+        "file": "public/pms-demo/rooms/suite-bathroom.webp",
+        "sha256": "bba910be439893ef81af94668657b8047eb9d1bb6b9ecee8aa9c59507fecf9ad",
+        "mainCandidateReleaseMatched": true
+      },
+      {
+        "file": "public/pms-demo/rooms/suite-living.webp",
+        "sha256": "1245c4af7f29a54efaf0a2dce8e40ea883d0babec3fa4ed7a69409ceb2b29a33",
+        "mainCandidateReleaseMatched": true
+      },
+      {
+        "file": "public/pms-demo/rooms/suite-main.webp",
+        "sha256": "f1923cbbe7a89cf08a8298dca72c9e5fb5633e5d45ac3f6c174b6b5768fb7706",
+        "mainCandidateReleaseMatched": true
+      }
+    ],
+    "scope": "All12 actual compiled photo bytes match manifest and both workspaces. Existing individual visual inspection remains separate; no live hotel publication approval implied."
+  },
+  "mainAlignedCompiledAssetsAudit": {
+    "checkedAt": "2026-10-10T21:39:49.798383+00:00",
+    "runtime": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+    "releaseId": "2026-10-10T21-33-53-720Z",
+    "all12Match": true,
+    "assets": [
+      {
+        "file": "public/pms-demo/rooms/breakfast.webp",
+        "candidateSHA256": "1eee4a5044a5131db639fb3439f370909707d184e016dc1931e2e038f8f08a23",
+        "mainSHA256": "1eee4a5044a5131db639fb3439f370909707d184e016dc1931e2e038f8f08a23",
+        "compiledSHA256": "1eee4a5044a5131db639fb3439f370909707d184e016dc1931e2e038f8f08a23"
+      },
+      {
+        "file": "public/pms-demo/rooms/deluxe-bathroom.webp",
+        "candidateSHA256": "cae4c562be8259b599eb2fcc56ec73a3a98943e4b7bcfa00d4407b664011cbec",
+        "mainSHA256": "cae4c562be8259b599eb2fcc56ec73a3a98943e4b7bcfa00d4407b664011cbec",
+        "compiledSHA256": "cae4c562be8259b599eb2fcc56ec73a3a98943e4b7bcfa00d4407b664011cbec"
+      },
+      {
+        "file": "public/pms-demo/rooms/deluxe-main.webp",
+        "candidateSHA256": "a3d934458d1d0ca0208956cb76164b552610d95670f274ba97981b07975d5009",
+        "mainSHA256": "a3d934458d1d0ca0208956cb76164b552610d95670f274ba97981b07975d5009",
+        "compiledSHA256": "a3d934458d1d0ca0208956cb76164b552610d95670f274ba97981b07975d5009"
+      },
+      {
+        "file": "public/pms-demo/rooms/deluxe-window.webp",
+        "candidateSHA256": "1090d96db3fc8c88bd50f00e19b659bf0f217840bea3ee86d96ea2ba726d5c18",
+        "mainSHA256": "1090d96db3fc8c88bd50f00e19b659bf0f217840bea3ee86d96ea2ba726d5c18",
+        "compiledSHA256": "1090d96db3fc8c88bd50f00e19b659bf0f217840bea3ee86d96ea2ba726d5c18"
+      },
+      {
+        "file": "public/pms-demo/rooms/lobby.webp",
+        "candidateSHA256": "716c085c04815da7fd1f7852016fe868dc41401b56dec2b94a18c67c8b5fd3e9",
+        "mainSHA256": "716c085c04815da7fd1f7852016fe868dc41401b56dec2b94a18c67c8b5fd3e9",
+        "compiledSHA256": "716c085c04815da7fd1f7852016fe868dc41401b56dec2b94a18c67c8b5fd3e9"
+      },
+      {
+        "file": "public/pms-demo/rooms/pool.webp",
+        "candidateSHA256": "1a3caf8484e335f4a5c5c0d79daf2a408cc53ab845c1b20394bd91f4630f89a3",
+        "mainSHA256": "1a3caf8484e335f4a5c5c0d79daf2a408cc53ab845c1b20394bd91f4630f89a3",
+        "compiledSHA256": "1a3caf8484e335f4a5c5c0d79daf2a408cc53ab845c1b20394bd91f4630f89a3"
+      },
+      {
+        "file": "public/pms-demo/rooms/standard-bathroom.webp",
+        "candidateSHA256": "d7b1e715b3cd67c65b0fa000756f777478c51b926b74d56c438731b7ec0cc743",
+        "mainSHA256": "d7b1e715b3cd67c65b0fa000756f777478c51b926b74d56c438731b7ec0cc743",
+        "compiledSHA256": "d7b1e715b3cd67c65b0fa000756f777478c51b926b74d56c438731b7ec0cc743"
+      },
+      {
+        "file": "public/pms-demo/rooms/standard-main.webp",
+        "candidateSHA256": "dfbe0f900f0e87fa2d6d593096853fcad400021849b4f24097d071e12cbb0f87",
+        "mainSHA256": "dfbe0f900f0e87fa2d6d593096853fcad400021849b4f24097d071e12cbb0f87",
+        "compiledSHA256": "dfbe0f900f0e87fa2d6d593096853fcad400021849b4f24097d071e12cbb0f87"
+      },
+      {
+        "file": "public/pms-demo/rooms/standard-window.webp",
+        "candidateSHA256": "739fb195d38b034ce01eb5b0488b091e942d26c4073c4c43272a1aa3a77aad95",
+        "mainSHA256": "739fb195d38b034ce01eb5b0488b091e942d26c4073c4c43272a1aa3a77aad95",
+        "compiledSHA256": "739fb195d38b034ce01eb5b0488b091e942d26c4073c4c43272a1aa3a77aad95"
+      },
+      {
+        "file": "public/pms-demo/rooms/suite-bathroom.webp",
+        "candidateSHA256": "bba910be439893ef81af94668657b8047eb9d1bb6b9ecee8aa9c59507fecf9ad",
+        "mainSHA256": "bba910be439893ef81af94668657b8047eb9d1bb6b9ecee8aa9c59507fecf9ad",
+        "compiledSHA256": "bba910be439893ef81af94668657b8047eb9d1bb6b9ecee8aa9c59507fecf9ad"
+      },
+      {
+        "file": "public/pms-demo/rooms/suite-living.webp",
+        "candidateSHA256": "1245c4af7f29a54efaf0a2dce8e40ea883d0babec3fa4ed7a69409ceb2b29a33",
+        "mainSHA256": "1245c4af7f29a54efaf0a2dce8e40ea883d0babec3fa4ed7a69409ceb2b29a33",
+        "compiledSHA256": "1245c4af7f29a54efaf0a2dce8e40ea883d0babec3fa4ed7a69409ceb2b29a33"
+      },
+      {
+        "file": "public/pms-demo/rooms/suite-main.webp",
+        "candidateSHA256": "f1923cbbe7a89cf08a8298dca72c9e5fb5633e5d45ac3f6c174b6b5768fb7706",
+        "mainSHA256": "f1923cbbe7a89cf08a8298dca72c9e5fb5633e5d45ac3f6c174b6b5768fb7706",
+        "compiledSHA256": "f1923cbbe7a89cf08a8298dca72c9e5fb5633e5d45ac3f6c174b6b5768fb7706"
+      }
+    ],
+    "scope": "Current release includes exact previously inspected fictional image bytes. This does not replace authorized publication and revocation browser evidence."
+  }
+}

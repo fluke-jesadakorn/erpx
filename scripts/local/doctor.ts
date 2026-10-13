@@ -1,9 +1,9 @@
-import { getRuntime,closeRuntime } from '../../src/server/runtime/env';
-import { resourceSlots,registeredResources } from '../../src/lib/holding-registry';
-import { maintenance } from '../../src/server/runtime/jobs';
-import { attachmentsV2Enabled } from '../../src/server/attachments/feature';
-import { attachmentRuntimeReadiness } from '../../src/server/attachments/readiness';
-import { billingEvidenceReadiness } from '../../src/server/billing-attachments';
+import { getRuntime,closeRuntime } from "../../src/server/modules/runtime/adapters/runtime/env";
+import { resourceSlots,registeredResources } from "../../src/lib/runtime/holding-registry";
+import { maintenance } from "../../src/server/modules/runtime/adapters/runtime/jobs";
+import { attachmentsV2Enabled } from "../../src/server/modules/files/public/attachments/feature";
+import { attachmentRuntimeReadiness } from "../../src/server/modules/files/public/attachments/readiness";
+import { billingEvidenceReadiness } from "../../src/server/modules/billing/public/billing-attachments";
 try{
   const env=getRuntime(),holdings=[],attachmentsEnabled=attachmentsV2Enabled(),attachments=await attachmentRuntimeReadiness(),billing=await billingEvidenceReadiness(env);
   for(const slot of resourceSlots(env)){

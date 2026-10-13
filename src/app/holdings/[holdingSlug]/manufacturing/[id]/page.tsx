@@ -1,11 +1,11 @@
 import { RecordLink as Link } from "@/components/records/record-link";
 import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { productionDetail } from "@/server/modules/manufacturing/public/production";
-import { ProductionConsole } from "@/components/modules/production-console";
-import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
-import { hasPermission } from "@/lib/permissions";
+import { ProductionConsole } from "@/components/records/loaders/modules--production-console";
+import { RecordDocumentPanel } from "@/components/records/loaders/attachments--record-document-panel";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Page({

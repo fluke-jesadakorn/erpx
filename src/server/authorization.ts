@@ -1,3 +1,0 @@
-/** Compatibility entry point; legacy implementation belongs to identity_access. */
-export {assignmentApplies,canEnterManageErpx,currentSession,firstAuthorizedWorkspace,isRoleValidAtScope,listWorkspaceCompanies,publicScope,requestedHoldingScope,requireAccountAccess,requireManageErpxContext,requirePlatformContext,requireWorkContext,resolveWorkspaceScope,workspaceCompaniesForAccount} from "@/server/modules/identity_access/adapters/authorization";
-export type {AccountAccessContext,AssignmentScopeKind,AuthorizedWorkspace,PlatformContext,ResolvedWorkspaceScope,WorkAssignment,WorkContext,WorkspaceCompany,WorkspaceResolutionOptions} from "@/server/modules/identity_access/adapters/authorization";

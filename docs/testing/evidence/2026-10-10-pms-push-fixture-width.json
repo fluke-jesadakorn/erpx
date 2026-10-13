@@ -1,0 +1,76 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "scope": "Correct deterministic Web Push test fixture scalar width; production Push configuration/validation and all thirteen scenario assertions unchanged. No provider send or production environment change.",
+  "initialFullNativeFailure": {
+    "receipt": "docs/testing/evidence/2026-10-10-pms-control-sixteen.json",
+    "failedCases": 9,
+    "error": "PUSH_DISABLED",
+    "originalRandomKeyLengthRetained": false
+  },
+  "widthProof": {
+    "node": "v24.20.0",
+    "rawPrivateBytes": 1,
+    "fixedWidthPrivateBytes": 32,
+    "uncompressedPublicBytes": 65,
+    "samePublicKey": true,
+    "rawMeetsApplicationWidth": false,
+    "paddedMeetsApplicationWidth": true,
+    "noKeyBytesEmitted": true
+  },
+  "deterministicRed": {
+    "exitCode": 1,
+    "failedCases": 9,
+    "passedCases": 4,
+    "total": 13
+  },
+  "deterministicGreen": {
+    "exitCode": 0,
+    "passedCases": 13,
+    "failedCases": 0
+  },
+  "why": "Node crypto returns minimal scalar bytes; fixture now supplies the fixed 32-byte encoding while retaining the identical derived public key. Scalar1 deterministically exercises leading-zero serialization. The production validator still rejects short/private mismatched configuration.",
+  "fullSameCandidateRegression": "pending",
+  "artifacts": {
+    "test-original.ts": {
+      "path": ".scratch/dev/pms-push-fixture-width/test-original.ts",
+      "sha256": "209f80ac10bcd9a577e4126418becbb51d4b528250d3179b747832402470f60c"
+    },
+    "test-candidate.ts": {
+      "path": ".scratch/dev/pms-push-fixture-width/test-candidate.ts",
+      "sha256": "1a02b540312f9de5da584e4c6170e6edbf8ac1cb9bf880d59e8412f4dbf364f4"
+    },
+    "width-proof.json": {
+      "path": ".scratch/dev/pms-push-fixture-width/width-proof.json",
+      "sha256": "9af7d043e8d047fffa45a9d1acf32ad75bd9b3c6b0d576ca59bca74ff4951e84"
+    },
+    "selection-first-failure.log": {
+      "path": ".scratch/dev/pms-push-fixture-width/selection-first-failure.log",
+      "sha256": "f000268bcee09350da69072c881ee3e8c6ccf2983a51c63f999354f776474406"
+    },
+    "native-red.log": {
+      "path": ".scratch/dev/pms-push-fixture-width/native-red.log",
+      "sha256": "f875ba4cef56f7928c4401394258153e6d82620adda823aa223ad843773130ad"
+    },
+    "native-green.log": {
+      "path": ".scratch/dev/pms-push-fixture-width/native-green.log",
+      "sha256": "59b7f659bbc61bc99e2a4dc9b481b71e3e3e1033da57f0ab46f7d29b2725b7e7"
+    }
+  },
+  "subsequentRegression": {
+    "receipt": "docs/testing/evidence/2026-10-10-pms-inventory-command-reader.json",
+    "pushPassed": 13,
+    "regressionTotal": 218,
+    "fullSameCandidateStillPending": true
+  },
+  "subsequentFullNative": {
+    "runtime": "40915d0225c70e5eabba70ffd2e269610142943ca683a9a4195650f74e81e7df",
+    "verification": "45883aae5bcfa16750ef26362930ba49d79319e300124c866d5f95b3cae6f3d0",
+    "passed": 1301,
+    "failed": 0,
+    "unit": 779,
+    "postgres": 522,
+    "evidence": "docs/testing/evidence/2026-10-10-pms-inventory-command-reader.json",
+    "scope": "Full PMS native regression on the later inventory-reader candidate; does not alter the original rejected Control16 result"
+  }
+}

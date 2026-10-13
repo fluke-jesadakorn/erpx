@@ -1,6 +1,6 @@
 import type { CalendarAccess } from "../../domain/calendar/access";
 import 'server-only';
-import type { CalendarQuery } from '@/lib/calendar';
+import type { CalendarQuery } from "@/lib/work_projection/calendar";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { calendarSupplierBatchesFinanceFacts } from "../../../finance/public/calendar-supplier-batches-facts";
 import { createCalendarSupplierBatches, type CalendarSupplierBatchesUnit } from "../../application/calendar/supplier-batches";

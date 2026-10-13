@@ -3,7 +3,7 @@ import {peoplePayrollFinalOwnerProjections as organizationFinalOwnerProjections}
 const organizationFinalSources=organizationFinalOwnerProjections();
 import "server-only";
 import type { SqlDatabase } from "../../runtime/public/runtime/types";
-import type { PreparationTask } from "@/lib/people-lifecycle";
+import type { PreparationTask } from "@/lib/people_payroll/people-lifecycle";
 export function calendarCommandsPeoplePayrollFacts(db: SqlDatabase) {
     return { read5: (facts: {
             value1: string;

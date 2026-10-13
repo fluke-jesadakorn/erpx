@@ -2,7 +2,7 @@ import "server-only";
 import type {SqlDatabase} from "../../../runtime/public/runtime/types";
 import type {WorkContext} from "../../../identity_access/public/authorization";
 import {requirePermission} from "../../../identity_access/public/iam-permissions";
-import {featureSpecs} from "@/lib/legal/features";
+import {featureSpecs} from "@/lib/legal/legal/features";
 import {visibility} from "./access";
 import {createLegalReportsQuery} from "../../application/reports";
 function application(db:SqlDatabase,a:WorkContext){const v=visibility(a);return createLegalReportsQuery({require:()=>requirePermission(a,"legal.read"),clock:{now:()=>Date.now()},featureCategories:Object.keys(featureSpecs),repository:{registers:async(now)=>db

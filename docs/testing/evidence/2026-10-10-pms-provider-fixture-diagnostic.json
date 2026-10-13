@@ -1,0 +1,169 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-10-10",
+  "complete": false,
+  "scope": "Fictional provider transport and compiled signed callback/job-restart diagnostic. Not provider acceptance, paid guest browser acceptance or interruption-before-money proof.",
+  "compiledDiagnostic": {
+    "run": "f37d55e9bcb7",
+    "candidate": {
+      "id": "2026-10-09T18-53-11-691Z",
+      "sourceFingerprint": "3e34ac5a4cf1f83fa4e60501e2c1c87f39cc0ed0a6ef82d77daee2ecc8ad4ef6",
+      "fileManifestSha256": "2c8f2099fa9d12a4b44fcaeef8d9cf541e54bedee42ba9c0c897bce9bc1e5d05"
+    },
+    "webPid": 18262,
+    "heldWorkerPid": 18520,
+    "restartedWorkerPid": 18723,
+    "tamperedCallbackRejected": true,
+    "duplicateCallbackQueuedOnce": true,
+    "heldObservation": {
+      "held": {
+        "route": "payment_intents/pi_cs_fictional_1",
+        "key": null,
+        "pid": 18520
+      },
+      "job": {
+        "state": "running",
+        "lease_until": "1791572375900",
+        "attempts": "1"
+      },
+      "payment": {
+        "status": "confirmed",
+        "provider_succeeded_at": "1791572242000"
+      }
+    },
+    "afterRecovery": {
+      "paymentState": "confirmed",
+      "job": {
+        "state": "completed",
+        "attempts": "0"
+      },
+      "allocations": {
+        "n": 2,
+        "amount": "1412400"
+      },
+      "entryCount": 2,
+      "advanceTaxMinor": 92400,
+      "journals": {
+        "n": 4,
+        "debit": "1504800",
+        "credit": "1504800"
+      }
+    },
+    "knownLimitation": "Another worker task confirmed the payment while the event job response was held. No claim of recovery from payment_pending is granted. The source transport now holds concurrent reads of the same resource; this version needs a new compiled rerun.",
+    "logs": {
+      "provider-smoke-create.log": {
+        "path": ".scratch/dev/pms-full-guest-journey/provider-smoke-create.log",
+        "sha256": "0ee6cdd3c07d339083b5b60f47ee7716adbd0196f7f7eef7baec2e13a8bec599"
+      },
+      "provider-smoke-held.log": {
+        "path": ".scratch/dev/pms-full-guest-journey/provider-smoke-held.log",
+        "sha256": "7a60124ca32c5f4195e08d0a3bda5baed13251ee428c877cede4bf95a3080135"
+      },
+      "provider-smoke-finish.log": {
+        "path": ".scratch/dev/pms-full-guest-journey/provider-smoke-finish.log",
+        "sha256": "9d2cf985857923d91c78a148d74a48b8868995e06e1265751933224283593c9d"
+      },
+      "provider-fixture-release-build-final.log": {
+        "path": ".scratch/dev/pms-full-guest-journey/provider-fixture-release-build-final.log",
+        "sha256": "aff28951033d284d013d55de82c92edd406a1712bb3e9a0d990ffd547183efec"
+      }
+    },
+    "durableReceipts": {
+      "jobs-pause.json": {
+        "path": ".scratch/dev/pms-full-guest-journey/provider-smoke-jobs-pause.json",
+        "sha256": "259c336759f9ed64fb1f52de076cd4574ef96fad279d9c04c22563d58d6d930d"
+      },
+      "jobs-resume.json": {
+        "path": ".scratch/dev/pms-full-guest-journey/provider-smoke-jobs-resume.json",
+        "sha256": "b0ed60a223ebe69e56c0afdd87b76de6a59d35daea829b42c10f9c16adcae053"
+      },
+      "provider-fixture.json": {
+        "path": ".scratch/dev/pms-full-guest-journey/provider-smoke-provider-fixture.json",
+        "sha256": "56ff0b6f2ccad14b8054568bc0455bc5b395fb992265fa2125f76137bd57dd4f"
+      }
+    }
+  },
+  "unit": {
+    "casesPassed": 43,
+    "filesPassed": 4,
+    "providerFixtureCases": 7,
+    "log": {
+      "path": ".scratch/dev/pms-full-guest-journey/provider-fixture-concurrency-unit.log",
+      "sha256": "3476b47bdf395ed08fef2b3daac42b5d1726d64e63348ae57e45981faa9e6a58"
+    },
+    "proof": [
+      "accepted refund survives response loss",
+      "actual subprocess termination and durable idempotency replay",
+      "concurrent payment reads remain held",
+      "reject live credentials and ordinary databases",
+      "bind compiled release and preload checksum",
+      "strip ambient activation"
+    ],
+    "testedSources": {
+      "scripts/local/pms-provider-fixture.mjs": "c02d4c8e9ea03d7df6f757ab178f0cc610de3cfb1184588ece1b5f7fb4b8ba6d",
+      "scripts/testing/runner-environment.ts": "eee16b39f8e04814515c692ab8f92a0f24b8c08139e3709e7ae677823e0e7ed6",
+      "tests/unit/pms-provider-fixture.test.ts": "b632167d1138e8bcd1c4f99be170bf3ec1625f5233e71f266b0f2d36210582ce"
+    }
+  },
+  "compatibility": {
+    "casesPassed": 45,
+    "log": {
+      "path": ".scratch/dev/pms-full-guest-journey/provider-compatibility-unit.log",
+      "sha256": "3b56e59d2a0ecca5419aeb609e6b3ab8827de8a87fcd1c0c55f2f97cb143ee48"
+    },
+    "changes": [
+      "new unapplied migration 1033 tolerates constraint already removed in 0236",
+      "existing receipt integer math uses BigInt constructor for configured TypeScript target",
+      "existing completion guard serializes its non-null source ID consistently"
+    ],
+    "mockCohortPreparationSucceeded": true
+  },
+  "remaining": [
+    "compile and rerun concurrent-response hold before any local payment allocation",
+    "paid guest desktop/mobile and partial refund worker restart",
+    "full frozen candidate acceptance",
+    "write p95 below 2 seconds"
+  ],
+  "ownedCohortsRemoved": [
+    "f37d55e9bcb7",
+    "8832ce9a78f0"
+  ],
+  "checks": {
+    "typecheck": {
+      "passed": false,
+      "log": {
+        "path": ".scratch/dev/pms-full-guest-journey/provider-final-typecheck.log",
+        "sha256": "1eaf7eaeb2d483ebb7dcbf7d72044752fc7747d2de74ef33696de9ae0bcebc4d"
+      },
+      "remaining": [
+        "Finance receipt export_sha256 typing",
+        "Commerce adapter useSalesDefaults required input"
+      ]
+    },
+    "lint": {
+      "passed": true,
+      "warnings": 6,
+      "log": {
+        "path": ".scratch/dev/pms-full-guest-journey/provider-final-lint.log",
+        "sha256": "2e35cea6e44d97c41ffbce50e5a3d75f461ecaa29c10e90a588f8467c201f4b0"
+      }
+    },
+    "documentation": {
+      "passed": true,
+      "log": {
+        "path": ".scratch/dev/pms-full-guest-journey/provider-docs-final.log",
+        "sha256": "ed13f63f4dfc98413b728b40786186a9521f39d47ec4e9099aba68e262a3ffdc"
+      }
+    }
+  },
+  "environment": {
+    "localDevelopmentHealth": 200,
+    "publicDevelopmentHealth": 200,
+    "privateProductionHealth": 200,
+    "developmentPid": 72619,
+    "postgresPid": 909,
+    "affectedPage": "https://console-dev-erpx.jesadakorn.com/book/acme",
+    "browserObservation": "Thai/Dark public booking shell renders; no hotel is published for online booking. No real reservation created.",
+    "productionOrStagingConfigurationChanged": false
+  }
+}

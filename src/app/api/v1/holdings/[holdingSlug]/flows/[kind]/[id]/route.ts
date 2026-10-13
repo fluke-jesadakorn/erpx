@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { flowKinds } from "@/lib/flow";
+import { flowKinds } from "@/lib/shared/flow";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { requireFlowAccess } from "@/server/modules/workflow/public/flow-access";
 import { assignFlowPrimary, resolveFlow } from "@/server/modules/workflow/public/flow-routing";

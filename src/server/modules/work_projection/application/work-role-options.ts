@@ -1,4 +1,4 @@
-import {workspaceHref,type HoldingWorkspaceScope} from "@/lib/workspace";
+import {workspaceHref,type HoldingWorkspaceScope} from "@/lib/work_projection/workspace";
 import type {AccountAccessContext} from "../../identity_access/public/authorization";
 import type {ActiveWorkSelection} from "../domain/work-role-store";
 import type {Clock} from "../../shared/application/ports";

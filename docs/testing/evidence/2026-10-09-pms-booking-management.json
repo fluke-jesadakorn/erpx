@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-10-09",
+  "complete": false,
+  "scope": "Focused fictional public booking: family quote, pay-at-hotel confirmation, private-token management, date change, cancellation and reload persistence. Not full PMS acceptance.",
+  "candidate": {
+    "id": "2026-10-09T15-04-00-148Z",
+    "sourceFingerprint": "786b964a20c35a299124a9dca9762246597dac3f0c20d94350e435385c5e2df4",
+    "fileManifestSha256": "12700bb59cff71018b2aeb1247876cacda5e1b802328452837784cd68c50aa73",
+    "node": "24.20.0",
+    "postgres": "18.6"
+  },
+  "verificationFingerprint": "3ff59619ac66369d4fd01492017dfba92ad895e26dda5cc348c613c78d6abfc3",
+  "browser": [
+    {
+      "project": "desktop",
+      "cohort": "310c946d8877",
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "reportArtifact": ".scratch/dev/pms-booking-management-desktop.json",
+      "reportSha256": "923c18c7565fe97a3e24f0cdb1c69259f7271d58101befaba110ee54b32b53bb"
+    },
+    {
+      "project": "mobile",
+      "cohort": "355628c0764b",
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "reportArtifact": ".scratch/dev/pms-booking-management-mobile.json",
+      "reportSha256": "657b9a865412f959c76019c04cb7e927ffca8eec9508a8175dae640abc44186a"
+    }
+  ],
+  "native": {
+    "file": "tests/pms-booking.test.ts",
+    "passed": 35,
+    "failed": 0,
+    "skipped": 0,
+    "logArtifact": ".scratch/dev/pms-booking-management-native.log",
+    "logSha256": "790e1501fc7a2513f6450ab98b6d35c474d5220781d70924ea66f7f87316754f"
+  },
+  "sourceFiles": {
+    "tests/e2e/pms-booking.spec.ts": "ed4d9d68882f6a4f929cd838af5a5613b618bf6cd80159df932032c7d37b96b7",
+    "scripts/local/browser-simulation.ts": "222a0f1e08af2c5dbc191c55ddd8bc02328d797906425c436f7e5d7643843346"
+  },
+  "assertions": [
+    "Public portal refuses invalid management access without guest disclosure",
+    "2 adults and child age 7 receive a two-night THB 7062 accepted quote",
+    "Confirmation retains the accepted cancellation deadline",
+    "Management token is removed from URL and reload uses private session storage",
+    "Extending to three nights quotes THB 10593 and survives reload",
+    "Accepted free cancellation releases the selected stay and current payable balance becomes zero",
+    "Cancelled stay remains disabled after reload",
+    "Desktop and mobile have no horizontal overflow"
+  ],
+  "remaining": [
+    "Reviewed gallery upload/publication/revocation",
+    "Multiple rooms and partial cancellation browser matrix",
+    "Online payment/deposit/refund, signed webhook and restart browser recovery",
+    "Full unchanged-candidate native/browser/migration/restore checks",
+    "Three properties of 200 rooms, 730 days and 20 concurrent authenticated users"
+  ]
+}

@@ -1,7 +1,7 @@
 import { sensitiveAttachmentPolicies, isSensitiveAttachmentTarget } from "../../domain/attachments/sensitive-policy";
-import type { ClearanceKind } from "@/lib/retirement";
+import type { ClearanceKind } from "@/lib/people_payroll/retirement";
 import type { AssessmentRow, EvaluationEmployee, EvaluationDefinition } from "../../../people_payroll/public/attachments-evaluation-contracts";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { WorkContext } from "../../../identity_access/public/authorization";
 import type { Clock } from "../../../shared/application/ports";
 import type { AttachmentOperation, AttachmentPolicy, AttachmentTargetScope } from "../../domain/attachments/types";

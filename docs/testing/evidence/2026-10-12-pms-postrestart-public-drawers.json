@@ -1,0 +1,72 @@
+{
+  "checkedAt": "2026-10-11T21:07:01.953913+00:00",
+  "scope": "Actual public PMS prototype after installed-dev1041 and automatic Next memory-threshold restart; scoped interactive appearance, not operational aggregate or readiness/performance cohort",
+  "runtimeFingerprint": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+  "verificationFingerprint": "299c85a71a3f9bd369189710e8dcf8db9da956177f559f49d4f857d6767dd362",
+  "publicUrl": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms?variant=A&prototype=1&screen=dashboard",
+  "normalSignIn": true,
+  "credentialCopied": false,
+  "drawer": {
+    "desktop": {
+      "x": 640,
+      "y": 0,
+      "width": 800,
+      "height": 1000
+    },
+    "mobile": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 844
+    },
+    "desktopScreenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-final299-public-check/postrestart-drawer-right-edge/desktop-drawer.png",
+    "mobileScreenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-final299-public-check/postrestart-drawer-right-edge/mobile-drawer.png",
+    "keyboardEscapeCloses": true,
+    "businessWrites": false
+  },
+  "pixelsInspected": true,
+  "businessWrites": false,
+  "capturedErrors": [
+    {
+      "kind": "console",
+      "message": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "kind": "console",
+      "message": "Failed to load resource: the server responded with a status of 401 ()"
+    }
+  ],
+  "errorClassification": "Two resource401 console entries captured without endpoint/phase classification; no captured pageerror/hydration message in the scoped check. This does not clear earlier dev hydration observations.",
+  "retainedGeometryRefusal": "Unregistered helper initially imposed arbitrary desktopx>700; actual existing800px right drawer isx640. Raw failed report retained. Corrected helper checks positiveleftedge, non-fullwidthdesktop and rightedge=1440; centered or leftdrawer would fail. No application/registered assertion/required-case budget changed.",
+  "shellLoadingLimit": "Screenshots retain visible My shortcuts placeholders in the shared shell; PMS body and clicked drawer are interactive. Whole-shell settled loading/readiness was not asserted.",
+  "restartReceipt": {
+    "file": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/optimization-feature-environment-prepared/current-dev-memory-threshold-restart.json",
+    "SHA256": "3b9149724b7fc7619a12dee50aa8c8a5e5fc1c6dbd41e46217d0b5521acd4948",
+    "actualCause": "Server is approaching the used memory threshold, restarting...",
+    "automaticMemoryThresholdRestart": true,
+    "sustainedStabilityGatePassed": false
+  },
+  "artifacts": [
+    {
+      "file": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-final299-public-check/postrestart/result.json",
+      "SHA256": "2a4047703a82b569b8db5202c23e405a41a0833576817e8993e8598856b4f105"
+    },
+    {
+      "file": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-final299-public-check/postrestart-drawer/result.json",
+      "SHA256": "d14e70b4b34b90f7ac0512eabcad135af5ffb1fd3b4978dbfe5668a1289ad9bc"
+    },
+    {
+      "file": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-final299-public-check/postrestart-drawer-right-edge/result.json",
+      "SHA256": "e89208b88f965ebe416d0ad82f91aba298e0daceb4bd8c6e2f0ed15a566f8ed5"
+    },
+    {
+      "file": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-final299-public-check/postrestart-drawer-right-edge/desktop-drawer.png",
+      "SHA256": "bea0eb3b9a019a4f1846599976d02091426d7d3d9eb287df3e3dbe9b40483a61"
+    },
+    {
+      "file": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-final299-public-check/postrestart-drawer-right-edge/mobile-drawer.png",
+      "SHA256": "d1c7e4d6523c7ada5b4550dce66f32566bc55606c44c2a8ca0d6a392c236be76"
+    }
+  ],
+  "wholePlanAccepted": false
+}

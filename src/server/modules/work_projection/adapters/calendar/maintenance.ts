@@ -1,7 +1,7 @@
 import type { CalendarAccess } from "../../domain/calendar/access";
 import 'server-only';
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
-import type { CalendarQuery } from '@/lib/calendar';
+import type { CalendarQuery } from "@/lib/work_projection/calendar";
 import { calendarMaintenanceMaintenanceFacts } from "../../../maintenance/public/calendar-maintenance-facts";
 import { createCalendarMaintenance, type CalendarMaintenanceUnit } from "../../application/calendar/maintenance";
 const service = createCalendarMaintenance();

@@ -1,5 +1,5 @@
 import {z} from "zod";
-import {workCardIds} from "@/lib/work-cards";
+import {workCardIds} from "@/lib/work_projection/work-cards";
 export const workCardPreferenceSchema = z
   .object({
     pinnedIds: z

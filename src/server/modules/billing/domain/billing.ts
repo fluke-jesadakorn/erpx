@@ -1,6 +1,6 @@
 import {z} from 'zod';
-import type {BillingInvoice,BillingView} from '@/lib/billing';
-export type {BillingAccount,Enrollment as BillingEnrollment,BillingPeriod,BillingCost,BillingPlan,BillingInvoice,BillingView} from '@/lib/billing';
+import type {BillingInvoice,BillingView} from "@/lib/billing/billing";
+export type {BillingAccount,Enrollment as BillingEnrollment,BillingPeriod,BillingCost,BillingPlan,BillingInvoice,BillingView} from "@/lib/billing/billing";
 export type BillingActor = {
   userId: string;
   platform: boolean;

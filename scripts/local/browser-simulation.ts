@@ -12,10 +12,10 @@ import {createHash,randomBytes} from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {createServer} from 'node:net';
 import {Pool} from 'pg';
-import {PostgresDatabase} from '../../src/server/runtime/postgres';
-import {migrateDatabase} from '../../src/server/runtime/migrations';
-import {generalCompanyDemoGuide} from '../fixtures/general-company-demo';
-import {placeScopedBrowserEmployee} from '../fixtures/scoped-browser-staff';
+import {PostgresDatabase} from "../../src/server/modules/runtime/adapters/runtime/postgres";
+import {migrateDatabase} from "../../src/server/modules/runtime/adapters/runtime/migrations";
+import {generalCompanyDemoGuide} from "../../fixtures/shared/builders/general-company-demo";
+import {placeScopedBrowserEmployee} from "../../fixtures/people_payroll/builders/scoped-browser-staff";
 import {runtimeSourceFingerprint} from './source-fingerprint';
 import {clonedFixtureMetadata,isolatedAiCredentialEnvironment,isClonedFixtureDocument,isCaseExecutionEvidence} from '../testing/browser-fixture-metadata';
 import {browserChildEnvironment} from '../testing/runner-environment';
@@ -24,10 +24,10 @@ if(![3102,3104].includes(port))throw new Error('UNSUPPORTED_BROWSER_SIMULATION_P
 const useWebpack=process.env.ERPX_BROWSER_SIMULATION_WEBPACK==='1';
 if(useWebpack&&port!==3104)throw new Error('WEBPACK_IS_FOR_UAT_SIMULATION_ONLY');
 const origin=`http://127.0.0.1:${port}`;
-const node=resolve(process.env.ERPX_NODE_BIN??join(root,'.runtime/node/node-v24.20.0-darwin-arm64/bin/node'));
+const node=resolve(process.env.ERPX_NODE_BIN??join(root,'.runtime/node/node-v26.11.1-darwin-arm64/bin/node'));
 const profile=process.env.ERPX_BROWSER_SIMULATION_PROFILE??'general-company';
 if(!['general-company','hospitality','engineering','legal','uat','local-seed','staff-work','expense','work-cards','messaging','services','booking'].includes(profile))throw new Error('UNSUPPORTED_BROWSER_SIMULATION_PROFILE');
-if(Bun.version!=='1.2.17'||Bun.spawnSync([node,'--version']).stdout.toString().trim()!=='v24.20.0')throw new Error('PINNED_TOOLCHAIN_REQUIRED');
+if(Bun.version!=='1.4.3'||Bun.spawnSync([node,'--version']).stdout.toString().trim()!=='v26.11.1')throw new Error('PINNED_TOOLCHAIN_REQUIRED');
 let adminUrl=process.env.ERPX_TEST_ADMIN_URL;
 if(!adminUrl)for(const file of ['.env.test.local','.env.test','.env.local']){const path=join(root,file);if(!existsSync(path))continue;const value=(await readFile(path,'utf8')).match(/^\s*(?:export\s+)?ERPX_TEST_ADMIN_URL\s*=\s*(.*?)\s*$/m)?.[1];if(value){adminUrl=value.replace(/^(["'])(.*)\1$/,'$2');break;}}
 if(!adminUrl)throw new Error('ISOLATED_TEST_ADMIN_REQUIRED');
@@ -36,9 +36,19 @@ const tracks={CONTROL_DB:'control',CONTROL_READ_DB:'control-read',H001_DB:'holdi
 const mode=process.argv[2],diagnostic=mode==='prepare-diagnostic',run=mode==='prepare'||diagnostic?(process.env.ERPX_BROWSER_SIMULATION_RUN_ID??randomBytes(6).toString('hex')):process.argv[3];
 if(!run||!/^([a-f0-9]{12})$/.test(run))throw new Error('EXACT_BROWSER_RUN_ID_REQUIRED');
 const directory=join(parent,run),app=join(directory,'app'),manifestPath=join(directory,'databases.json'),statePath=join(directory,'state.json');
-type State={run:string;prefix:string;createdAt:string;origin:string;port?:number;profile?:string;templateRun?:string;ready?:boolean;diagnostic?:boolean;pid?:number;jobsPid?:number|null;jobsStartedAt?:string;jobsPaused?:boolean;sourceFingerprint?:string;softwareVersion?:string;webEntrypoint?:string;jobsEntrypoint?:string;release?:{id:string;fileManifestSha256:string};fixture?:Record<string,unknown>};
+type State={run:string;prefix:string;createdAt:string;origin:string;port?:number;profile?:string;providerFixture?:boolean;templateRun?:string;ready?:boolean;diagnostic?:boolean;pid?:number;applicationPoolMax?:number;controlPoolMax?:number;jobsPid?:number|null;jobsStartedAt?:string;jobsPaused?:boolean;sourceFingerprint?:string;softwareVersion?:string;webEntrypoint?:string;jobsEntrypoint?:string;release?:{id:string;fileManifestSha256:string};fixture?:Record<string,unknown>};
 const localAttachmentMode=process.env.ERPX_BROWSER_SIMULATION_ATTACHMENTS==='local';
 const localJobsEnabled=process.env.ERPX_BROWSER_SIMULATION_JOBS==='1';
+const legalDemoEnabled=process.env.ERPX_BROWSER_SIMULATION_LEGAL==='1';
+const menuImagesEnabled=process.env.ERPX_BROWSER_SIMULATION_MENU_IMAGES==='1';
+const pmsScaleEnabled=process.env.ERPX_BROWSER_SIMULATION_PMS_SCALE==='1';
+const pmsProviderFixtureEnabled=process.env.ERPX_PMS_PROVIDER_FIXTURE==='1';
+if(pmsProviderFixtureEnabled&&(profile!=='booking'||port!==3104||pmsScaleEnabled||!localJobsEnabled||!localAttachmentMode))throw new Error('PMS_PROVIDER_FIXTURE_REQUIRES_ISOLATED_BOOKING_SCANNER_JOBS');
+if(pmsScaleEnabled&&(profile!=='booking'||port!==3104))throw new Error('PMS_SCALE_REQUIRES_EXACT_BOOKING_RELEASE_PROFILE');
+const pmsScalePool=process.env.ERPX_BROWSER_SIMULATION_PMS_POOL_MAX??'4';
+if(!['4','8','16'].includes(pmsScalePool)||(!pmsScaleEnabled&&process.env.ERPX_BROWSER_SIMULATION_PMS_POOL_MAX!==undefined))throw new Error('EXACT_PMS_SCALE_POOL_REQUIRED');
+const pmsControlPool=process.env.ERPX_BROWSER_SIMULATION_PMS_CONTROL_POOL_MAX??'5';
+if(!['5','8'].includes(pmsControlPool)||(!pmsScaleEnabled&&process.env.ERPX_BROWSER_SIMULATION_PMS_CONTROL_POOL_MAX!==undefined))throw new Error('EXACT_PMS_CONTROL_POOL_REQUIRED');
 const safeEnv=(secret:string)=>({
  ...Object.fromEntries(Object.entries(process.env).filter(([name])=>name.startsWith('NEXT_PUBLIC_'))),
  PATH:`${dirname(node)}:${process.env.PATH??''}`,
@@ -54,7 +64,9 @@ const safeEnv=(secret:string)=>({
  ERPX_AI_ADAPTER:'deterministic-v1',
  ERPX_PAYROLL_ADAPTER:'synthetic-fixtures-v1',
  ERPX_EMAIL_ADAPTER:'sandbox',
+ ...(pmsScaleEnabled?{ERPX_BROWSER_SIMULATION_PMS_SCALE:'1',ERPX_BROWSER_SIMULATION_PMS_POOL_MAX:pmsScalePool,ERPX_BROWSER_SIMULATION_PMS_CONTROL_POOL_MAX:pmsControlPool,ERPX_PMS_RELEASE_DIAGNOSTICS:'1',ERPX_PERF_LOG:'1'}:{}),
  ...(profile==='booking'?{RESEND_API_KEY:'deterministic-browser-booking',RESEND_FROM:'Fictional Hotel <hotel@example.test>'}:{}),
+ ...(pmsProviderFixtureEnabled?{ERPX_PMS_PROVIDER_FIXTURE:'1',PMS_STRIPE_BOOKING_ENABLED:'true',POS_STRIPE_TEST_SECRET_KEY:'sk_test_erpx_fictional_provider',POS_STRIPE_TEST_WEBHOOK_SECRET:'whsec_erpx_fictional_provider'} : {}),
  // Explicit fixture activation for the existing restaurant/hotel pilot.
  // The compiled runtime still checks the enrolled Company and both owners.
  ERPX_POS_ROOM_CHARGE_PILOT_ENABLED:'true',
@@ -71,6 +83,8 @@ const safeEnv=(secret:string)=>({
  NEXT_DEPLOYMENT_ID:`browser-simulation-${run}`,
  NEXT_TELEMETRY_DISABLED:'1',
  ERPX_DEV_PG_POOL_MAX:'2',
+ ERPX_APP_PG_POOL_MAX:pmsScaleEnabled?pmsScalePool:'1',
+ ERPX_CONTROL_PG_POOL_MAX:pmsScaleEnabled?pmsControlPool:'5',
  ...(localAttachmentMode?{
   ERPX_ATTACHMENTS_V2:'true',
   ERPX_ATTACHMENT_UPLOAD_FREEZE:'false',
@@ -102,6 +116,7 @@ if(mode==='prepare'||diagnostic){
   if(!/^[a-f0-9]{12}$/.test(templateRun)||templateRun===run)throw new Error('EXACT_BROWSER_TEMPLATE_RUN_REQUIRED');
   const templateDirectory=join(parent,templateRun),template=JSON.parse(await readFile(join(templateDirectory,'state.json'),'utf8')) as State;
   if(template.run!==templateRun||template.prefix!==`erpx_browser_${templateRun}`||template.profile!==profile||template.port!==port||template.origin!==origin||!template.ready||template.diagnostic||template.pid||template.jobsPid||template.release||template.sourceFingerprint!==sourceFingerprint||await runtimeSourceFingerprint(join(templateDirectory,'app'))!==sourceFingerprint)throw new Error('FROZEN_BROWSER_TEMPLATE_REQUIRED');
+  if(Boolean(template.providerFixture)!==pmsProviderFixtureEnabled)throw new Error('FROZEN_PROVIDER_TEMPLATE_SETTING_REQUIRED');
   const templateManifest=JSON.parse(await readFile(join(templateDirectory,'databases.json'),'utf8')) as {version:number;databases:Record<string,string>;slots:Array<{id:string;write:string;read:string;files:string;internal?:boolean}>};
   for(const [binding,value] of Object.entries(templateManifest.databases)){
    const url=new URL(value);if(!Object.keys(tracks).includes(binding)||url.hostname!=='127.0.0.1'||url.port!=='5432'||url.username!=='erpx_test_admin'||url.pathname!==`/erpx_browser_${templateRun}_${binding.toLowerCase()}`)throw new Error('BROWSER_TEMPLATE_DATABASE_IDENTITY_CHANGED');
@@ -127,7 +142,7 @@ if(mode==='prepare'||diagnostic){
   }finally{await admin.end();}
   await cp(templateDirectory,directory,{recursive:true,mode:constants.COPYFILE_FICLONE,filter:path=>{
    const relative=path.slice(templateDirectory.length+1);
-   return !['state.json','databases.json','databases-jobs.json','databases-migrations.json','server.log','jobs.log','uat-auth','release'].some(name=>relative===name||relative.startsWith(name+'/'))&&relative!=='app/node_modules'&&!isCaseExecutionEvidence(relative);
+   return !['state.json','databases.json','databases-jobs.json','databases-migrations.json','server.log','jobs.log','uat-auth','release','provider-fixture.json','provider-fixture.lock'].some(name=>relative===name||relative.startsWith(name+'/'))&&relative!=='app/node_modules'&&!isCaseExecutionEvidence(relative);
   }});
   await symlink(join(templateDirectory,'app/node_modules'),join(app,'node_modules'),'dir');
   for(const entry of await readdir(directory))if(entry.endsWith('.json')&&!entry.startsWith('databases')){
@@ -141,6 +156,7 @@ if(mode==='prepare'||diagnostic){
   const fixture=JSON.parse(JSON.stringify(template.fixture??{}).replaceAll(templateDirectory,directory));
   if(fixture.engineeringWorkplacePlatform)fixture.engineeringWorkplacePlatform=clonedFixtureMetadata(fixture.engineeringWorkplacePlatform,templateRun,run,templateDirectory,directory);
   Object.assign(state,{templateRun,softwareVersion:template.softwareVersion,fixture});
+  if(pmsProviderFixtureEnabled){state.providerFixture=true;await writePrivate(join(directory,'provider-fixture.json'),{schemaVersion:1,keys:{},resources:{},requests:[]});}
   if(await runtimeSourceFingerprint(root)!==sourceFingerprint||await runtimeSourceFingerprint(app)!==sourceFingerprint)throw new Error('BROWSER_PREPARATION_SOURCE_CHANGED');
   state.ready=true;await writePrivate(statePath,state);console.log(JSON.stringify({run,templateRun,origin,statePath,ready:true}));process.exit(0);
  }
@@ -159,18 +175,18 @@ if(mode==='prepare'||diagnostic){
  const nativeEnvironment=browserChildEnvironment(process.env,safeEnv(secret));
  for(const name of Object.keys(process.env))if(!(name in nativeEnvironment))delete process.env[name];
  Object.assign(process.env,nativeEnvironment);
- const {getRuntime,closeRuntime}=await import('../../src/server/runtime/env'),env=getRuntime();
+ const {getRuntime,closeRuntime}=await import("../../src/server/modules/runtime/adapters/runtime/env"),env=getRuntime();
  try{
   if(['local-seed','staff-work','expense','work-cards','messaging','services','booking'].includes(profile)){
-   const {prepareModuleBrowser}=await import('../fixtures/module-browser');
+   const {prepareModuleBrowser}=await import("../../fixtures/shared/builders/module-browser");
    state.fixture=await prepareModuleBrowser(profile,env,directory);await writePrivate(statePath,state);
   }else{
   await env.CONTROL_DB.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES('h001','simulation','Browser simulation','H001_DB','H001_READ_DB','H001_FILES','active')").run();
   await env.CONTROL_DB.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES('h002','riverside-lantern','Riverside Lantern Hotel & Kitchen','H002_DB','H002_READ_DB','H002_FILES','active')").run();
-  const {seedExpenseCompany}=await import('../../fixtures/expenses/company'),{mapSpendingOrganization}=await import('../../tests/helpers/spending-organization');
+  const {seedExpenseCompany}=await import('../../fixtures/expenses/company'),{mapSpendingOrganization}=await import("../../tests/support/helpers/spending-organization");
   const f=await seedExpenseCompany(env.H001_DB,env.H001_FILES);await mapSpendingOrganization(f);
   await env.H001_DB.prepare("UPDATE organization_nodes SET display_name='Isolated browser simulation' WHERE id=?").bind(f.company).run();
-  const {hashPassword}=await import('better-auth/crypto'),{businessRoles}=await import('../../src/lib/business-roles'),{moduleRegistry}=await import('../../src/data/module-registry');
+  const {hashPassword}=await import('better-auth/crypto'),{businessRoles}=await import("../../src/lib/identity_access/business-roles"),{moduleRegistry}=await import('../../src/data/module-registry');
  const password=`Simulation-${randomBytes(15).toString('hex')}`,hash=await hashPassword(password),now=Date.now(),users:Array<{label:string;email:string;role:string;userId:string;roles:string[];scope?:string;scopeNode?:string;scopeParentNode?:string}> = [];
   for(const [actor,role,label,email] of [[f.owner,'holding_owner','Source operator','source@simulation.test'],[f.head,'warehouse_manager','Receiving operator','receiver@simulation.test'],[f.manager,'finance_approver','Finance reviewer','finance@simulation.test'],[f.reviewer,'finance_preparer','Finance preparer','preparer@simulation.test'],[f.payer,'quality_manager','Quality release manager','quality-manager@simulation.test'],[f.it,'purchasing_manager','Purchasing manager','buyer@simulation.test'],[f.claimant,'support_agent','Support agent','support-agent@simulation.test'],[f.tie,'support_manager','Support manager','support-manager@simulation.test']] as const){
    actor.role=role;actor.branchId=null;actor.departmentId=null;actor.holdingSlug='simulation';actor.assignmentId=await f.grant(actor,role);
@@ -184,7 +200,7 @@ if(mode==='prepare'||diagnostic){
   const employeeActor={...f.claimant,role:'employee',assignmentId:await extraGrant(f.claimant,'employee')};
   await extraGrant(f.head,'people_manager');
   await extraGrant(f.payer,'hr_admin');users.find(user=>user.userId===f.payer.userId)!.roles.push('hr_admin');
-  const {changeAppointment}=await import('../../src/server/department-authority');
+  const {changeAppointment}=await import("../../src/server/modules/organization/public/department-authority");
   const hrSeat=await env.H001_DB.prepare("SELECT version FROM authority_seats WHERE company_id=? AND kind='hr' AND scope_id=?").bind(f.company,f.company).first<{version:number}>();
   await changeAppointment(env.H001_DB,f.owner,{kind:'hr',positionId:null,personId:`person-${f.payer.userId}`,expectedVersion:Number(hrSeat?.version??0),reason:'Fictional Company owner appoints the independent HR reviewer for organization changes.'},crypto.randomUUID());
   await extraGrant(f.payer,'holding_owner');users.find(user=>user.userId===f.payer.userId)!.roles.push('holding_owner');
@@ -259,11 +275,11 @@ if(mode==='prepare'||diagnostic){
     ['payment_settled',f.payer.userId,'Simulation payroll settlement owner'],
   ] as const)
     await env.H001_DB.prepare("INSERT INTO flow_defaults(company_id,kind,step_key,primary_user_id,created_by,reason,created_at) VALUES(?,'payroll',?,?,?,?,?)").bind(f.company,stepKey,userId,f.owner.userId,reason,now).run();
-  const {saveServiceTeam,serviceTeamSchema}=await import('../../src/server/service-teams');
+  const {saveServiceTeam,serviceTeamSchema}=await import("../../src/server/modules/support/public/service-teams");
   await saveServiceTeam(env.H001_DB,f.owner,null,serviceTeamSchema.parse({name:'Demo purchasing team',members:[{userId:f.it.userId,responsibility:'lead'},{userId:f.tie.userId,responsibility:'member'}],coverage:[{category:'purchasing',scopeKind:'holding',scopeNodeId:f.company}]}),crypto.randomUUID());
-  const {saveSupplierInvoicePolicy}=await import('../../src/server/supplier-bill-matching');
+  const {saveSupplierInvoicePolicy}=await import("../../src/server/modules/procurement/public/supplier-bill-matching");
   await saveSupplierInvoicePolicy(f.owner,{matchingMode:'required',expectedVersion:0,reason:'Demo Company requires independent receipt and supplier invoice matching before AP'},crypto.randomUUID());
-  const {saveEmployeeRequest,employeeRequestSchema}=await import('../../src/server/employee-requests');
+  const {saveEmployeeRequest,employeeRequestSchema}=await import("../../src/server/modules/records/public/employee-requests");
   const purchaseRequest=await saveEmployeeRequest(env.H001_DB,employeeActor,null,employeeRequestSchema.parse({kind:'purchase',title:'Laptop 10 เครื่องสำหรับทีมบริการลูกค้า',description:'เปลี่ยนเครื่องที่หมดอายุและเพิ่มเครื่องสำหรับพนักงานใหม่ ใช้ข้อมูลจำลองเท่านั้น',location:'สำนักงานใหญ่ ชั้น 4',impact:'normal',branchId:f.branch,departmentId:f.department,neededDate:'2026-10-15',currency:'THB',items:[{description:'Business laptop พร้อมประกัน 3 ปี',quantity:'10',unit:'each',estimatedCost:'25000'}]}),crypto.randomUUID());
   await env.H001_DB.prepare("INSERT INTO flow_defaults(company_id,kind,step_key,primary_user_id,created_by,reason,created_at) VALUES(?,'transfer','submitted',?,?,'Simulation receiving responsibility',?)").bind(f.company,f.head.userId,f.owner.userId,now).run();
   for(const [stepKey,userId,reason] of [['submitted',f.tie.userId,'Simulation independent purchasing approval'],['confirmed',f.head.userId,'Simulation warehouse receiving responsibility'],['stock_gl',f.manager.userId,'Simulation independent goods GL review'],['invoicing',f.reviewer.userId,'Simulation Finance invoice preparation']] as const)
@@ -271,7 +287,7 @@ if(mode==='prepare'||diagnostic){
   await env.H001_DB.prepare("INSERT INTO flow_defaults(company_id,kind,step_key,primary_user_id,created_by,reason,created_at) VALUES(?,'invoice','draft',?,?,'Simulation independent Finance invoice review',?)").bind(f.company,f.manager.userId,f.owner.userId,now).run();
   const inventoryAccountId=`${f.company}-inventory`,clearingAccountId=`${f.company}-clearing`,receivableAccountId=`${f.company}-receivable`,openingEquityAccountId=`${f.company}-opening-equity`;
   await env.H001_DB.batch([env.H001_DB.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,'INV','Simulation inventory','asset','THB',?,?)").bind(inventoryAccountId,f.chart,f.company,now,now),env.H001_DB.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,'GRNI','Simulation goods received clearing','liability','THB',?,?)").bind(clearingAccountId,f.chart,f.company,now,now),env.H001_DB.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,'AR','Simulation receivables','asset','THB',?,?)").bind(receivableAccountId,f.chart,f.company,now,now),env.H001_DB.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,'OPEN','Simulation opening equity','equity','THB',?,?)").bind(openingEquityAccountId,f.chart,f.company,now,now),env.H001_DB.prepare('UPDATE commerce_settings SET inventory_account_id=?,clearing_account_id=?,receivable_account_id=? WHERE company_id=?').bind(inventoryAccountId,clearingAccountId,receivableAccountId,f.company)]);
-  const {createJournal,createJournalSchema,postJournal}=await import('../../src/server/finance'),{resolveFlow,assignFlowPrimary}=await import('../../src/server/flow-routing');
+  const {createJournal,createJournalSchema,postJournal}=await import("../../src/server/modules/finance/public/finance"),{resolveFlow,assignFlowPrimary}=await import("../../src/server/modules/workflow/public/flow-routing");
   // Declared imported quantities below carry THB 10 + 500 + 1000 + 10.
   // The independently reviewed opening GL covers every initial stock row.
   const opening=await createJournal(f.owner,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:'2026-01-01',currency:'THB',memo:'Fictional imported opening stock: sales item, single laptops, laptop cases and dedicated transport item',sourceType:'manual',isOpening:true,lines:[{accountId:inventoryAccountId,debit:'1520',credit:'0'},{accountId:openingEquityAccountId,debit:'0',credit:'1520'}]}),crypto.randomUUID());
@@ -287,6 +303,11 @@ if(mode==='prepare'||diagnostic){
       ('${browserOpeningEquityId}','${browserOpeningChartId}','${f.company}','3100','Demo opening equity','equity','THB',0,'none',${now},${now});
   `);
   const refundEvidenceDate=new Date(Date.now()+86_400_000).toISOString().slice(0,10);
+  // Exercise the new account defaults through independent Finance owner review in this disposable cohort.
+  await env.H001_DB.prepare("UPDATE finance_accounts SET is_control=1,control_kind='receivable' WHERE id=?").bind(receivableAccountId).run();
+  const {prepareSalesDefaults,decideSalesDefaults}=await import('../../src/server/modules/finance/public/sales');
+  const salesDefaults=await prepareSalesDefaults(f.reviewer,{chartId:f.chart,currency:'THB',receivableAccountId,revenueAccountId:f.accounts.revenue,taxAccountId:f.accounts.payable,reason:'Fictional independently reviewed sales account defaults for browser simulation'},crypto.randomUUID());
+  await decideSalesDefaults(f.manager,String(salesDefaults.id),{expectedVersion:1,action:'approve',reason:'Independent fixture Finance approver verified active sales accounts'},crypto.randomUUID());
   const closePeriods:[string,string]=[`${f.company}-close-2027-01`,`${f.company}-close-2027-02`],closeBank=`${f.company}-close-bank`,closeAr=`${f.company}-close-ar`,closeAp=`${f.company}-close-ap`,closeEquity=`${f.company}-close-equity`,closeCustomer=`${f.company}-close-customer`,closeSupplier=`${f.company}-close-supplier`,closeJournal=`${f.company}-close-opening`,paymentPeriod=`${f.company}-payment-2027-03`,paymentSupplier=`${f.company}-payment-supplier`,paymentInvoice=`${f.company}-payment-invoice`,paymentInvoiceJournal=`${f.company}-payment-invoice-journal`,paymentStatement=`${f.company}-payment-bank-statement`,paymentBankTransaction=`${f.company}-payment-bank-row`,refundStatement=`${f.company}-refund-bank-statement`,refundBankTransaction=`${f.company}-refund-bank-row`;
   await env.H001_DB.exec(`
     INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,is_control,control_kind,created_at,updated_at) VALUES
@@ -326,7 +347,7 @@ if(mode==='prepare'||diagnostic){
       ('${paymentBankTransaction}','${paymentStatement}','${f.company}','2027-03-15','DEMO-BANK-PAY-125','Controlled supplier transfer',-12500,'THB','unmatched',1),
       ('${refundBankTransaction}','${refundStatement}','${f.company}','${refundEvidenceDate}','DEMO-BANK-REFUND-10','Customer return refund',-1000,'THB','unmatched',1);
   `);
-  const {saveMaster,saveOrder,orderSchema}=await import('../../src/server/commerce');
+  const {saveMaster,saveOrder,orderSchema}=await import("../../src/server/modules/commerce/public/commerce");
   const source=String((await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:'SIM-SOURCE',name:'Simulation source warehouse'},crypto.randomUUID())).id),target=String((await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:'SIM-TARGET',name:'Simulation receiving warehouse'},crypto.randomUUID())).id),product=String((await saveMaster(f.owner,'products',null,{sku:'SIM-ITEM',name:'Simulation stock only',price:'10'},crypto.randomUUID())).id),laptopEach=String((await saveMaster(f.owner,'products',null,{sku:'SIM-LAP-EACH',name:'Demo laptop single unit',unit:'each',price:'25000'},crypto.randomUUID())).id),laptopCase=String((await saveMaster(f.owner,'products',null,{sku:'SIM-LAP-CASE',name:'Demo laptop case of two',unit:'case',price:'50000'},crypto.randomUUID())).id),demoSuppliers=[String((await saveMaster(f.owner,'parties',null,{kind:'supplier',code:'SIM-SUP-A',name:'Demo supplier A'},crypto.randomUUID())).id),String((await saveMaster(f.owner,'parties',null,{kind:'supplier',code:'SIM-SUP-B',name:'Demo supplier B'},crypto.randomUUID())).id)];
   const lotProduct=String((await saveMaster(f.owner,'products',null,{sku:'SIM-LOT-MED',name:'Demo lot-tracked medical supplies',unit:'box',trackingMode:'lot',price:'1200'},crypto.randomUUID())).id),serialProduct=String((await saveMaster(f.owner,'products',null,{sku:'SIM-SERIAL-DEVICE',name:'Demo serial-tracked service device',unit:'each',trackingMode:'serial',price:'35000'},crypto.randomUUID())).id);
   const transitProduct=String((await saveMaster(f.owner,'products',null,{sku:'SIM-TRANSIT-ITEM',name:'Fictional transport stock only',price:'10'},crypto.randomUUID())).id);
@@ -339,8 +360,8 @@ if(mode==='prepare'||diagnostic){
   const initialStock=await env.H001_DB.prepare('SELECT COALESCE(SUM(s.value_minor),0)::bigint value FROM commerce_stock s JOIN commerce_warehouses w ON w.id=s.warehouse_id WHERE w.company_id=?').bind(f.company).first<{value:number}>();
   const initialInventoryGl=await env.H001_DB.prepare("SELECT COALESCE(SUM(l.base_debit_minor-l.base_credit_minor),0)::bigint value FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id=? AND j.status='posted' AND l.account_id=?").bind(f.company,inventoryAccountId).first<{value:number}>();
   if(Number(initialStock?.value)!==152000||Number(initialInventoryGl?.value)!==152000)throw new Error('FICTIONAL_INITIAL_STOCK_GL_NOT_RECONCILED');
-  const {createQualityHold}=await import('../../src/server/quality');
-  const {drainQualityAlerts}=await import('../../src/server/quality-alerts');
+  const {createQualityHold}=await import("../../src/server/modules/quality/public/quality");
+  const {drainQualityAlerts}=await import("../../src/server/modules/quality/public/quality-alerts");
   const demoDate=(offset:number)=>new Date(Date.now()+offset*86_400_000).toISOString().slice(0,10);
   const qualityDueSoon=await createQualityHold(f.head,{warehouseId:source,productId:laptopEach,expectedStockVersion:1,dueDate:demoDate(0),reason:'Demo laptop intake requires inspection before service deployment'},'demo-quality-due-soon');
   const qualityOverdue=await createQualityHold(f.head,{warehouseId:source,productId:laptopCase,expectedStockVersion:1,dueDate:demoDate(-1),reason:'Demo laptop case packaging review missed its target date'},'demo-quality-overdue');
@@ -353,32 +374,32 @@ if(mode==='prepare'||diagnostic){
   const quotation=await saveOrder(salesOperatorActor,null,orderSchema.parse({kind:'quote',partyId:customer.id,warehouseId:source,orderDate:'2026-09-20',dueDate:'2026-09-23',lines:[{productId:product,quantity:'1',price:'10',taxBps:0}]}),crypto.randomUUID());
   const quotationFlow=await resolveFlow(env.H001_DB,f.owner,'order',String(quotation.id));
   await assignFlowPrimary(env.H001_DB,f.owner,'order',String(quotation.id),{stepKey:'confirmed',userId:f.claimant.userId,expectedVersion:quotationFlow.version,recordVersion:quotationFlow.recordVersion,reason:'Demo sales operator owns quotation conversion',saveDefault:false},crypto.randomUUID());
-  const {createCRMLead}=await import('../../src/server/crm');
+  const {createCRMLead}=await import("../../src/server/modules/crm/public/crm");
   const crmLead=await createCRMLead(salesOperatorActor,{branchId:f.branch,title:'Demo installation scheduling inquiry',contactName:'Demo customer contact',contactDetail:'Email channel is approved for this fictional customer',source:'Demo Customer 360 scenario',brief:'Customer needs a confirmed installation window before quotation follow-up.',dueDate:'2026-09-26'},crypto.randomUUID());
   const actor=(userId:string,role:string)=>{const user=users.find(item=>item.userId===userId)!;return {label:user.label,email:user.email,userId,role};};
   const guide=generalCompanyDemoGuide({run,origin,holdingSlug:'simulation',organizationReviewer:actor(f.payer.userId,'hr_admin'),customerId:String(customer.id),customerDuplicateIds:[String(duplicateCustomerLeft.id),String(duplicateCustomerRight.id)],customerOperator:actor(f.claimant.userId,'sales_operator'),crmLeadId:String(crmLead.id),qualityDueSoonHoldId:String(qualityDueSoon.id),qualityOverdueHoldId:String(qualityOverdue.id),qualityInspector:actor(f.reviewer.userId,'quality_inspector'),qualityManager:actor(f.payer.userId,'quality_manager'),requestId:String(purchaseRequest.id),quotationId:String(quotation.id),sourceWarehouseId:source,targetWarehouseId:target,movementProductId:transitProduct,lotProductId:lotProduct,serialProductId:serialProduct,closePeriodIds:closePeriods,controlledPaymentInvoiceId:paymentInvoice,actors:{employee:actor(f.claimant.userId,'employee'),manager:actor(f.head.userId,'people_manager'),hrApprover:actor(f.payer.userId,'hr_admin'),payrollPreparer:actor(f.owner.userId,'payroll_preparer'),buyer:actor(f.it.userId,'purchasing_operator'),purchasingManager:actor(f.tie.userId,'purchasing_manager'),salesOperator:actor(f.claimant.userId,'sales_operator'),salesManager:actor(f.tie.userId,'sales_manager'),warehouse:actor(f.head.userId,'warehouse_manager'),sourceWarehouse:actor(f.it.userId,'warehouse_manager'),financePreparer:actor(f.reviewer.userId,'finance_preparer'),financeApprover:actor(f.manager.userId,'finance_approver'),treasury:actor(f.payer.userId,'treasury'),administrator:actor(f.owner.userId,'holding_owner')}});
-  const {seedHospitalityBrowserDemo}=await import('../fixtures/hospitality-browser-demo');
-  const hospitality=await seedHospitalityBrowserDemo({db:env.H002_DB,control:env.CONTROL_DB,files:env.H002_FILES,passwordHash:hash,run,origin});
+  const {seedHospitalityBrowserDemo}=await import("../../fixtures/pms/builders/hospitality-browser-demo");
+  const hospitality=await seedHospitalityBrowserDemo({db:env.H002_DB,control:env.CONTROL_DB,files:env.H002_FILES,passwordHash:hash,run,origin,menuImages:menuImagesEnabled&&localAttachmentMode});
   state.fixture={customerId:customer.id,customerDuplicateIds:[duplicateCustomerLeft.id,duplicateCustomerRight.id],customerDuplicateQuotationId:duplicateCustomerQuotation.id,quotationId:quotation.id,crmLeadId:crmLead.id,purchaseRequestId:purchaseRequest.id,companyId:f.company,inventoryAccountId,clearingAccountId,openingEquityAccountId,openingJournalId:opening.id,browserOpeningChartId,browserOpeningCashId,browserOpeningEquityId,sourceWarehouseId:source,targetWarehouseId:target,productId:product,transitProductId:transitProduct,laptopEachProductId:laptopEach,laptopCaseProductId:laptopCase,lotProductId:lotProduct,serialProductId:serialProduct,qualityDueSoonHoldId:qualityDueSoon.id,qualityOverdueHoldId:qualityOverdue.id,demoSupplierIds:demoSuppliers,periodId:f.period,closePeriodIds:closePeriods,closeBankAccountId:closeBank,controlledPaymentPeriodId:paymentPeriod,controlledPaymentInvoiceId:paymentInvoice,controlledPaymentBankTransactionId:paymentBankTransaction,customerRefundBankTransactionId:refundBankTransaction,expenseAccountId:f.accounts.expense,supplierInvoiceMatchingPolicy:'required',users,scenarioIds:guide.scenarios.map(s=>s.id),hospitality:{companyId:hospitality.companyId,propertyId:hospitality.propertyId,registerId:hospitality.registerId,warehouseId:hospitality.warehouseId,openingJournalId:hospitality.openingJournalId,openingInventoryAccountId:hospitality.openingInventoryAccountId,roomIds:hospitality.roomIds,roomTypeIds:hospitality.roomTypeIds,rateIds:hospitality.rateIds,productIds:hospitality.productIds,supplierIds:hospitality.supplierIds,purchaseRequestId:hospitality.purchaseRequestId,payrollGroupId:hospitality.payrollGroupId,payrollEngagementIds:hospitality.payrollEngagementIds,payrollPersonIds:hospitality.payrollPersonIds,leaveTypeId:hospitality.leaveTypeId,leavePolicyId:hospitality.leavePolicyId,leaveAssignmentId:hospitality.leaveAssignmentId,rosterWeekId:hospitality.rosterWeekId,rosterShiftId:hospitality.rosterShiftId}};await writePrivate(statePath,state);await writePrivate(join(directory,'credentials.json'),{password,users:[...users,...hospitality.users]});await writePrivate(join(directory,'demo-guide.json'),guide);await writePrivate(join(directory,'hospitality-guide.json'),hospitality.guide);
-  if(process.env.ERPX_BROWSER_SIMULATION_LEGAL==='1') {
+  if(legalDemoEnabled) {
     if(port!==3104)throw new Error('LEGAL_UAT_REQUIRES_3104');
-    const {seedLegalBrowserDemo}=await import('../fixtures/legal-browser-demo');
+    const {seedLegalBrowserDemo}=await import("../../fixtures/legal/builders/legal-browser-demo");
     const legal=await seedLegalBrowserDemo({run,directory,control:env.CONTROL_DB as PostgresDatabase,h001:env.H001_DB as PostgresDatabase,h002:env.H002_DB as PostgresDatabase,h001Files:env.H001_FILES,h002Files:env.H002_FILES});
     state.fixture.legal=legal;await writePrivate(statePath,state);
   }
   if(port===3104||profile==='engineering') {
-    const {seedEngineeringMoneyPeopleBrowser}=await import('../fixtures/engineering-money-people-browser');
-    const {seedEngineeringBusinessBrowser}=await import('../fixtures/engineering-business-browser');
-    const {seedEngineeringWorkplacePlatformBrowser}=await import('../fixtures/engineering-workplace-platform-browser');
-    const {seedEngineeringThaiPayrollBrowser}=await import('../fixtures/engineering-thai-payroll-browser');
-    const {seedEngineeringFinanceCloseBrowser}=await import('../fixtures/engineering-finance-close-browser');
-    const {createEngineeringShowcaseGuide}=await import('../fixtures/engineering-showcase-guide');
+    const {seedEngineeringMoneyPeopleBrowser}=await import("../../fixtures/finance/builders/engineering-money-people-browser");
+    const {seedEngineeringBusinessBrowser}=await import("../../fixtures/shared/builders/engineering-business-browser");
+    const {seedEngineeringWorkplacePlatformBrowser}=await import("../../fixtures/shared/builders/engineering-workplace-platform-browser");
+    const {seedEngineeringThaiPayrollBrowser}=await import("../../fixtures/people_payroll/builders/engineering-thai-payroll-browser");
+    const {seedEngineeringFinanceCloseBrowser}=await import("../../fixtures/finance/builders/engineering-finance-close-browser");
+    const {createEngineeringShowcaseGuide}=await import("../../fixtures/shared/builders/engineering-showcase-guide");
     state.fixture.engineeringMoneyPeople=await seedEngineeringMoneyPeopleBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,db:env.H001_DB as PostgresDatabase,files:env.H001_FILES});
     state.fixture.engineeringBusiness=await seedEngineeringBusinessBrowser({run,db:env.H001_DB,f});
     state.fixture.engineeringWorkplacePlatform=await seedEngineeringWorkplacePlatformBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,h001:env.H001_DB as PostgresDatabase,h002:env.H002_DB as PostgresDatabase,h003:env.H003_DB as PostgresDatabase,h001Files:env.H001_FILES,h002Files:env.H002_FILES,h003Files:env.H003_FILES});
     state.fixture.engineeringThaiPayroll=await seedEngineeringThaiPayrollBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,db:env.H001_DB as PostgresDatabase,files:env.H001_FILES});
     state.fixture.engineeringFinanceClose=await seedEngineeringFinanceCloseBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,db:env.H001_DB as PostgresDatabase,files:env.H001_FILES});
-    if(port===3104){
+    if(port===3104&&legalDemoEnabled){
      const showcaseGuide=await createEngineeringShowcaseGuide({run,directory,origin,sourceFingerprint,fixture:state.fixture,databases:{CONTROL_DB:env.CONTROL_DB as PostgresDatabase,H001_DB:env.H001_DB as PostgresDatabase,H002_DB:env.H002_DB as PostgresDatabase,H003_DB:env.H003_DB as PostgresDatabase}});
      await writePrivate(join(directory,'engineering-showcase-guide.json'),showcaseGuide);
      state.fixture.engineeringShowcaseGuide={moduleCount:showcaseGuide.moduleCount,path:join(directory,'engineering-showcase-guide.json')};
@@ -404,10 +425,14 @@ if(mode==='prepare'||diagnostic){
   const receipt=JSON.parse(await readFile(join(directory,'attachment-baseline.json'),'utf8'));
   if(receipt.gateReady!==true||receipt.sourceFingerprint!==sourceFingerprint)throw new Error('BROWSER_BASELINE_ATTACHMENT_GATE_NOT_READY');
  }
- await mkdir(app,{recursive:true});for(const name of ['src','public','scripts','fixtures','migrations/postgres','tests/helpers','ops/macos/clamav','ops/macos/install-attachment-runtime.py','ops/macos/attachment-rollout.md','ops/macos/erpxctl.py','ops/macos/offsite.py','ops/macos/recovery_status.py','package.json','bun.lock','next.config.ts','tsconfig.json','tsconfig.engineering-tests.json','next-env.d.ts','postcss.config.mjs','node_modules'])await cp(join(root,name),join(app,name),{recursive:true,mode:constants.COPYFILE_FICLONE});
+ await mkdir(app,{recursive:true});for(const name of ['src','public','scripts','fixtures','migrations/postgres','tests/support','tests/catalogue','tests/config','ops/macos/clamav','ops/macos/install-attachment-runtime.py','ops/macos/attachment-rollout.md','ops/macos/erpxctl.py','ops/macos/offsite.py','ops/macos/recovery_status.py','package.json','bun.lock','next.config.ts','tsconfig.json','next-env.d.ts','postcss.config.mjs','node_modules'])await cp(join(root,name),join(app,name),{recursive:true,mode:constants.COPYFILE_FICLONE});
  if(await runtimeSourceFingerprint(root)!==sourceFingerprint||await runtimeSourceFingerprint(app)!==sourceFingerprint)throw new Error('BROWSER_PREPARATION_SOURCE_CHANGED');
  state.softwareVersion=`release-${sourceFingerprint}`;
  await writeFile(join(app,'src/data/release-artifact.json'),JSON.stringify({softwareVersion:state.softwareVersion})+'\n');
+ if(pmsProviderFixtureEnabled){
+  state.providerFixture=true;
+  await writePrivate(join(directory,'provider-fixture.json'),{schemaVersion:1,keys:{},resources:{},requests:[]});
+ }
  state.ready=true;await writePrivate(statePath,state);
  console.log(JSON.stringify({run,origin,statePath,credentialsPath:join(directory,'credentials.json'),guidePath:join(directory,'demo-guide.json'),hospitalityGuidePath:join(directory,'hospitality-guide.json'),ready:true}));
 }else if(mode==='start'){
@@ -416,19 +441,20 @@ if(mode==='prepare'||diagnostic){
  if(localAttachmentMode){
   const required=[environment.ERPX_CLAMD_SOCKET,environment.ERPX_CLAMAV_DATABASE_DIR,environment.ERPX_HEIF_CONVERT,environment.ERPX_PDFTOPPM_BIN];
   if(required.some(value=>typeof value!=='string'||!existsSync(value)))throw new Error('LOCAL_ATTACHMENT_RUNTIME_FILES_MISSING');
-  const {attachmentRuntimeReadiness}=await import('../../src/server/attachments/readiness');
+  const {attachmentRuntimeReadiness}=await import("../../src/server/modules/files/public/attachments/readiness");
   const readiness=await attachmentRuntimeReadiness(environment);
   if(!readiness.ready)throw new Error(`LOCAL_ATTACHMENT_RUNTIME_NOT_READY:${readiness.scanner.error??readiness.preview.error??'UNKNOWN'}`);
  }
  let webEntrypoint=join(app,'node_modules/next/dist/bin/next'),jobsBundle=join(app,'.runtime/jobs/jobs.mjs');
  let webArgs=[webEntrypoint,'dev',...(useWebpack?['--webpack']:[]),'--hostname','127.0.0.1','-p',String(port)],workingDirectory=app;
  const suppliedRelease=process.env.ERPX_BROWSER_SIMULATION_RELEASE_DIR;
+ if(Boolean(state.providerFixture)!==pmsProviderFixtureEnabled||pmsProviderFixtureEnabled&&!suppliedRelease)throw new Error('PMS_PROVIDER_FIXTURE_COMPILED_RELEASE_REQUIRED');
  if(suppliedRelease){
   if(port!==3104||!localJobsEnabled||!localAttachmentMode)throw new Error('RELEASE_VERIFICATION_REQUIRES_3104_SCANNER_AND_JOBS');
   const releaseRoot=await realpath(resolve(suppliedRelease)),allowedRoot=join(root,'.runtime/releases')+'/';
   if(!releaseRoot.startsWith(allowedRoot))throw new Error('LOCAL_RELEASE_DIRECTORY_REQUIRED');
   const release=JSON.parse(await readFile(join(releaseRoot,'release.json'),'utf8'));
-  if(release.node!=='24.20.0'||release.sourceFingerprint!==state.sourceFingerprint||release.softwareVersion!==state.softwareVersion)
+  if(release.node!=='26.11.1'||release.sourceFingerprint!==state.sourceFingerprint||release.softwareVersion!==state.softwareVersion)
    throw new Error('BROWSER_RELEASE_SOURCE_MISMATCH');
   const manifestBytes=await readFile(join(releaseRoot,'release-files.json'));
   if(createHash('sha256').update(manifestBytes).digest('hex')!==release.fileManifestSha256)throw new Error('RELEASE_FILE_MANIFEST_MISMATCH');
@@ -441,7 +467,7 @@ if(mode==='prepare'||diagnostic){
   Object.assign(environment,{NODE_ENV:'production',PORT:String(port),HOSTNAME:'127.0.0.1',NEXT_DEPLOYMENT_ID:release.deploymentId});
   Object.assign(environment,{ERPX_ENGINEERING_VERIFICATION_RUN:run,ERPX_ENGINEERING_SOURCE_FINGERPRINT:state.sourceFingerprint});
   state.release={id:release.id,fileManifestSha256:release.fileManifestSha256};
-  const {enrollEngineeringVerification}=await import('../../src/server/engineering-verification');
+  const {enrollEngineeringVerification}=await import("../../src/server/modules/platform_administration/public/engineering-verification");
   const urls=JSON.parse(await readFile(manifestPath,'utf8')).databases as Record<string,string>;
   const legal=state.fixture?.legal as {companies?:Record<string,{id:string}>}|undefined;
   const company=state.fixture?.companyId as string,hospitality=state.fixture?.hospitality as {companyId:string};
@@ -449,13 +475,23 @@ if(mode==='prepare'||diagnostic){
   const thaiPayroll=state.fixture?.engineeringThaiPayroll as {companyIds:string[]}|undefined;
   const financeClose=state.fixture?.engineeringFinanceClose as {companyIds:string[]}|undefined;
   const workplace=state.fixture?.engineeringWorkplacePlatform as {companyId:string;realmCompanyId:string}|undefined;
-  if(!moneyPeople?.companyIds.length||thaiPayroll?.companyIds.length!==2||financeClose?.companyIds.length!==2||!workplace?.companyId||!workplace.realmCompanyId)throw new Error('COMPLETE_NORMAL_ACCOUNT_COHORT_REQUIRED');
+  const bookingFixture=profile==='booking'&&state.profile==='booking'&&state.fixture?.profile==='booking'&&state.fixture?.holdingSlug==='booking-test';
+  if(!bookingFixture&&(!moneyPeople?.companyIds.length||thaiPayroll?.companyIds.length!==2||financeClose?.companyIds.length!==2||!workplace?.companyId||!workplace.realmCompanyId))throw new Error('COMPLETE_NORMAL_ACCOUNT_COHORT_REQUIRED');
   const enrollment={run,sourceFingerprint:release.sourceFingerprint,softwareVersion:release.softwareVersion,fileManifestSha256:release.fileManifestSha256};
   const first=new PostgresDatabase({connectionString:urls.H001_DB,max:1}),second=new PostgresDatabase({connectionString:urls.H002_DB,max:1}),third=new PostgresDatabase({connectionString:urls.H003_DB,max:1});
   try{
-   const attestation=await enrollEngineeringVerification(first,{...enrollment,companyIds:[company,...moneyPeople.companyIds,...thaiPayroll.companyIds,...financeClose.companyIds,workplace.companyId,...(legal?.companies?.A?[legal.companies.A.id]:[])],disabledCompanyIds:legal?.companies?.B?[legal.companies.B.id]:[]});
-   await enrollEngineeringVerification(second,{...enrollment,companyIds:[hospitality.companyId,...(legal?.companies?.C?[legal.companies.C.id]:[])]});
-   await enrollEngineeringVerification(third,{...enrollment,companyIds:[workplace.realmCompanyId]});
+   let attestation;
+   if(bookingFixture){
+    // A public guest journey needs only its own isolated hotel. Never enroll
+    // arbitrary IDs from metadata or reuse the broad normal-account cohort.
+    const hotel=await first.prepare('SELECT id FROM pms_properties WHERE id=? AND company_id=?').bind(state.fixture!.propertyId,company).first();
+    if(!hotel)throw new Error('EXACT_BOOKING_PROPERTY_REQUIRED');
+    attestation=await enrollEngineeringVerification(first,{...enrollment,companyIds:[company]});
+   }else{
+    attestation=await enrollEngineeringVerification(first,{...enrollment,companyIds:[company,...moneyPeople!.companyIds,...thaiPayroll!.companyIds,...financeClose!.companyIds,workplace!.companyId,...(legal?.companies?.A?[legal.companies.A.id]:[])],disabledCompanyIds:legal?.companies?.B?[legal.companies.B.id]:[]});
+    await enrollEngineeringVerification(second,{...enrollment,companyIds:[hospitality.companyId,...(legal?.companies?.C?[legal.companies.C.id]:[])]});
+    await enrollEngineeringVerification(third,{...enrollment,companyIds:[workplace!.realmCompanyId]});
+   }
    await writePrivate(join(directory,'engineering-attestation.json'),attestation);
   }finally{await first.close();await second.close();await third.close();}
   // Establish real scan, ownership, checksum and quota receipts before the
@@ -478,8 +514,11 @@ if(mode==='prepare'||diagnostic){
   });
   if(!bundle.success)throw new Error('BROWSER_SIMULATION_JOBS_BUILD_FAILED');
  }
+ // The preload validates persisted release identity before either process executes.
+ await writePrivate(statePath,state);
+ if(pmsProviderFixtureEnabled)environment.NODE_OPTIONS+=` --import=${join(workingDirectory,'tools/pms-provider-fixture.mjs')}`;
  const log=await open(join(directory,'server.log'),'a',0o600);
- const child=spawn(node,webArgs,{cwd:workingDirectory,env:environment,detached:true,stdio:['ignore',log.fd,log.fd]});if(!child.pid)throw new Error('BROWSER_SERVER_FAILED');state.pid=child.pid;state.webEntrypoint=webEntrypoint;await writePrivate(statePath,state);child.unref();await log.close();
+ const child=spawn(node,webArgs,{cwd:workingDirectory,env:environment,detached:true,stdio:['ignore',log.fd,log.fd]});if(!child.pid)throw new Error('BROWSER_SERVER_FAILED');state.pid=child.pid;state.applicationPoolMax=Number(environment.ERPX_APP_PG_POOL_MAX??1);state.controlPoolMax=Number(environment.ERPX_CONTROL_PG_POOL_MAX??5);state.webEntrypoint=webEntrypoint;await writePrivate(statePath,state);child.unref();await log.close();
  if(localJobsEnabled){
   const jobsLog=await open(join(directory,'jobs.log'),'a',0o600);
   const worker=spawn(node,[jobsBundle],{cwd:workingDirectory,env:{...environment,ERPX_PROCESS_ROLE:'jobs',ERPX_DATABASE_MANIFEST:manifestPath},detached:true,stdio:['ignore',jobsLog.fd,jobsLog.fd]});
@@ -489,6 +528,7 @@ if(mode==='prepare'||diagnostic){
  console.log(JSON.stringify({run,pid:state.pid,...(state.jobsPid?{jobsPid:state.jobsPid}:{}),origin,runtime:suppliedRelease?'standalone-release':useWebpack?'webpack':'turbopack',softwareVersion:state.softwareVersion}));
 }else if(mode==='pause-jobs'||mode==='resume-jobs'){
  const state=JSON.parse(await readFile(statePath,'utf8')) as State,workingDirectory=state.release?join(directory,'release'):app,entrypoint=state.release?join(workingDirectory,'tools/jobs.mjs'):join(app,'.runtime/jobs/jobs.mjs');
+ if(Boolean(state.providerFixture)!==pmsProviderFixtureEnabled)throw new Error('PMS_PROVIDER_FIXTURE_RESTART_SETTING_CHANGED');
  if(!localJobsEnabled||!localAttachmentMode||state.run!==run||state.prefix!==`erpx_browser_${run}`||state.port!==port||state.origin!==origin||state.jobsEntrypoint!==entrypoint)throw new Error('EXACT_BROWSER_COHORT_JOBS_REQUIRED');
  const release=state.release?JSON.parse(await readFile(join(workingDirectory,'release.json'),'utf8')):undefined;
  if(release){if(port!==3104||release.sourceFingerprint!==state.sourceFingerprint||release.softwareVersion!==state.softwareVersion||release.fileManifestSha256!==state.release!.fileManifestSha256||createHash('sha256').update(await readFile(join(workingDirectory,'release-files.json'))).digest('hex')!==release.fileManifestSha256)throw new Error('COHORT_JOBS_RELEASE_MISMATCH');}
@@ -516,6 +556,7 @@ if(mode==='prepare'||diagnostic){
   const pause=JSON.parse(await readFile(receiptPath,'utf8'));if(!pause.stopped||pause.scope!==scope||pause.run!==run||pause.sourceFingerprint!==state.sourceFingerprint||pause.softwareVersion!==state.softwareVersion||pause.entrypoint!==entrypoint||pause.cwd!==workingDirectory||pause.releaseManifestSha256!==releaseManifestSha256)throw new Error('COHORT_JOBS_PAUSE_RECEIPT_REQUIRED');
   const {secret}=JSON.parse(await readFile(join(directory,'runtime.json'),'utf8'));
   const environment:NodeJS.ProcessEnv={...safeEnv(secret),...(release?{NODE_ENV:'production',PORT:String(port),HOSTNAME:'127.0.0.1',NEXT_DEPLOYMENT_ID:release.deploymentId,ERPX_ENGINEERING_VERIFICATION_RUN:run,ERPX_ENGINEERING_SOURCE_FINGERPRINT:state.sourceFingerprint}:{}),ERPX_PROCESS_ROLE:'jobs',ERPX_DATABASE_MANIFEST:manifestPath};
+  if(pmsProviderFixtureEnabled)environment.NODE_OPTIONS+=` --import=${join(workingDirectory,'tools/pms-provider-fixture.mjs')}`;
   const log=await open(join(directory,'jobs.log'),'a',0o600),worker=spawn(node,[entrypoint],{cwd:workingDirectory,env:environment,detached:true,stdio:['ignore',log.fd,log.fd]});
   if(!worker.pid){await log.close();throw new Error('COHORT_JOBS_RESTART_FAILED');}
   state.jobsPid=worker.pid;state.jobsStartedAt=Bun.spawnSync(['ps','-p',String(worker.pid),'-o','lstart=']).stdout.toString().trim();state.jobsPaused=false;await writePrivate(statePath,state);worker.unref();await log.close();

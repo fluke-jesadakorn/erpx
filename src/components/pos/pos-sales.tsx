@@ -1,19 +1,25 @@
 "use client";
+import dynamic from "next/dynamic";
+const RoomChargeReversalRequest = dynamic(() => import("@/components/shared/hospitality/room-charge-reversals").then(module => module.RoomChargeReversalRequest));
+const TaxDocumentReference = dynamic(() => import("@/components/shared/hospitality/tax-document-reference").then(module => module.TaxDocumentReference));
+import {PosPendingTransfer} from "./pos-pending-transfer";
+import {PosReceipt} from "./pos-receipt";
+
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { PosWorkspace } from "@/server/modules/pos/public/pos";
 import type { PosRow } from "@/server/modules/pos/public/pos-core";
-import type { PosReceiptSnapshot } from "@/server/modules/pos/public/pos-daily";
+
 import { formatPosMoney } from "@/server/modules/pos/public/rules/pos";
-import { workFetch } from "@/lib/work-fetch";
+import { workFetch } from "@/lib/work_projection/work-fetch";
 import { useFrontLanguage } from "@/components/front/front-language";
 import QRCode from "qrcode";
 import Image from "next/image";
 import styles from "./pos.module.css";
-import {SourceSupportLink} from "@/components/modules/source-support-link";
-import {TaxDocumentReference} from "@/components/hospitality/tax-document-reference";
+import {SourceSupportLink} from "@/components/support/source-support-link";
+
 type Row = PosRow;
 const s = (row: Row, key: string) => String(row[key] ?? "");
 const n = (row: Row, key: string) => Number(row[key] ?? 0);
@@ -23,19 +29,7 @@ const form = (e: FormEvent<HTMLFormElement>) => {
 };
 const amount = (f: FormData, key: string) => Math.round(Number(f.get(key) ?? 0) * 100);
 const quantity = (f: FormData, key: string) => Math.round(Number(f.get(key) ?? 0) * 1000);
-const addressText = (value: unknown) => {
-  try {
-    const address = typeof value === "string" ? JSON.parse(value) : value;
-    return address && typeof address === "object"
-      ? ["line1", "line2", "city", "region", "postalCode", "countryCode"]
-          .map((k) => String(address[k] ?? ""))
-          .filter(Boolean)
-          .join(" ")
-      : "";
-  } catch {
-    return "";
-  }
-};
+
 export type PosSend = (
   op: string,
   input: unknown,
@@ -50,28 +44,7 @@ const methodNames: Record<string, [string, string]> = {
 };
 
 /** Both sale screens recover the same unverified transfer through its owner command. */
-export function PosPendingTransfer({payment,data,currency,canVerify,canCancel,send,busy,online}:{
-  payment:Row;data:PosWorkspace;currency:string|null;canVerify:boolean;canCancel:boolean;send:PosSend;busy:boolean;online:boolean;
-}) {
-  const language=useFrontLanguage(),t=(th:string,en:string)=>language==='th'?th:en;
-  const money=(value:number)=>formatPosMoney(value,currency);
-  return <section className={styles.alert}>
-    <strong>{t('บันทึกการโอนแล้ว · รอตรวจสอบ','Bank transfer recorded — awaiting verification')}</strong>
-    <p>{t('เลขอ้างอิง','Reference')} {s(payment,'reference')} · {money(n(payment,'amount_minor'))}. {t('บิลยังไม่ชำระจนกว่า Finance จะจับคู่หลักฐานธนาคารที่นำเข้า','This bill is not settled until Finance matches imported bank evidence.')}</p>
-    {canVerify&&<form className={styles.fields} onSubmit={event=>{
-      const fields=form(event),bank=data.transferEvidence.find(row=>row.id===fields.get('bank'));
-      if(bank)void send('payment.verify_transfer',{id:payment.id,expectedVersion:payment.version,bankTransactionId:bank.id,bankVersion:bank.version});
-    }}>
-      <Field>{t('หลักฐานธนาคารที่นำเข้า','Imported bank evidence')}<Select name="bank" required>
-        <option value="">{t('เลือกรายการที่ตรงกัน','Select exact matching row')}</option>
-        {data.transferEvidence.map(bank=><option key={s(bank,'id')} value={s(bank,'id')}>{s(bank,'transaction_date')} · {s(bank,'external_id')} · {money(n(bank,'amount_minor'))}</option>)}
-      </Select></Field>
-      <Button clientManaged type="submit" disabled={busy||!online||!data.transferEvidence.length}>{t('ตรวจยืนยันการโอน','Verify transfer')}</Button>
-      {!data.transferEvidence.length&&<p>{t('ยังไม่มีรายการธนาคารที่ตรงกัน ให้นำเข้ารายการธนาคารใน Finance ก่อน','No matching imported bank row. Import the bank statement in Finance first.')}</p>}
-    </form>}
-    {canCancel&&<Button variant="secondary" type="button" disabled={busy||!online} onClick={()=>void send('payment.cancel_transfer',{id:payment.id,expectedVersion:payment.version})}>{t('ยกเลิกเลขอ้างอิงที่ยังไม่ยืนยัน','Cancel unverified reference')}</Button>}
-  </section>;
-}
+
 
 function ProductImage({ api, imageId, name }: { api: string; imageId: string; name: string }) {
   const [url, setUrl] = useState("");
@@ -205,90 +178,7 @@ export function PosPromptPayEmailRecovery({
   );
 }
 
-export function PosReceipt({ receipt }: { receipt: PosReceiptSnapshot | null }) {
-  const language = useFrontLanguage(),
-    t = (th: string, en: string) => (language === "th" ? th : en);
-  if (!receipt) return null;
-  const money = (v: number) => formatPosMoney(v, receipt.currency);
-  return (
-    <div className={styles.printArea}>
-      <article className={styles.receipt} data-pos-receipt={receipt.saleId}>
-        <h2>{t("ใบเสร็จรับเงิน", "Receipt")}</h2>
-        <strong>{String(receipt.issuer.companyName ?? "")}</strong>
-        <p>
-          {String(receipt.issuer.registerName ?? "")}
-          <br />
-          {receipt.number}
-          <br />
-          {receipt.businessDate}
-        </p>
-        {receipt.customer && (
-          <p>
-            {t("ลูกค้า", "Customer")}: {s(receipt.customer, "name")}
-            <br />
-            {s(receipt.customer, "phone")}
-            {s(receipt.customer, "notification_email") && (
-              <>
-                <br />
-                {s(receipt.customer, "notification_email")}
-              </>
-            )}
-            {addressText(receipt.customer.address_json) && (
-              <>
-                <br />
-                {addressText(receipt.customer.address_json)}
-              </>
-            )}
-          </p>
-        )}
-        {receipt.lines.map((l) => (
-          <div className={styles.row} key={s(l, "id")}>
-            <span>
-              {s(l, "name")} × {n(l, "quantity_milli") / 1000}
-              {s(l, "note") && <small>{s(l, "note")}</small>}
-            </span>
-            <span>{money(n(l, "subtotal_minor") + n(l, "tax_minor"))}</span>
-          </div>
-        ))}
-        <div className={styles.row}>
-          <span>{t("ส่วนลด", "Discount")}</span>
-          <span>{money(receipt.discountMinor)}</span>
-        </div>
-        <div className={styles.row}>
-          <span>{t("ยอดก่อนภาษี", "Subtotal")}</span>
-          <span>{money(receipt.subtotalMinor)}</span>
-        </div>
-        <div className={styles.row}>
-          <span>{t("ภาษี", "Tax")}</span>
-          <span>{money(receipt.taxMinor)}</span>
-        </div>
-        <div className={styles.total}>
-          <strong>{t("รวมสุทธิ", "Total")}</strong>
-          <strong>{money(receipt.totalMinor)}</strong>
-        </div>
-        {receipt.payments.map((p) => (
-          <p key={s(p, "id")}>
-            {methodNames[s(p, "method")]?.[language === "th" ? 0 : 1] ?? s(p, "method")}{" "}
-            {money(n(p, "amount_minor"))}
-            {p.method === "cash" && (
-              <>
-                <br />
-                {t("รับเงิน", "Tendered")} {money(n(p, "tendered_minor"))} ·{" "}
-                {t("เงินทอน", "Change")} {money(n(p, "tendered_minor") - n(p, "amount_minor"))}
-              </>
-            )}
-          </p>
-        ))}
-        {receipt.roomCharge && (
-          <p>
-            {t("ลงบัญชีห้องพัก · ชำระตอนเช็กเอาต์", "Charged to hotel folio · Pay at checkout")}
-          </p>
-        )}
-        <p>{t("เอกสารนี้ไม่ใช่ใบกำกับภาษี", "This document is not a tax invoice")}</p>
-      </article>
-    </div>
-  );
-}
+
 
 type Draft = {
   key: string;
@@ -1358,8 +1248,8 @@ export function PosSaleWorkspace({
                   {waiting > 0 && !postingPending && (
                     <p role="status">
                       {t(
-                        "รอการยืนยันรับเงิน ห้ามใช้หน้ากลับจาก Stripe เป็นหลักฐานสำเร็จ",
-                        "Waiting for verified payment; a Stripe return is not payment confirmation.",
+                        "รอการยืนยันรับเงิน ปิดการขายได้เมื่อการชำระเงินได้รับการยืนยันแล้ว",
+                        "Waiting for verified payment. Complete the sale when payment is confirmed.",
                       )}
                     </p>
                   )}
@@ -1520,6 +1410,12 @@ export function PosSaleWorkspace({
                   )}
                 </>
               )}
+              <RoomChargeReversalRequest data={data} send={send} busy={busy}/>
+              {data.roomCharge && (
+                <p role="status" className={styles.alert}>
+                  {t("ลงบัญชีห้องพักแล้ว", "Charged to hotel guest account")}
+                </p>
+              )}
               {sale.state === "completed" && data.receipt && (
                 <Button
                   type="submit"
@@ -1673,3 +1569,6 @@ export function PosSaleWorkspace({
     </>
   );
 }
+
+export {PosReceipt} from "./pos-receipt";
+export {PosPendingTransfer} from "./pos-pending-transfer";

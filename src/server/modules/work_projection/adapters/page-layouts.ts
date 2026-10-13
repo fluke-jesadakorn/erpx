@@ -12,7 +12,7 @@ import { navigationContext } from "../public/navigation-context";
 import { companyAuthority } from "@/server/modules/operations/public/staff-policy";
 import { workContextGuards } from "@/server/modules/workflow/public/commands";
 import { iamMutationGuards } from "@/server/modules/identity_access/public/iam-store";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import { serviceCommandBody } from "@/server/modules/support/public/service-http";
 

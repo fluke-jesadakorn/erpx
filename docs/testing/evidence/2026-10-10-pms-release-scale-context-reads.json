@@ -1,0 +1,110 @@
+{
+  "run": "89f52a2fd5f6",
+  "sourceFingerprint": "fb2a4f407aff1831ac5f0a4d77c10f170c8258bb68f61119e84ef9427986bc17",
+  "verificationFingerprint": "3d240d1e53d3db413e811953175b96e1b2f704b4381629ccc6146a8848cf94eb",
+  "release": {
+    "id": "2026-10-09T19-43-30-272Z",
+    "fileManifestSha256": "3e297a3a3a6583a5fe905804d597c589ad135994d1f5f21aed2bed6fd90570df"
+  },
+  "scope": "Release HTTP: 3 \u00d7 200 rooms, 730-day synthetic closed stay/reservation/account metadata; 20 distinct normal staff accounts. Historic revenue is not invented.",
+  "applicationPoolMax": 8,
+  "controlPoolMax": 5,
+  "jobsHoldingPoolMax": 1,
+  "counts": [
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    }
+  ],
+  "accounts": 20,
+  "rounds": 10,
+  "durationMs": 53650,
+  "readCount": 840,
+  "writeCount": 400,
+  "readP95Ms": 298.4461249999986,
+  "writeP95Ms": 2142.688541999998,
+  "failedSamples": 0,
+  "sameProcesses": true,
+  "unchanged": true,
+  "samplesSha256": "6a0d10d787d528862cfb61c69155b395e01c068ea0bf3c6d96589d8d5dbe87f6",
+  "passed": false,
+  "acceptance": false,
+  "timingSamplesSha256": "c86df8959d0e00f4ebd652c49017ef98d574816e475c0041f56b2d017751336c",
+  "interpretation": "One selected-Company preference read is avoided when an explicit selection exists; beta and IAM reads overlap after current selection validation. All 840 reads and 400 writes remain valid, exact replay/money reconciliation passes and source/processes remain unchanged. Read p95 298 ms; logical write p95 2143 ms still exceeds the unchanged two-second target. This is not overall PMS acceptance.",
+  "changes": [
+    "Company selection preserves original options/header/cookie/front precedence and remembers Company only when needed.",
+    "Independent beta and fresh IAM reads overlap after revoked/session/selection checks. Mutation guards, Property locks, version/idempotency contracts and all retry/refresh/replay latency remain unchanged."
+  ],
+  "verification": {
+    "identityUnitCases": 50,
+    "iamPagePermissionCases": 3,
+    "iamIntegrationCases": 26,
+    "pmsIntegrationCases": 50,
+    "typecheck": true,
+    "lint": {
+      "passed": true,
+      "warnings": 3
+    },
+    "architecture": true,
+    "isolatedReleaseBuild": true,
+    "documentation": true
+  },
+  "logs": {
+    "pms-context-latency-unit-final.log": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-context-latency-unit-final.log",
+      "sha256": "75ba32b176237fd1dab77f253b4026b7c6599dc9b6d21733b81eb613056d3bef"
+    },
+    "pms-context-latency-integration.log": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-context-latency-integration.log",
+      "sha256": "14eb352db4c29749091ec96f99e9c9b4cf4a71eb28f01311b7bdd6bfab46c11c"
+    },
+    "pms-context-latency-typecheck-final.log": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-context-latency-typecheck-final.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "pms-context-latency-lint.log": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-context-latency-lint.log",
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    },
+    "pms-context-latency-architecture.log": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-context-latency-architecture.log",
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    "pms-context-latency-build.log": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-context-latency-build.log",
+      "sha256": "d026a37dda2b519d78f8e1981d7bfcdd7dd941a3eb2d078f3dbf14e4050e0930"
+    },
+    "pms-context-latency-load.log": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-context-latency-load.log",
+      "sha256": "e3c477bd93e72597d28c478d1ec9ecf6909432e6e33c9325a4c21b328af7b2dc"
+    },
+    "pms-context-latency-docs.log": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-context-latency-docs.log",
+      "sha256": "c3746f86bd50692396ceed34eb6887f40dbe8ae7085b7605b2d8ff85efe4fc8c"
+    }
+  },
+  "environment": {
+    "ownedCohortRemoved": true,
+    "localDevelopmentHealth": 200,
+    "publicDevelopmentHealth": 200,
+    "privateProductionHealthOnly": 200,
+    "postgresListener": 5432,
+    "publicStaffPage": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms",
+    "publicStaffPageObservation": "Normal expired-session login; staff appearance remains unverified in the public development session. Compiled cohort users authenticate normally.",
+    "productionOrStagingChanged": false
+  }
+}

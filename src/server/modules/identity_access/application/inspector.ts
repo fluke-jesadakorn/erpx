@@ -2,8 +2,8 @@ import { z } from 'zod';
 import { inspectorInput, recordPermissions } from '../domain/inspector';
 import type { WorkContext } from '../domain/authorization';
 import type { IamActor } from '../domain/iam-actor';
-import { samePerson, type AccessDecision } from '@/lib/iam';
-import type { FlowKind } from '@/lib/flow';
+import { samePerson, type AccessDecision } from "@/lib/identity_access/iam";
+import type { FlowKind } from "@/lib/shared/flow";
 import type { createIamServiceReads } from './iam-service-reads';
 import type { IdentityError } from './authorization';
 export function createIamInspector(ports: {

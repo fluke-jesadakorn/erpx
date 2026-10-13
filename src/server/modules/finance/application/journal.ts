@@ -1,6 +1,6 @@
 import { createFinancePolicy } from '../domain/finance-policy';
 import type { JournalInput, FunctionalFxEvidence } from '../domain/finance';
-import { minorToDecimal } from '@/lib/finance-money';
+import { minorToDecimal } from "@/lib/finance/finance-money";
 import type { WorkContext } from '@/server/modules/identity_access/public/authorization';
 import type { FinanceError } from '../domain/invoice-line-revision';
 export interface JournalPorts {

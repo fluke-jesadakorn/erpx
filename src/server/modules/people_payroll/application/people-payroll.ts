@@ -1,11 +1,11 @@
 import type {ListPage} from "../../work_projection/public/list-page";
 import { payrollAccountingLines, payrollNetCostShares, type PayrollPostingItem } from '../domain/payroll-accounting';
 import { z } from 'zod';
-import { hasPermission } from "@/lib/permissions";
-import { samePerson } from "@/lib/iam";
-import { decimalToMinor, minorToDecimal } from "@/lib/finance-money";
-import { calculatePayrollAmounts } from "@/lib/payroll-math";
-import { parseSyntheticPayrollBankResultCsv } from "@/lib/payroll-bank-result";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { samePerson } from "@/lib/identity_access/iam";
+import { decimalToMinor, minorToDecimal } from "@/lib/finance/finance-money";
+import { calculatePayrollAmounts } from "@/lib/people_payroll/payroll-math";
+import { parseSyntheticPayrollBankResultCsv } from "@/lib/people_payroll/payroll-bank-result";
 import type { organizationGuard, validateStaffOrganization } from "@/server/modules/organization/public/organization";
 import type { calculateThaiHotelPayrollFixture, isThaiHotelPayrollMockEnabled } from "@/server/modules/runtime/public/simulation-only-adapters";
 import type { directoryPerson, canReadCompensation, canManagePeople } from "../public/people-directory";

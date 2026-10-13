@@ -1,12 +1,58 @@
 "use client";
 
-import { QuickAccessShelf } from "@/components/quick-access/shelf";
-import { defaultWorkCardIds, newWorkHref, workCardIds, type WorkActionCard, type WorkCardId } from "@/lib/work-cards";
-import { workCardTone } from "@/lib/work-category-tone";
-import type { QuickAccessItem } from "@/lib/quick-access";
-import { selfServiceActions } from "@/lib/self-service";
+import { QuickAccessShelf } from "@/components/work_projection/quick-access/shelf";
+import { defaultWorkCardIds, newWorkHref, workCardIds, type WorkActionCard, type WorkCardId } from "@/lib/work_projection/work-cards";
+import { workCardTone } from "@/lib/work_projection/work-category-tone";
+import type { QuickAccessItem } from "@/lib/work_projection/quick-access";
+import { selfServiceActions } from "@/lib/work_projection/self-service";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useNavigationCounts } from "./navigation-counts";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { workFetch } from "@/lib/work_projection/work-fetch";
+import { scheduleWorkRefresh } from "@/lib/work_projection/work-refresh";
+import type { WorkSummary } from "@/server/modules/work_projection/public/work-summary";
+
+function useShortcutSummary(base: string) {
+  const [summary, setSummary] = useState<WorkSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const request = useRef<AbortController | null>(null);
+  const refresh = useCallback(async () => {
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
+    try {
+      const response = await workFetch(`/api/v1${base}/work/summary`, { cache: "no-store", signal: controller.signal });
+      if (!response.ok) {
+        if ([401, 403, 404, 409].includes(response.status)) setSummary(null);
+        throw Error("Your shortcuts could not refresh.");
+      }
+      const { data } = await response.json() as { data: WorkSummary };
+      if (!controller.signal.aborted) { setSummary(data); setError(""); }
+    } catch (error) {
+      if (!controller.signal.aborted) setError(error instanceof Error ? error.message : "Your shortcuts could not refresh.");
+    } finally {
+      if (request.current === controller) { request.current = null; setLoading(false); }
+    }
+  }, [base]);
+  useEffect(() => {
+    const timer = setTimeout(() => void refresh(), 0);
+    const stop = scheduleWorkRefresh(() => void refresh());
+    const clear = () => {
+      request.current?.abort(); request.current = null;
+      setSummary(null); setLoading(false); setError("Your work role changed. Reload to review shortcuts.");
+    };
+    window.addEventListener("erpx:context-switch-started", clear);
+    window.addEventListener("erpx:work-context-changed", clear);
+    return () => {
+      clearTimeout(timer); stop(); request.current?.abort();
+      window.removeEventListener("erpx:context-switch-started", clear);
+      window.removeEventListener("erpx:work-context-changed", clear);
+    };
+  }, [refresh]);
+  return { quickAccess: summary, quickAccessLoading: loading, quickAccessError: error, refresh,
+    saveQuickAccess: (preferences: WorkSummary["preferences"]) => setSummary(previous =>
+      previous && preferences.version >= previous.preferences.version ? { ...previous, preferences } : previous) };
+}
 
 function cardMeta(card: WorkActionCard) {
   if (card.id === "shifts") return undefined;
@@ -23,7 +69,7 @@ function cardMeta(card: WorkActionCard) {
 export function WorkShortcuts({ base, role, placement = "sidebar", onNavigate }: {
   base: string; role?: string; placement?: "sidebar" | "panel"; onNavigate?: () => void;
 }) {
-  const { quickAccess, quickAccessLoading, quickAccessError, refresh, saveQuickAccess } = useNavigationCounts();
+  const { quickAccess, quickAccessLoading, quickAccessError, refresh, saveQuickAccess } = useShortcutSummary(base);
   const pathname = usePathname();
   const search = useSearchParams();
   const current = pathname === `${base}/work` ? search.toString() : "";
@@ -44,6 +90,7 @@ export function WorkShortcuts({ base, role, placement = "sidebar", onNavigate }:
     } : {}),
   }));
   return <QuickAccessShelf appearance="standard"
+    allowCustomization={false}
     items={items}
     initialPreferences={quickAccess?.preferences ?? { pinnedIds: null, version: 0 }}
     defaultIds={defaultWorkCardIds(cards, role)}

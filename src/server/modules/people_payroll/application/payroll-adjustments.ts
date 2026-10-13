@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { samePerson } from '@/lib/iam';
-import { minorToDecimal } from '@/lib/finance-money';
-import { calculateThaiPayrollAdjustment, type ThaiPayrollAdjustmentInput } from '@/lib/thai-payroll-adjustment';
-import { thaiPayroll2026Pack, thaiPayrollAdapterId } from '@/lib/thai-payroll-pack';
-import { ThaiPayrollRuleError, type ThaiPayrollCalculation } from '@/lib/thai-payroll-rules';
+import { samePerson } from "@/lib/identity_access/iam";
+import { minorToDecimal } from "@/lib/finance/finance-money";
+import { calculateThaiPayrollAdjustment, type ThaiPayrollAdjustmentInput } from "@/lib/people_payroll/thai-payroll-adjustment";
+import { thaiPayroll2026Pack, thaiPayrollAdapterId } from "@/lib/people_payroll/thai-payroll-pack";
+import { ThaiPayrollRuleError, type ThaiPayrollCalculation } from "@/lib/people_payroll/thai-payroll-rules";
 import type { WorkContext } from '../../identity_access/public/authorization';
 import type { snapshotMoney } from '../../finance/public/company-money';
 import type { thaiEvidenceForEmployee, thaiPackForRun, PayrollStatutoryRun, ThaiPayrollEvidence } from '../public/payroll-statutory';

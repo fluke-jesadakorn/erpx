@@ -1,0 +1,257 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-10-10",
+  "complete": false,
+  "scope": "Focused fictional direct booking: family changes, independently reviewed galleries and multiple-room partial cancellation. Not whole PMS acceptance.",
+  "candidate": {
+    "id": "2026-10-09T17-38-18-796Z",
+    "sourceFingerprint": "085f513697d1108dd99329767081c3cad886bde53921f4b3fd20c655fc2d3929",
+    "fileManifestSha256": "4265e6d214c278e3d83138961272c9d5701ef21372864bdf974d7d8bb8a3baca",
+    "node": "24.20.0",
+    "bun": "1.2.17"
+  },
+  "verificationFingerprint": "b4f456f539adc81db5797888412346f6026949433f458686c4388c209a06228d",
+  "browser": [
+    {
+      "project": "desktop",
+      "cohort": "752ad754e16f",
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0,
+      "log": {
+        "path": ".scratch/dev/pms-partial-final-desktop.log",
+        "sha256": "6825c8f5c5d559b22ddcf4d1d389ce78b45867e682dc43673f291e6f9b7d5c9f"
+      },
+      "visualArtifacts": [
+        {
+          "path": ".scratch/dev/pms-partial-final-desktop-results/pms-booking-cancels-one-of-ae614-her-room-and-accepted-price-desktop/attachments/persona-video-1-96ef9149dd30859e79e24a9387c7a84a0bf4a2d8.webm",
+          "sha256": "2237dc7ce4cb3be51f6ec4de42768dba6589a593375da402177112b0b7771f77"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-desktop-results/pms-booking-cancels-one-of-ae614-her-room-and-accepted-price-desktop/partial-cancellation-persisted.png",
+          "sha256": "948fb77e752e4c6b1bc2ae953775905f0856084bc4cbb029ea5150c7a327adc6"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-desktop-results/pms-booking-cancels-one-of-ae614-her-room-and-accepted-price-desktop/persona-recordings/page@4377590fd152bd2761b1e36c4a5e84fa.webm",
+          "sha256": "2237dc7ce4cb3be51f6ec4de42768dba6589a593375da402177112b0b7771f77"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-desktop-results/pms-booking-cancels-one-of-ae614-her-room-and-accepted-price-desktop/test-finished-1.png",
+          "sha256": "6bc6127a7513f83ac65ed523bbbe2610c5f11b22f1c9448838f046f4b828f0de"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-desktop-results/pms-booking-cancels-one-of-ae614-her-room-and-accepted-price-desktop/test-finished-2.png",
+          "sha256": "6a6938b11b39e2e482b2b084c4961b737489c19f0e3ca0cca96e97d6b61f61bc"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-desktop-results/pms-booking-cancels-one-of-ae614-her-room-and-accepted-price-desktop/video.webm",
+          "sha256": "61a1674407c535eb8f919c314b6943febd1e5e83585048608f6442329eac8578"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-desktop-results/pms-booking-guest-portal-i-5726a-posing-internal-PMS-records-desktop/test-finished-1.png",
+          "sha256": "674f06930164034fa5fe5b8774b94a3e4811ecbdf55970089998f9e39bb08d69"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-desktop-results/pms-booking-guest-portal-i-5726a-posing-internal-PMS-records-desktop/video.webm",
+          "sha256": "90c0452bf4c705a24f8000b4058d4a0f950ef2e68326e8715276dec4a76f298e"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-desktop-results/pms-booking-reviewed-hotel-b588a--disappear-after-revocation-desktop/attachments/persona-video-1-3b2e128d99016625c1a1019ca6e343a55beb27c7.webm",
+          "sha256": "2edf261e7c3771fbc430412f559dd00ce70cc0b151f85849d27c91a55b07f576"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-desktop-results/pms-booking-reviewed-hotel-b588a--disappear-after-revocation-desktop/attachments/persona-video-1-be0339afcfd8aad9f69c2fe874992d18e79308ba.webm",
+          "sha256": "548aa405dbd3aa444f40768583d4a2b1a63e01332f4ac52a8a3fc8ae99268318"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-desktop-results/pms-booking-reviewed-hotel-b588a--disappear-after-revocation-desktop/attachments/persona-video-1-d634e525842e8e4ad830d273868a81111993da64.webm",
+          "sha256": "4d7037183cb6f8b8e957722264c4da2c5ea164fed619e07f5571fa6fb8a86adc"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-desktop-results/pms-booking-reviewed-hotel-b588a--disappear-after-revocation-desktop/persona-recordings/page@0d841ded53e8593e34e52855c3f6a736.webm",
+          "sha256": "2edf261e7c3771fbc430412f559dd00ce70cc0b151f85849d27c91a55b07f576"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-desktop-results/pms-booking-reviewed-hotel-b588a--disappear-after-revocation-desktop/persona-recordings/page@9229c431b3d6b452a0e893764f18ed93.webm",
+          "sha256": "548aa405dbd3aa444f40768583d4a2b1a63e01332f4ac52a8a3fc8ae99268318"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-desktop-results/pms-booking-reviewed-hotel-b588a--disappear-after-revocation-desktop/persona-recordings/page@ca74413464dbf52a50ad08fd0125a304.webm",
+          "sha256": "4d7037183cb6f8b8e957722264c4da2c5ea164fed619e07f5571fa6fb8a86adc"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-desktop-results/pms-booking-reviewed-hotel-b588a--disappear-after-revocation-desktop/reviewed-sample-galleries.png",
+          "sha256": "bb1c1c704171fbefaa40bfa71b8ef50633238eb4587cf44906726dc67d749761"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-desktop-results/pms-booking-reviewed-hotel-b588a--disappear-after-revocation-desktop/revoked-sample-galleries.png",
+          "sha256": "c961487148b81ff49374e0780af302ff01c1c713faddb97ce9a4b079f439e4c3"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-desktop-results/pms-booking-reviewed-hotel-b588a--disappear-after-revocation-desktop/test-finished-1.png",
+          "sha256": "6f6aa00b550cfa45a675ec44ec947dede1e40fe1ccb7177551e1da0208fa8087"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-desktop-results/pms-booking-reviewed-hotel-b588a--disappear-after-revocation-desktop/test-finished-2.png",
+          "sha256": "84df64d0f689358ace96fcefc757c5b12604a8f00c725f7ad8b99308ed24658a"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-desktop-results/pms-booking-reviewed-hotel-b588a--disappear-after-revocation-desktop/test-finished-3.png",
+          "sha256": "49ce7134fd8b86285b141d26afc452e8e79b50ac41b45f3028a6993c27ef9bcb"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-desktop-results/pms-booking-searches-quote-af8fb-y-stay-in-an-isolated-hotel-desktop/test-finished-1.png",
+          "sha256": "4a56c365225c150f2ffb6afcd3c05c073cc543b6155dcfe06d7bc04b77f98268"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-desktop-results/pms-booking-searches-quote-af8fb-y-stay-in-an-isolated-hotel-desktop/video.webm",
+          "sha256": "07a12ec6d68c84c0abbccf5fe79ac2a881926b90ba5a2fe8005cbe7bc38a5e77"
+        }
+      ]
+    },
+    {
+      "project": "mobile",
+      "cohort": "9b9e8ba61c6b",
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0,
+      "log": {
+        "path": ".scratch/dev/pms-partial-final-mobile.log",
+        "sha256": "5a265179f10d2d9ca1c5506a845cd7cf48441494cd4e902184580a3d0fc1b1d5"
+      },
+      "visualArtifacts": [
+        {
+          "path": ".scratch/dev/pms-partial-final-mobile-results/pms-booking-cancels-one-of-ae614-her-room-and-accepted-price-mobile/attachments/persona-video-1-c488eefe0e23dad199aeecdc9ed8f66ca9a9b6d6.webm",
+          "sha256": "3db8ea5b02892219a6297b6044a84a4bf3b5a08bed3066e75eda5f9ab2e170fe"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-mobile-results/pms-booking-cancels-one-of-ae614-her-room-and-accepted-price-mobile/partial-cancellation-persisted.png",
+          "sha256": "20412e2db15cff4682dec7f8a77b0ccf2463b25bda4375b460ee8a180dbdfcc7"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-mobile-results/pms-booking-cancels-one-of-ae614-her-room-and-accepted-price-mobile/persona-recordings/page@a1f62b02595a99e6666c5813eca5e7f0.webm",
+          "sha256": "3db8ea5b02892219a6297b6044a84a4bf3b5a08bed3066e75eda5f9ab2e170fe"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-mobile-results/pms-booking-cancels-one-of-ae614-her-room-and-accepted-price-mobile/test-finished-1.png",
+          "sha256": "e266f6f4d746268159e7a976cdca178da39d1bdd4aaad282ad4f5cc10621bcdc"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-mobile-results/pms-booking-cancels-one-of-ae614-her-room-and-accepted-price-mobile/test-finished-2.png",
+          "sha256": "78ee92860f0543f86035b04fb43d3b0209477d18d9f9378cbd8d5610e43baa59"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-mobile-results/pms-booking-cancels-one-of-ae614-her-room-and-accepted-price-mobile/video.webm",
+          "sha256": "94807166a33afb3548c822f7e13d3ca9cdc5382cd81d75e3efbda0d03df3fcd3"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-mobile-results/pms-booking-guest-portal-i-5726a-posing-internal-PMS-records-mobile/test-finished-1.png",
+          "sha256": "d551a447c03c721bf9c4805ff2e0a1185bae2a7cad1de0872904ca944b2783b8"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-mobile-results/pms-booking-guest-portal-i-5726a-posing-internal-PMS-records-mobile/video.webm",
+          "sha256": "b848971bb96274c6d39f361907656bdf610ab180b333e30a538839b4dca9f37f"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-mobile-results/pms-booking-reviewed-hotel-b588a--disappear-after-revocation-mobile/attachments/persona-video-1-08ac884c4cb4ce2a7477bc13add6dbb6433b05ef.webm",
+          "sha256": "e22071f60af417e62c5f545a01bc83f5e50f0e88fe8934035887b01fa2a24709"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-mobile-results/pms-booking-reviewed-hotel-b588a--disappear-after-revocation-mobile/attachments/persona-video-1-13707c3ed85bcca669bd9c80d3b539b242034dff.webm",
+          "sha256": "62d1e4cbdd390bc942dcd3ea7c980795777da6f72be35bca599fe3f5ddb770f0"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-mobile-results/pms-booking-reviewed-hotel-b588a--disappear-after-revocation-mobile/attachments/persona-video-1-7ba6096a00ccef7e1a4c573d0ed04c2af5f4bc60.webm",
+          "sha256": "746448fc6ccdebd072de2d94da99620c859f7ed0dc036aec1750e4139e712a42"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-mobile-results/pms-booking-reviewed-hotel-b588a--disappear-after-revocation-mobile/persona-recordings/page@c358ae376cde45e83760488bcd66554a.webm",
+          "sha256": "746448fc6ccdebd072de2d94da99620c859f7ed0dc036aec1750e4139e712a42"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-mobile-results/pms-booking-reviewed-hotel-b588a--disappear-after-revocation-mobile/persona-recordings/page@d1b4bb811309bc6a4fbc7c7aee068819.webm",
+          "sha256": "62d1e4cbdd390bc942dcd3ea7c980795777da6f72be35bca599fe3f5ddb770f0"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-mobile-results/pms-booking-reviewed-hotel-b588a--disappear-after-revocation-mobile/persona-recordings/page@d886b5b8886b00a1e1258fec2bf109d9.webm",
+          "sha256": "e22071f60af417e62c5f545a01bc83f5e50f0e88fe8934035887b01fa2a24709"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-mobile-results/pms-booking-reviewed-hotel-b588a--disappear-after-revocation-mobile/reviewed-sample-galleries.png",
+          "sha256": "843f86c390f9586834bdb38fb35a975ee64d884e63392f09f838b880918a1da7"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-mobile-results/pms-booking-reviewed-hotel-b588a--disappear-after-revocation-mobile/revoked-sample-galleries.png",
+          "sha256": "e1124f821e2a49f2e464a1cf46945e9ef4490b6ee07f66a55ff75b5e9902e417"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-mobile-results/pms-booking-reviewed-hotel-b588a--disappear-after-revocation-mobile/test-finished-1.png",
+          "sha256": "d551a447c03c721bf9c4805ff2e0a1185bae2a7cad1de0872904ca944b2783b8"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-mobile-results/pms-booking-reviewed-hotel-b588a--disappear-after-revocation-mobile/test-finished-2.png",
+          "sha256": "c1b0f07087ae3b94b365d347ae61bb0c9e65ded38fbed426478eb43bef3a3855"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-mobile-results/pms-booking-reviewed-hotel-b588a--disappear-after-revocation-mobile/test-finished-3.png",
+          "sha256": "dd8472c08e4f6393e2785897fbbfaf44fa013fa9e206485a48437ac0a22b1b96"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-mobile-results/pms-booking-searches-quote-af8fb-y-stay-in-an-isolated-hotel-mobile/test-finished-1.png",
+          "sha256": "7333343bd700fb48fce9de9160038ccba213f606a6061ebd9f3f1bda2ff2354d"
+        },
+        {
+          "path": ".scratch/dev/pms-partial-final-mobile-results/pms-booking-searches-quote-af8fb-y-stay-in-an-isolated-hotel-mobile/video.webm",
+          "sha256": "3fa4967d4a419dae287ce0afe5bdbfa5ea64ce83e17e73a15f693f701332781c"
+        }
+      ]
+    }
+  ],
+  "native": {
+    "files": [
+      "tests/pms-booking.test.ts",
+      "tests/attachments-v2.test.ts"
+    ],
+    "passed": 64,
+    "failed": 0,
+    "skipped": 0,
+    "artifact": {
+      "path": ".scratch/dev/pms-partial-final-native.log",
+      "sha256": "926e05e61bf47ee7e0be71a2c6aeafe086d6f7b5715ccc7eec85605e320b4884"
+    }
+  },
+  "assertions": [
+    "Draft publication is unavailable publicly; author approval is rejected with independent-review error",
+    "Private sample webps are uploaded, scanned clean and bound before publication",
+    "Independent reviewer approves hotel and room galleries using the real form drawers",
+    "Public approved images return sanitized image/webp with nosniff and no-store",
+    "Published hotel/room images appear in the real guest search",
+    "Revocation immediately returns public 404 and removes images on reload",
+    "Explicit Desktop Chrome / Pixel 7 contexts, recorded persona videos and no horizontal overflow before and after revocation",
+    "Existing family confirmation, private management token removal, change and free cancellation persist on reload",
+    "Two-room family booking accepts THB 14124, cancellation of only one room persists with THB 7062 payable",
+    "Cancelled room retains its original accepted price snapshot; the other room is byte-for-byte unchanged",
+    "Pay-at-hotel cancellation requests no refund and preserves private token removal after reload"
+  ],
+  "remaining": [
+    "Paid refund and signed webhook response loss/restart browser recovery",
+    "Full unchanged-candidate native/browser/migration/restore acceptance",
+    "Logical write p95 still above 2 seconds in latest scale cohort"
+  ],
+  "sourceAndAssertionsUnchanged": true,
+  "checks": {
+    "typecheck": {
+      "path": ".scratch/dev/pms-partial-final-typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "lint": {
+      "path": ".scratch/dev/pms-partial-final-lint.log",
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    },
+    "docs": {
+      "path": ".scratch/dev/pms-partial-final-docs.log",
+      "sha256": "2bb1edddaeaee5f48c48e2708c637733611648ce0e186c511337150ecd112b56"
+    }
+  },
+  "ownedCohortsRemoved": true
+}

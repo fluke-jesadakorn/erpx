@@ -4,9 +4,9 @@ import os, shutil, subprocess, sys
 from pathlib import Path
 root = Path(__file__).resolve().parents[2]
 target = root / '.runtime/deployment/runtime'
-node = root / '.runtime/node/node-v24.20.0-darwin-arm64'
+node = root / '.runtime/node/node-v26.11.1-darwin-arm64'
 pg = Path('/opt/homebrew/opt/postgresql@18').resolve()
-if subprocess.check_output([str(node/'bin/node'), '--version'], text=True).strip() != 'v24.20.0':
+if subprocess.check_output([str(node/'bin/node'), '--version'], text=True).strip() != 'v26.11.1':
     raise SystemExit('Node version mismatch')
 if subprocess.check_output([str(pg/'bin/postgres'), '--version'], text=True).strip() not in ['postgres (PostgreSQL) 18.6','postgres (PostgreSQL) 18.6 (Homebrew)']:
     raise SystemExit('PostgreSQL version mismatch')

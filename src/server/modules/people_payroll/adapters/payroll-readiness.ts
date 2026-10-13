@@ -7,8 +7,8 @@ import { isTransactionalSqlDatabase, type SqlDatabase, type SqlStatement } from 
 import { requirePermission } from "@/server/modules/identity_access/public/iam-permissions";
 import { sha256 } from "@/server/modules/runtime/public/crypto";
 import { assertion, executeCommand, replayCommand } from "@/server/modules/workflow/public/commands";
-import { thaiEvidenceForEmployee, thaiEvidenceGuards } from "@/server/payroll-statutory";
-import { payrollAdjustmentInputs, payrollAdjustmentSourceFresh, payrollAdjustmentGuards } from "@/server/payroll-adjustments";
+import { thaiEvidenceForEmployee, thaiEvidenceGuards } from "@/server/modules/people_payroll/adapters/payroll-statutory";
+import { payrollAdjustmentInputs, payrollAdjustmentSourceFresh, payrollAdjustmentGuards } from "@/server/modules/people_payroll/adapters/payroll-adjustments";
 import { BusinessRuleError } from '../../shared';
 import { calculatePayrollItemForSystem } from '../public/people-payroll';
 import { payrollBenefitSources } from '../../benefits/public/payroll-source-facts';

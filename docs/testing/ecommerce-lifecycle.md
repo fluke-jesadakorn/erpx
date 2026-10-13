@@ -10,9 +10,9 @@ E-commerce เป็นช่องทางรับคำสั่งซื้
 
 ## หลักฐานจำลอง
 
-- `tests/ecommerce.test.ts` ตรวจ independent review, stale source, idempotent checkout, Sales owner handoff, shared reservation, fulfillment/stock quantity และ return ที่ไม่ข้ามเงื่อนไข posted invoice
-- `tests/commerce-returns.test.ts` ตรวจ return/credit/refund และ source-linked accounting หลัง fulfillment ถูก invoice แล้ว
-- `tests/stock-reservations.test.ts` ตรวจการแข่งขันสินค้าชิ้นสุดท้าย, partial fulfillment, release/expiry และป้องกัน stock ต่ำกว่ายอดจอง
+- `tests/integration/ecommerce/ecommerce.test.ts` ตรวจ independent review, stale source, idempotent checkout, Sales owner handoff, shared reservation, fulfillment/stock quantity และ return ที่ไม่ข้ามเงื่อนไข posted invoice
+- `tests/integration/sales/commerce-returns.test.ts` ตรวจ return/credit/refund และ source-linked accounting หลัง fulfillment ถูก invoice แล้ว
+- `tests/integration/inventory/stock-reservations.test.ts` ตรวจการแข่งขันสินค้าชิ้นสุดท้าย, partial fulfillment, release/expiry และป้องกัน stock ต่ำกว่ายอดจอง
 - migration `0234_ecommerce.sql` เพิ่ม source records และ immutable fulfillment/return links แบบ additive
 
 ## ขอบเขตที่ยังเป็น acceptance gate

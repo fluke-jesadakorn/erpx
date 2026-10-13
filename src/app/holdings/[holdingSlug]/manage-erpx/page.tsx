@@ -3,8 +3,8 @@ import {PlatformOperationDetail,CollectionRecordLink} from "@/components/records
 
 import { PageContent } from "@/components/ui/patterns";
 import { Table } from "@/components/ui/foundation";
-import { TimeText } from "@/components/time/time-preference-context";
-import { FeaturePage, FeatureWidget, WidgetGrid } from "@/components/features/feature-page";
+import { TimeText } from "@/components/people_payroll/time/time-preference-context";
+import { FeaturePage, FeatureWidget, WidgetGrid } from "@/components/shared/features/feature-page";
 import {
   LiveBanner,
   PageHeader,
@@ -13,15 +13,15 @@ import {
   Metric,
 } from "@/components/ui/primitives";
 import { workspaceChoices } from "@/server/modules/organization/public/workspace-choices";
-import type { WorkspaceHoldingChoice } from "@/lib/workspace-choice";
+import type { WorkspaceHoldingChoice } from "@/lib/work_projection/workspace-choice";
 import { notFound } from "next/navigation";
 
 
 import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
 
-import { PlatformJobRecovery } from "@/components/platform/platform-job-recovery";
-import { PlatformMigrationRun } from "@/components/platform/platform-migration-run";
-import { PlatformHoldingProvisioning } from "@/components/platform/platform-holding-provisioning";
+import { PlatformJobRecovery } from "@/components/platform_administration/platform-job-recovery";
+import { PlatformMigrationRun } from "@/components/platform_administration/platform-migration-run";
+import { PlatformHoldingProvisioning } from "@/components/platform_administration/platform-holding-provisioning";
 
 
 import { TableFrame, Card } from "@/components/ui/foundation";

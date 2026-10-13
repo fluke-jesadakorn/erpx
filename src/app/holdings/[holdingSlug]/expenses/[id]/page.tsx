@@ -1,24 +1,20 @@
-import { RecordSections } from "@/components/workplace/record-sections";
+import { RecordSections } from "@/components/records/loaders/workplace--record-sections";
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
-import { FinanceRecordWorkspace, FinanceLegacyHeading } from "@/components/finance/finance-record-workspace";
+import { FinanceRecordWorkspace, FinanceLegacyHeading } from "@/components/records/loaders/finance--finance-record-workspace";
 import { BusinessDocumentBranding } from "@/components/brand/business-document";
-import { MoneyAmount } from "@/components/money/currency-provider";
-import { TimeText } from "@/components/time/time-preference-context";
-import { FeaturePage, FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
-import { ApprovalAdminLink } from "@/components/modules/approval-admin-link";
-import { ApprovalHistory } from "@/components/modules/approval-history";
-import {
-ExpenseActions,
-ExpenseEditor,
-ExpenseReceipts,
-} from "@/components/modules/expense-controls";
-import { ExpenseWorkflowPage } from "@/components/modules/expense-workflow-page";
+import { MoneyAmount } from "@/components/finance/money/currency-provider";
+import { TimeText } from "@/components/people_payroll/time/time-preference-context";
+import { FeaturePage, FeatureWidget,WidgetGrid } from "@/components/shared/features/feature-page";
+import { ApprovalAdminLink } from "@/components/workflow/approval-admin-link";
+import { ApprovalHistory } from "@/components/workflow/approval-history";
+import { ExpenseActions, ExpenseEditor, ExpenseReceipts } from "@/components/records/loaders/modules--expense-controls";
+import { ExpenseWorkflowPage } from "@/components/people_payroll/expense-workflow-page";
 import { StatusBadge } from "@/components/ui/primitives";
 import { FlowPanel,documentFlow } from "@/components/workplace/flow-panel";
 import { RecordNextAction } from "@/components/workplace/record-next-action";
-import { WorkReturn } from "@/components/workplace/work-return";
-import { workspaceBase } from "@/lib/workspace";
+import { WorkReturn } from "@/components/records/loaders/workplace--work-return";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import {
 canAccountExpenses,

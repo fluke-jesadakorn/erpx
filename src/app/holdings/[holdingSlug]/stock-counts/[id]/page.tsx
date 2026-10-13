@@ -1,19 +1,19 @@
 import { Table, TableFrame } from "@/components/ui/foundation";
-import { TimeText } from "@/components/time/time-preference-context";
+import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 import {
   FeaturePage,
   FeatureTabs,
   FeatureWidget,
   WidgetGrid,
-} from "@/components/features/feature-page";
-import { DocumentPostingPreview } from "@/components/modules/document-posting-preview";
-import { CountActions, CountEditor } from "@/components/modules/stock-count-controls";
+} from "@/components/shared/features/feature-page";
+import { DocumentPostingPreview } from "@/components/finance/document-posting-preview";
+import { CountActions, CountEditor } from "@/components/records/loaders/modules--stock-count-controls";
 import { StatusBadge } from "@/components/ui/primitives";
 import { FlowPanel, documentFlow } from "@/components/workplace/flow-panel";
 import { RecordNextAction } from "@/components/workplace/record-next-action";
-import { WorkReturn } from "@/components/workplace/work-return";
-import { minorToDecimal } from "@/lib/finance-money";
-import { workspaceBase } from "@/lib/workspace";
+import { WorkReturn } from "@/components/records/loaders/workplace--work-return";
+import { minorToDecimal } from "@/lib/finance/finance-money";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import {
   canEditCount,

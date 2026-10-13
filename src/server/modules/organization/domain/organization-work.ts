@@ -1,5 +1,5 @@
 import {organizationChangeHref,type OrganizationNodeChange} from "@/server/modules/organization/public/rules/organization-domain";
-import type {WorkItem} from "@/lib/work-item";
+import type {WorkItem} from "@/lib/work_projection/work-item";
 export function canReadOrganizationChangeScope(canManage:boolean,assignmentScope:string,scopeKind:string){return canManage&&assignmentScope==='holding'&&scopeKind==='holding';}
 export function organizationChangeWorkItems(rows:(OrganizationNodeChange&{same_requester:boolean})[],authority:{userId:string;samePerson(id:unknown):boolean}):WorkItem[]{
   return rows.map(change=>{

@@ -1,12 +1,12 @@
 import { collaborationPresentationQueries } from "@/server/modules/collaboration/public/presentation-queries";
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
-import { TimeText } from "@/components/time/time-preference-context";
-import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
+import { TimeText } from "@/components/people_payroll/time/time-preference-context";
+import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/shared/features/feature-page";
 import { PageHeader } from "@/components/ui/primitives";
-import { HandbookEditor } from "@/components/workplace/handbook-controls";
+import { HandbookEditor } from "@/components/records/loaders/workplace--handbook-controls";
 import styles from "@/components/workplace/services.module.css";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 
 import { accessPage,pageError } from "@/server/modules/work_projection/public/page-error";

@@ -8,9 +8,9 @@ const root=path.resolve(import.meta.dirname,"../..");
 type Relocation={source:string;target:string;owner:string;hazards:string[];exports:{values:string[];types:string[]};implementation:string};
 
 /** Physical ownership only. This never marks a legacy capability as clean. */
-export function relocationPlan(projectRoot=root,options:{includeKernels?:boolean}={}):Relocation[]{
+export function relocationPlan(projectRoot=root,options:{includeKernels?:boolean;owners?:typeof serviceOwnership.owners}={}):Relocation[]{
  const kernels=new Set(["commerce","billing","records","workflow","files"]);
- const candidates=serviceOwnership.owners.filter(owner=>owner.kind==="business"||(options.includeKernels&&kernels.has(owner.id))).flatMap(owner=>owner.source.filter(source=>source.startsWith("src/server/")&&!source.startsWith("src/server/modules/")&&!source.includes("*")).map(source=>({source,owner:owner.id}))).filter(entry=>fs.existsSync(path.join(projectRoot,entry.source)));
+ const candidates=(options.owners??serviceOwnership.owners).filter(owner=>owner.kind==="business"||(options.includeKernels&&kernels.has(owner.id))).flatMap(owner=>owner.source.filter(source=>source.startsWith("src/server/")&&!source.startsWith("src/server/modules/")&&!source.includes("*")).map(source=>({source,owner:owner.id}))).filter(entry=>fs.existsSync(path.join(projectRoot,entry.source)));
  const program=ts.createProgram(candidates.map(entry=>path.join(projectRoot,entry.source)),{target:ts.ScriptTarget.ESNext,module:ts.ModuleKind.ESNext,moduleResolution:ts.ModuleResolutionKind.Bundler,baseUrl:projectRoot,paths:{"@/*":["./src/*"]},skipLibCheck:true,noEmit:true});
  const checker=program.getTypeChecker();
  return candidates.flatMap(({source,owner})=>{

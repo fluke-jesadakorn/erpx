@@ -1,0 +1,75 @@
+{
+  "checkedAt": "2026-10-11T11:48:52.910716+00:00",
+  "candidateRuntime": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+  "candidateVerification": "4690053d9c623dac5dd654126c19ed6b148b7ac969fd1948be8f0d599496c095",
+  "feature": "front-desk-03",
+  "requirement": "Move/upgrade/extend: staff can perform a room-type upgrade during an in-house stay, with capacity, prior money/history and authority preserved",
+  "status": "incomplete-for-in-house-room-type-upgrade",
+  "sources": [
+    {
+      "file": "src/lib/pms-engine.ts",
+      "SHA256": "b613d5a2ce8f44b8ec766db57475c7845a5834bd8fa36b507487215ca7ef725b",
+      "mainCandidateByteAligned": true
+    },
+    {
+      "file": "src/components/pms/workspace.tsx",
+      "SHA256": "005fe8f25a9e6c184fa24637fa38e7170f532908d14ec25e270d51f2d9df4a76",
+      "mainCandidateByteAligned": true
+    },
+    {
+      "file": "src/server/modules/pms/application/pms.ts",
+      "SHA256": "48dab72707494a93c1564956bafd859c8c30b47dc11316b2536c3cf34f0095ed",
+      "mainCandidateByteAligned": true
+    },
+    {
+      "file": "src/server/modules/pms/application/pms-booking-changes.ts",
+      "SHA256": "3732156c109fe70b9408fcc5be098cf5113e50d26df82c2fded32538573060a6",
+      "mainCandidateByteAligned": true
+    },
+    {
+      "file": "tests/pms.test.ts",
+      "SHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "mainCandidateByteAligned": true
+    }
+  ],
+  "observations": [
+    {
+      "file": "src/lib/pms-engine.ts",
+      "line": 395,
+      "fact": "checkRoom requires actual room type equal to supplied stay type"
+    },
+    {
+      "file": "src/lib/pms-engine.ts",
+      "line": 1053,
+      "fact": "stay.assign/stay.move call checkRoom with unchanged r.data.typeId and only modify roomId/room segments"
+    },
+    {
+      "file": "src/lib/pms-engine.ts",
+      "line": 1154,
+      "fact": "stay.change_dates reprices against unchanged r.data.typeId; cannot change room type"
+    },
+    {
+      "file": "src/lib/pms-engine.ts",
+      "line": 1214,
+      "fact": "stay.replace is signed booking service only and requires reserved state; it does not cover in-house upgrade"
+    },
+    {
+      "file": "tests/pms.test.ts",
+      "line": 1332,
+      "fact": "Existing move/extend case adds target room with same type; it does not prove cross-type in-house upgrade"
+    }
+  ],
+  "scopeLimits": [
+    "Reserved booking revision may already permit a future room-type change; this gap is specifically in-house staff room-type upgrade.",
+    "A move/extend passing native case does not establish upgrade acceptance.",
+    "No production source, test, config or live transactions were changed by this audit."
+  ],
+  "nextWork": [
+    "After full-owner terminal, design and implement authorized staff in-house upgrade with explicit reason, target type/rate/room and Property transaction/idempotency/version invariants.",
+    "Prove target inventory and inspected room, immutable consumed-night prices/issued money/room history, current/future capacity, group/direct-booking policy, replay and refusal boundaries.",
+    "Expose upgrade in right drawer and verify normal desktop/mobile journey on newly aligned candidate; rerun final same-candidate gates."
+  ],
+  "fullOwnerHoldRespected": true,
+  "wholePlanAccepted": false,
+  "sourceLocationCorrection": "Exact same-type move/extend case starts at tests/pms.test.ts:1332; semantic gap unchanged"
+}

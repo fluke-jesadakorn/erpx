@@ -1,0 +1,217 @@
+{
+  "run": "ecfa3ef752f5",
+  "sourceFingerprint": "d566aedbf58cf934694c8bb2accf6793db8706d7de19b2cbaa0bf61c73668f68",
+  "verificationFingerprint": "9ce91da72bade7ca6fa4c3b44aefbb42040ad87748b9b01d4433eb1f0d24b9ef",
+  "release": {
+    "id": "2026-10-09T20-47-19-084Z",
+    "fileManifestSha256": "ce68f4185bbd0275f82893aa8d0d0caf172f2df5899d9b8f126c26632991cc6f"
+  },
+  "scope": "Release HTTP: 3 × 200 rooms, 730-day synthetic closed stay/reservation/account metadata; 20 distinct normal staff accounts. Historic revenue is not invented.",
+  "applicationPoolMax": 8,
+  "controlPoolMax": 5,
+  "jobsHoldingPoolMax": 1,
+  "counts": [
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    }
+  ],
+  "accounts": 20,
+  "rounds": 10,
+  "durationMs": 70512,
+  "readCount": 840,
+  "writeCount": 600,
+  "readP95Ms": 302.5529999999999,
+  "writeP95Ms": 2284.124625000004,
+  "coreReadCount": 840,
+  "coreWriteCount": 400,
+  "financialEnabled": true,
+  "financialWriteCount": 200,
+  "financialWriteP95Ms": 1640.807041,
+  "financialOperations": [
+    {
+      "operation": "shift.open",
+      "count": 20,
+      "p95Ms": 1409.2277079999985
+    },
+    {
+      "operation": "charge.add",
+      "count": 20,
+      "p95Ms": 1640.807041
+    },
+    {
+      "operation": "payment.receive",
+      "count": 40,
+      "p95Ms": 1686.3603340000045
+    },
+    {
+      "operation": "payment.deposit",
+      "count": 20,
+      "p95Ms": 1689.9722910000055
+    },
+    {
+      "operation": "refund.request",
+      "count": 20,
+      "p95Ms": 1410.1979999999967
+    },
+    {
+      "operation": "refund.approve",
+      "count": 20,
+      "p95Ms": 233.3854580000043
+    },
+    {
+      "operation": "refund.pay",
+      "count": 20,
+      "p95Ms": 1618.7789579999953
+    },
+    {
+      "operation": "shift.close",
+      "count": 20,
+      "p95Ms": 1377.4214590000047
+    },
+    {
+      "operation": "shift.review",
+      "count": 20,
+      "p95Ms": 252.65233300000546
+    }
+  ],
+  "financialReconciliation": {
+    "history": {
+      "records": 657000,
+      "versions": "657000"
+    },
+    "balances": {
+      "accounts": 20,
+      "due": "0",
+      "advance": "200000",
+      "deposit": "40000"
+    },
+    "cash": {
+      "shifts": 20,
+      "cash": "475400",
+      "reviewed": true
+    },
+    "receipts": {
+      "receipts": 60,
+      "refunds": 20,
+      "received": "495400",
+      "refunded": "20000",
+      "settled": true
+    },
+    "journals": {
+      "debit": "999280",
+      "credit": "999280"
+    }
+  },
+  "failedSamples": 0,
+  "sameProcesses": true,
+  "unchanged": true,
+  "samplesSha256": "9dc4d94490eb44a37ae0e2a0ef8c2a9edac9c2a945a95c098cf61b3992ad4fc3",
+  "passed": false,
+  "acceptance": false,
+  "financialFocusedPassed": true,
+  "timingSamplesSha256": "3ad3697cc857b66e0630eafc18e754bae4af68f1c7e27311be5be3dac8167c48",
+  "interpretation": "Current workspace grants and their published role definitions share one fresh SQL snapshot after the existing session-revocation and directory-refresh gates. No authority survives a new request or transaction. Account-access queries decrease from 8.36 to 7.36 and mean duration from 69.81 to 65.79 ms in this focused rehearsal, but core logical write p95 remains 2284 ms; this does not establish a material end-to-end performance gain. All 840 reads/600 writes, original-envelope replay, exact PMS/Finance conservation and historical versions pass. The 200 financial writes and every measured money operation remain below two seconds. Overall release scale and whole-plan acceptance remain open.",
+  "verification": {
+    "identitySemanticUnitCases": 50,
+    "iamPagePermissionUnitCases": 3,
+    "iamIntegrationCases": 29,
+    "departmentAuthorityIntegrationCases": 11,
+    "pmsIntegrationCases": 52,
+    "bookingIntegrationCases": 37,
+    "totalCases": 182,
+    "typecheck": true,
+    "lint": {
+      "passed": true,
+      "warnings": 3
+    },
+    "architecture": true,
+    "isolatedReleaseBuild": true,
+    "documentation": true
+  },
+  "regressions": [
+    "Fresh snapshot excludes another Company and withdrawn branches; a new invocation immediately observes assignment revocation.",
+    "Published role definitions match separate authoritative IAM reads; role retirement is visible immediately and cannot retain prior scope authority.",
+    "Original session-revocation-before-directory-refresh order, current role-scope filtering and transactional mutation guards remain unchanged."
+  ],
+  "logs": {
+    "unit": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-grants-snapshot-unit.log",
+      "sha256": "81cbd733fbee22d7c4d24a7d499316211e950c6c585081679ba0d6bedc1bef8b"
+    },
+    "native": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-grants-snapshot-native.log",
+      "sha256": "afc5f919be724abd6f6d2c6954226ba892f9c3a8620f02397512b0321996be1e"
+    },
+    "typecheck": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-grants-snapshot-typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "lint": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-grants-snapshot-lint.log",
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    },
+    "architecture": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-grants-snapshot-architecture.log",
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    "regression": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-grants-snapshot-regression.log",
+      "sha256": "6a6c17f9dfd8b7e4d37659c8a737c1d01f17eb4e3e14506cdfa313a196929297"
+    },
+    "build": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-grants-snapshot-build.log",
+      "sha256": "adba8ea0fd943a62235e3ddfb2dd508832338401261aa4c7484cced43797b36c"
+    },
+    "prepare": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-grants-snapshot-prepare.log",
+      "sha256": "4905568e8cb3bb4576cb4791c8a0c63269cb9d8333008d15ba26ddaf00cd849b"
+    },
+    "start": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-grants-snapshot-start.log",
+      "sha256": "040581ae3dcbdc38034f0b7f6293e8b26b39575ac848f2272c1c4d9f0cc5ba0b"
+    },
+    "harness-build": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-grants-snapshot-harness-build.log",
+      "sha256": "c0b7f68c51ec6b29a5847572d449d0f5e69077c7bc7201a60008febd34041c79"
+    },
+    "performance": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-grants-snapshot-performance.log",
+      "sha256": "b6cdc7a59adbcfdfc7de61a1dbf6d0729ef61cb2ebf73d89e189c23f9fd851bc"
+    },
+    "destroy": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-grants-snapshot-destroy.log",
+      "sha256": "faeb9cdac357fdb0fb68a7895771c13067e0141e00e1d4dfac523b4ac20597ce"
+    },
+    "documentation": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-grants-snapshot-docs.log",
+      "sha256": "ecd92e6dba10540439258ece9453b40b5883ca18aa8678249b9fc047e9dc24ed"
+    }
+  },
+  "environment": {
+    "ownedCohortRemoved": true,
+    "productionOrStagingChanged": false,
+    "localDevelopmentHealth": 200,
+    "publicDevelopmentHealth": 200,
+    "privateProductionHealthOnly": 200,
+    "developmentListenerPid": 23072,
+    "postgresListenerPid": 909,
+    "compiledSimulationPortReleased": 3104,
+    "publicStaffPage": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms",
+    "publicStaffPageObservation": "Actual browser reaches normal expired-session login; authenticated public staff appearance remains unverified. Compiled cohort users authenticate normally."
+  }
+}

@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { directoryChangeInput, type DirectoryAction, type DirectoryInventory, type DirectoryChangeInput, type DirectoryAutomationData, type DirectoryPreview } from '@/lib/directory-operations';
-import { attributeAccess, type AttributeDefinition } from '@/lib/user-management';
-import { hasPermission } from '@/lib/permissions';
+import { directoryChangeInput, type DirectoryAction, type DirectoryInventory, type DirectoryChangeInput, type DirectoryAutomationData, type DirectoryPreview } from "@/lib/identity_access/directory-operations";
+import { attributeAccess, type AttributeDefinition } from "@/lib/identity_access/user-management";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { IamActor } from '../domain/iam-actor';
 import type { ConnectionRow } from '../domain/directories';
 import { connectorMappingInput, affectedObjects, type State, type ConnectorMapping, type AutomationConfiguration, type AutomationConnectionFact, type AutomationCaseFact, type IdentityLinkFact, type LifecycleFact, type PositionFact, type PreviewPreparation, type OperationStep, type DirectoryOperationJob, type ProvisionPlan, type ProvisionOperation, type ProvisionEvidence, type MembershipSource, type DueOperation, type GroupMembershipAction, type LifecycleAction } from '../domain/directory-operations';

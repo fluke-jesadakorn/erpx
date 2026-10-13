@@ -1,0 +1,134 @@
+import {afterEach,beforeAll,beforeEach,expect,it,vi} from 'vitest';
+import {applyMigrations,env} from "../../support/runtime-env";
+import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
+import {saveMaster} from "../../../src/server/modules/commerce/public/commerce";
+import {createCRMLead,changeCRMLead,changeCRMOpportunity,getCRMLead} from "../../../src/server/modules/crm/public/crm";
+import {changeCRMIdentity,crmContactHistory,crmIdentities} from "../../../src/server/modules/crm/public/crm-identities";
+import {changeMarketingCampaign,marketingCostSources} from "../../../src/server/modules/marketing/public/marketing-campaigns";
+import {createMarketingAsset,createMarketingCandidate,changeMarketing} from "../../../src/server/modules/marketing/public/marketing";
+import {crmAnalytics,marketingAnalytics} from "../../../src/server/modules/crm/public/crm-marketing-report";
+vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+let f:Awaited<ReturnType<typeof expenseFixture>>;
+const date='2026-09-25',range={from:'2026-09-01',to:'2026-09-30'};
+beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
+// Fixture event timestamps belong to the fixed September reporting window.
+beforeEach(async()=>{vi.setSystemTime(new Date('2026-09-25T09:00:00Z'));f=await expenseFixture();f.tie.role='holding_owner';f.tie.branchId=null;f.tie.departmentId=null;f.tie.assignmentId=await f.grant(f.tie,'holding_owner');});
+afterEach(()=>{vi.useRealTimers();});
+it('keeps a confirmed PMS win after cancellation and only counts posted journal revenue',async()=>{
+ const campaign=await changeMarketingCampaign({...f.owner,modules:['marketing']},{action:'create',code:`HOTEL_${key().slice(0,8)}`,name:'Hotel campaign'},key());
+ const customer=String((await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Hotel customer'},key())).id);
+ const leadId=String((await createCRMLead(f.owner,{branchId:f.branch,title:'Hotel inquiry',contactName:'Test guest',contactDetail:'Staff-recorded phone number',source:'Direct inquiry',brief:'Guest needs a room.',dueDate:date,campaignId:campaign.id},key())).id),lead=await getCRMLead(f.owner,leadId);
+ await changeCRMIdentity(f.tie,{action:'link-finance',accountId:lead.account_id,customerId:customer,expectedVersion:1,evidence:'Independent customer record review'},key());
+ await changeCRMLead(f.owner,leadId,{action:'qualify',expectedVersion:1,customerId:customer,expectedValue:'50',closeDate:date,reason:'Room requirement confirmed'},key());
+ const property=key(),guest=key(),reservation=key(),stay=key(),guestAccount=key(),entry=key(),now=Date.now();
+ await db.prepare("INSERT INTO pms_properties(id,company_id,branch_id,name,business_date,state,config_json,created_by,updated_at) VALUES(?,?,?,?,?,'open','{}',?,?)").bind(property,f.company,f.branch,'Hotel',date,f.owner.userId,now).run();
+ for(const [id,kind,data] of [[guest,'guest',{name:'Test guest'}],[reservation,'reservation',{number:'PMS-TEST',guestId:guest,state:'confirmed',campaignCode:''}],[stay,'stay',{reservationId:reservation,guestId:guest,prices:[{net:5000}]}],[guestAccount,'guest_account',{reservationId:reservation,guestId:guest}],[entry,'entry',{guestAccountId:guestAccount,kind:'charge'}]] as const)
+  await db.prepare('INSERT INTO pms_records(id,property_id,kind,data_json,updated_at) VALUES(?,?,?,?,?)').bind(id,property,kind,JSON.stringify(data),now).run();
+ await changeCRMIdentity(f.tie,{action:'link-guest',sharingEvidence:'Mock guest authorized hotel service history sharing',contactId:lead.contact_id,guestId:guest,propertyId:property,evidence:'Reviewed the guest booking identity'},key());
+ await changeCRMOpportunity(f.owner,leadId,{action:'win-pms',expectedVersion:1,leadVersion:2,reservationId:reservation,propertyId:property,reason:'Confirmed hotel reservation'},key());
+ expect(await getCRMLead(f.owner,leadId)).toMatchObject({stage:'won',win_source:'pms',expected_minor:5000});
+ const before=await crmAnalytics(f.owner,range);expect(before.metrics.find(m=>m.id==='recognized')?.value).toBe(0);
+ await db.transaction(async tx=>{await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();await tx.prepare("UPDATE pms_records SET data_json=jsonb_set(data_json::jsonb,'{state}','\"cancelled\"')::text WHERE id=?").bind(reservation).run();});
+ const after=await crmAnalytics(f.owner,range);expect(after.metrics.find(m=>m.id==='won')?.value).toBe(1);expect(after.outcomes[0]?.currentSourceState).toBe('cancelled');
+ expect(after.transitions.find(t=>t.action==='qualify')?.count).toBe(1);
+ expect(after.transitions.find(t=>t.action==='win-pms')?.count).toBe(1);
+ expect(after.transitions.find(t=>t.action==='opportunity-win-pms')).toBeUndefined();
+ await db.transaction(async tx=>{await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();await tx.prepare("UPDATE pms_records SET data_json=jsonb_set(data_json::jsonb,'{state}','\"no_show\"')::text WHERE id=?").bind(reservation).run();});
+ const noShow=await crmAnalytics(f.owner,range);expect(noShow.metrics.find(m=>m.id==='won')?.value).toBe(1);expect(noShow.outcomes[0]?.currentSourceState).toBe('no_show');
+ const revenueAccount=key(),assetAccount=key(),journal=key();
+ for(const [id,category] of [[revenueAccount,'revenue'],[assetAccount,'asset']])await db.prepare('INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)').bind(id,f.chart,f.company,key(),category,category,now,now).run();
+ await db.transaction(async tx=>{await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();
+  await tx.prepare("INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,source_type,source_id,status,created_by,posted_by,posted_at,created_at,updated_at) VALUES(?,?,?,?,? ,?,'THB','pms',?,'posted',?,?,?,?,?)").bind(journal,f.company,f.chart,f.period,key(),date,entry,f.owner.userId,f.owner.userId,now,now,now).run();
+  await tx.prepare('INSERT INTO finance_journal_lines(id,journal_id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,ordinal) VALUES(?,?,?,0,5000,0,5000,0),(?,?,?,5000,0,5000,0,1)').bind(key(),journal,revenueAccount,key(),journal,assetAccount).run();
+  await tx.prepare('INSERT INTO pms_postings(id,property_id,source_key,record_id,journal_id,business_date) VALUES(?,?,?,?,?,?)').bind(key(),property,key(),entry,journal,date).run();});
+ const posted=await crmAnalytics(f.owner,range);expect(posted.metrics.find(m=>m.id==='recognized')?.value).toBe(5000);
+ const marketing=await marketingAnalytics({...f.owner,modules:['marketing']},range);expect(marketing.metrics.find(m=>m.id==='received')?.value).toBe(0);
+});
+it('counts repeat hotel guests only after two linked stays have checked in',async()=>{
+ const customer=String((await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Returning guest'},key())).id);
+ const property=key(),guest=key(),now=Date.now();
+ await db.prepare("INSERT INTO pms_properties(id,company_id,branch_id,name,business_date,state,config_json,created_by,updated_at) VALUES(?,?,?,?,?,'open','{}',?,?)").bind(property,f.company,f.branch,'Repeat hotel',date,f.owner.userId,now).run();
+ await db.prepare('INSERT INTO pms_records(id,property_id,kind,data_json,updated_at) VALUES(?,?,?,?,?)').bind(guest,property,'guest',JSON.stringify({name:'Returning guest'}),now).run();
+ let accountId='',contactId='';
+ const stays:string[]=[];
+ for(let i=0;i<2;i++){
+  const leadId=String((await createCRMLead(f.owner,{branchId:f.branch,title:`Stay inquiry ${i}`,contactName:'Returning guest',contactDetail:'Staff-recorded phone number',source:'Direct',brief:'Guest needs a room.',dueDate:date,...(accountId?{accountId,contactId}:{})},key())).id),lead=await getCRMLead(f.owner,leadId);
+  if(!accountId){accountId=String(lead.account_id);contactId=String(lead.contact_id);await changeCRMIdentity(f.tie,{action:'link-finance',accountId,customerId:customer,expectedVersion:1,evidence:'Independent customer review'},key());await changeCRMIdentity(f.tie,{action:'link-guest',sharingEvidence:'Mock guest authorized hotel service history sharing',contactId,guestId:guest,propertyId:property,evidence:'Reviewed PMS guest identity'},key());}
+  await changeCRMLead(f.owner,leadId,{action:'qualify',expectedVersion:1,customerId:customer,expectedValue:'50',closeDate:date,reason:'Room requirement confirmed'},key());
+  const reservation=key(),stay=key();stays.push(stay);
+  for(const [id,kind,data] of [[reservation,'reservation',{guestId:guest,state:'confirmed'}],[stay,'stay',{reservationId:reservation,guestId:guest,state:'reserved',prices:[{net:5000}]}]] as const)
+   await db.prepare('INSERT INTO pms_records(id,property_id,kind,data_json,updated_at) VALUES(?,?,?,?,?)').bind(id,property,kind,JSON.stringify(data),now).run();
+  await changeCRMOpportunity(f.owner,leadId,{action:'win-pms',expectedVersion:1,leadVersion:2,reservationId:reservation,propertyId:property,reason:'Confirmed reservation'},key());
+ }
+ expect((await crmAnalytics(f.owner,range)).metrics.find(m=>m.id==='repeat')?.value).toBe(0);
+ await db.transaction(async tx=>{await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();for(const stay of stays)await tx.prepare("UPDATE pms_records SET data_json=jsonb_set(data_json::jsonb,'{state}','\"in_house\"')::text WHERE id=?").bind(stay).run();});
+ expect((await crmAnalytics(f.owner,range)).metrics.find(m=>m.id==='repeat')?.value).toBe(1);
+ await db.transaction(async tx=>{await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();await tx.prepare("UPDATE pms_records SET data_json=jsonb_set(data_json::jsonb,'{checkedInAt}',to_jsonb(?::bigint))::text WHERE id=?").bind(Date.parse('2026-08-01T00:00:00Z'),stays[0]).run();});
+ expect((await crmAnalytics(f.owner,range)).metrics.find(m=>m.id==='repeat')?.value).toBe(1);
+ await db.transaction(async tx=>{await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();await tx.prepare("UPDATE pms_records SET data_json=jsonb_set(data_json::jsonb,'{checkedInAt}',to_jsonb(?::bigint))::text WHERE id=?").bind(Date.parse('2026-08-01T00:00:00Z'),stays[1]).run();});
+ expect((await crmAnalytics(f.owner,range)).metrics.find(m=>m.id==='repeat')?.value).toBe(0);
+});
+it('reports first and last touch separately and leaves ROI empty without linked cost',async()=>{
+ const creator={...f.owner,modules:['marketing','crm']},reviewer={...f.tie,modules:['marketing','crm']};
+ const first=await changeMarketingCampaign(creator,{action:'create',code:`FIRST_${key().slice(0,8)}`,name:'First touch'},key());
+ const last=await changeMarketingCampaign(creator,{action:'create',code:`LAST_${key().slice(0,8)}`,name:'Last touch'},key());
+ const form=await createMarketingAsset(creator,{kind:'form',name:'Hotel inquiry form',configuration:{consentRequired:true},preview:{headline:'Contact us'}},key());
+ await changeMarketing(reviewer,'asset',form.id,{action:'activate',expectedVersion:1,reason:'Reviewed consent requirements'},key());
+ const candidate=await createMarketingCandidate(creator,{formId:form.id,formVersion:2,branchId:f.branch,contactName:'Guest inquiry',contactDetail:'A recorded phone contact',consentEvidence:'Consent recorded on the form',attribution:{campaignId:first.id,campaign:'First touch',source:'web'},brief:'Guest is considering a room.'},key());
+ const handoff=await changeMarketing(reviewer,'candidate',candidate.id,{action:'handoff',expectedVersion:1,reason:'Reviewed consent and source',dueDate:date},key());if(typeof handoff.crmLeadId!=='string')throw new Error('CRM handoff did not create a lead');
+ await db.prepare('INSERT INTO marketing_touches(id,company_id,lead_id,campaign_id,source,evidence,source_kind,source_id,occurred_at,created_by) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(key(),f.company,handoff.crmLeadId,last.id,'hotel','Staff recorded later campaign code','pms',key(),Date.now()+1000,reviewer.userId).run();
+ const before=await marketingAnalytics(creator,range);
+ expect(before.firstTouch.find(x=>x.campaignId===first.id)).toMatchObject({leads:1,costMinor:null,roi:null});
+ expect(before.lastTouch.find(x=>x.campaignId===last.id)).toMatchObject({leads:1,costMinor:null,roi:null});
+ const lastCampaign=await marketingAnalytics(creator,{...range,campaignId:last.id});
+ expect(lastCampaign.metrics.find(x=>x.id==='handed_off')?.value).toBe(1);
+ expect(lastCampaign.lastTouch.find(x=>x.campaignId===last.id)?.leads).toBe(1);
+ const lead=await getCRMLead(reviewer,handoff.crmLeadId);
+ const customer=String((await saveMaster(creator,'parties',null,{kind:'customer',code:key(),name:'Marketing customer'},key())).id);
+ await changeCRMIdentity(creator,{action:'link-finance',accountId:lead.account_id,customerId:customer,expectedVersion:1,evidence:'Reviewed the marketing prospect with Finance'},key());
+ await changeCRMLead(reviewer,handoff.crmLeadId,{action:'qualify',expectedVersion:1,customerId:customer,expectedValue:'100',closeDate:date,reason:'Marketing inquiry requirements confirmed'},key());
+ expect((await marketingAnalytics(creator,range)).metrics.find(x=>x.id==='qualified')?.value).toBe(1);
+ const expense=key(),asset=key(),journal=key(),line=key(),now=Date.now();
+ for(const [id,category] of [[expense,'expense'],[asset,'asset']])await db.prepare('INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)').bind(id,f.chart,f.company,key(),category,category,now,now).run();
+ await db.prepare("INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,'THB','draft',?,?,?)").bind(journal,f.company,f.chart,f.period,key(),date,creator.userId,now,now).run();
+ await db.prepare('INSERT INTO finance_journal_lines(id,journal_id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,ordinal) VALUES(?,?,?,1000,0,1000,0,0),(?,?,?,0,1000,0,1000,1)').bind(line,journal,expense,key(),journal,asset).run();
+ await db.prepare("UPDATE finance_journals SET status='posted',posted_by=?,posted_at=? WHERE id=?").bind(reviewer.userId,now,journal).run();
+ expect(await marketingCostSources(creator)).toContainEqual(expect.objectContaining({source_line_id:line,debit_minor:'1000',currency:'THB'}));
+ await changeMarketingCampaign(creator,{action:'link-cost',campaignId:first.id,journalLineId:line,evidence:'Posted Finance campaign invoice expense'},key());
+ expect((await marketingCostSources(creator)).some(source=>source.source_line_id===line)).toBe(false);
+ const after=await marketingAnalytics(creator,range);
+ expect(after.firstTouch.find(x=>x.campaignId===first.id)).toMatchObject({costMinor:1000,recognizedMinor:0,roi:-1});
+ expect(after.lastTouch.find(x=>x.campaignId===last.id)).toMatchObject({costMinor:null,roi:null});
+ const unattributed=await createMarketingCandidate(creator,{formId:form.id,formVersion:2,branchId:f.branch,contactName:'Unattributed guest',contactDetail:'A recorded phone contact',consentEvidence:'Consent recorded on the form',attribution:{source:'web'},brief:'A room inquiry with no campaign evidence'},key());
+ await changeMarketing(reviewer,'candidate',unattributed.id,{action:'handoff',expectedVersion:1,reason:'Reviewed consent without campaign evidence',dueDate:date},key());
+ const withUnknown=await marketingAnalytics(creator,range);expect(withUnknown.unattributed).toBe(1);expect(withUnknown.firstTouch.find(x=>x.campaignId===null)).toMatchObject({costMinor:null,roi:null});
+ expect((await marketingAnalytics({...creator,companyId:'other'},range)).metrics.find(x=>x.id==='received')?.value).toBe(0);
+});
+it('uses the Thai business day for time-stamped lead cohorts',async()=>{
+ const leadId=String((await createCRMLead(f.owner,{branchId:f.branch,title:'After-midnight Thai inquiry',contactName:'Test prospect',contactDetail:'Staff-recorded phone number',source:'Direct',brief:'Room inquiry after midnight.',dueDate:date},key())).id);
+ await db.prepare('UPDATE crm_leads SET created_at=? WHERE id=?').bind(Date.parse('2026-09-24T18:00:00Z'),leadId).run();
+ expect((await crmAnalytics(f.owner,{from:date,to:date})).metrics.find(m=>m.id==='received')?.value).toBe(1);
+ expect((await crmAnalytics(f.owner,{from:'2026-09-24',to:'2026-09-24'})).metrics.find(m=>m.id==='received')?.value).toBe(0);
+});
+
+it('keeps hotel history private until authority is reviewed and hides it after withdrawal',async()=>{
+ const leadId=String((await createCRMLead(f.owner,{branchId:f.branch,title:'Guest service inquiry',contactName:'Mock guest',contactDetail:'mock@example.test',source:'Hotel',brief:'Service history requested',dueDate:date},key())).id),lead=await getCRMLead(f.owner,leadId);
+ const property=key(),guest=key(),reservation=key(),stay=key(),now=Date.now();
+ await db.prepare("INSERT INTO pms_properties(id,company_id,branch_id,name,business_date,state,config_json,created_by,updated_at) VALUES(?,?,?,?,?,'open','{}',?,?)").bind(property,f.company,f.branch,'Mock service hotel',date,f.owner.userId,now).run();
+ for(const [id,kind,data] of [[guest,'guest',{name:'Mock guest'}],[reservation,'reservation',{guestId:guest,state:'confirmed'}],[stay,'stay',{reservationId:reservation,state:'checked_out',arrival:'2026-09-01',departure:'2026-09-03'}]] as const)await db.prepare('INSERT INTO pms_records(id,property_id,kind,data_json,updated_at) VALUES(?,?,?,?,?)').bind(id,property,kind,JSON.stringify(data),now).run();
+ const command={action:'link-guest',contactId:lead.contact_id,guestId:guest,propertyId:property,evidence:'Independent identity check'};
+ await expect(changeCRMIdentity(f.owner,command,key())).rejects.toThrow();
+ const linkKey=key();await changeCRMIdentity(f.tie,command,linkKey);const linkId=`guest-link-${linkKey}`;
+ expect((await crmContactHistory(f.owner,String(lead.contact_id))).stays).toHaveLength(0);
+ const grantKey=key(),grant={action:'guest-sharing',linkId,expectedVersion:1,state:'granted',evidence:'Mock guest agreed to hotel service history sharing'};
+ await changeCRMIdentity(f.tie,grant,grantKey);await changeCRMIdentity(f.tie,grant,grantKey);
+ expect((await crmContactHistory(f.owner,String(lead.contact_id))).stays).toHaveLength(1);
+ const otherBranch={...f.owner,branchId:'not-the-hotel-branch'};expect((await crmIdentities(otherBranch)).guestLinks).toHaveLength(0);
+ await expect(changeCRMIdentity(otherBranch,{...grant,expectedVersion:2,state:'revoked'},key())).rejects.toThrow();
+ await changeCRMIdentity(f.owner,{action:'guest-sharing',linkId,expectedVersion:2,state:'revoked',evidence:'Mock guest withdrew service history authority'},key());
+ expect((await crmContactHistory(f.owner,String(lead.contact_id))).stays).toHaveLength(0);
+ const events=(await db.prepare('SELECT state,version FROM crm_guest_sharing_events WHERE link_id=? ORDER BY version').bind(linkId).all<{state:string;version:number}>()).results;
+ expect(events).toEqual([{state:'granted',version:2},{state:'revoked',version:3}]);
+ await expect(db.prepare('DELETE FROM crm_guest_sharing_events WHERE link_id=?').bind(linkId).run()).rejects.toThrow('CRM_GUEST_SHARING_EVIDENCE_IMMUTABLE');
+ expect((await db.prepare('SELECT evidence FROM crm_guest_links WHERE id=?').bind(linkId).first<{evidence:string}>())!.evidence).toBe('Independent identity check');
+});

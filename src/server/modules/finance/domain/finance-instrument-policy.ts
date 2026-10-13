@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { decimalToUnits, unitsToDecimal } from "@/lib/finance-money";
+import { decimalToUnits, unitsToDecimal } from "@/lib/finance/finance-money";
 const positiveMoney = z
     .string()
     .regex(/^\d+(\.\d{1,2})?$/)

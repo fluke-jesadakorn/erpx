@@ -1,4 +1,4 @@
-import { sourceRecordLabel } from '@/lib/source-record';
+import { sourceRecordLabel } from "@/lib/records/source-record";
 import { hasModuleAccess } from '@/data/module-access';
 import type { WorkContext } from '../../identity_access/public/authorization';
 import type { TaskRow } from '../../operations/public/staff-tasks-contract';

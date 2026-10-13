@@ -1,4 +1,4 @@
-import { samePerson } from '@/lib/iam';
+import { samePerson } from "@/lib/identity_access/iam";
 import { z } from 'zod';
 import { BusinessRuleError, type Clock } from '../../shared';
 import type { StaffActor, StaffPerson, RecordScope } from '../../operations/public/staff-policy';

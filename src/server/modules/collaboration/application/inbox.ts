@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import type { WorkContext } from '../../identity_access/public/authorization';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '../../shared';
-import { hasPermission } from '@/lib/permissions';
-import { sourceRecordLabel, type SourceRecordReference } from '@/lib/source-record';
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { sourceRecordLabel, type SourceRecordReference } from "@/lib/records/source-record";
 import { staffNotificationSourceTypes, type StaffNotification } from '../domain/staff-notifications';
 import { noticeInput, type InboxCategory, type InboxEventInput, type InboxItem, type Candidate } from '../domain/inbox';
 export interface InboxRepository {

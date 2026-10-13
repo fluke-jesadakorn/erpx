@@ -1,0 +1,44 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "runtimeFingerprint": "540ac35fabccd740a0a304facd334889023f0980c31608d6b170be28855093c4",
+  "verificationFingerprint": "fef14c62ae4e8d012ccd994b2420c70e72f7ef4f6d6bac1f4b2d49c913c3cf6a",
+  "productionCodeChanged": false,
+  "change": "Source diagnostic retries PMS_RETRYABLE_CONFLICT with the original Idempotency-Key; original twenty-attempt bound and all unexpected-error failures retained. Database assertion requires exactly twenty concurrent guests.",
+  "red": {
+    "unitPassed": 779,
+    "postgresPassed": 555,
+    "postgresFailed": 1,
+    "error": "PMS_RETRYABLE_CONFLICT",
+    "source": "src/server/modules/pms/application/pms.ts:1964",
+    "log": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-final-ui-regression/native-full-retry-red.log",
+    "logSha256": "f469a3b14981b3ef480ec50a80e10a4ba8beb91cfde63cd5e26fe2912f66ec54"
+  },
+  "green": {
+    "passed": 18,
+    "failed": 0,
+    "log": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-final-ui-regression/read-model-retry-green.log",
+    "sourceDiagnostic": {
+      "scope": "source-level diagnostic, not release acceptance",
+      "properties": 3,
+      "roomsPerProperty": 200,
+      "historyDays": 730,
+      "completedStays": 219000,
+      "concurrency": 20,
+      "readSamples": 60,
+      "writeSamples": 20,
+      "readP95Ms": 32.28216700001212,
+      "guestWriteP95Ms": 91.89145900000585,
+      "remaining": "Release HTTP candidate and other financial commands still require measurement"
+    },
+    "logSha256": "24007ab3ea86116a3ea277e72fd59393ee399ccc7e76a98337ea83a7fd4fe2a5"
+  },
+  "releaseCapacity": "Guest save p95 2272.183 ms remains failed; source-level timing does not establish release acceptance.",
+  "pending": [
+    "whole native/security under current verification",
+    "178 required browser",
+    "38 route cases",
+    "release guest command latency",
+    "final feature evidence and availability"
+  ]
+}

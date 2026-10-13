@@ -1,5 +1,5 @@
 import type { CalendarItem, CalendarQuery } from "@/server/modules/work_projection/public/rules/calendar-domain";
-import { hasPermission } from '@/lib/permissions';
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { hasModuleAccess } from '@/data/module-access';
 import type { CalendarAccess } from "../../domain/calendar/access";
 const idList = (ids: string[]) => JSON.stringify(ids);

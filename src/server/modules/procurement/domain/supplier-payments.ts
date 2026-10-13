@@ -1,6 +1,6 @@
 import {z} from "zod";
-import type {WorkItem} from "@/lib/work-item";
-import {decimalToMinor,minorToDecimal} from "@/lib/finance-money";
+import type {WorkItem} from "@/lib/work_projection/work-item";
+import {decimalToMinor,minorToDecimal} from "@/lib/finance/finance-money";
 import {BusinessRuleError} from "../../shared";
 export type SupplierPaymentRow=Record<string,string|number|null>;
 const version = z.number().int().positive();

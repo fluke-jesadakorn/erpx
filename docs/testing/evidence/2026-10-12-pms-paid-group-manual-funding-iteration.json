@@ -1,0 +1,129 @@
+{
+  "observedAt": "2026-10-11T18:03:40.830354+00:00",
+  "scope": "Targeted PostgreSQL and unit iteration; not whole-candidate acceptance",
+  "receipts": [
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-business-upgrade-group/paid-group-before.json",
+      "sha256": "a29af118dbca6c9e57b17cf5ba34fb151f5b96e41394f34fc2924399b62c488c",
+      "passed": 0,
+      "failed": 1,
+      "outsideSelectedPattern": 39,
+      "terminalExit": 1
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-business-upgrade-group/paid-group-after.json",
+      "sha256": "b46aec21a6f101f335103db8c62aa614eb0c200314323d6fcac20cef6c0bcbdb",
+      "passed": 0,
+      "failed": 1,
+      "outsideSelectedPattern": 39,
+      "terminalExit": 1
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-business-upgrade-group/paid-group-with-quota-witness.json",
+      "sha256": "1511043751928a8e782d9d071217101ce7325299d3461cd546c2d9c38bc6215f",
+      "passed": 1,
+      "failed": 0,
+      "outsideSelectedPattern": 39,
+      "terminalExit": 0
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-business-upgrade-group/unit-with-paid-claims.json",
+      "sha256": "360b5b65b15117b01c3c4554fef5627ec4ae72ba49d5134da382af3c6b414a09",
+      "passed": 68,
+      "failed": 0,
+      "outsideSelectedPattern": 0,
+      "terminalExit": 0
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-business-upgrade-group/booking-with-paid-claims.json",
+      "sha256": "2ab7889fa865e9223a6e7990c637f390f0017a07565d7446869427a208d59489",
+      "passed": 40,
+      "failed": 0,
+      "outsideSelectedPattern": 0,
+      "terminalExit": 0
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-business-upgrade-group/additive-shape-migration.json",
+      "sha256": "d392d98ba1574df021baaa6ec95d588a42814dd2c5638bda5a303cfc0210e762",
+      "passed": 0,
+      "failed": 1,
+      "outsideSelectedPattern": 19,
+      "terminalExit": 1
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-business-upgrade-group/additive-shape-migration-after.json",
+      "sha256": "5562ddafe8cb79b526bcdcc3957790ba951d5c387c7765ab071dd2f2d5d4ae58",
+      "passed": 1,
+      "failed": 0,
+      "outsideSelectedPattern": 19,
+      "terminalExit": 0
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-business-upgrade-group/manual-advance-before.json",
+      "sha256": "4efa4ac54f4bee37a42d3d4b81d0974ac90a118b11793eefc50083d65702f476",
+      "passed": 0,
+      "failed": 1,
+      "outsideSelectedPattern": 40,
+      "terminalExit": 1
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-business-upgrade-group/manual-advance-after.json",
+      "sha256": "77707c7ae40b8725308a0320e5bb2c740ac51236652fd9c9fdf7f8c5b8c407de",
+      "passed": 3,
+      "failed": 0,
+      "outsideSelectedPattern": 38,
+      "terminalExit": 0
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-business-upgrade-group/manual-funding-guard-cases.json",
+      "sha256": "deafb72a3f6e086866362d7429f8f4b87bc598eebed6a86a3e140ab013d41aaa",
+      "passed": 3,
+      "failed": 0,
+      "outsideSelectedPattern": 40,
+      "terminalExit": 0
+    }
+  ],
+  "paidGroupActualRed": "Additional room capacity rejected because own allotment held capacity was counted twice",
+  "paidGroupProof": "Own quota retained during pending mocked payment; spare physical room exists but second group pickup refused; original stay unchanged until payment; repeated paid status produces one payment entry",
+  "migration": "1041 additive JSON shape guards and release schema identity rollback fence; rehearsal only owned disposable databases, no main dev/private production application",
+  "migrationActualRed": "CHECK accepted NULL for missing quota marker evidence; COALESCE false repair passes same assertions",
+  "manualAdvanceActualRed": "Staff collection ignored original cash advance: 21400 instead of 20400",
+  "manualFundingProof": [
+    "Original manual receipt credit reduces additional collection",
+    "Pay-at-hotel retains existing advance and computes remaining amount",
+    "Changed funding requires new review",
+    "Excess manual advance becomes an independently approved refund request while original receipt remains immutable"
+  ],
+  "sourceComplete": false,
+  "wholePlanComplete": false,
+  "remaining": [
+    "performance peer targeted helper checks and explicit lease return",
+    "two-property dirty reset and compiled desktop/mobile upgrade/review journeys",
+    "fresh joint release required full/native/browser/route/HTTP/capacity/recovery gates"
+  ],
+  "combinedCurrentNative": {
+    "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-business-upgrade-group/pms-final-native-iteration.json",
+    "sha256": "ee6b1d11eb17b921b70e07e4fcc8dc8cc6ebfccf8b4452c156602839649c2579",
+    "passed": 149,
+    "failed": 0,
+    "pending": 0,
+    "terminalExit": 0,
+    "files": [
+      "tests/pms.test.ts",
+      "tests/pms-read-model.test.ts",
+      "tests/pms-booking.test.ts"
+    ]
+  },
+  "currentTypecheck": {
+    "main": true,
+    "engineeringTests": true,
+    "terminalExit": 0,
+    "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-business-upgrade-group/typecheck-current.log"
+  },
+  "postTestObservedJointSource": {
+    "runtime": "3dbd49dbc2704b660405537fd2152af581a08cbfb5122a849a38490ec92703b2",
+    "verification": "132d7788945ad1134a84c650b966afcd135237f90127b1ea91e6e6f0ab886bb4"
+  },
+  "coreNativeImplementationReadyForCompiledUi": true,
+  "nativeCleanupScope": "Normal runtime setup/afterAll completed with terminal exit zero; exact per-run database names were not exported by these native receipts. Final independent owned cleanup audit remains required."
+}

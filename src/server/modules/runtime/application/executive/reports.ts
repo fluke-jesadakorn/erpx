@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { metricKey, definitionSchema, filtersSchema, emptyDefinition, defaultFilters, shareSchema, sharePreviewSchema, transferOwnershipSchema, type Filters, type ReportView, type ReportSummary, type MetricData, type MetricId, type Breakdown } from "@/server/modules/runtime/public/rules/canvas-domain";
-import { executiveCoverage } from "@/lib/executive/coverage";
-import { modulesForRole } from "@/lib/business-roles";
+import { executiveCoverage } from "@/lib/shared/executive/coverage";
+import { modulesForRole } from "@/lib/identity_access/business-roles";
 import type { WorkAssignment, WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { currentAuthority } from "@/server/modules/runtime/public/executive/access";
 import type { canAuthor } from "@/server/modules/runtime/public/executive/access";

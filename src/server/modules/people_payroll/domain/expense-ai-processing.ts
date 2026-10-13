@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { expenseAiResultSchema, normalizeDraftReceiptAmounts, type ExpenseAiResult } from "@/lib/expense-ai";
-import { decimalToMinor, minorToDecimal } from "@/lib/finance-money";
+import { expenseAiResultSchema, normalizeDraftReceiptAmounts, type ExpenseAiResult } from "@/lib/people_payroll/expense-ai";
+import { decimalToMinor, minorToDecimal } from "@/lib/finance/finance-money";
 import type { EvidenceDocument } from "@/server/modules/people_payroll/public/expense-ai-source";
 import type { ExpenseViolation } from "./expense-policy";
 

@@ -3,7 +3,7 @@ import {useSearchParams} from 'next/navigation';
 import Link from 'next/link';
 import {RecordCollectionDrawer,RecordFacts} from './record-collection';
 import {Table,TableFrame} from '@/components/ui/table';
-import {TimeText} from '@/components/time/time-preference-context';
+import {TimeText} from "@/components/people_payroll/time/time-preference-context";
 type Sources={id:string;name:string;metric:string;rows:Record<string,unknown>[];page:number;hasNext:boolean};
 export function PlatformExecutiveSources(){
  const q=useSearchParams();let args:Record<string,string>={};try{args=JSON.parse(q.get('detailArgs')??'{}');}catch{}

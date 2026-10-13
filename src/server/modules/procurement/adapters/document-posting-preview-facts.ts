@@ -1,6 +1,6 @@
 import type { SqlDatabase } from "../../runtime/public/runtime/types";
 import { matchedBillLines, type BillRow } from "../domain/supplier-bills";
-import { decimalToMinor } from "@/lib/finance-money";
+import { decimalToMinor } from "@/lib/finance/finance-money";
 
 export function documentPostingPreviewFacts(db: SqlDatabase) {
   return {

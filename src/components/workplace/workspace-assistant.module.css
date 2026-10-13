@@ -1,4 +1,4 @@
-.launcher {
+button.launcher {
   position: fixed;
   right: 24px;
   bottom: 24px;
@@ -6,15 +6,19 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  border: 1px solid #8d91ff;
-  background: linear-gradient(135deg, #5145cd, #376edc);
-  color: white;
+  border: 1px solid var(--ui-brand);
+  background: var(--ui-brand);
+  color: var(--ui-on-brand);
   border-radius: 999px;
   padding: 13px 19px;
-  box-shadow: 0 8px 30px #29246140;
+  box-shadow: 0 8px 30px color-mix(in srgb, var(--ui-brand) 28%, transparent);
   font: inherit;
   font-weight: 650;
   cursor: pointer;
+}
+button.launcher:hover {
+  border-color: var(--ui-brand-strong);
+  background: var(--ui-brand-strong);
 }
 .panel {
   position: fixed;
@@ -331,9 +335,9 @@
   margin-top: 4px;
 }
 @media (max-width: 700px) {
-  .launcher {
+  button.launcher {
     right: 16px;
-    bottom: 86px;
+    bottom: calc(86px + env(safe-area-inset-bottom));
     padding: 12px;
   }
   .launcher span {

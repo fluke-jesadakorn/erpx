@@ -1,6 +1,6 @@
 import "server-only";
 import type { z } from "zod";
-import { samePerson } from "@/lib/iam";
+import { samePerson } from "@/lib/identity_access/iam";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase, SqlStatement } from "@/server/modules/runtime/public/runtime/types";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";

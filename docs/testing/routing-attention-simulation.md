@@ -24,8 +24,8 @@
 
 ## หลักฐาน
 
-`tests/routing-attention.test.ts` + `tests/flow-routing.test.ts`: 14 tests passed ครอบคลุม pagination, eligibility repair, revoked primary, manager scope/revocation, reason/history และงานเก่าที่มี owner-created drafts ใหม่อีก 251 รายการ ไม่สร้าง approval ย้อนหลังเพื่อจำลองการผ่าน
+`tests/integration/shared.work/routing-attention.test.ts` + `tests/integration/shared.work/flow-routing.test.ts`: 14 tests passed ครอบคลุม pagination, eligibility repair, revoked primary, manager scope/revocation, reason/history และงานเก่าที่มี owner-created drafts ใหม่อีก 251 รายการ ไม่สร้าง approval ย้อนหลังเพื่อจำลองการผ่าน
 
-`tests/work-cache.test.ts`, `tests/work-refresh.test.ts`, `tests/work-views.test.ts`: 21 tests passed หลังเอา cutoff ออก
+`tests/integration/shared.work/work-cache.test.ts`, `tests/unit/shared.work/work-refresh.test.ts`, `tests/unit/shared.work/work-views.test.ts`: 21 tests passed หลังเอา cutoff ออก
 
 ผลเหล่านี้เป็น automated observation บางส่วน ไม่ใช่ sign-off ของ capability หรือ production acceptance

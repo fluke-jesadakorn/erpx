@@ -1,7 +1,7 @@
 # ADR-017: Universal record collaboration and human-approved AI
 
 > **Retained architectural decision.** The delivery phases, Rust APIs and verification below describe the 2026-08 implementation. Current adapter coverage and executable owner workflows are in [the catalogue](../contracts/next/catalogue.md); no phase below certifies the present release.
-> See [cutover recovery](../../CUTOVER.md) and [ADR-020](ADR-020-nextjs-stack.md).
+> See [cutover recovery](../../README.md#recovery) and [ADR-020](ADR-020-nextjs-stack.md).
 
 
 - Status: Accepted architectural intent; historical Phases 0–6 evidence remains date-scoped.

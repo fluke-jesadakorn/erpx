@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import {StatusBadge} from '@/components/ui/primitives';
-import type {WorkItem} from '@/lib/work-item';
+import type {WorkItem} from "@/lib/work_projection/work-item";
 import { Card } from "@/components/ui/foundation";
 
 /** The owner service supplies the same projection used by Work. */

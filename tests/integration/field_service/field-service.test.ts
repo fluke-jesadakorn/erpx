@@ -1,0 +1,526 @@
+import {requiredFact,recordField} from "../../support/helpers/required-fact";
+import { beforeAll, beforeEach, expect, it, vi } from "vitest";
+import { applyMigrations, env } from "../../support/runtime-env";
+import {
+  expenseDb as db,
+  expenseFixture,
+  key,
+} from "../../support/helpers/expense-fixture";
+import { orderSchema, saveMaster, saveOrder } from "../../../src/server/modules/commerce/public/commerce";
+import { createSupportTicket } from "../../../src/server/modules/support/public/support";
+import {
+  changeAgreement,
+  changeServiceOrder,
+  createAgreement,
+  createServiceOrder,
+  fieldServiceDetail,
+  fieldServiceWork,
+} from "../../../src/server/modules/field_service/public/field-service";
+import { postInvoice, postJournal } from "../../../src/server/modules/finance/public/finance";
+import { assignFlowPrimary, resolveFlow } from "../../../src/server/modules/workflow/public/flow-routing";
+import { escalateInventoryReservations } from "../../../src/server/modules/inventory/public/inventory-reservation-alerts";
+import { queryMetric } from "../../../src/server/modules/runtime/public/executive/metrics";
+import { readExecutiveEvidence, searchExecutiveEvidence } from "../../../src/server/modules/runtime/public/executive/evidence";
+vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+  holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
+  runtimeEnv: async () => env,
+}));
+let f: Awaited<ReturnType<typeof expenseFixture>>,
+  customer: string,
+  warehouse: string,
+  product: string,
+  ticket: string,
+  warrantyAsset: string;
+beforeAll(async () => {
+  await applyMigrations(db, env.STAFF_TEST_MIGRATIONS);
+});
+beforeEach(async () => {
+  f = await expenseFixture();
+  f.head.role = "support_agent";
+  f.head.branchId = null;
+  f.head.departmentId = null;
+  f.head.assignmentId = await f.grant(f.head, "support_agent");
+  for (const a of [f.owner, f.head, f.tie, f.claimant])
+    a.modules = ["field_service", "support"];
+  const c = await saveMaster(
+      f.owner,
+      "parties",
+      null,
+      { kind: "customer", code: key(), name: "Field service customer" },
+      key(),
+    ),
+    w = await saveMaster(
+      f.owner,
+      "warehouses",
+      null,
+      { branchId: f.branch, code: key(), name: "Parts warehouse" },
+      key(),
+    ),
+    p = await saveMaster(
+      f.owner,
+      "products",
+      null,
+      { sku: key(), name: "Replacement controller", price: "80" },
+      key(),
+    );
+  customer = String(c.id);
+  warehouse = String(w.id);
+  product = String(p.id);
+  warrantyAsset = `asset-${key()}`;
+  await db
+    .prepare(
+      "INSERT INTO operational_assets(id,company_id,branch_id,department_id,code,name,category,currency,cost_minor,acquired_date,warranty_end,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    )
+    .bind(
+      warrantyAsset,
+      f.company,
+      f.branch,
+      null,
+      key(),
+      "Warranty covered controller",
+      "equipment",
+      "THB",
+      8000,
+      "2026-01-01",
+      "2099-12-31",
+      f.owner.userId,
+      Date.now(),
+      Date.now(),
+    )
+    .run();
+  await db
+    .prepare(
+      "INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor,version) VALUES(?,?,1000,8000,1)",
+    )
+    .bind(warehouse, product)
+    .run();
+  await db
+    .prepare(
+      "INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,is_control,control_kind,created_at,updated_at) VALUES(?,?,?,?,?,'asset','THB',1,'receivable',1,1)",
+    )
+    .bind(`${f.company}-receivable`, f.chart, f.company, "1200", "Trade receivables")
+    .run();
+  await db.batch([
+    db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,?,?,'asset','THB',1,1)").bind(`${f.company}-parts-stock`,f.chart,f.company,'1300','Service spare inventory'),
+    db.prepare('UPDATE commerce_settings SET inventory_account_id=? WHERE company_id=?').bind(`${f.company}-parts-stock`,f.company),
+  ]);
+  const order = await saveOrder(
+    f.owner,
+    null,
+    orderSchema.parse({
+      kind: "quote",
+      partyId: customer,
+      warehouseId: warehouse,
+      orderDate: "2026-09-20",
+      dueDate: "2026-09-25",
+      lines: [{ productId: product, quantity: "1", price: "80", taxBps: 0 }],
+    }),
+    key(),
+  );
+  ticket = String(
+    (
+      await createSupportTicket(
+        f.owner,
+        {
+          orderId: String(order.id),
+          sourceVersion: 1,
+          title: "Controller fails on site",
+          issue: "Customer reports the installed controller does not start.",
+          ownerId: f.head.userId,
+          dueDate: "2026-09-25",
+        },
+        key(),
+      )
+    ).id,
+  );
+});
+async function agreement(options: { assetId?: string; warrantyDiscountBps?: number } = {}) {
+  const x = await createAgreement(
+    f.owner,
+    {
+      branchId: f.branch,
+      departmentId: null,
+      customerId: customer,
+      assetId: options.assetId ?? null,
+      title: "On-site support agreement",
+      startDate: "2026-01-01",
+      endDate: "2027-12-31",
+      currency: "THB",
+      visitRateMinor: 150000,
+      warrantyDiscountBps: options.warrantyDiscountBps ?? 0,
+    },
+    key(),
+  );
+  await expect(
+    changeAgreement(
+      f.owner,
+      String(x.id),
+      {
+        action: "activate",
+        expectedVersion: 1,
+        reason: "Self approval must be rejected",
+      },
+      key(),
+    ),
+  ).rejects.toMatchObject({ code: "CONFLICT" });
+  await changeAgreement(
+    f.tie,
+    String(x.id),
+    {
+      action: "activate",
+      expectedVersion: 1,
+      reason: "Independent service manager checked coverage and rate",
+    },
+    key(),
+  );
+  return String(x.id);
+}
+async function serviceOrder(options: { assetId?: string; warrantyDiscountBps?: number; scheduledAt?: number } = {}) {
+  const g = await agreement(options);
+  return String(
+    (
+      await createServiceOrder(
+        f.owner,
+        {
+          ticketId: ticket,
+          ticketVersion: 1,
+          agreementId: g,
+          agreementVersion: 2,
+          assetId: options.assetId ?? null,
+          issue: "Diagnose and replace the failed controller.",
+          site: "Customer plant A",
+          technicianId: f.claimant.userId,
+          scheduledAt: options.scheduledAt ?? Date.now() + 60000,
+        },
+        key(),
+      )
+  ).id,
+  );
+}
+const act = (
+  actor: typeof f.owner,
+  id: string,
+  input: Record<string, unknown>,
+) => changeServiceOrder(actor, id, input, key());
+it("reconciles scheduled field visit completion and uses bounded authorized service-order evidence", async () => {
+  const completed = await serviceOrder(), pending = await serviceOrder(), cancelled = await serviceOrder(), outside = await serviceOrder({ scheduledAt: Date.parse("2027-01-05T12:00:00.000Z") });
+  await act(f.claimant, completed, { action: "dispatch", expectedVersion: 1, reason: "Technician received the confirmed route." });
+  await act(f.claimant, completed, { action: "start", expectedVersion: 2, reason: "Customer granted site access." });
+  await act(f.claimant, completed, { action: "complete", expectedVersion: 3, laborMinutes: 45, evidence: "Replaced the controller and verified the safe restart.", customerConfirmation: "Customer confirmed the controller is operating.", reason: "Service work was completed and confirmed." });
+  await act(f.claimant, cancelled, { action: "cancel", expectedVersion: 1, reason: "Customer canceled the appointment before dispatch." });
+  const scheduledAt = (await db.prepare("SELECT scheduled_at FROM field_service_orders WHERE id=?").bind(completed).first<{ scheduled_at: number }>())!.scheduled_at;
+  const from = new Date(Number(scheduledAt)).toISOString().slice(0, 10), filters = { from, to: from, currency: "THB" };
+  const total = await queryMetric(db, f.owner, "field-visit-completion", filters);
+  const byMonth = await queryMetric(db, f.owner, "field-visit-completion", filters, "month");
+  const byStatus = await queryMetric(db, f.owner, "field-visit-completion", filters, "status");
+  expect(total.total).toBe("5000");
+  expect(total.rows).toEqual([{ label: "Field visits", value: "5000" }]);
+  expect(byMonth.rows).toEqual([{ label: from.slice(0, 7), value: "5000" }]);
+  expect(byStatus.rows).toEqual([{ label: "completed", value: "10000" }, { label: "scheduled", value: "0" }]);
+  await expect(queryMetric(db, { ...f.owner, modules: ["support"] }, "field-visit-completion", filters)).rejects.toMatchObject({ code: "METRIC_FORBIDDEN" });
+  const first = await searchExecutiveEvidence(db, f.owner, { metric: "field-visit-completion", filters, limit: 1 });
+  expect(first.provider).toBe("field-service-orders");
+  expect(first.items).toHaveLength(1); expect(first.hasMore).toBe(true); expect(first.nextCursor).toBeTruthy();
+  const second = await searchExecutiveEvidence(db, f.owner, { metric: "field-visit-completion", filters, limit: 1, cursor: first.nextCursor! });
+  expect(second.items).toHaveLength(1); expect(second.hasMore).toBe(false);
+  expect([first.items[0].id, second.items[0].id]).toContain(pending);
+  const match = await searchExecutiveEvidence(db, f.owner, { metric: "field-visit-completion", filters, query: completed });
+  expect(match.items.map((item) => item.id)).toEqual([completed]);
+  const detail = await readExecutiveEvidence(db, f.owner, "field-visit-completion", completed, filters);
+  expect(detail.record).toMatchObject({ id: completed, status: "completed", version: 4, href: `/field-service/${completed}` });
+  expect(Number(recordField(detail.record,"visit_completed_at"))).toBeGreaterThan(0);
+  expect(detail.fields).toEqual(["scheduled_at", "visit_completed_at", "status", "version"]);
+  await expect(readExecutiveEvidence(db, f.owner, "field-visit-completion", cancelled, filters)).rejects.toMatchObject({ status: 404, code: "EVIDENCE_NOT_FOUND" });
+  await expect(readExecutiveEvidence(db, f.owner, "field-visit-completion", outside, filters)).rejects.toMatchObject({ status: 404, code: "EVIDENCE_NOT_FOUND" });
+  const audit = (await db.prepare("SELECT action,record_id,record_version,field_ids::text fields FROM executive_evidence_access_events WHERE company_id=? AND provider_id=? AND metric_id=? ORDER BY created_at,id")
+    .bind(f.company, "field-service-orders", "field-visit-completion")
+    .all<{ action: string; record_id: string | null; record_version: number | null; fields: string }>()).results;
+  expect(audit.map((row) => row.action).sort()).toEqual(["open", "search", "search", "search"]);
+  expect(audit.some((row) => row.action === "open" && row.record_id === completed && row.record_version === 4)).toBe(true);
+  expect(audit.every((row) => JSON.parse(row.fields).every((field: string) => ["scheduled_at", "visit_completed_at", "status", "version"].includes(field)))).toBe(true);
+});
+it("runs agreement, dispatch, parts, exception, customer sign-off and independent billing release", async () => {
+  const id = await serviceOrder();
+  expect(
+    (await fieldServiceWork(f.claimant)).find((x) => x.id === id),
+  ).toMatchObject({ queue: "todo", canAct: true });
+  await act(f.claimant, id, {
+    action: "reserve-part",
+    expectedVersion: 1,
+    warehouseId: warehouse,
+    productId: product,
+    quantityMilli: 1000,
+    expiresAt: Date.now() + 3600000,
+    reason: "Controller reserved for confirmed appointment",
+  });
+  expect(
+    await db
+      .prepare(
+        "SELECT quantity_milli FROM inventory_active_reservations WHERE source_kind='field_service'",
+      )
+      .first("quantity_milli"),
+  ).toBe(1000);
+  await act(f.claimant, id, {
+    action: "dispatch",
+    expectedVersion: 2,
+    reason: "Technician received route and required safety context",
+  });
+  await act(f.claimant, id, {
+    action: "start",
+    expectedVersion: 3,
+    reason: "Customer granted site access and visit started",
+  });
+  await act(f.claimant, id, {
+    action: "exception",
+    expectedVersion: 4,
+    reason: "Power isolation was not ready at arrival",
+  });
+  expect(
+    (await fieldServiceWork(f.claimant)).find((x) => x.id === id)?.blocker,
+  ).toContain("Power isolation");
+  await act(f.claimant, id, {
+    action: "resume",
+    expectedVersion: 5,
+    reason: "Customer completed power isolation",
+  });
+  const reservation = await db
+    .prepare("SELECT id FROM field_service_part_reservations WHERE order_id=?")
+    .bind(id)
+    .first("id");
+  await act(f.claimant, id, {
+    action: "issue-part",
+    expectedVersion: 6,
+    reservationId: String(reservation),
+    quantityMilli: 1000,
+    reason: "Installed the reserved replacement controller",
+  });
+  expect(
+    await db
+      .prepare(
+        "SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?",
+      )
+      .bind(warehouse, product)
+      .first(),
+  ).toEqual({ quantity_milli: 0, value_minor: 0 });
+  const cost = (await fieldServiceDetail(f.owner,id)).consumptions[0];
+  expect(cost).toMatchObject({ source_kind:'field_service',quantity_milli:1000,value_minor:8000,journal_status:'draft' });
+  await expect(act(f.claimant,id,{ action:'complete',expectedVersion:7,laborMinutes:90,evidence:'Startup checks passed.',customerConfirmation:'Customer confirmed operation.',reason:'Cost must be reviewed before closing the visit' })).rejects.toMatchObject({code:'CONFLICT'});
+  const costJournal = String(cost.journal_id), flow = await resolveFlow(db,f.owner,'journal',costJournal);
+  await assignFlowPrimary(db,f.owner,'journal',costJournal,{stepKey:'draft',userId:f.manager.userId,reason:'Independent review of consumed spare stock and service cost',saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());
+  await postJournal(f.manager,costJournal,key(),{expectedVersion:1});
+  expect((await db.prepare('SELECT account_id,base_debit_minor,base_credit_minor FROM finance_journal_lines WHERE journal_id=? ORDER BY ordinal').bind(costJournal).all()).results).toEqual([
+    {account_id:f.accounts.expense,base_debit_minor:8000,base_credit_minor:0},
+    {account_id:`${f.company}-parts-stock`,base_debit_minor:0,base_credit_minor:8000},
+  ]);
+  expect(await db.prepare("SELECT quantity_milli,value_minor FROM inventory_ledger WHERE source_type='field_service' AND source_id=?").bind(id).first()).toEqual({quantity_milli:-1000,value_minor:-8000});
+  await act(f.claimant, id, {
+    action: "complete",
+    expectedVersion: 7,
+    laborMinutes: 90,
+    evidence: "Startup test and safety checks passed; serial photographed.",
+    customerConfirmation:
+      "Customer representative confirmed normal operation on site.",
+    reason: "Visit completed with customer sign-off",
+  });
+  await expect(
+    act(f.claimant, id, {
+      action: "release-billing",
+      expectedVersion: 8,
+      reason: "Technician cannot release own billing",
+    }),
+  ).rejects.toMatchObject({ code: "INDEPENDENT_BILLING_RELEASE_REQUIRED" });
+  await act(f.owner, id, {
+    action: "release-billing",
+    expectedVersion: 8,
+    reason:
+      "Independent reviewer checked agreement, evidence and customer sign-off",
+  });
+  const d = await fieldServiceDetail(f.owner, id);
+  expect(d.order).toMatchObject({
+    status: "billed",
+    version: 9,
+    labor_minutes: 90,
+  });
+  expect(d.billing).toMatchObject({
+    currency: "THB",
+    amount_minor: 150000,
+    source_order_version: 9,
+    status: "released",
+  });
+  const invoice = await db
+    .prepare(
+      "SELECT kind,source_type,source_id,status,total_minor,debit_account_id,credit_account_id FROM finance_invoices WHERE source_type='field_service' AND source_id=?",
+    )
+    .bind(id)
+    .first();
+  expect(invoice).toMatchObject({
+    kind: "receivable",
+    source_type: "field_service",
+    source_id: id,
+    status: "draft",
+    total_minor: 150000,
+    debit_account_id: `${f.company}-receivable`,
+    credit_account_id: f.accounts.revenue,
+  });
+  expect(d.history.map((x) => x.action)).toEqual([
+    "create",
+    "reserve-part",
+    "dispatch",
+    "start",
+    "exception",
+    "resume",
+    "issue-part",
+    "complete",
+    "release-billing",
+  ]);
+});
+it("applies the approved warranty discount only while the service asset is covered", async () => {
+  const id = await serviceOrder({ assetId: warrantyAsset, warrantyDiscountBps: 5000 });
+  await act(f.claimant, id, {
+    action: "dispatch",
+    expectedVersion: 1,
+    reason: "Technician accepted the warranty appointment",
+  });
+  await act(f.claimant, id, {
+    action: "start",
+    expectedVersion: 2,
+    reason: "Customer granted access for the covered asset",
+  });
+  await act(f.claimant, id, {
+    action: "complete",
+    expectedVersion: 3,
+    laborMinutes: 45,
+    evidence: "Warranty replacement completed and tested.",
+    customerConfirmation: "Customer confirmed the covered repair is complete.",
+    reason: "Warranty visit signed off by customer",
+  });
+  await act(f.owner, id, {
+    action: "release-billing",
+    expectedVersion: 4,
+    reason: "Finance reviewer checked warranty coverage and customer evidence",
+  });
+  const release = await db
+    .prepare("SELECT amount_minor,warranty_applied,warranty_discount_bps,warranty_end_snapshot,pricing_date FROM field_service_billing_releases WHERE order_id=?")
+    .bind(id)
+    .first();
+  expect(release).toMatchObject({ amount_minor: 75000, warranty_applied: true, warranty_discount_bps: 5000, warranty_end_snapshot: "2099-12-31" });
+  expect(String(release?.pricing_date)).toBe(new Date().toISOString().slice(0, 10));
+  const invoice = await db
+    .prepare("SELECT id,total_minor,outstanding_minor FROM finance_invoices WHERE source_type='field_service' AND source_id=?")
+    .bind(id)
+    .first();
+  expect(invoice).toMatchObject({ total_minor: 75000, outstanding_minor: 75000 });
+  await postInvoice(
+    f.manager,
+    String(requiredFact(invoice).id),
+    {
+      periodId: f.period,
+      entryDate: new Date().toISOString().slice(0, 10),
+      expectedVersion: 1,
+    },
+    key(),
+  );
+  expect(
+    await db
+      .prepare("SELECT status,journal_id FROM finance_invoices WHERE source_type='field_service' AND source_id=?")
+      .bind(id)
+      .first(),
+  ).toMatchObject({ status: "posted" });
+});
+it("serializes last-unit reservations and protects scope, versions and immutable history", async () => {
+  const first = await serviceOrder(),
+    second = await serviceOrder(),
+    reserve = (id: string) =>
+      act(f.owner, id, {
+        action: "reserve-part",
+        expectedVersion: 1,
+        warehouseId: warehouse,
+        productId: product,
+        quantityMilli: 1000,
+        expiresAt: Date.now() + 3600000,
+        reason: "Competing last controller reservation",
+      }),
+    outcomes = await Promise.allSettled([reserve(first), reserve(second)]);
+  expect(outcomes.filter((x) => x.status === "fulfilled")).toHaveLength(1);
+  const winner = outcomes[0].status === "fulfilled" ? first : second;
+  await expect(
+    fieldServiceDetail({ ...f.owner, branchId: "foreign" }, winner),
+  ).rejects.toMatchObject({ status: 404 });
+  await expect(
+    act(f.owner, winner, {
+      action: "dispatch",
+      expectedVersion: 1,
+      reason: "Stale version must fail",
+    }),
+  ).rejects.toMatchObject({ code: "CONFLICT" });
+  await expect(
+    db
+      .prepare("DELETE FROM field_service_order_events WHERE order_id=?")
+      .bind(winner)
+      .run(),
+  ).rejects.toThrow("FIELD_SERVICE_HISTORY_IMMUTABLE");
+  await expect(
+    db
+      .prepare("UPDATE field_service_orders SET ticket_id=? WHERE id=?")
+      .bind("different", winner)
+      .run(),
+  ).rejects.toThrow("FIELD_SERVICE_ORDER_SOURCE_IMMUTABLE");
+});
+it("rolls Finance, money, release evidence and command receipts back together and safely replays the retry", async () => {
+  const id = await serviceOrder();
+  await act(f.claimant,id,{action:"dispatch",expectedVersion:1,reason:"Confirmed site appointment"});
+  await act(f.claimant,id,{action:"start",expectedVersion:2,reason:"Customer granted service access"});
+  await act(f.claimant,id,{action:"complete",expectedVersion:3,laborMinutes:30,evidence:"Recorded completed safety checks",customerConfirmation:"Customer confirmed completion",reason:"Visit completed for independent billing review"});
+  const commandKey=key(),input={action:"release-billing",expectedVersion:4,reason:"Independent reviewer checked retained visit evidence"},fault=`field_service_failure_${crypto.randomUUID().replaceAll("-","").slice(0,12)}`;
+  // Fail after Finance and money statements, before the final owner event. The
+  // fault is restricted to this case's order and is removed even on failure.
+  await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'FIELD_SERVICE_FINAL_EVENT_FAILURE' USING ERRCODE='23514';END;$$;
+    CREATE TRIGGER ${fault} BEFORE INSERT ON field_service_order_events FOR EACH ROW WHEN (NEW.order_id='${id}' AND NEW.action='release-billing') EXECUTE FUNCTION ${fault}();`);
+  try {
+    await expect(changeServiceOrder(f.owner,id,input,commandKey)).rejects.toMatchObject({code:"23514"});
+    expect(await db.prepare("SELECT status,version FROM field_service_orders WHERE id=?").bind(id).first()).toEqual({status:"completed",version:4});
+    expect(await db.prepare("SELECT count(*) n FROM finance_invoices WHERE source_type='field_service' AND source_id=?").bind(id).first("n")).toBe(0);
+    expect(await db.prepare("SELECT count(*) n FROM money_transaction_snapshots WHERE source_type='field_service_billing_release' AND source_id=?").bind(`field-billing-${commandKey}`).first("n")).toBe(0);
+    expect(await db.prepare("SELECT count(*) n FROM field_service_billing_releases WHERE order_id=?").bind(id).first("n")).toBe(0);
+    for(const table of ["command_receipts","audit_events","outbox_events"])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(commandKey).first("n")).toBe(0);
+  } finally { await db.exec(`DROP TRIGGER IF EXISTS ${fault} ON field_service_order_events;DROP FUNCTION IF EXISTS ${fault}();`); }
+  const result=await changeServiceOrder(f.owner,id,input,commandKey);
+  expect(result).toMatchObject({id,version:5,status:"billed"});
+  expect(await changeServiceOrder(f.owner,id,input,commandKey)).toEqual(result);
+  for(const table of ["command_receipts","audit_events","outbox_events"])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(commandKey).first("n")).toBe(1);
+  expect(await db.prepare("SELECT count(*) n FROM finance_invoices WHERE source_type='field_service' AND source_id=?").bind(id).first("n")).toBe(1);
+  expect(await db.prepare("SELECT count(*) n FROM money_transaction_snapshots WHERE source_type='field_service_billing_release' AND source_id=?").bind(`field-billing-${commandKey}`).first("n")).toBe(1);
+  expect(await db.prepare("SELECT count(*) n FROM staff_notifications WHERE record_id=? AND record_version=5").bind(id).first("n")).toBe(1);
+});
+it("surfaces a revoked technician and permits reviewed reassignment", async () => {
+  const id = await serviceOrder();
+  await db
+    .prepare("UPDATE assignments SET revoked_at=? WHERE id=?")
+    .bind(Date.now(), f.claimant.assignmentId)
+    .run();
+  expect(
+    (await fieldServiceWork(f.owner)).find((x) => x.id === id)?.blocker,
+  ).toContain("no longer eligible");
+  await act(f.owner, id, {
+    action: "schedule",
+    expectedVersion: 1,
+    technicianId: f.owner.userId,
+    scheduledAt: Date.now() + 120000,
+    reason: "Manager reassigns after technician access ended",
+  });
+  expect((await fieldServiceDetail(f.owner, id)).order.technician_id).toBe(
+    f.owner.userId,
+  );
+});
+it("alerts both the service owner and assigned technician before reserved parts expire", async () => {
+  const now = Date.now(), id = await serviceOrder();
+  await act(f.claimant, id, { action: "reserve-part", expectedVersion: 1, warehouseId: warehouse, productId: product, quantityMilli: 1000, expiresAt: now + 3600000, reason: "Part needed for the confirmed visit" });
+  expect((await escalateInventoryReservations(db, now)).expiring).toBeGreaterThanOrEqual(2);
+  const alerts = await db.prepare("SELECT user_id,record_type,record_id,message FROM staff_notifications WHERE record_id=? AND message LIKE 'Stock reservation%'").bind(id).all<Record<string,string>>();
+  expect(alerts.results.map(row => row.user_id).sort()).toEqual([f.claimant.userId, f.owner.userId].sort());
+  expect(alerts.results.every(row => row.record_type === "field_service_order")).toBe(true);
+  expect(await escalateInventoryReservations(db, now)).toEqual({ expiring: 0, expired: 0 });
+  await db.prepare("UPDATE field_service_part_reservations SET released_milli=quantity_milli WHERE order_id=?").bind(id).run();
+  await db.prepare("UPDATE field_service_part_reservations SET created_at=?,expires_at=? WHERE order_id=?").bind(now - 2, now - 1, id).run();
+  expect(await escalateInventoryReservations(db, now)).toEqual({ expiring: 0, expired: 0 });
+});

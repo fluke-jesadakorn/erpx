@@ -8,7 +8,7 @@ import type { PlatformContext } from "@/server/modules/identity_access/public/au
 import type { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { inspectMigrations, migrateDatabase } from "@/server/modules/runtime/public/runtime/migrations";
-import type { ResourceSlot } from "@/lib/holding-registry";
+import type { ResourceSlot } from "@/lib/runtime/holding-registry";
 
 import {createPlatformOperationsApplication} from '../application/operations-summary';
 import type {PlatformOperationsSummary} from '../domain/operations-summary';

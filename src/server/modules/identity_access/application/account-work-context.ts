@@ -1,7 +1,7 @@
 import { safeReturnPath } from '../domain/access-problem';
-import { parseHoldingWorkspace, type HoldingWorkspaceScope } from '@/lib/workspace';
-import type { AccountWorkContext } from '@/lib/account-work-context';
-import type { CurrentWorkspaceChoice, WorkspaceChoice } from '@/lib/workspace-choice';
+import { parseHoldingWorkspace, type HoldingWorkspaceScope } from "@/lib/work_projection/workspace";
+import type { AccountWorkContext } from "@/lib/identity_access/account-work-context";
+import type { CurrentWorkspaceChoice, WorkspaceChoice } from "@/lib/work_projection/workspace-choice";
 import type { ActiveWorkSelection } from '@/server/modules/work_projection/public/work-role-store';
 import type { AccountAccessContext, WorkAssignment, ResolvedWorkspaceScope, PlatformContext } from '../domain/authorization';
 import { assignmentApplies } from '../domain/workspace-access';

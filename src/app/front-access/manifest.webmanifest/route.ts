@@ -1,4 +1,4 @@
-import { frontAppForHost } from "@/lib/front-host";
+import { frontAppForHost } from "@/lib/shared/front-host";
 export function GET(request: Request) {
   const app = frontAppForHost(request.headers.get("host"));
   if (!app) return new Response("Not found", { status: 404 });

@@ -1,0 +1,35 @@
+{
+  "checkedAt": "2026-10-11T13:04:07.062307+00:00",
+  "feature": "reservations-03",
+  "scope": "Static consistency gap; fresh command-boundary reproduction required after coordinated workload window",
+  "sources": [
+    {
+      "file": "src/lib/pms-engine.ts",
+      "SHA256": "b613d5a2ce8f44b8ec766db57475c7845a5834bd8fa36b507487215ca7ef725b",
+      "mainCandidateByteAligned": true
+    },
+    {
+      "file": "src/lib/pms-inventory-domain.ts",
+      "SHA256": "17b03e98944d6af1b186df493fc2f85003b3390dce90d5d7bfbc336a9e80e1f2",
+      "mainCandidateByteAligned": true
+    },
+    {
+      "file": "tests/pms.test.ts",
+      "SHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "mainCandidateByteAligned": true
+    }
+  ],
+  "facts": [
+    "Group pickup requires block.pickedStayIds.length < block.quantity.",
+    "Successful pickup appends stay.id to pickedStayIds.",
+    "Stay/reservation cancellation changes stay state but does not remove historical pickedStayIds.",
+    "Availability subtracts only reserved/in_house picked stays from quantity; cancelled stay therefore restores a held quota while original length remains unchanged.",
+    "Existing named group pickup/back-to-back test does not cancel then repickup."
+  ],
+  "requiredScenario": "Before releaseDate, create quantity1 allotment \u2192 pickup1 \u2192 cancel stay/reservation \u2192 verify quota remains held \u2192 pickup replacement; prove historical evidence, no duplicate capacity, partial date overlaps, concurrent last-quota race and same-key replay.",
+  "runtimeReproduced": false,
+  "accepted": false,
+  "sourceOrAssertionsChanged": false,
+  "nextAction": "Reproduce through authoritative command boundary after reserved performance window; fix demonstrated cancellation/repickup inconsistency together with complete group/upgrade acceptance, without dropping scope or rewriting original tests.",
+  "additionalRequiredScenario": "Two non-overlapping pickups within the same quantity1 block range must be evaluated by per-night active allotment use, not lifetime pickedStayIds length; preserve historical pickup IDs and prove concurrent overlap refusal."
+}

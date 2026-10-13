@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
-import type { WorkItem } from "@/lib/work-item";
+import type { WorkItem } from "@/lib/work_projection/work-item";
 export type TalentRow = Record<string, string | number | null>;
 export type TalentKind = "requisition" | "application" | "proposal" | "offer";
 const reason = z.string().trim().min(3).max(3000), version = z.number().int().positive(), date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);

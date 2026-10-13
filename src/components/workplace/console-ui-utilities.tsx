@@ -2,7 +2,7 @@
 import { usePathname } from "next/navigation";
 import type { ComponentProps } from "react";
 import { AccountSwitcher } from "@/app/holdings/[holdingSlug]/account-switcher";
-import { CurrencySelector } from "@/components/money/currency-provider";
+import { CurrencySelector } from "@/components/finance/money/currency-provider";
 import { WorkplaceNavigation, CommandSearch } from "./workplace-controls";
 import type { UiAppearance } from "@/components/ui/appearance";
 

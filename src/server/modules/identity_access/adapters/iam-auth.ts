@@ -1,7 +1,7 @@
 import { createDirectoryUser, createDirectorySignIn, createDirectoryOidcUserInfo } from '../application/directory-auth';
 import { directorySubject } from '../domain/auth';
 import type { ConnectionRow } from '../domain/directories';
-import { iamThrottle } from "@/server/iam-throttle";
+import { iamThrottle } from "@/server/modules/identity_access/public/iam-throttle";
 import "server-only";
 import { z } from "zod";
 import { decodeJwt } from "jose";

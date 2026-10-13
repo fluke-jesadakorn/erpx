@@ -1,11 +1,11 @@
 import { Table, TableFrame } from "@/components/ui/table";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { workReports } from "@/server/modules/work_projection/public/work-reports";
 import { PageContent } from "@/components/ui/patterns";
 import { PageHeader } from "@/components/ui/primitives";
-import { minorToDecimal } from "@/lib/finance-money";
+import { minorToDecimal } from "@/lib/finance/finance-money";
 export const dynamic="force-dynamic";
 export default async function Page({params,searchParams}:{params:Promise<{holdingSlug:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>}){
  const actor=await requireWorkContext((await params).holdingSlug),base=workspaceBase(publicScope(actor)),raw=await searchParams,query=Object.fromEntries(Object.entries(raw).filter((e):e is [string,string]=>typeof e[1]==="string")),data=await workReports(actor,query),q=data.query;

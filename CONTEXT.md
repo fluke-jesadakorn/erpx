@@ -4,13 +4,21 @@ Business language for ERPX, independent of implementation. Current delivery scop
 
 ## Pilot acceptance
 
+**Stock Item**: A saleable item whose delivery changes inventory quantity and value. A Stock Item can share a sales document with a Service Item.
+
+**Service Item**: A saleable service whose completion makes its agreed quantity available for invoicing without an inventory movement.
+
+**Service Completion**: A dated confirmation that an agreed service quantity has been performed for a Sales Order.
+
+**Customer Receipt**: An issued copy of a posted receipt of customer money, including its allocations to invoices. Reversing the receipt of money cancels the Customer Receipt while preserving its issued copy.
+
 **Account**: A Company-owned CRM relationship with a business or individual, which may be a prospect before Finance recognizes a customer. A reviewed link to a Finance customer keeps the commercial and accounting identities distinct.
 
 **Prospect**: An Account or Contact under consideration before a reviewed Finance customer relationship exists.
 
 **Contact**: A person known to CRM within an Account, with independently recorded Sales and Support interactions. A shared name or email address does not prove that two Contacts are the same person.
 
-**Guest Link**: A reviewed relationship between a CRM Contact and a PMS guest. PMS remains the owner of guest identity, reservations, stays, and folios.
+**Guest Link**: A reviewed relationship between a CRM Contact and a PMS guest. PMS remains the owner of guest identity, reservations, stays, and guest accounts.
 
 **Company Setup Acceptance**: Independent confirmation that a Company's organization and staff placement are ready. It does not certify transaction correctness or authorize launch.
 
@@ -161,6 +169,11 @@ Business language for ERPX, independent of implementation. Current delivery scop
 
 - **Person** — A stable human identity in a Holding, independent of login access and any particular employment or contractor engagement.
 - **Engagement** — A time-bounded relationship between a Person and a Company, describing worker type, organizational placement, Position, Staff Level, Reporting Manager, and status.
+- **Internal People Directory** — The employee-only view of a Company's personnel, employment and organization. External access relationships and contractor engagements are outside this HR view.
+- **Access Subject** — A Company's relationship with a human who may hold login access, classified as internal or external within that Company. An external subject need not have an employee profile or Engagement.
+- **External Organization** — The outside organization or independent affiliation of external access subjects. It is distinct from a Company inside the Holding.
+- **External Team** — External subjects collaborating with an internal Department. Team membership and collaboration placement do not grant access or make the subjects employees.
+- **Internal Sponsor** — The active employee accountable for an external access relationship within the same Company.
 - **Retirement** — An HR-planned reason for ending a Person’s Engagement, with an explicit last working day and a separately confirmed access cutoff. It does not occur automatically from age or birthday.
 - **Access Cutoff** — The confirmed instant when a Person’s Company access ends, independently of handover, financial clearance, or directory verification.
 - **Retirement Clearance** — The attributable HR, handover, asset, directory, Payroll, and Finance checks associated with a retirement case. Completing a check records a review; it does not approve an obligation, post a journal, or release a payment.
@@ -310,13 +323,22 @@ Business language for ERPX, independent of implementation. Current delivery scop
 **Hotel Reservation**: A confirmed booking that may contain several rooms, each with its own guest and stay status. It is distinct from a POS stock reservation.
 _Avoid_: Stay, stock reservation.
 
-**Stay**: One room's planned or actual occupancy for a guest, with an arrival, departure and history of assigned rooms.
+**Stay**: One room's planned or actual occupancy for a guest, with an arrival, departure and history of assigned rooms and room types used over its nights.
 _Avoid_: Hotel Reservation.
+
+**Room Type Period**: A consecutive range of nights in a Stay belonging to one room type. An upgrade of the remaining stay does not change the room type of earlier nights.
+
+**Room Upgrade**: A staff-approved change to the room type for the remaining nights of a Stay, with an agreed rate. The original room type and prices for earlier nights remain unchanged.
+_Avoid_: Same-type room move.
 
 **Hotel Guest**: A visitor who books or occupies hotel accommodation, distinct from a member of the workforce.
 
-**Folio**: A guest or payer's collection of hotel charges, payments, advances and adjustments. Several Folios may share one Hotel Reservation.
-_Avoid_: Invoice; an invoice is an issued document summarizing a Folio.
+**Booking Pace**: Rooms and quoted room revenue on the books for stay dates as observed at a specified time. A later cancellation or date change does not rewrite an earlier observation.
+
+**Net Booking Pickup**: The difference between two observed Booking Pace totals for the same stay dates. It includes cancellations, date changes and price changes; it is distinct from gross new bookings and recognized revenue. Periods before observation began have unknown coverage.
+
+**Guest Account / บัญชีผู้เข้าพัก**: A collection of hotel charges, payments, advances, security deposits, adjustments and balances for a guest or payer, including a person, company or agent. Several Guest Accounts may share one Hotel Reservation.
+_Avoid_: Login account; Invoice. A login account identifies a user; an invoice is an issued document summarizing a Guest Account.
 
 **Room Readiness**: A room's eligibility for check-in after cleaning and independent inspection. Occupancy, cleanliness, maintenance closure and a guest's do-not-disturb request are separate facts.
 
@@ -328,7 +350,7 @@ _Avoid_: Invoice; an invoice is an issued document summarizing a Folio.
 
 **Damage Deposit**: Refundable money held as security, applied to an agreed charge or returned to the guest.
 
-**Group Allotment**: Room-type capacity held for a group until an agreed release date; picked-up reservations consume the held capacity once.
+**Group Allotment**: Room-type capacity held for a group on specified nights until an agreed release date. Active pickups use held capacity for their overlapping nights and return it when those nights no longer belong to the pickup.
 
 **Booking Quote**: A proposed room selection with nightly prices, inclusions and cancellation terms. It does not reserve inventory; availability and terms are checked again when the guest confirms.
 

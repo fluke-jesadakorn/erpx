@@ -1,5 +1,5 @@
 import "server-only";
-import type { Filters } from "@/lib/executive/canvas";
+import type { Filters } from "@/lib/shared/executive/canvas";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 
 /** Shared current membership and due-time cohort for metric, search, and detail reads. */

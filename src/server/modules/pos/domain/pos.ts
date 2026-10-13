@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { scaledAmount } from "@/lib/commerce-math";
-import { APP_LOCALE } from "@/lib/localization";
+import { scaledAmount } from "@/lib/commerce/commerce-math";
+import { APP_LOCALE } from "@/lib/shared/localization";
 export const money = z.number().int().min(0).max(99999999999);
 export const qty = z.number().int().positive().max(999999999);
 export const componentSchema = z.object({ productId: z.string().min(1), quantityMilli: qty, unitLabel: z.string().trim().max(40).optional(), conversionMicros: z.number().int().positive().max(1000000000000).optional() });

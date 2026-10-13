@@ -2,10 +2,10 @@ import { peoplePayrollPresentationQueries } from "@/server/modules/people_payrol
 import { Card } from "@/components/ui/foundation";
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
-import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
-import styles from "@/components/self-service/self-service.module.css";
-import { overtimeLabels } from "@/lib/overtime";
-import { workspaceBase } from "@/lib/workspace";
+import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/shared/features/feature-page";
+import styles from "@/components/people_payroll/self-service/self-service.module.css";
+import { overtimeLabels } from "@/lib/people_payroll/overtime";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { ApiError } from "@/server/modules/runtime/public/http";
 import { listOvertime } from "@/server/modules/people_payroll/public/overtime";

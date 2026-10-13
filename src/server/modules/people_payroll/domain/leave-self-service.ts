@@ -1,4 +1,4 @@
-import {leaveCreateSchema} from '@/lib/leave-self-service';import {leaveEvidencePurposes} from './leave-evidence';
+import {leaveCreateSchema} from "@/lib/people_payroll/leave-self-service";import {leaveEvidencePurposes} from './leave-evidence';
 import {z} from 'zod';import type {LeaveEvidencePolicy,LeaveEvidencePurpose} from './leave-evidence';export type Policy = {
   assignment_id: string;
   policy_version_id: string;

@@ -1,6 +1,6 @@
 import { aiRequestQuotaLock } from "@/server/modules/agent/public/ai-quota";
 import "server-only";
-import { type GuidedIntakeResult } from "@/lib/ai/guided-intake";
+import { type GuidedIntakeResult } from "@/lib/shared/ai/guided-intake";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import type { BetaEnvironment } from "@/server/modules/manage_erpx/public/beta-config";

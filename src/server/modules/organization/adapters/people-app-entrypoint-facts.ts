@@ -1,5 +1,6 @@
 import 'server-only';
 import type {SqlDatabase} from '../../runtime/public/runtime/types';
+export function activeCompanyIdentity(db:SqlDatabase,companyId:string){return db.prepare("SELECT slug,display_name FROM organization_nodes WHERE id=? AND kind='company' AND status='active'").bind(companyId).first<{slug:string;display_name:string}>();}
 export function personLevelHistory(db:SqlDatabase,engagementId:unknown){return db
         .prepare(
           "SELECT h.*,l.name level_name,old.name previous_level_name FROM staff_level_history h JOIN staff_levels l ON l.id=h.level_id LEFT JOIN staff_levels old ON old.id=h.previous_level_id WHERE h.engagement_id=? ORDER BY h.created_at DESC",

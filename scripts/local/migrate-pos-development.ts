@@ -1,9 +1,9 @@
 /** Apply the pending holding schema with the installed development migration identities. */
 import { readFile } from 'node:fs/promises';
 import { dirname,join } from 'node:path';
-import { assertHospitalityDevelopmentTarget } from '../../src/lib/hospitality-seed-target';
-import { PostgresDatabase } from '../../src/server/runtime/postgres';
-import { migrateDatabase } from '../../src/server/runtime/migrations';
+import { assertHospitalityDevelopmentTarget } from "../../src/lib/shared/hospitality-seed-target";
+import { PostgresDatabase } from "../../src/server/modules/runtime/adapters/runtime/postgres";
+import { migrateDatabase } from "../../src/server/modules/runtime/adapters/runtime/migrations";
 const path=process.env.ERPX_DATABASE_MANIFEST;
 if(!path)throw new Error('DEVELOPMENT_MANIFEST_REQUIRED');
 const manifest=JSON.parse(await readFile(join(dirname(path),'databases-migrations.json'),'utf8'));

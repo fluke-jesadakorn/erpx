@@ -2,13 +2,13 @@
 import Link from "next/link";
 import { useContext, type ComponentProps } from "react";
 import { useRouter } from "next/navigation";
-import { recordTarget, recordDrawerHref, recordCanonicalHref, type RecordTarget } from "@/lib/record-drawer";
+import { recordTarget, recordDrawerHref, recordCanonicalHref, type RecordTarget } from "@/lib/records/record-drawer";
 import { RecordScope } from "./record-context";
 
 export function RecordLink({ record, onClick, children, ...props }: ComponentProps<typeof Link> & { record?: RecordTarget }) {
   const base = useContext(RecordScope), router = useRouter();
   const target = record ?? (typeof props.href === "string" && base ? recordTarget(props.href, base) : null);
-  return <Link {...props} href={record && base ? recordCanonicalHref(base, record) : props.href} data-record-link={target ? "true" : undefined} title={target ? "View details" : props.title} onClick={event => {
+  return <Link {...props} prefetch={target ? false : props.prefetch} href={record && base ? recordCanonicalHref(base, record) : props.href} data-record-link={target ? "true" : undefined} title={target ? "View details" : props.title} onClick={event => {
     onClick?.(event);
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || props.target === "_blank") return;
     const dirty = document.querySelector('[data-record-drawer-content][data-record-dirty="true"]');

@@ -1,4 +1,4 @@
-import {hasPermission} from '@/lib/permissions';import {clearancePermissions} from '@/lib/retirement';import type {PreparationTask} from '@/lib/people-lifecycle';import type {WorkContext} from '../../identity_access/public/authorization';export function canCompleteClearance(actor:WorkContext,task:Pick<PreparationTask,"assignee_id"|"clearance_type">) {
+import {hasPermission} from "@/lib/identity_access/permissions";import {clearancePermissions} from "@/lib/people_payroll/retirement";import type {PreparationTask} from "@/lib/people_payroll/people-lifecycle";import type {WorkContext} from '../../identity_access/public/authorization';export function canCompleteClearance(actor:WorkContext,task:Pick<PreparationTask,"assignee_id"|"clearance_type">) {
  const kind=task.clearance_type;
  if(!kind || task.assignee_id!==actor.userId)return false;
  return (!clearancePermissions[kind] || hasPermission(actor,clearancePermissions[kind]!)) && (!["payroll","finance","directory"].includes(kind) || !actor.branchId && !actor.departmentId);

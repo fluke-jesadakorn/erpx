@@ -1,4 +1,4 @@
-import {buildWorkspaceHoldingChoice,type WorkspaceChoiceAssignment,type WorkspaceHoldingChoice,type WorkspaceChoiceNode} from "@/lib/workspace-choice";
+import {buildWorkspaceHoldingChoice,type WorkspaceChoiceAssignment,type WorkspaceHoldingChoice,type WorkspaceChoiceNode} from "@/lib/work_projection/workspace-choice";
 export type AssignmentRow = {
   role: string;
   company_id: string;

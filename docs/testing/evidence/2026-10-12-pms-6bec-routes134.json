@@ -1,0 +1,36 @@
+{
+  "checkedAt": "2026-10-12T00:39:55.961511+00:00",
+  "scope": "Original38required PMS routes plus96required anonymous/intended-role/branch/department/combined/invalid-ID checks for9new Finance page sources. Normal UAT actor fixtures and original assertions retained. Read-only route/render/scope evidence; dynamic placeholder/not-found routes are not transaction or actual-record acceptance. Native and original business journeys provide separate operational evidence.",
+  "candidate": {
+    "runtime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+    "verification": "6bec217508702c495235e2a3740598d3132176d24be4d6af9cb1845bfe5c95c9",
+    "mainRuntime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+    "mainVerification": "6bec217508702c495235e2a3740598d3132176d24be4d6af9cb1845bfe5c95c9",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T19-44-51-044Z",
+    "releaseId": "2026-10-11T19-44-51-044Z",
+    "releaseReusedForIdenticalRuntime": true,
+    "verificationAmendment": "Only existing shared keyboard readiness and null-safe theme init; all runtime/native sources unchanged"
+  },
+  "exactPassingRoutes": 134,
+  "originalPmsRoutes": 38,
+  "additionalFinanceRoutes": 96,
+  "freshWhole134Invocation": true,
+  "originalIdentitiesRetained": true,
+  "allSelectedRequiredIdentitiesCovered": true,
+  "unexpected": 0,
+  "flaky": 0,
+  "skipped": 0,
+  "all134ReportHashesVerified": true,
+  "all134OwnedDirectoriesActuallyAbsent": true,
+  "cleanupFailures": [],
+  "rawAudit": {
+    "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-keyboard-repair-2026-10-12/route134-audit.json",
+    "SHA256": "65abeb02dc42dbde9dca29d12f1e190db5718b97748c1f452c2655ed620a3938"
+  },
+  "rawReceipt": {
+    "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-11T23-41-44-708Z/receipt.json",
+    "SHA256": "6607252f22d215c0da4453006283b7ddffd8ac02271a1be0ab267941e46cf0de"
+  },
+  "transactionAcceptanceFromRouteGate": false,
+  "wholePlanAccepted": false
+}

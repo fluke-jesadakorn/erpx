@@ -15,7 +15,7 @@ import { requirePermission } from "@/server/modules/identity_access/public/iam-p
 import { ApiError } from "@/server/modules/runtime/public/http";
 import { assertion, executeCommand, replayCommand } from "@/server/modules/workflow/public/commands";
 import { prepareJournal } from "@/server/modules/finance/public/finance";
-import type { WorkItem } from '@/lib/work-item';
+import type { WorkItem } from "@/lib/work_projection/work-item";
 import { prepareAttachmentBinding } from "@/server/modules/files/public/attachments/service";
 import { snapshotMoney } from "@/server/modules/finance/public/company-money";
 export { refundApprovalSchema, refundInstructionSchema, refundExportSchema, refundConfirmationSchema, refundExceptionSchema } from '../domain/refunds';

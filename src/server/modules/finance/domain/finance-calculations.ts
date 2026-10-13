@@ -1,4 +1,4 @@
-import { allocateUnits, decimalToUnits, multiplyBps, unitsToDecimal } from "@/lib/finance-money";
+import { allocateUnits, decimalToUnits, multiplyBps, unitsToDecimal } from "@/lib/finance/finance-money";
 export type CalculationKind = "allocation" | "cash_flow" | "consolidation" | "thai_statutory" | "manufacturing_cost" | "reconciliation";
 type Json = Record<string, unknown>;
 const money = (value: unknown, scale: number) => decimalToUnits(String(value ?? "0"), scale);

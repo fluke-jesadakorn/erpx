@@ -1,6 +1,6 @@
-import { billingMonth } from "@/lib/billing";
-import { nextBillingMonth } from "@/lib/billing-forecast";
-import type { TargetPrice } from "@/lib/billing-target-pricing";
+import { billingMonth } from "@/lib/billing/billing";
+import { nextBillingMonth } from "@/lib/billing/billing-forecast";
+import type { TargetPrice } from "@/lib/billing/billing-target-pricing";
 import type {SeatForecastBaseline,CurrentPriceRow,FuturePriceRow,UsageSnapshotRow,RetainedStorageTotalsRow} from '../domain/forecast';
 
 export interface SeatForecastRepository{currentPrice(forecastMonth:string):Promise<{rows:CurrentPriceRow[];rowCount:number|null}>;

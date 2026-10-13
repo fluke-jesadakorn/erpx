@@ -1,6 +1,6 @@
 import {calendarTodayAt} from "@/server/modules/work_projection/public/rules/calendar-date-domain";
 import { createCalendarQuerySchema, calendarRange, calendarLayers, type CalendarData, type CalendarItem, type CalendarLayer } from "@/server/modules/work_projection/public/rules/calendar-domain";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { descendants } from "../../domain/calendar/access";
 import type { CalendarAccess } from "../../domain/calendar/access";

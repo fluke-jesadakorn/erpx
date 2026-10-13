@@ -1,6 +1,6 @@
 import type { CalendarAccess } from "../../domain/calendar/access";
 import 'server-only';
-import type { CalendarQuery } from '@/lib/calendar';
+import type { CalendarQuery } from "@/lib/work_projection/calendar";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { calendarSupplierPromisesProcurementFacts } from "../../../procurement/public/calendar-supplier-promises-facts";
 import { createCalendarSupplierPromises, type CalendarSupplierPromisesUnit } from "../../application/calendar/supplier-promises";

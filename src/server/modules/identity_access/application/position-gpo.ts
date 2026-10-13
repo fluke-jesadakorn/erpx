@@ -1,9 +1,9 @@
 import type {WorkContext} from '../public/authorization';
 import type {ProviderConnection} from '../public/iam-providers';
-import type {DirectoryInventory,DirectoryAction} from '@/lib/directory-operations';
+import type {DirectoryInventory,DirectoryAction} from "@/lib/identity_access/directory-operations";
 
 import {z} from 'zod';
-import {hasPermission} from '@/lib/permissions';
+import {hasPermission} from "@/lib/identity_access/permissions";
 
 import {BusinessRuleError,type Clock,type IdentifierSource} from '../../shared';
 import {positionGpoInput,unmapInput,id,previewToken,membershipKey,waitingKey,codeFor,sameIds,filters,links,type Input,type Connection,type Job,type Claim,type Ownership,type Desired} from '../domain/position-gpo';

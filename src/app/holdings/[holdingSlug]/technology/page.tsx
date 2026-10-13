@@ -1,183 +1,67 @@
+import { forbidden, redirect } from "next/navigation";
 import { iamPresentationQueries } from "@/server/modules/identity_access/public/presentation-context-queries";
-import { RecordLink as Link } from "@/components/records/record-link";
-import { OrganizationAccessWorkspace } from "@/components/technology/organization-access-workspace";
-
-
+import { OrganizationAccessWorkspace } from "@/components/identity_access/technology/organization-access-workspace";
+import { TechnologySectionWorkspace } from "@/components/identity_access/technology/section-workspace";
 import { PageHeader } from "@/components/ui/primitives";
-import {
-  AccessPackages,
-  PreparationTasks,
-} from "@/components/people/lifecycle-workspace";
-import { UserManagement } from "@/components/people/user-management";
+import { AccessPackages, PreparationTasks } from "@/components/people_payroll/lifecycle-workspace";
+import { UserManagement } from "@/components/people_payroll/user-management";
+import { DirectoryWorkspace } from "@/components/people_payroll/directory-workspace";
+import { IamConsole } from "@/components/iam/iam-console";
+import { AccountInvitations } from "@/components/identity_access/account-invitations";
 import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
-
-
-
-
 import { accessMetadata, accessEntries } from "@/server/modules/people_payroll/public/people-access";
-
-import { workspaceBase, workspaceApiHref } from "@/lib/workspace";
-import { hasPermission } from "@/lib/permissions";
+import { workspaceBase, workspaceApiHref } from "@/lib/work_projection/workspace";
+import { technologyHref, technologySections } from "@/lib/identity_access/technology-navigation";
+import type { RouteSearch } from "@/lib/shared/route-context";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
-import styles from "@/components/technology/technology.module.css";
-const views = [
-  ["organization", "Organization & Access"],
-  ["resources", "Resources"],
-  ["attributes", "Custom attributes"],
-] as const;
-export default async function TechnologyPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ holdingSlug: string }>;
-  searchParams: Promise<{ view?: string; position?: string; employee?: string; person?: string; level?: string; department?: string; branch?: string; object?: string; connection?: string; section?: string; unassigned?: string }>;
-}) {
-  const { holdingSlug } = await params,
-    query = await searchParams;
-  const localContext = await requireWorkContext(holdingSlug);
-  if (query.view !== "resources" && query.view !== "attributes") {
-    const resolved = await (async () => { try {
-      const { queries, actor } = await iamPresentationQueries(holdingSlug);
-      const canReadDirectory = hasPermission(actor, "iam.read") && !localContext.branchId && !localContext.departmentId;
+
+type TechnologyPageProps = { params: Promise<{ holdingSlug: string }>; searchParams: Promise<RouteSearch> };
+export default async function TechnologyPage(props: TechnologyPageProps) {
+  const {holdingSlug} = await props.params;
+  return TechnologyContent(props).catch(error => pageError(error, holdingSlug));
+}
+async function TechnologyContent({params, searchParams}: TechnologyPageProps) {
+  const { holdingSlug } = await params, query = await searchParams;
+  const local = await requireWorkContext(holdingSlug), scope = publicScope(local), base = workspaceBase(scope);
+  if (query.view === "directory" && !query.section && !query.object && ["position","person","employee","department","branch","level"].some(key => query[key])) redirect(technologyHref(base, query, "organization"));
+  if (query.view === "attributes") redirect(technologyHref(base, query, "settings", "attributes"));
+  if (query.object && query.view !== "directory") redirect(technologyHref(base, query, "directory", "objects"));
+  const view = query.view === "resources" || query.view === "directory" || query.view === "settings" ? query.view : "organization";
+  const { queries, actor } = await iamPresentationQueries(holdingSlug);
+  const canReadDirectory = hasPermission(actor, "iam.read") && !local.branchId && !local.departmentId;
+  if (view === "directory" && !canReadDirectory || view !== "organization" && !hasPermission(actor,"iam.read")) forbidden();
+    if (view === "organization") {
       const [organization, lifecycle, automation, technology, gpoRules] = await Promise.all([
-        queries.organizationAccessData(localContext),
-        queries.peopleLifecycleData(localContext),
+        queries.organizationAccessData(local), queries.peopleLifecycleData(local),
         canReadDirectory ? queries.directoryAutomationData(actor) : Promise.resolve({ cases: [], connections: [], jobs: [], canApply: false, canManage: false, canReview: false }),
         canReadDirectory ? queries.technologyData(actor) : Promise.resolve({ applications: [], operations: [] }),
-        queries.gpoRulesOverview(localContext),
+        queries.gpoRulesOverview(local),
       ]);
-      return { organization, lifecycle, automation, technology, gpoRules, actor, canReadDirectory };
-    } catch (error) { return pageError(error, holdingSlug); } })();
-    const { organization, lifecycle, automation, technology, gpoRules, actor, canReadDirectory } = resolved;
-    const base = workspaceBase(publicScope(localContext));
-      const initialSelection: Parameters<typeof OrganizationAccessWorkspace>[0]["initialSelection"] = query.position ? { kind: "position", id: query.position }
-        : query.employee || query.person ? { kind: "employee", id: query.employee ?? organization.people.find(person => person.person_id === query.person)?.engagement_id ?? query.person! }
-        : query.department ? { kind: "department", id: query.department }
-        : query.level ? { kind: "level", id: query.level }
-        : query.branch ? { kind: "branch", id: query.branch }
-        : query.object ? { kind: "directory", id: query.object, connectionId: query.connection }
-        : query.unassigned ? { kind: "unassigned", id: "unassigned" }
-        : query.view === "directory" ? { kind: "directory", id: "directory" }
-        : query.view === "employees" && organization.people.length ? { kind: "employee", id: organization.people[0].engagement_id }
-        : { kind: "company", id: "company" };
-      return <div className={`content-stack ${styles.consolePage}`} data-source="live">
-        <PageHeader appearance="standard" eyebrow="Technology" title="Organization & Access" description="Organize people, positions, and policies in one workspace." />
-        <OrganizationAccessWorkspace base={base} companyName={organization.nodes.find(node => node.kind === "company")?.display_name ?? localContext.holdingName} organization={organization} lifecycle={lifecycle} automation={automation} technology={technology} gpoRules={gpoRules} canApply={canReadDirectory && hasPermission(actor, "iam.directory.apply")} initialSelection={initialSelection} initialSection={query.section} />
-      </div>;
-  }
-  if (query.view === "attributes") {
-    const { queries, actor } = await iamPresentationQueries(holdingSlug);
-    const [access, management] = await Promise.all([
-      queries.peopleAccessData(actor),
-      queries.readManagement(actor),
-    ]);
-    const scope = publicScope(localContext),
-      base = workspaceBase(scope),
-      meta = accessMetadata(access);
-    return <div className={`content-stack ${styles.consolePage}`} data-source="live">
-      <PageHeader appearance="standard" eyebrow="Technology" title="Custom attributes" description="Define additional fields for people, groups, and organizational units." />
-      <nav className={styles.tabs} data-feature-tabs aria-label="Technology views">{views.map(([id, name]) => <Link key={id} href={`${base}/technology?view=${id}`} aria-current={id === "attributes" ? "page" : undefined}>{name}</Link>)}</nav>
-      <UserManagement compactConsole initial={management} initialView="attributes" views={["attributes"]} roles={meta.roles} base={base} api={workspaceApiHref(scope, "people/access")} accounts={{ meta, initialEntries: accessEntries(access, new URLSearchParams()) }} />
-    </div>;
-  }
-  const resolved = await (async () => {
-    try {
-      const { queries, actor } = await iamPresentationQueries(holdingSlug),
-        context = await requireWorkContext(holdingSlug);
-      const [lifecycle, access, management] =
-        await Promise.all([
-          queries.peopleLifecycleData(context),
-          queries.peopleAccessData(actor),
-          queries.readManagement(actor),
-        ]);
-      return {
-        actor,
-        context,
-        lifecycle,
-        access,
-        management,
-      };
-    } catch (e) {
-      return pageError(e, holdingSlug);
+      return <div className="content-stack" data-source="live"><PageHeader appearance="standard" eyebrow="Technology" title="Organization & Access" description="Choose a unit to review positions, people, policies and delivery."/><OrganizationAccessWorkspace base={base} companyName={organization.nodes.find(node => node.kind === "company")?.display_name ?? local.holdingName} organization={organization} lifecycle={lifecycle} automation={automation} technology={technology} gpoRules={gpoRules} canApply={canReadDirectory && hasPermission(actor,"iam.directory.apply")} initialSection={typeof query.section === "string" ? query.section : undefined}/></div>;
     }
-  })();
-  const { lifecycle, access, management } =
-      resolved,
-    scope = publicScope(resolved.context),
-    base = workspaceBase(scope),
-    view = "resources",
-    resourceSection = (["packages", "accounts", "groups", "policies", "tasks"] as const).find((item) => item === query.section) ?? "packages",
-    meta = accessMetadata(access);
-  return (
-    <div className={`content-stack ${styles.consolePage}`} data-source="live">
-      <PageHeader appearance="standard"
-        eyebrow="Technology"
-        title="Resources"
-        description="Create packages, manage access policies, and track preparation tasks."
-      />
-      <nav className={styles.tabs} data-feature-tabs aria-label="Technology views">
-        {views.map(([id, name]) => (
-          <Link
-            key={id}
-            href={`${base}/technology?view=${id}`}
-            aria-current={view === id ? "page" : undefined}
-          >
-            {name}
-          </Link>
-        ))}
-        <Link href={`${base}/people/settings?section=connections`}>
-          Connections
-        </Link>
-        <Link href={`${base}/people/settings?section=reviews`}>
-          Reviews & audit
-        </Link>
-      </nav>
-      {view === "resources" && <nav className={styles.sectionTabs} aria-label="Resource sections">
-        {([
-          ["packages", "Packages"],
-          ["accounts", "Accounts"],
-          ["groups", "Groups"],
-          ["policies", "ERPX policies"],
-          ["tasks", "Tasks"],
-        ] as const).map(([id, label]) => <Link key={id} href={`${base}/technology?view=resources&section=${id}`} aria-current={resourceSection === id ? "page" : undefined}>{label}</Link>)}
-      </nav>}
-      {view === "resources" && resourceSection === "packages" && (
-          <AccessPackages
-            base={base}
-            data={lifecycle}
-            roles={access.overview.roles}
-            groups={management.groups}
-            connections={access.overview.connections
-              .filter((c) => c.status === "active")
-              .map((c) => ({
-                id: String(c.id),
-                name: String(c.name),
-                provider: String(c.provider),
-              }))}
-            directoryGroups={access.overview.groups.map((g) => ({
-              id: String(g.external_id),
-              name: String(g.name),
-              connectionId: String(g.connection_id),
-            }))}
-          />
-      )}
-      {view === "resources" && (["accounts", "groups", "policies"] as const).some((item) => item === resourceSection) && (
-            <UserManagement
-              key={resourceSection}
-              compactConsole
-              initial={management}
-              initialView={resourceSection === "accounts" ? "people" : resourceSection === "groups" ? "groups" : "policies"}
-              views={[resourceSection === "accounts" ? "people" : resourceSection === "groups" ? "groups" : "policies"]}
-              roles={meta.roles}
-              base={base}
-              api={workspaceApiHref(scope, "people/access")}
-              accounts={{
-                meta,
-                initialEntries: accessEntries(access, new URLSearchParams()),
-              }}
-            />
-      )}
-      {view === "resources" && resourceSection === "tasks" && <PreparationTasks base={base} data={lifecycle} />}
-    </div>
-  );
+    const section = technologySections[view].find(item => item.id === query.section)?.id ?? technologySections[view][0].id;
+    const title = view === "resources" ? "Resources" : view === "directory" ? "Directory" : "Access settings";
+    let content: React.ReactNode;
+    if (view === "directory") {
+      if (section === "connections") {
+        const data = await queries.iamOverview(actor, false);
+        content = <IamConsole embedded presentation="workspace" data={data} base={base} api={`/api/v1${base}/iam`} section="connections"/>;
+      } else {
+        const [automation, management] = await Promise.all([queries.directoryAutomationData(actor), section === "mappings" ? queries.readManagement(actor) : Promise.resolve(null)]);
+        content = <DirectoryWorkspace appearance="standard" embedded section={section as "objects"|"mappings"|"work"} base={base} initial={automation} mode={section === "mappings" ? "settings" : "inventory"} attributes={management?.attributes} people={management?.people} initialConnectionId={typeof query.connection === "string" ? query.connection : undefined} initialObjectId={typeof query.object === "string" ? query.object : undefined}/>;
+      }
+    } else if (view === "settings" && section !== "attributes") {
+      const data = await queries.iamOverview(actor, false);
+      content = <><IamConsole embedded presentation="workspace" data={data} base={base} api={`/api/v1${base}/iam`} section={section as "roles"|"matrix"|"groups"|"reviews"}/>{section === "reviews" && hasPermission(local,"iam.roles.manage") && <AccountInvitations actor={local} base={base}/>}</>;
+    } else {
+      const [access, management, lifecycle] = await Promise.all([
+        queries.peopleAccessData(actor), queries.readManagement(actor), view === "resources" && (section === "packages" || section === "tasks") ? queries.peopleLifecycleData(local) : Promise.resolve(null),
+      ]);
+      const meta = accessMetadata(access);
+      if (view === "resources" && section === "packages" && lifecycle) content = <AccessPackages base={base} data={lifecycle} roles={access.overview.roles} groups={management.groups} connections={access.overview.connections.filter(connection => connection.status === "active").map(connection => ({id:String(connection.id),name:String(connection.name),provider:String(connection.provider)}))} directoryGroups={access.overview.groups.map(group => ({id:String(group.external_id),name:String(group.name),connectionId:String(group.connection_id)}))}/>;
+      else if (view === "resources" && section === "tasks" && lifecycle) content = <PreparationTasks base={base} data={lifecycle}/>;
+      else content = <UserManagement compactConsole initial={management} initialView={section === "accounts" ? "people" : section === "groups" ? "groups" : section === "policies" ? "policies" : "attributes"} views={[section === "accounts" ? "people" : section === "groups" ? "groups" : section === "policies" ? "policies" : "attributes"]} roles={meta.roles} base={base} api={workspaceApiHref(scope,"people/access")} accounts={{meta,initialEntries:accessEntries(access,new URLSearchParams())}}/>;
+    }
+    return <div className="content-stack" data-source="live"><PageHeader appearance="standard" eyebrow="Technology" title={title} description="Choose a section, inspect records and review changes."/><TechnologySectionWorkspace base={base} view={view} section={section} title={title}>{content}</TechnologySectionWorkspace></div>;
 }

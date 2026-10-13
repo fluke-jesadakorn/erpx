@@ -2,7 +2,7 @@ import type { WorkContext } from "../../identity_access/public/authorization";
 import type { Clock } from "../../shared/application/ports";
 import type { AttachmentManifestItem } from "../../files/public/attachments/types";
 import type { FunctionalFxEvidence } from "../../finance/public/commerce-journal-contracts";
-import { minorToDecimal } from "@/lib/finance-money";
+import { minorToDecimal } from "@/lib/finance/finance-money";
 export type Row = Record<string, string | number | null>;
 export type CommerceRows<Row> = {
     results: Row[];

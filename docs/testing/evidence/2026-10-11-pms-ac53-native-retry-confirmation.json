@@ -1,0 +1,44 @@
+{
+  "checkedAt": "2026-10-11T12:04:02.907191+00:00",
+  "candidate": {
+    "runtime": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+    "verification": "4690053d9c623dac5dd654126c19ed6b148b7ac969fd1948be8f0d599496c095",
+    "mainRuntime": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+    "mainVerification": "4690053d9c623dac5dd654126c19ed6b148b7ac969fd1948be8f0d599496c095",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T10-52-06-388Z",
+    "releaseId": "2026-10-11T10-52-06-388Z"
+  },
+  "status": "passed-for-identical-required-native-scope",
+  "sourceRun": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/full/2026-10-11T11-35-39-792Z",
+  "rawReceipts": [
+    {
+      "file": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/full/2026-10-11T11-35-39-792Z/unit-cases.json",
+      "SHA256": "d754b75c4e451e9fd5c24c3fb4e81e12e54938692fe4e9555b761cfcaddaf104"
+    },
+    {
+      "file": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/test-suites/full/2026-10-11T11-35-39-792Z/integration-cases.json",
+      "SHA256": "5bc613536a03065c0f7ae90509a0155c973401505e8ddb0e6996a3e01bc5fb16"
+    }
+  ],
+  "rawUnitRows": 2787,
+  "rawIntegrationRows": 2095,
+  "originalUnique1342": 1342,
+  "unitOriginal781": 781,
+  "integrationOriginal561": 561,
+  "separateIAM47": 47,
+  "separateCRM9": 9,
+  "separateNewTyped403": 1,
+  "nativeAuditPrivate": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native1342-retry-confirmation-audit.json",
+  "nativeAuditSHA256": "75c63b69174bf7e372cf02741ee569662befafc2b5c2b0bbaf5b16c075a7ebb5",
+  "unchangedAuditorPrivate": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-sealed-ac53-gates-2026-10-11/native-retry-auditor-preservation.json",
+  "unchangedAuditorSHA256": "b416485c2ee653540d1488be4e1ab79c08db99fa2682642e511531e3082736ee",
+  "canonicalSourceBeforeAfter": {
+    "mainCandidateAligned": true,
+    "runtime": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+    "verification": "4690053d9c623dac5dd654126c19ed6b148b7ac969fd1948be8f0d599496c095"
+  },
+  "previousProofRetained": "docs/testing/evidence/2026-10-11-pms-ac53-native.json",
+  "fullRunAccepted": false,
+  "scope": "Second unchanged required-native confirmation from actual terminal unit/integration receipts after scanner refresh. Exact original1342 plus separately scoped47IAM/9CRM/new1; no additional unique counts or automatic feature acceptance. Fullowner laterphases/browser remain active. Currentin-houseupgrade gap and later sourcework remain explicit.",
+  "wholePlanAccepted": false
+}

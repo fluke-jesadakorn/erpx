@@ -4,7 +4,7 @@ import type {SqlDatabase} from "@/server/modules/runtime/public/runtime/types";
 import {holdingResources} from "@/server/modules/runtime/public/runtime";
 import {requirePermission} from "@/server/modules/identity_access/public/iam-permissions";
 import {hasModuleAccess} from "@/data/module-access";
-import {hasPermission} from "@/lib/permissions";
+import {hasPermission} from "@/lib/identity_access/permissions";
 import {executeCommand,replayCommand} from "@/server/modules/workflow/public/commands";
 import {ApiError} from "@/server/modules/runtime/public/http";
 import {BusinessRuleError} from "../../shared";

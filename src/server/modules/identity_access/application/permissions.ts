@@ -1,5 +1,5 @@
-import { hasPermission } from "@/lib/permissions";
-import type { PermissionActor } from "@/lib/iam";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import type { PermissionActor } from "@/lib/identity_access/iam";
 import type { IdentityError } from "./authorization";
 export function createRequirePermission(ports: {
     error: IdentityError;

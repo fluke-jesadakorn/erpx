@@ -1,5 +1,5 @@
 "use client";
-import {recordCanonicalHref} from "@/lib/record-drawer";
+import {recordCanonicalHref} from "@/lib/records/record-drawer";
 import { RecordLink } from "@/components/records/record-link";
 import { InlineNotice } from "@/components/ui/foundation";
 
@@ -13,8 +13,8 @@ import {
   TextInput,
 } from "@/components/ui/foundation";
 
-import { workFetch } from "@/lib/work-fetch";
-import { minorToDecimal } from "@/lib/finance-money";
+import { workFetch } from "@/lib/work_projection/work-fetch";
+import { minorToDecimal } from "@/lib/finance/finance-money";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, FormLayout } from "@/components/ui/foundation";

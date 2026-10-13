@@ -1,9 +1,9 @@
 import { peoplePayrollPresentationQueries } from "@/server/modules/people_payroll/public/presentation-queries";
 
-import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
-import { OvertimeForm } from "@/components/self-service/overtime";
-import styles from "@/components/self-service/self-service.module.css";
-import { workspaceBase } from "@/lib/workspace";
+import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/shared/features/feature-page";
+import { OvertimeForm } from "@/components/records/loaders/self-service--overtime";
+import styles from "@/components/people_payroll/self-service/self-service.module.css";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { getOvertime } from "@/server/modules/people_payroll/public/overtime";
 import { pageError } from "@/server/modules/work_projection/public/page-error";

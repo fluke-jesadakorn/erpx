@@ -3,7 +3,7 @@ import { platformOwnerProjectionSources as people_payrollPlatformSources } from 
 import 'server-only';
 import type {SqlDatabase} from '../../runtime/public/runtime/types';
 import type {Position} from '../../identity_access/public/gpo-contract';
-import type {GpoRuleTarget} from '@/lib/gpo-rules';
+import type {GpoRuleTarget} from "@/lib/organization/gpo-rules";
 /** All facts use the supplied transaction; Company and placement scope remain explicit. */
 export async function gpoVisiblePositions(db:SqlDatabase,companyId:string,branchId:string | null,departmentId:string | null){return (await db.prepare("SELECT id FROM organization_positions WHERE company_id=? AND active=1 AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?)")
     .bind(companyId, branchId, branchId, departmentId, departmentId).all<{ id: string }>()).results;}

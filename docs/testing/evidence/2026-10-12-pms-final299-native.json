@@ -1,0 +1,144 @@
+{
+  "checkedAt": "2026-10-11T20:44:36.606691+00:00",
+  "scope": "Fresh full native invocations on final299, exact required-case audit and actual compiled recovery/migration exports; browser and final feature acceptance pending",
+  "candidate": {
+    "runtime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+    "verification": "299c85a71a3f9bd369189710e8dcf8db9da956177f559f49d4f857d6767dd362",
+    "mainRuntime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+    "mainVerification": "299c85a71a3f9bd369189710e8dcf8db9da956177f559f49d4f857d6767dd362",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T19-44-51-044Z",
+    "releaseId": "2026-10-11T19-44-51-044Z",
+    "releaseReusedForIdenticalRuntime": true,
+    "verificationAmendment": "Only stronger isolatedRSC witness in existingE2E; allotherNative/testcode unchanged; fresh fullNative and180 willrun at299"
+  },
+  "originalRequired": 1342,
+  "additionalRequired": 22,
+  "exactPassingRequired": 1364,
+  "separateSecurityCases": 47,
+  "separateCrmCases": 9,
+  "typed403Cases": 1,
+  "rawPassingCases": 1446,
+  "rawReceipts": [
+    {
+      "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-sealed-299-2026-10-12/unit-cases.json",
+      "SHA256": "0a8b80105bdb32276a72a225ad0ac8b76fa21b4d4b089bba4404aaef768e34f1",
+      "passedCases": 817,
+      "failedCases": 0,
+      "wholeInvocationPassed": true
+    },
+    {
+      "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-sealed-299-2026-10-12/integration-cases.json",
+      "SHA256": "6a11fda33a82499bd3e74a38fa165fd3e231f598b5a7dbffaa9efaa2990257e5",
+      "passedCases": 629,
+      "failedCases": 0,
+      "wholeInvocationPassed": true
+    },
+    {
+      "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-sealed-299-2026-10-12/native1364-audit.json",
+      "SHA256": "a78724c789967bf26fd08f2f2c7e8123f12c8649299118813b0da3a3850e305f"
+    },
+    {
+      "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-sealed-299-2026-10-12/feature-native-bindings.json",
+      "SHA256": "57466e82d6356015e46e9fa8e6f05b4edcca2e92754932959c29db278594d163"
+    }
+  ],
+  "sourceReferencesBoundToActualCases": 137,
+  "recoveryAndMigrationEvidence": [
+    {
+      "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/engineering-completion/runs/pms-joint-sealed-299-2026-10-12/migration-upgrade.json",
+      "SHA256": "c2442d32c7de10db58e8c53cedf6e44326050616923410f1b73bc0cbaa361e0a",
+      "evidence": {
+        "version": 1,
+        "sourceFingerprint": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+        "compiledCandidate": true,
+        "softwareVersion": "release-51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+        "fileManifestSha256": "7db29e3d7e5e641451548166583c83a353770ef9e3a5b975436ed1af9f5788b5",
+        "tracks": 8,
+        "baselineBoundary": "0920",
+        "beforeSha256": "cf1fb7508ca65f355ed00c4548b11b4af1e13b86b0f04c2bb4823a7186deeaa1",
+        "afterSha256": "cf1fb7508ca65f355ed00c4548b11b4af1e13b86b0f04c2bb4823a7186deeaa1",
+        "priorReceiptsPreserved": true,
+        "backfillCount": 1,
+        "replayBackfillCount": 0,
+        "originalSha256": "59dd804c5b7c95cd200c1721d56c0029e4dce429d0d47a7e3ee46a98900769ad",
+        "thumbnailSha256": "87dbc0bd56806d3fa24c62d5400c2cbedd57e12cf1a4093837e3181a91419cf0",
+        "postedEvidenceImmutable": true,
+        "checksumsVerified": true,
+        "quotaDeltaBytes": 0,
+        "pmsPriceBackfill": {
+          "count": 1,
+          "originalQuoteRetained": true,
+          "unquotedNotInvented": true,
+          "ownerHistoryRetained": true,
+          "replayCount": 0
+        },
+        "scanner": "declared clean interface fixture; real scanner is verified separately"
+      }
+    },
+    {
+      "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/engineering-completion/runs/pms-joint-sealed-299-2026-10-12/encrypted-recovery.json",
+      "SHA256": "67c79e3379fadd516a4197ce142a97528cc32586c69e5075f242d762aa65d242",
+      "evidence": {
+        "sourceFingerprint": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+        "softwareVersion": "release-51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+        "compiledCandidate": true,
+        "fileManifestSha256": "7db29e3d7e5e641451548166583c83a353770ef9e3a5b975436ed1af9f5788b5",
+        "databaseCount": 8,
+        "tracks": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "holdingFileStores": 3,
+        "allHoldingFilesSha256": "3a470d848629b08c40b0ddf55fa74d2878ce39a93ee0e28738928b783c40ac54",
+        "tableCount": 2486,
+        "tableDigestSha256": "fce539c640f42e87f506d02d428946623467a64e40a44425bfc6b672ae24bfc7",
+        "ciphertextSha256": "c33e3b746203ecfe392ed6644085a4f6cf00981bb19c89ad9b3f788e2115df22",
+        "sourceBytesSha256": "04e1714dfb954cafd89463a425f91802cfe07435fa151d0c780a026002b0c858",
+        "restored": true,
+        "compatibleRollback": true,
+        "incompatibleRollbackRejected": true,
+        "pms": {
+          "propertyId": "property-65ce3268c206efd987df1f20c7c876f4",
+          "reservationId": "fafbc5c6-66e7-4bb5-b3ae-779955a6a54c",
+          "stayId": "58a4b58d-9529-47de-8782-f929d5218480",
+          "guestAccountId": "026bcbc0-5e51-460f-851b-a14d304c6ea9",
+          "roomId": "300bd54c-95d3-4b19-a3e6-11905bafa3ec",
+          "taskId": "51a6d5a7-a240-4740-9685-44699cd81da3",
+          "issuedDocuments": 2,
+          "documentsSHA256": "5c27b852e4f1bf498e47870fa87ce337d5f19e2a75673720cab5bf07b8499973",
+          "ledger": {
+            "journals": 3,
+            "debit": "16400",
+            "credit": "16400"
+          },
+          "privateFileSHA256": "216764ff3ecd7b9447853813550ac3f4c625cb79a1b044cb20cd327347f644bd",
+          "mutatedGuestAndHotelRestored": true,
+          "identicalPaymentReplay": true,
+          "originalPmsSnapshotRetained": true
+        },
+        "ciphertextTamperingRejected": true,
+        "legal": {
+          "originalSha256": "e5732aeeb4a0fff387d774b43c220e635c7a02504ae054bbbb93e25bef666330",
+          "originalBytesRetained": true,
+          "historyRetained": true,
+          "aclRetained": true,
+          "unassignedReaderRefused": true,
+          "overlappingHoldsRetained": true,
+          "queuedJobRetained": true,
+          "commandReplayWithoutDuplicateEffects": true,
+          "scanner": "declared scanner fixture; actual scanner is covered by compiled browser UAT"
+        },
+        "scope": "Isolated PostgreSQL18.6 and local FileStore; age encryption; no installed environment or external device"
+      }
+    }
+  ],
+  "ledgerUnits": "PMS ledger debit/credit 16400 are integer minor units, not THB16400",
+  "retainedHistoricalEvidence": "2026-10-12-pms-joint-native-acceptance.json retains520 first invocation evidence-output failures and bounded reruns. These new299 full invocations both pass without composite replacement.",
+  "wholePlanAccepted": false
+}

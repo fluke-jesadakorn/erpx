@@ -1,0 +1,615 @@
+{
+  "checkedAt": "2026-10-10T21:45:30.972280+00:00",
+  "candidate": {
+    "runtime": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+    "verification": "d338abbdd6e4fb68b035f2003c0337f66e54f7b3f2615dfa780eec899d15bd2e",
+    "mainRuntime": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+    "mainVerification": "d338abbdd6e4fb68b035f2003c0337f66e54f7b3f2615dfa780eec899d15bd2e",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-10T21-33-53-720Z",
+    "releaseId": "2026-10-10T21-33-53-720Z"
+  },
+  "scope": "Fresh complete native and focused security gates for the main-aligned release. Browser/route/capacity acceptance pending.",
+  "wholePlanAccepted": false,
+  "native": {
+    "unitPassed": 781,
+    "integrationPassed": 561,
+    "totalPassed": 1342,
+    "passingFiles": 133,
+    "fileCounts": [
+      {
+        "file": "tests/unit/test-selection.test.ts",
+        "passed": 65
+      },
+      {
+        "file": "tests/unit/browser-readiness.test.ts",
+        "passed": 5
+      },
+      {
+        "file": "tests/unit/architecture-relocation.test.ts",
+        "passed": 2
+      },
+      {
+        "file": "tests/unit/architecture-boundaries.test.ts",
+        "passed": 30
+      },
+      {
+        "file": "tests/inbox-source-coverage.test.ts",
+        "passed": 1
+      },
+      {
+        "file": "tests/feature-widget-registry.test.ts",
+        "passed": 2
+      },
+      {
+        "file": "tests/unit/pms-provider-fixture.test.ts",
+        "passed": 7
+      },
+      {
+        "file": "tests/unit/ci-regression.test.ts",
+        "passed": 18
+      },
+      {
+        "file": "tests/unit/browser-execution-plan.test.ts",
+        "passed": 5
+      },
+      {
+        "file": "tests/local-file-streams.test.ts",
+        "passed": 2
+      },
+      {
+        "file": "tests/business-time.test.ts",
+        "passed": 3
+      },
+      {
+        "file": "tests/workplace-navigation.test.ts",
+        "passed": 62
+      },
+      {
+        "file": "tests/engineering-gate-evidence.test.ts",
+        "passed": 4
+      },
+      {
+        "file": "tests/unit/home-cache.test.ts",
+        "passed": 7
+      },
+      {
+        "file": "tests/unit/investor-report.test.ts",
+        "passed": 4
+      },
+      {
+        "file": "tests/native-proxy.test.ts",
+        "passed": 10
+      },
+      {
+        "file": "tests/unit/pms-application.test.ts",
+        "passed": 58
+      },
+      {
+        "file": "tests/unit/guest-account-compat.test.ts",
+        "passed": 4
+      },
+      {
+        "file": "tests/unit/navigation-streaming.test.ts",
+        "passed": 2
+      },
+      {
+        "file": "tests/capability-delivery.test.ts",
+        "passed": 4
+      },
+      {
+        "file": "tests/unit/browser-prerequisites.test.ts",
+        "passed": 19
+      },
+      {
+        "file": "tests/unit/runtime-connection-services.test.ts",
+        "passed": 13
+      },
+      {
+        "file": "tests/engineering-inventory-report.test.ts",
+        "passed": 8
+      },
+      {
+        "file": "tests/unit/work-ui-services.test.ts",
+        "passed": 30
+      },
+      {
+        "file": "tests/calendar-timeline.test.ts",
+        "passed": 5
+      },
+      {
+        "file": "tests/unit/simulation-email.test.ts",
+        "passed": 3
+      },
+      {
+        "file": "tests/unit/files-application.test.ts",
+        "passed": 31
+      },
+      {
+        "file": "tests/work-fetch.test.ts",
+        "passed": 28
+      },
+      {
+        "file": "tests/unit/work-calendar-services.test.ts",
+        "passed": 8
+      },
+      {
+        "file": "tests/unit/work-services.test.ts",
+        "passed": 13
+      },
+      {
+        "file": "tests/calendar-recurrence.test.ts",
+        "passed": 2
+      },
+      {
+        "file": "tests/attachment-ops-health.test.ts",
+        "passed": 6
+      },
+      {
+        "file": "tests/unit/work-shortcut-readiness.test.ts",
+        "passed": 11
+      },
+      {
+        "file": "tests/attachment-withdraw-route.test.ts",
+        "passed": 1
+      },
+      {
+        "file": "tests/unit/work-shortcut-focus.test.ts",
+        "passed": 6
+      },
+      {
+        "file": "tests/attachment-client.test.ts",
+        "passed": 5
+      },
+      {
+        "file": "tests/work-refresh.test.ts",
+        "passed": 3
+      },
+      {
+        "file": "tests/ui-format.test.ts",
+        "passed": 5
+      },
+      {
+        "file": "tests/request-draft-create.test.ts",
+        "passed": 2
+      },
+      {
+        "file": "tests/acceptance-evidence.test.ts",
+        "passed": 4
+      },
+      {
+        "file": "tests/routine-calendar.test.ts",
+        "passed": 3
+      },
+      {
+        "file": "tests/unit/next-development-debug.test.ts",
+        "passed": 15
+      },
+      {
+        "file": "tests/work-cards.test.ts",
+        "passed": 10
+      },
+      {
+        "file": "tests/attachment-reconciliation-adjudication.test.ts",
+        "passed": 4
+      },
+      {
+        "file": "tests/unit/record-services.test.ts",
+        "passed": 26
+      },
+      {
+        "file": "tests/unit/operations-services.test.ts",
+        "passed": 18
+      },
+      {
+        "file": "tests/unit/home-lazy-loading.test.ts",
+        "passed": 2
+      },
+      {
+        "file": "tests/work-sources.test.ts",
+        "passed": 5
+      },
+      {
+        "file": "tests/engineering-performance.test.ts",
+        "passed": 3
+      },
+      {
+        "file": "tests/unit/workflow-services.test.ts",
+        "passed": 38
+      },
+      {
+        "file": "tests/capability-gate-reviews.test.ts",
+        "passed": 1
+      },
+      {
+        "file": "tests/unit/navigation-snapshot.test.ts",
+        "passed": 5
+      },
+      {
+        "file": "tests/work-page.test.ts",
+        "passed": 5
+      },
+      {
+        "file": "tests/attachment-feature-context.test.tsx",
+        "passed": 9
+      },
+      {
+        "file": "tests/work-views.test.ts",
+        "passed": 6
+      },
+      {
+        "file": "tests/page-error.test.ts",
+        "passed": 22
+      },
+      {
+        "file": "tests/hospitality-grid.test.ts",
+        "passed": 4
+      },
+      {
+        "file": "tests/unit/presentation-owner-queries.test.ts",
+        "passed": 10
+      },
+      {
+        "file": "tests/ui-registry.test.ts",
+        "passed": 8
+      },
+      {
+        "file": "tests/engineering-completion.test.ts",
+        "passed": 6
+      },
+      {
+        "file": "tests/unit/case-screenshot.test.ts",
+        "passed": 7
+      },
+      {
+        "file": "tests/workplace-catalogue.test.ts",
+        "passed": 3
+      },
+      {
+        "file": "tests/unit/browser-results.test.ts",
+        "passed": 8
+      },
+      {
+        "file": "tests/unit/browser-isolation-receipts.test.ts",
+        "passed": 7
+      },
+      {
+        "file": "tests/simulation-only-adapters.test.ts",
+        "passed": 4
+      },
+      {
+        "file": "tests/work-attention.test.ts",
+        "passed": 6
+      },
+      {
+        "file": "tests/unit/request-memo.test.ts",
+        "passed": 6
+      },
+      {
+        "file": "tests/general-company-demo.test.ts",
+        "passed": 1
+      },
+      {
+        "file": "tests/unit/database-pool-policy.test.ts",
+        "passed": 9
+      },
+      {
+        "file": "tests/attachment-gate-contract.test.ts",
+        "passed": 5
+      },
+      {
+        "file": "tests/unit/architecture-transaction.test.ts",
+        "passed": 2
+      },
+      {
+        "file": "tests/record-drawer-routing.test.ts",
+        "passed": 5
+      },
+      {
+        "file": "tests/workspace.test.ts",
+        "passed": 5
+      },
+      {
+        "file": "tests/hospitality-page-cut.test.ts",
+        "passed": 2
+      },
+      {
+        "file": "tests/local-shortcuts.test.ts",
+        "passed": 4
+      },
+      {
+        "file": "tests/attachment-state.test.ts",
+        "passed": 8
+      },
+      {
+        "file": "tests/work-decision-kind.test.ts",
+        "passed": 1
+      },
+      {
+        "file": "tests/pms-read-model.test.ts",
+        "passed": 18
+      },
+      {
+        "file": "tests/engineering-recovery.test.ts",
+        "passed": 1
+      },
+      {
+        "file": "tests/pms.test.ts",
+        "passed": 84
+      },
+      {
+        "file": "tests/engineering-service-hospitality-attachments.test.ts",
+        "passed": 30
+      },
+      {
+        "file": "tests/file-orphan-preservation.test.ts",
+        "passed": 3
+      },
+      {
+        "file": "tests/executive-canvas.test.ts",
+        "passed": 68
+      },
+      {
+        "file": "tests/work-cache.test.ts",
+        "passed": 27
+      },
+      {
+        "file": "tests/flow-routing.test.ts",
+        "passed": 15
+      },
+      {
+        "file": "tests/engineering-migration-upgrade.test.ts",
+        "passed": 1
+      },
+      {
+        "file": "tests/pms-booking.test.ts",
+        "passed": 37
+      },
+      {
+        "file": "tests/attachments-v2.test.ts",
+        "passed": 29
+      },
+      {
+        "file": "tests/work-review.test.ts",
+        "passed": 6
+      },
+      {
+        "file": "tests/routing-attention.test.ts",
+        "passed": 3
+      },
+      {
+        "file": "tests/spending-approvals.test.ts",
+        "passed": 14
+      },
+      {
+        "file": "tests/release-acceptance.test.ts",
+        "passed": 7
+      },
+      {
+        "file": "tests/command-receipts-upgrade.test.ts",
+        "passed": 2
+      },
+      {
+        "file": "tests/engineering-verification.test.ts",
+        "passed": 11
+      },
+      {
+        "file": "tests/calendar.test.ts",
+        "passed": 22
+      },
+      {
+        "file": "tests/executive-mcp.test.ts",
+        "passed": 16
+      },
+      {
+        "file": "tests/request-experience.test.ts",
+        "passed": 4
+      },
+      {
+        "file": "tests/record-details.test.ts",
+        "passed": 6
+      },
+      {
+        "file": "tests/scoped-browser-staff.test.ts",
+        "passed": 2
+      },
+      {
+        "file": "tests/indexed-property-transactions.test.ts",
+        "passed": 2
+      },
+      {
+        "file": "tests/engineering-platform-access.test.ts",
+        "passed": 4
+      },
+      {
+        "file": "tests/request-ai.test.ts",
+        "passed": 9
+      },
+      {
+        "file": "tests/work-card-preferences.test.ts",
+        "passed": 8
+      },
+      {
+        "file": "tests/command-composition.test.ts",
+        "passed": 3
+      },
+      {
+        "file": "tests/calendar-api.test.ts",
+        "passed": 1
+      },
+      {
+        "file": "tests/web-push.test.ts",
+        "passed": 13
+      },
+      {
+        "file": "tests/navigation-counts.test.ts",
+        "passed": 2
+      },
+      {
+        "file": "tests/pms-reports.test.ts",
+        "passed": 6
+      },
+      {
+        "file": "tests/inbox.test.ts",
+        "passed": 5
+      },
+      {
+        "file": "tests/business-readiness.test.ts",
+        "passed": 2
+      },
+      {
+        "file": "tests/pms-cache-upgrade.test.ts",
+        "passed": 1
+      },
+      {
+        "file": "tests/guided-intake.test.ts",
+        "passed": 9
+      },
+      {
+        "file": "tests/specialized-attachment-adapters.test.ts",
+        "passed": 4
+      },
+      {
+        "file": "tests/pms-front-attachments.test.ts",
+        "passed": 2
+      },
+      {
+        "file": "tests/page-layouts.test.ts",
+        "passed": 13
+      },
+      {
+        "file": "tests/sensitive-attachment-access.test.ts",
+        "passed": 5
+      },
+      {
+        "file": "tests/engineering-stock-continuity.test.ts",
+        "passed": 1
+      },
+      {
+        "file": "tests/command-assertions-upgrade.test.ts",
+        "passed": 1
+      },
+      {
+        "file": "tests/business-commands.test.ts",
+        "passed": 4
+      },
+      {
+        "file": "tests/command-assertions.test.ts",
+        "passed": 7
+      },
+      {
+        "file": "tests/work-read-model.test.ts",
+        "passed": 1
+      },
+      {
+        "file": "tests/attachment-crm-atomic-guard.test.ts",
+        "passed": 5
+      },
+      {
+        "file": "tests/daily-plan.test.ts",
+        "passed": 4
+      },
+      {
+        "file": "tests/native-runtime.test.ts",
+        "passed": 7
+      },
+      {
+        "file": "tests/command-receipts-partitions.test.ts",
+        "passed": 3
+      },
+      {
+        "file": "tests/workspace-preferences.test.ts",
+        "passed": 1
+      },
+      {
+        "file": "tests/attachment-formats.test.ts",
+        "passed": 8
+      },
+      {
+        "file": "tests/workflow-projection.test.ts",
+        "passed": 5
+      },
+      {
+        "file": "tests/pipelined-transactions.test.ts",
+        "passed": 4
+      },
+      {
+        "file": "tests/read-metrics.test.ts",
+        "passed": 8
+      },
+      {
+        "file": "tests/cloudflare-bindings.test.ts",
+        "passed": 2
+      },
+      {
+        "file": "tests/list-page.test.ts",
+        "passed": 2
+      },
+      {
+        "file": "tests/read-request.test.ts",
+        "passed": 3
+      }
+    ],
+    "command": "ERPX_ENGINEERING_SOURCE_FINGERPRINT=<current runtime> ERPX_ENGINEERING_RELEASE_DIR=<current release> bun scripts/local/test.ts tests --module=pms",
+    "requiredReporter": "scripts/testing/required-cases-reporter.ts",
+    "scopeLimit": "File counts and required-case enforcement; no separately requested per-case JSON native export."
+  },
+  "security": {
+    "passed": 47,
+    "files": 4
+  },
+  "static": {
+    "typecheck": true,
+    "lint": true,
+    "lintExistingWarnings": 3,
+    "architecture": true,
+    "documentation": true,
+    "isolatedReleaseBuild": true
+  },
+  "sourceAfterNative": {
+    "runtime": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+    "verification": "d338abbdd6e4fb68b035f2003c0337f66e54f7b3f2615dfa780eec899d15bd2e",
+    "mainRuntime": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+    "mainVerification": "d338abbdd6e4fb68b035f2003c0337f66e54f7b3f2615dfa780eec899d15bd2e"
+  },
+  "logs": {
+    "typecheck": {
+      "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-main-aligned-candidate/typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "lint": {
+      "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-main-aligned-candidate/lint.log",
+      "sha256": "0211741eacc108089202fadacf856c584e3bfc48d4ce33a4fa7a8b4d08de2a88"
+    },
+    "architecture": {
+      "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-main-aligned-candidate/architecture.log",
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    "docs": {
+      "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-main-aligned-candidate/docs.log",
+      "sha256": "f5db8aa0f3ceec3f9a835bc304588e8cc6d41ebd5edc799c8c332b83cd6be55e"
+    },
+    "build": {
+      "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-main-aligned-candidate/build.log",
+      "sha256": "4b538503294eb2d6fab49b09471b8d347932031bdcf0f8943b8def83dabc6db5"
+    },
+    "native-full": {
+      "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-main-aligned-candidate/native-full.log",
+      "sha256": "f619155d18a32fa3bd0a08b67161d42dff47a46c5bc8c85a195eb2283dafd2cf"
+    },
+    "security": {
+      "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-main-aligned-candidate/security.log",
+      "sha256": "2b7d7420c4c8f8c9d97378641ea59b62918e7de3e98fab209efe3a96ee4a10d2"
+    },
+    "source-after-native": {
+      "path": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-main-aligned-candidate/source-after-native.log",
+      "sha256": "6b152f8d3a1dac7eb7dafe14f3aa5c263e30146edd80ac9bca196f7326e90570"
+    }
+  },
+  "historicalEvidenceRetained": true,
+  "remaining": [
+    "Original 178 browser cases",
+    "Original 38 route cases",
+    "Fresh strict release capacity",
+    "Final 67-feature mock acceptance reconciliation"
+  ]
+}

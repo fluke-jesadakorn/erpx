@@ -4647,7 +4647,7 @@
         "pms/front-desk",
         "pms/rooms",
         "pms/housekeeping",
-        "pms/folios",
+        "pms/guest-accounts",
         "pms/cashier",
         "pms/inventory",
         "pms/guests",

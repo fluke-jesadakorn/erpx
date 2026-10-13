@@ -1,6 +1,6 @@
 import "server-only";
 import {publicScope,type WorkContext} from "../../identity_access/public/authorization";
-import {workspaceBase} from "@/lib/workspace";
+import {workspaceBase} from "@/lib/work_projection/workspace";
 import type {SqlDatabase} from "../../runtime/public/runtime/types";
 import {frontUnreadHomeCount} from "../../collaboration/public/work-ui-home-counts";
 import {createNavigationCountService} from "../application/navigation-counts";

@@ -1,0 +1,228 @@
+{
+  "checkedAt": "2026-10-12T01:07:50.831434+00:00",
+  "candidate": {
+    "runtime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+    "verification": "6bec217508702c495235e2a3740598d3132176d24be4d6af9cb1845bfe5c95c9",
+    "mainRuntime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+    "mainVerification": "6bec217508702c495235e2a3740598d3132176d24be4d6af9cb1845bfe5c95c9",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T19-44-51-044Z",
+    "releaseId": "2026-10-11T19-44-51-044Z",
+    "releaseReusedForIdenticalRuntime": true,
+    "verificationAmendment": "Only existing shared keyboard readiness and null-safe theme init; all runtime/native sources unchanged"
+  },
+  "release": {
+    "id": "2026-10-11T19-44-51-044Z",
+    "fileManifestSha256": "7db29e3d7e5e641451548166583c83a353770ef9e3a5b975436ed1af9f5788b5"
+  },
+  "scope": "Actual separate supplemental40 passed through normal authentication on one compiled owned cohort, with normal cleanup. Not original native/browser count inflation or full group UI acceptance.",
+  "run": "1ea062a58979",
+  "actualPassingChecks": 40,
+  "originalRequiredCheckNamesRetained": true,
+  "roomingAndRates": [
+    {
+      "scope": "result",
+      "actualPassingChecks": 10,
+      "checks": [
+        {
+          "name": "Normal password sign-in and current Company/assignment context; no test-token authentication",
+          "passed": true
+        },
+        {
+          "name": "Persisted two-room reservation begins with the original payer",
+          "passed": true
+        },
+        {
+          "name": "Authenticated stay.guest persists only selected guest; other stay, payer, frozen pricing and money unchanged",
+          "passed": true
+        },
+        {
+          "name": "Exact command replay preserves persisted state and original response",
+          "passed": true
+        },
+        {
+          "name": "Stale expectedVersion refuses without changing selected or unrelated records",
+          "passed": true
+        },
+        {
+          "name": "Missing guest refuses without altering the original rooming list",
+          "passed": true
+        },
+        {
+          "name": "Real guest of a different Property refuses without cross-hotel mutation",
+          "passed": true
+        },
+        {
+          "name": "Second room receives its own guest while retaining independent first guest and original payer/money",
+          "passed": true
+        },
+        {
+          "name": "Fresh authenticated HTTP read returns both persisted guest assignments",
+          "passed": true
+        },
+        {
+          "name": "Source and verification fingerprints unchanged",
+          "passed": true
+        }
+      ],
+      "result": {
+        "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-keyboard-repair-2026-10-12/rooming-proof/1ea062a58979/result/result.json",
+        "SHA256": "6e0b694a7d9be36de133d4eff74cc6a508f2c8004ff68b07169a482f9fef6385"
+      },
+      "helper": {
+        "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-keyboard-repair-2026-10-12/rooming-proof/attempt-04/workload.ts",
+        "SHA256": "88a2535a68990fee103780b1e5577010e8bf0f06706a8437a4aec82c44779c74"
+      }
+    },
+    {
+      "scope": "rates-result",
+      "actualPassingChecks": 30,
+      "checks": [
+        {
+          "name": "Normal password sign-in and current Company/assignment context; no test-token authentication",
+          "passed": true
+        },
+        {
+          "name": "Authenticated rate save persists seasonal dates, extra adult, child band, package and collection policy",
+          "passed": true
+        },
+        {
+          "name": "Daily calendar override persists through the command envelope",
+          "passed": true
+        },
+        {
+          "name": "Authenticated family quote combines extra adult, child, daily rate, service and VAT with exact minor-unit totals and package inclusion",
+          "passed": true
+        },
+        {
+          "name": "Later rate/package edits preserve persisted booking prices and original payer/guest-account/Finance data",
+          "passed": true
+        },
+        {
+          "name": "Persisted company contract rate retains its party reference and exact authenticated staff quote",
+          "passed": true
+        },
+        {
+          "name": "Persisted agent contract rate retains its party reference and exact authenticated staff quote",
+          "passed": true
+        },
+        {
+          "name": "Anonymous public offers include the published public package and exclude company/agent rates; direct private-rate quote refuses",
+          "passed": true
+        },
+        {
+          "name": "Inactive persisted restriction refuses quote without records, version or financial changes",
+          "passed": true
+        },
+        {
+          "name": "Base stop-sell persisted restriction refuses quote without records, version or financial changes",
+          "passed": true
+        },
+        {
+          "name": "Base closed arrival persisted restriction refuses quote without records, version or financial changes",
+          "passed": true
+        },
+        {
+          "name": "Base closed departure persisted restriction refuses quote without records, version or financial changes",
+          "passed": true
+        },
+        {
+          "name": "Before season persisted restriction refuses quote without records, version or financial changes",
+          "passed": true
+        },
+        {
+          "name": "After season persisted restriction refuses quote without records, version or financial changes",
+          "passed": true
+        },
+        {
+          "name": "Minimum stay persisted restriction refuses quote without records, version or financial changes",
+          "passed": true
+        },
+        {
+          "name": "Maximum stay persisted restriction refuses quote without records, version or financial changes",
+          "passed": true
+        },
+        {
+          "name": "Calendar closed arrival persisted override refuses quote atomically",
+          "passed": true
+        },
+        {
+          "name": "Calendar closed departure persisted override refuses quote atomically",
+          "passed": true
+        },
+        {
+          "name": "Calendar stop-sell persisted override refuses quote atomically",
+          "passed": true
+        },
+        {
+          "name": "Unpriced child age refuses rather than inventing a price",
+          "passed": true
+        },
+        {
+          "name": "Combined adults and children above persisted room capacity refuse",
+          "passed": true
+        },
+        {
+          "name": "Real report UI uses the current authenticated Property and preserves original phone booking room nights and quoted amount",
+          "passed": true
+        },
+        {
+          "name": "Actual daily CSV download matches report rows, minor-unit header, UTF8 BOM, CRLF and filename",
+          "passed": true
+        },
+        {
+          "name": "Actual pace CSV download retains observed values and leaves unknown history blank",
+          "passed": true
+        },
+        {
+          "name": "Actual report drill-down requests authorized entries and shows the right drawer without inventing postings",
+          "passed": true
+        },
+        {
+          "name": "Anonymous report request refuses before returning hotel finance",
+          "passed": true
+        },
+        {
+          "name": "Maintenance removes remaining saleable family capacity; early release refuses atomically before independent inspection",
+          "passed": true
+        },
+        {
+          "name": "Repair completer cannot self-inspect; a separate normal-password reviewer independently completes inspection",
+          "passed": true
+        },
+        {
+          "name": "Inspected repair release restores saleable capacity, returns dirty room to its new arrival cycle, preserves money and replays once",
+          "passed": true
+        },
+        {
+          "name": "Runtime and verification source fingerprints unchanged",
+          "passed": true
+        }
+      ],
+      "result": {
+        "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-keyboard-repair-2026-10-12/rooming-proof/1ea062a58979/rates-result/result.json",
+        "SHA256": "aa382cbae3a85a152ab528429fb72849023fa08e0f7ecf056c34b8aa86de51e4"
+      },
+      "helper": {
+        "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-keyboard-repair-2026-10-12/rooming-proof/attempt-04/rates-workload.ts",
+        "SHA256": "188b213f8ba58e45eb104844696bfc6345c753b57ae533d8bad91bd0202581da"
+      }
+    }
+  ],
+  "groupUi": {
+    "passed": false,
+    "actualPassingChecks": 0,
+    "failure": "expect(locator).toHaveCount(expected) failed\n\nLocator:  locator('summary').filter({ hasText: 'Create group block' })\nExpected: 1\nReceived: 0\nTimeout:  5000ms\n\nCall log:\n  - Expect \"toHaveCount\" locator('summary').filter({ hasText: 'Create group block' }) with timeout 5000ms\n  - waiting for locator('summary').filter({ hasText: 'Create group block' })\n    - waiting for \"http://dev-pms.localhost:3104/booking-test/expense-40fbb825-4b5d-456d-b950-4911f2410b76/holding/reservations?property=property-4a9ad81aeb290460cb46d9d5c152cb42\" navigation to finish...\n    - navigated to \"http://dev-pms.localhost:3104/login?next=%2Fbooking-test%2Fexpense-40fbb825-4b5d-456d-b950-4911f2410b76%2Fholding%2Freservations%3Fproperty%3Dproperty-4a9ad81aeb290460cb46d9d5c152cb42\"\n    13 \u00d7 locator resolved to 0 elements\n       - unexpected value \"0\"\n",
+    "rawResult": {
+      "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-keyboard-repair-2026-10-12/rooming-proof/1ea062a58979/group-ui-result/result.json",
+      "SHA256": "e7974a5071b023091f5c53cc2cbdbd74f09e2a503c27fbc5d3a57462f039c4a1"
+    },
+    "scope": "Currently observed normal route redirects to owned PMS Front login; authenticated reachability investigation is separate"
+  },
+  "ownedCleanup": {
+    "run": "1ea062a58979",
+    "destroyed": true,
+    "processesExited": true,
+    "checkedAt": "2026-10-12T00:52:21.298Z"
+  },
+  "wholePlanAccepted": false
+}

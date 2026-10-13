@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { currencyDefinition, currencyDefinitions, currencyScale, convertWithRates, decimalUnits, unitsDecimal, type ManualRate } from '@/lib/company-money';
+import { currencyDefinition, currencyDefinitions, currencyScale, convertWithRates, decimalUnits, unitsDecimal, type ManualRate } from "@/lib/finance/company-money";
 import { preferenceSchema, manualRateSchema, currencyScaleSchema, conversionSchema, moneyIdentitySchema, type SnapshotInput, type CarryInput, type ReversalInput, type SnapshotSource, type CarrySource, type SnapshotPlan, type CarryPlan } from '../domain/company-money';
 import type { WorkContext } from '@/server/modules/identity_access/public/authorization';
 import type { FinanceError } from '../domain/invoice-line-revision';
@@ -143,18 +143,34 @@ export function createCompanyMoney(ports: CompanyMoneyPorts) {
             throw ports.error(409, "CURRENCY_SCALE_LOCKED", "Currency precision cannot change after setup.");
         return ports.commitScale({ actor, input, key, now });
     }
+    function planSnapshot(input: SnapshotInput, customScale: number | undefined, rates: ManualRate[]): SnapshotPlan {
+        moneyIdentitySchema.extend({ currency: conversionSchema.shape.currency }).parse({ ...input, amountUnits: String(input.amountUnits) });
+        const configuredScale = currencyScale(input.currency, customScale);
+        if (input.currencyScale !== undefined && input.currencyScale !== configuredScale)
+            throw ports.error(422, "CURRENCY_SCALE_MISMATCH", `A ${input.currency} transaction must use ${configuredScale} decimal places.`);
+        const converted = convertWithRates({ amountUnits: input.amountUnits, sourceCurrency: input.currency, sourceScale: configuredScale,
+            targetCurrency: "USD", targetScale: 2, date: input.transactionDate, rates });
+        if (!converted)
+            throw ports.error(422, "MANUAL_RATE_REQUIRED", `A confirmed manual ${input.currency}/USD rate is required.`);
+        return { currency: input.currency, amountUnits: String(input.amountUnits), usdUnits: String(converted.amountUnits), currencyScale: configuredScale, rateId: converted.sourceRate.id === 'USD' ? null : converted.sourceRate.id, usedLatestFallback: converted.usedLatestFallback, capturedAt: ports.now() };
+    }
     async function snapshotMoney(actor: MoneyActor, input: SnapshotInput): Promise<SnapshotPlan> {
         moneyIdentitySchema.extend({ currency: conversionSchema.shape.currency }).parse({ ...input, amountUnits: String(input.amountUnits) });
         const customScale = await ports.scale(actor.companyId, input.currency);
+        // Preserve validation before the rate read for existing single-snapshot callers.
         const configuredScale = currencyScale(input.currency, customScale?.scale);
         if (input.currencyScale !== undefined && input.currencyScale !== configuredScale)
             throw ports.error(422, "CURRENCY_SCALE_MISMATCH", `A ${input.currency} transaction must use ${configuredScale} decimal places.`);
-        const scale = configuredScale;
-        const converted = convertWithRates({ amountUnits: input.amountUnits, sourceCurrency: input.currency, sourceScale: scale,
-            targetCurrency: "USD", targetScale: 2, date: input.transactionDate, rates: await ports.rates(actor.companyId) });
-        if (!converted)
-            throw ports.error(422, "MANUAL_RATE_REQUIRED", `A confirmed manual ${input.currency}/USD rate is required.`);
-        return { currency: input.currency, amountUnits: String(input.amountUnits), usdUnits: String(converted.amountUnits), currencyScale: scale, rateId: converted.sourceRate.id === 'USD' ? null : converted.sourceRate.id, usedLatestFallback: converted.usedLatestFallback, capturedAt: ports.now() };
+        return planSnapshot(input, customScale?.scale, await ports.rates(actor.companyId));
+    }
+    /** Fresh Company facts are shared only by this explicit batch, never another invocation. */
+    async function snapshotMoneyBatch(actor: MoneyActor, inputs: readonly SnapshotInput[]): Promise<SnapshotPlan[]> {
+        if (!inputs.length) return [];
+        for (const input of inputs)
+            moneyIdentitySchema.extend({ currency: conversionSchema.shape.currency }).parse({ ...input, amountUnits: String(input.amountUnits) });
+        const scales = await ports.scales(actor.companyId, [...new Set(inputs.map(input => input.currency))]);
+        const rates = await ports.rates(actor.companyId);
+        return inputs.map(input => planSnapshot(input, scales.find(row => row.currency === input.currency)?.scale, rates));
     }
     async function snapshotMoneyCarry(actor: MoneyActor, input: CarryInput): Promise<CarryPlan> {
         moneyIdentitySchema.parse({ ...input, amountUnits: String(input.amountUnits) });
@@ -185,6 +201,6 @@ export function createCompanyMoney(ports: CompanyMoneyPorts) {
             throw ports.error(422, "INVALID_REVERSAL_AMOUNT", "The reversal exceeds the positive original money evidence.");
         return { currency: original.currency, currencyScale: Number(original.currency_scale), rateId: original.fx_rate_id, usedLatestFallback: original.used_latest_fallback, amountUnits: String(-amount), usdUnits: '0', capturedAt: ports.now() };
     }
-    return { quoteMoneyConversion, moneyContext, saveCurrencyPreference, confirmManualRate, configureCurrencyScale, snapshotMoney, snapshotMoneyCarry, snapshotMoneyReversal };
+    return { quoteMoneyConversion, moneyContext, saveCurrencyPreference, confirmManualRate, configureCurrencyScale, snapshotMoney, snapshotMoneyBatch, snapshotMoneyCarry, snapshotMoneyReversal };
 }
 

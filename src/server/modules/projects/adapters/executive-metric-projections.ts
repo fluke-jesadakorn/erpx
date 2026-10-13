@@ -2,7 +2,7 @@ import { inventoryExecutiveOwnerProjections as financeProjectionSources } from "
 import { inventoryExecutiveOwnerProjections as people_payrollProjectionSources } from "../../people_payroll/public/inventory-executive-owner-projections";
 import { readMetricSources } from '@/server/modules/runtime/public/executive/metric-sources';
 import "server-only";
-import { type Breakdown, type Filters, type MetricId } from "@/lib/executive/canvas";
+import { type Breakdown, type Filters, type MetricId } from "@/lib/shared/executive/canvas";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from '@/server/modules/runtime/public/runtime/types';
 import { projectDependencyBlockerCohort, projectMilestoneOverdueCohort } from '@/server/modules/runtime/public/executive/project-milestone-access';

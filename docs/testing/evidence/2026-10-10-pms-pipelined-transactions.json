@@ -1,0 +1,66 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "status": "206 focused native regressions passed; unchanged full capacity and final acceptance pending",
+  "driver": "pg 8.23.0",
+  "officialSource": "https://node-postgres.com/features/pipelining",
+  "semantics": {
+    "ownerOptIn": "PMS pipelineBatches",
+    "serializable": true,
+    "sameClientSqlOrder": true,
+    "settleBeforeErrorRollbackRelease": true,
+    "firstOriginalSqlError": true,
+    "propertyLocksRetained": true,
+    "expectedVersionRetained": true,
+    "permissionsReceiptsRetained": true,
+    "ordinaryBatchesSequential": true,
+    "allOwnershipAndParametersValidatedBeforeDispatch": true
+  },
+  "red": {
+    "failed": 3,
+    "passed": 1,
+    "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-property-index-pool16/pipeline-red.log"
+  },
+  "green": {
+    "passed": 206,
+    "files": 6,
+    "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-property-index-pool16/pipeline-green.log"
+  },
+  "previousBrowser": {
+    "runtimeFingerprint": "af30fde194c712084e6d3abba50d293615e40c0b50362a9481570171c51349af",
+    "verificationFingerprint": "c4ec958db15429f895694e483fd658c03897ee9acc98800189d1334b967a86c8",
+    "passedCases": 2,
+    "interrupted": "SIGINT before transport candidate change",
+    "cleanupFailures": 0,
+    "countsAsFinalAcceptance": false,
+    "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-10T09-43-16-960Z/receipt.json"
+  },
+  "pending": [
+    "Static checks and isolated release",
+    "Unchanged full compiled capacity",
+    "Whole native/security/recovery",
+    "178 required browser and 38 route cases",
+    "Final mock pilot and environment"
+  ],
+  "static": {
+    "typecheck": true,
+    "lintErrors": 0,
+    "existingLintWarnings": 3,
+    "architecture": true,
+    "documentation": true
+  },
+  "candidate": {
+    "runtimeFingerprint": "540ac35fabccd740a0a304facd334889023f0980c31608d6b170be28855093c4",
+    "verificationFingerprint": "539f621d654adf0208ba4035e8b9bd1f06720c9147d9eb1a4f3661b8123822d9",
+    "release": "2026-10-10T09-53-46-626Z",
+    "isolatedBuildPassed": true
+  },
+  "capacity": {
+    "passed": false,
+    "guestP95Ms": 2272.183209,
+    "reservationP95Ms": 1518.280292,
+    "invalidSamples": 0,
+    "ownedDatabasesDestroyed": 8,
+    "evidence": "docs/testing/evidence/2026-10-10-pms-pipelined-capacity.json"
+  }
+}

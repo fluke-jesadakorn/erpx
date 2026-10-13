@@ -1,12 +1,12 @@
-import { FeaturePage } from "@/components/features/feature-page";
-import { FinanceRecordWorkspace } from "@/components/finance/finance-record-workspace";
+import { FeaturePage } from "@/components/shared/features/feature-page";
+import { FinanceRecordWorkspace } from "@/components/records/loaders/finance--finance-record-workspace";
 import {requireWorkContext,publicScope} from "@/server/modules/identity_access/public/authorization";
-import {workspaceBase} from '@/lib/workspace';
+import {workspaceBase} from "@/lib/work_projection/workspace";
 import {supplierBatchWorkspace} from "@/server/modules/procurement/public/supplier-payments";
-import {SupplierBatchConsole} from '@/components/modules/supplier-batch-console';
+import { SupplierBatchConsole } from "@/components/records/loaders/modules--supplier-batch-console";
 import {pageError} from "@/server/modules/work_projection/public/page-error";
-import {RecordDocumentPanel} from '@/components/attachments/record-document-panel';
-import {hasPermission} from '@/lib/permissions';
+import { RecordDocumentPanel } from "@/components/records/loaders/attachments--record-document-panel";
+import {hasPermission} from "@/lib/identity_access/permissions";
 export const dynamic='force-dynamic';
 export default async function SupplierBatchPage({params}:{params:Promise<{holdingSlug:string;id:string}>}) {
  const {holdingSlug,id}=await params,actor=await requireWorkContext(holdingSlug),base=workspaceBase(publicScope(actor));

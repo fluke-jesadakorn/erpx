@@ -1,6 +1,6 @@
-import { FeaturePage } from "@/components/features/feature-page";
+import { FeaturePage } from "@/components/shared/features/feature-page";
 import { FinanceWorkspace, financeStyles as styles } from "@/components/finance/finance-workspace";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { groupFinanceWorkspace } from "@/server/modules/finance/public/finance-workspace";
 import { IntercompanyConsole } from "@/components/finance/intercompany-console";

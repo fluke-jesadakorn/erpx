@@ -1,8 +1,8 @@
 type CalendarReadResult<Row> = {
     results: Row[];
 };
-import { expandCalendarSeries } from "@/lib/calendar-recurrence";
-import { localDateTimeToInstant, localMinuteAt } from "@/lib/calendar-timeline";
+import { expandCalendarSeries } from "@/lib/work_projection/calendar-recurrence";
+import { localDateTimeToInstant, localMinuteAt } from "@/lib/work_projection/calendar-timeline";
 import type { Row } from "../../domain/calendar/reminders";
 import type { Clock, IdentifierSource } from "../../../shared/application/ports";
 export type CalendarRemindersUnit<Effect> = {

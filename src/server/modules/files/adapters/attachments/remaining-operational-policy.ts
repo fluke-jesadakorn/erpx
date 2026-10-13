@@ -2,7 +2,7 @@ import "server-only";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { ApiError } from "@/server/modules/runtime/public/http";
 import type { SqlDatabase, SqlStatement } from "@/server/modules/runtime/public/runtime/types";
-import type { AttachmentOperation, AttachmentPolicy } from "@/server/attachments/types";
+import type { AttachmentOperation, AttachmentPolicy } from "@/server/modules/files/public/attachments/types";
 import { createOperationalAttachmentPolicy, type OperationalAttachmentUnit } from "../../application/attachments/remaining-operational-policy";
 import { OperationalAttachmentInventoryFacts } from "../../../inventory/public/attachments-operational-facts";
 import { OperationalAttachmentAssetsFacts } from "../../../assets/public/attachments-operational-facts";

@@ -1,7 +1,7 @@
 import { drainSocialAgent } from "@/server/modules/collaboration/public/social-agent";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { drainRequestAi } from "@/server/modules/records/public/request-ai";
-import { registeredResources, registeredDatabases, resourceSlots, type RegistryEnv } from "@/lib/holding-registry";
+import { registeredResources, registeredDatabases, resourceSlots, type RegistryEnv } from "@/lib/runtime/holding-registry";
 import { drainExpenseAi } from "@/server/modules/people_payroll/public/expense-ai";
 import type { BetaEnvironment } from "@/server/modules/manage_erpx/public/beta-config";
 export type JobEnv = RegistryEnv & BetaEnvironment & {

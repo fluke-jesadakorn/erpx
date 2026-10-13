@@ -1,6 +1,6 @@
 "use client";
 import { useMainLandmark } from "@/components/ui/main";
-import { Button } from "@/components/ui/foundation";
+import { Button } from "@/components/ui/button";
 
 import styles from "@/app/front-access/front-access.module.css";
 import Link from "next/link";

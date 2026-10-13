@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
-import type { WorkItem } from "@/lib/work-item";
-import { hasPermission } from "@/lib/permissions";
+import type { WorkItem } from "@/lib/work_projection/work-item";
+import { hasPermission } from "@/lib/identity_access/permissions";
 
 export type LearningRow = Record<string, string | number | null>;
 export type LearningAssignment = LearningRow & { id: string; version: number; status: string; learner_id: string; created_by: string; updated_at: number; learner_eligible: number };

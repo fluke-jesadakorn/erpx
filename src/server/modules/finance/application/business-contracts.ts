@@ -5,8 +5,8 @@ import { recognitionRunSchema } from '../domain/due-inputs';
 import { billingRevisionSchema } from '../domain/business-billing-revision';
 import { businessDecisionSchema, recognitionReversalSchema, billingRevisionRequest, billingHashInput, type Row, type BillingResult, type BillingRevision } from '../domain/business-contracts';
 import { invoiceSchema, type JournalInput } from '../domain/finance';
-import { decimalToMinor } from '@/lib/finance-money';
-import { samePerson } from '@/lib/iam';
+import { decimalToMinor } from "@/lib/finance/finance-money";
+import { samePerson } from "@/lib/identity_access/iam";
 import type { WorkContext } from '../../identity_access/public/authorization';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '../../shared';
 export interface OwnerCommands<Effect> {

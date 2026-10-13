@@ -1,6 +1,6 @@
 import {z} from "zod";
-import type {WorkItem} from "@/lib/work-item";
-import {quantityMilli} from "@/lib/commerce-math";
+import type {WorkItem} from "@/lib/work_projection/work-item";
+import {quantityMilli} from "@/lib/commerce/commerce-math";
 import {BusinessRuleError} from "../../shared";
 export type PromiseRow=Record<string,string|number|null>;
 export const supplierPromiseSchema=z.object({expectedVersion:z.number().int().positive(),kind:z.enum(['confirmed','withdrawn']),confirmationDate:z.iso.date(),supplierReference:z.string().trim().min(3).max(160),evidence:z.string().trim().min(5).max(2000),attachmentSetIds:z.array(z.string().min(1)).max(10).default([]),lines:z.array(z.object({orderLineId:z.string().min(1),quantity:z.string().regex(/^\d{1,12}(\.\d{1,3})?$/),promisedDate:z.iso.date()})).max(100)});

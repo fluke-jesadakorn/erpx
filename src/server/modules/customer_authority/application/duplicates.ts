@@ -1,6 +1,6 @@
 import type { Clock } from "../../shared/application/ports";
 import type { Row } from "../../commerce/public/commerce";
-import type { WorkItem } from "@/lib/work-item";
+import type { WorkItem } from "@/lib/work_projection/work-item";
 import { duplicateChangeSchema, type DuplicateChange, type DuplicateRow } from "../domain/duplicates";
 export type DuplicateCommand = { key: string; operation: string; id: string; input: DuplicateChange };
 export type DuplicateRepository = {

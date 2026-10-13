@@ -1,5 +1,5 @@
 import "server-only";
-import { rosterMonday, type RosterWeek, type RosterShift, type RosterAssignment, type RosterRequest, type ShiftTemplate, type RosterHistory } from "@/lib/people-roster";
+import { rosterMonday, type RosterWeek, type RosterShift, type RosterAssignment, type RosterRequest, type ShiftTemplate, type RosterHistory } from "@/lib/people_payroll/people-roster";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import type { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";

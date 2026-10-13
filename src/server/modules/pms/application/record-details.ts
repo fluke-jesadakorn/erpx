@@ -1,5 +1,6 @@
+import { parseGuestAccountJson } from "@/lib/identity_access/guest-account-compat";
 import { z } from "zod";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { WorkContext } from "../../identity_access/public/authorization";
 import type { Clock } from "../../shared/application/ports";
 import type { PmsRecord, Snapshot } from "../domain/pms-model";
@@ -41,7 +42,7 @@ export function createPmsRecordDetails(ports: {
 }) {
     /** Console finance queues keep their original company-level visibility. */
     async function pmsRefundRecord(actor: WorkContext, kind: 'booking' | 'counter', id: string) {
-        ports.require(actor, 'pms.read');
+        ports.require(actor, hasPermission(actor,'pms.read') ? 'pms.read' : 'finance.read');
         if (!hasPermission(actor, 'finance.approve') || actor.branchId || actor.departmentId)
             throw ports.error(403, 'PMS_REFUND_REVIEW_FORBIDDEN', 'Finance refund review access is required.');
         const write = await ports.repository(actor);
@@ -52,7 +53,7 @@ export function createPmsRecordDetails(ports: {
         return { row: { ...row, name: kind === 'booking' ? 'Online booking refund' : 'Counter payment refund', currency: 'THB' }, refundKind: kind };
     }
     async function pmsSnapshotEntry(actor: WorkContext, id: string, documentId: string) {
-        ports.require(actor, 'pms.read');
+        ports.require(actor, hasPermission(actor,'pms.read') ? 'pms.read' : 'finance.read');
         if (!hasPermission(actor, 'pms.cashier') && !hasPermission(actor, 'pms.reports'))
             throw ports.error(403, 'PMS_DOCUMENT_FORBIDDEN', 'Document access is required.');
         const write = await ports.repository(actor);
@@ -60,7 +61,7 @@ export function createPmsRecordDetails(ports: {
         if (!doc)
             throw ports.error(404, 'DOCUMENT_NOT_FOUND', 'Property document not found.');
         await write.hotel(actor, doc.property_id);
-        const snap = JSON.parse(doc.snapshot_json) as {
+        const snap = parseGuestAccountJson(doc.snapshot_json) as {
             entries: PmsRecord<'entry'>[];
             property: {
                 currency: string;
@@ -73,7 +74,7 @@ export function createPmsRecordDetails(ports: {
         return { row: { id, name: description, description, version: entry.version, currency: snap.property.currency, date, kind, reference, net, service, tax, total, method, originalId }, related: [{ kind: 'pms_document' as const, id: documentId }] };
     }
     async function pmsControlSources(actor: WorkContext, propertyId: string, key: string, page: number) {
-        ports.require(actor, 'pms.read');
+        ports.require(actor, hasPermission(actor,'pms.read') ? 'pms.read' : 'finance.read');
         ports.require(actor, 'pms.reports');
         const control = z.enum(['receivable', 'advance', 'deposit']).parse(key), write = await ports.repository(actor), snapshot = await write.hotel(actor, propertyId), account = snapshot.property.config.accounts[control];
         const rows = (await write.controlRows({ propertyId: propertyId, account: account, offset: (page - 1) * 30 })).results;

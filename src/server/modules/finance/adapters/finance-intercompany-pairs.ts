@@ -1,7 +1,7 @@
 import "server-only";
 import type { z } from "zod";
-import { decimalToUnits } from "@/lib/finance-money";
-import { samePerson } from "@/lib/iam";
+import { decimalToUnits } from "@/lib/finance/finance-money";
+import { samePerson } from "@/lib/identity_access/iam";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";

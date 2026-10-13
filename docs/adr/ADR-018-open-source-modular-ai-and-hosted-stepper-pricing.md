@@ -8,4 +8,4 @@ Company/Holding source access applies to provider requests and the resulting pro
 
 Current gateway meters, quota/cost evidence, Sandbox invoice approval, pricing assignment and retained historical invoices are defined by [Billing](../contracts/next/billing.md), [pricing feasibility](../contracts/next/billing-pricing-hypothesis.md), and the generated [catalogue](../contracts/next/catalogue.md). The earlier unlimited-AI and USD stepper examples are historical proposals, not current behavior. A production commercial offering requires separate pricing/capacity/provider/business acceptance.
 
-The original Rust implementation and proposal remain recoverable through [the cutover references](../../CUTOVER.md). Their old workspace counts, Cargo paths and provider defaults do not describe the present 33-module catalogue.
+The original Rust implementation and proposal remain recoverable through [the cutover references](../../README.md#recovery). Their old workspace counts, Cargo paths and provider defaults do not describe the present 33-module catalogue.

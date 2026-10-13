@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { currencyDefinition } from '@/lib/company-money';
+import { currencyDefinition } from "@/lib/finance/company-money";
 const code = z.string().regex(/^[A-Z]{3}$/).refine((value) => Boolean(currencyDefinition(value)), "Use a current ISO 4217 code.");
 export const preferenceSchema = z.object({ currency: code });
 export const manualRateSchema = z.object({

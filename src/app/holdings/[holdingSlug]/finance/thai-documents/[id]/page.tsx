@@ -1,10 +1,10 @@
 import { Table as StandardTable, TableFrame } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
 import {FinanceWorkspace} from "@/components/finance/finance-workspace";
-import {ThaiDocumentControls} from "@/components/finance/finance-thai-tax-console";
-import {minorToDecimal} from "@/lib/finance-money";
-import {hasPermission} from "@/lib/permissions";
-import {workspaceBase} from "@/lib/workspace";
+import { ThaiDocumentControls } from "@/components/records/loaders/finance--finance-thai-tax-console";
+import {minorToDecimal} from "@/lib/finance/finance-money";
+import {hasPermission} from "@/lib/identity_access/permissions";
+import {workspaceBase} from "@/lib/work_projection/workspace";
 import {publicScope,requireWorkContext} from "@/server/modules/identity_access/public/authorization";
 import {thaiDocumentDetail} from "@/server/modules/finance/public/finance-thai-documents";
 import {pageError} from "@/server/modules/work_projection/public/page-error";

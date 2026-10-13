@@ -1,5 +1,5 @@
-import betaStyles from "@/components/beta/beta.module.css";
-import { JoinForm } from "@/components/beta/join-form";
+import betaStyles from "@/components/collaboration/beta.module.css";
+import { JoinForm } from "@/components/collaboration/join-form";
 export default async function Join({
   searchParams,
 }: {

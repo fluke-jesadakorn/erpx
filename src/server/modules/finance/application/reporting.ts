@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { samePerson } from '@/lib/iam';
-import { minorToDecimal } from '@/lib/finance-money';
-import { financialPresentation, type FinancialPresentationCode } from '@/lib/finance-reporting';
+import { samePerson } from "@/lib/identity_access/iam";
+import { minorToDecimal } from "@/lib/finance/finance-money";
+import { financialPresentation, type FinancialPresentationCode } from "@/lib/finance/finance-reporting";
 import type { WorkContext } from '@/server/modules/identity_access/public/authorization';
 import type { FinanceError } from '../domain/invoice-line-revision';
 import type { JournalInput, JournalLineInput } from '../domain/finance';

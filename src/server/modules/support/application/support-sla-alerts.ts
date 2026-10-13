@@ -1,6 +1,6 @@
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SupportCommandPorts, SupportCommand, SupportMutation } from "./command";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { supportAlertAcknowledgeSchema, supportAlertWorkItems, type SupportAlert, type SupportAlertAcknowledge } from "../domain/support-sla-alerts";
 export function createDrainSupportSla(ports: {
     now(): number;

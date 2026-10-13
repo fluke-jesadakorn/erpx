@@ -1,7 +1,7 @@
 import "server-only";
-import { hasPermission } from "@/lib/permissions";
-import type { OrganizationNode } from "@/lib/organization";
-import type { OrganizationAccessData } from "@/lib/organization-access";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import type { OrganizationNode } from "@/lib/organization/organization";
+import type { OrganizationAccessData } from "@/lib/organization/organization-access";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { ApiError } from "@/server/modules/runtime/public/http";

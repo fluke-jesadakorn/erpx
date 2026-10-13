@@ -1,8 +1,9 @@
+import { parseGuestAccountJson } from "@/lib/identity_access/guest-account-compat";
 import { z } from "zod";
-import { bookingOffers as evaluateOffers, bookingQuote as evaluateQuote, collectionAmounts, cancellationEligibility, roomSelectionSchema, searchSchema, type BookingSearch } from "@/lib/pms-booking-domain";
-import { availability as evaluateAvailability } from "@/lib/pms-inventory-domain";
+import { bookingOffers as evaluateOffers, bookingQuote as evaluateQuote, collectionAmounts, cancellationEligibility, roomSelectionSchema, searchSchema, type BookingSearch } from "@/lib/pms/pms-booking-domain";
+import { availability as evaluateAvailability } from "@/lib/pms/pms-inventory-domain";
 import { record, records, type Kind, type Property, type Snapshot } from "../domain/pms";
-import { executePms, PmsError, type Effects } from "@/lib/pms-engine";
+import { executePms, PmsError, type Effects } from "@/lib/pms/pms-engine";
 import { publicReservationSchema, type BookingEnv, type BookingPaymentRow, type PaymentAllocation } from "../domain/booking";
 import type { WorkContext } from "../../identity_access/public/authorization";
 import type { Clock } from "../../shared/application/ports";
@@ -154,7 +155,7 @@ export type PmsBookingUnit<Effect extends PmsBookingEffect> = {
         fact0: `${string}-${string}-${string}-${string}-${string}`;
         id: string;
         stayId: string;
-        folioId: string;
+        guestAccountId: string;
         id2: string;
         amount: number;
         now: number;
@@ -391,12 +392,12 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
                 businessDate: row.business_date,
                 state: row.state,
                 version: Number(row.version),
-                config: JSON.parse(row.config_json),
+                config: parseGuestAccountJson(row.config_json),
             },
             records: raw.map((r) => ({
                 id: r.id,
                 kind: r.kind,
-                data: JSON.parse(r.data_json),
+                data: parseGuestAccountJson(r.data_json),
                 version: Number(r.version),
                 updatedAt: Number(r.updated_at),
             })),
@@ -410,7 +411,7 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
         const hotels = await db.readPmsProperties3({});
         const approved = new Set((await db.readAttachmentPublications1({})).map(r => r.id));
         return hotels.map((r) => {
-            const c = JSON.parse(r.config_json) as Property["config"], b = c.booking!;
+            const c = parseGuestAccountJson(r.config_json) as Property["config"], b = c.booking!;
             return {
                 id: r.id,
                 name: r.name,
@@ -472,7 +473,7 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
         const [payload, signature, extra] = token.split(".");
         if (extra || !payload || !signature || !ports.same(signature, ports.sign(env.secret, payload)))
             throw ports.error(422, "PMS_QUOTE_INVALID", "Search again for a fresh quote");
-        const data = JSON.parse(ports.decode(payload)) as {
+        const data = parseGuestAccountJson(ports.decode(payload)) as {
             quote: ReturnType<typeof bookingQuote>;
             expires: number;
         };
@@ -509,8 +510,8 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
     }
     function bookingSummary(s: Snapshot, id: string, now: number) {
         const r = record(s, "reservation", id), b = s.property.config.booking, guest = record(s, "guest", r.data.guestId).data;
-        const folioIds = new Set(records(s, 'folio').filter(f => f.data.reservationId === id).map(f => f.id)), entries = records(s, 'entry'), byId = new Map(entries.map(e => [e.id, e]));
-        const postedRoomTotal = entries.filter(e => folioIds.has(e.data.folioId)).reduce((n, e) => { let current: typeof e | undefined = e; const seen = new Set<string>(); while (current && !seen.has(current.id)) {
+        const guestAccountIds = new Set(records(s, 'guest_account').filter(f => f.data.reservationId === id).map(f => f.id)), entries = records(s, 'entry'), byId = new Map(entries.map(e => [e.id, e]));
+        const postedRoomTotal = entries.filter(e => guestAccountIds.has(e.data.guestAccountId)).reduce((n, e) => { let current: typeof e | undefined = e; const seen = new Set<string>(); while (current && !seen.has(current.id)) {
             seen.add(current.id);
             if (current.data.sourceKey.startsWith('night:'))
                 return n + e.data.total;
@@ -529,13 +530,13 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
                 contactPhone: b?.contactPhone ?? "",
             },
             guest: { name: guest.name, email: guest.email },
-            paymentState: records(s, "entry").some(e => e.data.sourceKey?.startsWith("online-payment:") && records(s, "folio").some(f => f.id === e.data.folioId && f.data.reservationId === id)) ? "received" as const : "pay_at_hotel" as const,
+            paymentState: records(s, "entry").some(e => e.data.sourceKey?.startsWith("online-payment:") && records(s, "guest_account").some(f => f.id === e.data.guestAccountId && f.data.reservationId === id)) ? "received" as const : "pay_at_hotel" as const,
             currency: s.property.config.currency,
             version: r.version,
             history: r.data.history ?? [],
             total: records(s, "stay").filter(st => st.data.reservationId === id && !["cancelled", "no_show"].includes(st.data.state)).reduce((n, st) => n + st.data.prices.reduce((sum, p) => sum + p.total, 0), 0),
-            advance: records(s, "folio").filter(f => f.data.reservationId === id).reduce((n, f) => n + f.data.advance, 0),
-            folioDue: records(s, "folio").filter(f => f.data.reservationId === id).reduce((n, f) => n + f.data.due, 0),
+            advance: records(s, "guest_account").filter(f => f.data.reservationId === id).reduce((n, f) => n + f.data.advance, 0),
+            guestAccountDue: records(s, "guest_account").filter(f => f.data.reservationId === id).reduce((n, f) => n + f.data.due, 0),
             policy: r.data.bookingPolicy,
             rooms: records(s, "stay")
                 .filter((st) => st.data.reservationId === id)
@@ -543,7 +544,7 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
                 id: st.id,
                 typeId: st.data.typeId,
                 rateId: st.data.rateId,
-                folioId: st.data.folioId,
+                guestAccountId: st.data.guestAccountId,
                 policy: st.data.bookingPolicy ?? r.data.bookingPolicy,
                 roomName: record(s, "room_type", st.data.typeId).data.name,
                 arrival: st.data.arrival,
@@ -572,7 +573,7 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
                     throw ports.error(409, "PMS_KEY_REUSED", "Use a new request key for a different booking");
                 if (!old.response_json)
                     throw ports.error(409, "PMS_ALREADY_CONFIRMED", "This booking was already confirmed. Use your confirmation email to manage it");
-                return JSON.parse(old.response_json) as BookingReceipt;
+                return parseGuestAccountJson(old.response_json) as BookingReceipt;
             }
             const quoted = readQuote(v.quoteToken, env, now);
             if (quoted.propertyId !== s.property.id)
@@ -615,9 +616,9 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
                 return response;
             }
             const attemptId = ports.uuid(), expiresAt = now + 30 * 60 * 1000;
-            const allocation = records(s, 'stay').filter(st => st.data.reservationId === result.id).sort((a, b) => a.id.localeCompare(b.id)).map(st => ({ stayId: st.id, folioId: st.data.folioId, amount: collectionAmounts(st.data.prices.reduce((sum, n) => sum + n.total, 0), st.data.bookingPolicy?.collection).dueNow })).filter(a => a.amount > 0);
+            const allocation = records(s, 'stay').filter(st => st.data.reservationId === result.id).sort((a, b) => a.id.localeCompare(b.id)).map(st => ({ stayId: st.id, guestAccountId: st.data.guestAccountId, amount: collectionAmounts(st.data.prices.reduce((sum, n) => sum + n.total, 0), st.data.bookingPolicy?.collection).dueNow })).filter(a => a.amount > 0);
             const settings = await tx.readPosSettings1({ companyId: s.property.companyId });
-            const clearing = settings ? (JSON.parse(settings.accounts_json).stripe || s.property.config.accounts.edc) : s.property.config.accounts.edc;
+            const clearing = settings ? (parseGuestAccountJson(settings.accounts_json).stripe || s.property.config.accounts.edc) : s.property.config.accounts.edc;
             const methods = [...(connection!.card_enabled ? ['card'] : []), ...(connection!.promptpay_enabled ? ['promptpay'] : [])];
             await tx.writePmsBookingPayments1({ attemptId: attemptId, id: s.property.id, id2: result.id, companyId: s.property.companyId, slug: slug, fact5: connection!.account_id, fact6: connection!.livemode, dueNow: fresh.dueNow, expiresAt: expiresAt, now: now, now2: now, fact11: JSON.stringify(allocation), fact12: JSON.stringify(methods), clearing: clearing });
             const money = await tx.snapshotMoney({ companyId: s.property.companyId }, { sourceType: 'pms_booking_payment', sourceId: attemptId, amountKind: 'requested', transactionDate: s.property.businessDate, currency: 'THB', amountUnits: String(fresh.dueNow) });
@@ -647,7 +648,7 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
             if (!guest?.email)
                 throw ports.error(409, 'PMS_GUEST_EMAIL_REQUIRED', 'Guest email is required for booking payment');
             const success = `${env.origin}/book/${encodeURIComponent(slug)}/${encodeURIComponent(row.property_id)}?attempt=${encodeURIComponent(token)}`;
-            const session = await ports.stripeCall(Boolean(row.livemode), 'checkout/sessions', { method: 'POST', account: row.account_id, key: `pms-booking-${id}`, body: { mode: 'payment', customer_email: guest.email, ...Object.fromEntries((JSON.parse(row.methods_json) as string[]).map((method, index) => [`payment_method_types[${index}]`, method])), 'line_items[0][price_data][currency]': 'thb', 'line_items[0][price_data][unit_amount]': String(row.amount_minor), 'line_items[0][price_data][product_data][name]': 'Hotel reservation', 'line_items[0][quantity]': '1', 'metadata[pms_booking_payment_id]': id, 'payment_intent_data[metadata][pms_booking_payment_id]': id, success_url: success, cancel_url: success, expires_at: String(Math.floor((Number(row.expires_at) + 60000) / 1000)) } });
+            const session = await ports.stripeCall(Boolean(row.livemode), 'checkout/sessions', { method: 'POST', account: row.account_id, key: `pms-booking-${id}`, body: { mode: 'payment', customer_email: guest.email, ...Object.fromEntries((parseGuestAccountJson(row.methods_json) as string[]).map((method, index) => [`payment_method_types[${index}]`, method])), 'line_items[0][price_data][currency]': 'thb', 'line_items[0][price_data][unit_amount]': String(row.amount_minor), 'line_items[0][price_data][product_data][name]': 'Hotel reservation', 'line_items[0][quantity]': '1', 'metadata[pms_booking_payment_id]': id, 'payment_intent_data[metadata][pms_booking_payment_id]': id, success_url: success, cancel_url: success, expires_at: String(Math.floor((Number(row.expires_at) + 60000) / 1000)) } });
             if (typeof session.url !== 'string' || new URL(session.url).hostname !== 'checkout.stripe.com')
                 throw ports.error(502, 'PMS_CHECKOUT_URL_INVALID', 'Stripe did not return a valid checkout URL');
             await db.writePmsBookingPayments2({ id: session.id, url: session.url, fact2: ports.clock.now(), id2: id });
@@ -666,7 +667,7 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
             throw ports.error(404, 'PMS_PAYMENT_NOT_FOUND', 'Booking payment not found');
         const s = await bookingSnapshot(db, row.property_id);
         const receipt = await db.readPmsBookingReceipts2({ reservation_id: row.reservation_id, id: row.id });
-        return { ...bookingSummary(s, row.reservation_id, now), state: row.status, refundState: row.refund_state, checkoutUrl: row.status === 'payment_pending' ? row.checkout_url : null, attemptToken: token, expiresAt: Number(row.expires_at), managementToken: receipt ? JSON.parse(receipt.response_json).managementToken : undefined };
+        return { ...bookingSummary(s, row.reservation_id, now), state: row.status, refundState: row.refund_state, checkoutUrl: row.status === 'payment_pending' ? row.checkout_url : null, attemptToken: token, expiresAt: Number(row.expires_at), managementToken: receipt ? parseGuestAccountJson(receipt.response_json).managementToken : undefined };
     }
     async function reconcileBookingPayment(db: PmsBookingRepository<Effect>, id: string, env: BookingEnv, now = ports.clock.now()) {
         const row = await db.readPmsBookingPayments1({ id: id });
@@ -737,14 +738,14 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
                 reservation.version++;
                 reservation.updatedAt = now;
                 let allocated = 0;
-                for (const allocation of JSON.parse(current.allocation_json) as PaymentAllocation[]) {
-                    const outcome = executePms(s, 'payment.stripe', { folioId: allocation.folioId, amount: allocation.amount, reference: String(paymentIntentId) }, { userId: 'system:stripe', now, uuid: ports.uuid, independent: () => false });
+                for (const allocation of parseGuestAccountJson(current.allocation_json) as PaymentAllocation[]) {
+                    const outcome = executePms(s, 'payment.stripe', { guestAccountId: allocation.guestAccountId, amount: allocation.amount, reference: String(paymentIntentId) }, { userId: 'system:stripe', now, uuid: ports.uuid, independent: () => false });
                     record(s, 'entry', outcome.id).data.sourceKey = `online-payment:${current.id}`;
                     record(s, 'entry', outcome.id).data.providerPaymentOffset = allocated;
                     allocated += allocation.amount;
                     await tx.persistPmsRecords(s, before);
                     await tx.persistPmsEffects({ companyId: current.company_id, userId: 'system:stripe' } as WorkContext, s, outcome.effects);
-                    await tx.writePmsBookingAllocations1({ fact0: ports.uuid(), id: id, stayId: allocation.stayId, folioId: allocation.folioId, id2: outcome.id, amount: allocation.amount, now: now });
+                    await tx.writePmsBookingAllocations1({ fact0: ports.uuid(), id: id, stayId: allocation.stayId, guestAccountId: allocation.guestAccountId, id2: outcome.id, amount: allocation.amount, now: now });
                 }
                 if (allocated !== Number(current.amount_minor))
                     throw ports.error(409, 'PMS_PAYMENT_ALLOCATION_CHANGED', 'Receipt allocations must equal the original payment');
@@ -758,7 +759,7 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
                     executePms(s, 'reservation.cancel', { id: current.reservation_id, reason: paid ? 'Online payment could not be assigned' : 'Online payment period expired', fee: 0 }, { userId: 'system:stripe', now, uuid: ports.uuid, independent: () => false });
                 if (paid) {
                     const first = records(s, 'stay').find(st => st.data.reservationId === current.reservation_id)!;
-                    const outcome = executePms(s, 'payment.unallocated', { folioId: first.data.folioId, amount: Number(current.amount_minor), reference: String(paymentIntentId) }, { userId: 'system:stripe', now, uuid: ports.uuid, independent: () => false });
+                    const outcome = executePms(s, 'payment.unallocated', { guestAccountId: first.data.guestAccountId, amount: Number(current.amount_minor), reference: String(paymentIntentId) }, { userId: 'system:stripe', now, uuid: ports.uuid, independent: () => false });
                     record(s, 'entry', outcome.id).data.sourceKey = `online-payment:${current.id}`;
                     await tx.persistPmsRecords(s, before);
                     await tx.persistPmsEffects({ companyId: current.company_id, userId: 'system:stripe' } as WorkContext, s, outcome.effects);
@@ -814,7 +815,7 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
             const documents = (await tx.readPmsDocuments1({ id: s.property.id, id2: s.property.id, id3: id })).results;
             const pending = await tx.readPmsBookingPayments5({ id: id });
             const summary = bookingSummary(s, id, now);
-            return { ...summary, editableRates: records(s, "rate").filter(r => r.data.active && r.data.market === "public" && s.property.config.booking?.rateIds.includes(r.id)).map(r => ({ id: r.id, typeId: r.data.typeId, name: r.data.name, roomName: record(s, "room_type", r.data.typeId).data.name })), refundState: refunds[0]?.state ?? null, refunds, documents, dueAtHotel: Math.max(0, summary.total - summary.postedRoomTotal + summary.folioDue - summary.advance), pendingChange: pending ? { attemptToken: paymentToken(pending.id, await ports.bookingEnv()), expiresAt: Number(pending.expires_at) } : null };
+            return { ...summary, editableRates: records(s, "rate").filter(r => r.data.active && r.data.market === "public" && s.property.config.booking?.rateIds.includes(r.id)).map(r => ({ id: r.id, typeId: r.data.typeId, name: r.data.name, roomName: record(s, "room_type", r.data.typeId).data.name })), refundState: refunds[0]?.state ?? null, refunds, documents, dueAtHotel: Math.max(0, summary.total - summary.postedRoomTotal + summary.guestAccountDue - summary.advance), pendingChange: pending ? { attemptToken: paymentToken(pending.id, await ports.bookingEnv()), expiresAt: Number(pending.expires_at) } : null };
         });
     }
     async function cancelPublicReservation(db: PmsBookingRepository<Effect>, slug: string, token: string, env: BookingEnv, now = ports.clock.now()) {

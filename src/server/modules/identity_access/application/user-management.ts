@@ -1,4 +1,4 @@
-import {managementChange,attributeAccess,personRuleFields,ruleMatches,type ManagementChange,type ManagementSnapshot,type AttributeDefinition,type LocalGroup,type AccessPolicy,type PolicyAttachment} from '@/lib/user-management';import {hasPermission} from '@/lib/permissions';import type {IamActor} from '../domain/iam-actor';import {grantInput,type GrantInput} from '../domain/iam-service';import {fail,checkedAttributeValue,commandPermission,managementImpact,type ManagementObjectKind} from '../domain/user-management';import type {IdentityError} from './authorization';
+import {managementChange,attributeAccess,personRuleFields,ruleMatches,type ManagementChange,type ManagementSnapshot,type AttributeDefinition,type LocalGroup,type AccessPolicy,type PolicyAttachment} from "@/lib/identity_access/user-management";import {hasPermission} from "@/lib/identity_access/permissions";import type {IamActor} from '../domain/iam-actor';import {grantInput,type GrantInput} from '../domain/iam-service';import {fail,checkedAttributeValue,commandPermission,managementImpact,type ManagementObjectKind} from '../domain/user-management';import type {IdentityError} from './authorization';
 export type ManagementObject<Definition>={id:string;version:number;definition:Definition;author_id?:string;parent_id?:string};
 export type ManagementValueRow={company_id:string;target:'person'|'group'|'unit';object_id:string;version:number;definition:Record<string,unknown>};
 export type ManagementCandidate={id:string;company_id:string;person_id:string;user_id:string;attachment_id:string;definition:GrantInput&{blockedReason?:string};status:string;review_id:string|null;review_status:string|null;review_version:number|null;assignment_id:string|null;enabled:boolean};
@@ -180,7 +180,7 @@ async function managementSnapshot(
       const companyIt = a.target === "person" && !a.ownerRole && actor.role === "it_admin" && actor.scopeKind === "holding" && hasPermission(actor, "people.custom_attributes.write");
       return { ...a, canView: access.canView || companyIt, canEdit: companyIt || access.canEdit && (a.target !== "person" || hasPermission(actor, "people.custom_attributes.write")) };
     })
-    .filter((a) => a.canView || hasPermission(actor, "iam.roles.manage"));
+    .filter((a) => a.canView || hasPermission(actor, "iam.attributes.manage"));
   const visibleFields = new Set(
     attributes.filter((a) => a.canView).map((a) => a.id),
   );
@@ -298,7 +298,7 @@ async function managementSnapshot(
       hasPermission(actor, "iam.manage") ||
       hasPermission(actor, "iam.directory.manage"),
     canDefine:
-      actor.scopeKind === "holding" && hasPermission(actor, "iam.roles.manage"),
+      actor.scopeKind === "holding" && hasPermission(actor, "iam.attributes.manage"),
     canManagePeople: hasPermission(actor, "people.manage"),
     canManagePersonAttributes: hasPermission(actor, "people.custom_attributes.write"),
     canManageOrganization: hasPermission(actor, "organization.manage"),

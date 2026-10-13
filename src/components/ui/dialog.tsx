@@ -4,7 +4,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { X } from "lucide-react";
 import { useRef, useState, useEffect, type ReactNode } from "react";
 import type { UiAppearance } from "./appearance";
-import { cn } from "@/lib/ui";
+import { cn } from "@/lib/shared/ui";
 import { buttonVariants } from "./button-variants";
 import "./dialog.css";
 import { useEmbeddedRecord } from "@/components/records/record-context";
@@ -37,6 +37,7 @@ export function Dialog({
   dismissDisabled = false,
   closeLabel = "Close dialog",
   showHeader = true,
+  retainFormContents = false,
   finalFocus,
   "data-testid": testId,
 }: {
@@ -52,11 +53,17 @@ export function Dialog({
   dismissDisabled?: boolean;
   closeLabel?: string;
   showHeader?: boolean;
+  /** Keep a visited form mounted; unopened tools still load only when opened. */
+  retainFormContents?: boolean;
   finalFocus?: () => HTMLElement | null;
   "data-testid"?: string;
 }) {
   const popup = useRef<HTMLDivElement>(null);
   const embedded = useEmbeddedRecord();
+  const [hasOpened, setHasOpened] = useState(retainFormContents && open);
+  if (retainFormContents && open && !hasOpened) setHasOpened(true);
+  const keepFormMounted = retainFormContents && presentation === "form-drawer" && hasOpened;
+  // Embedded editors retain their existing explicit-discard behavior.
   if (embedded && presentation === "form-drawer") return open ? <EmbeddedForm title={title} onClose={onClose} dismissDisabled={dismissDisabled}>{children}</EmbeddedForm> : null;
   const panel = presentation !== "default";
   const positions = {
@@ -82,7 +89,7 @@ export function Dialog({
         }
       }}
     >
-      <DialogPrimitive.Portal>
+      <DialogPrimitive.Portal keepMounted={keepFormMounted}>
         <DialogPrimitive.Backdrop
           data-slot="dialog-backdrop"
           className="fixed inset-0 z-[80] bg-slate-950/60"
@@ -142,7 +149,7 @@ export function Dialog({
                 bodyClassName,
               )}
             >
-              {open && children}
+              {(open || keepFormMounted) && children}
             </div>
           </DialogPrimitive.Popup>
         </DialogPrimitive.Viewport>

@@ -3,16 +3,16 @@ import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { TimeText } from "@/components/time/time-preference-context";
+import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 import { useState } from "react";
 import { Combobox } from "@/components/ui/popups";
-import { workFetch } from "@/lib/work-fetch";
+import { workFetch } from "@/lib/work_projection/work-fetch";
 import type { previewServiceTeam } from "@/server/modules/support/public/service-teams";
 import { Dialog } from "@/components/ui/dialog";
 import { useHydrated } from "@/components/ui/use-hydrated";
-import { useStaffCommand } from "@/components/modules/staff-work-controls";
+import { useStaffCommand } from "@/components/work_projection/staff-work-controls";
 import { useRecoverableDraft } from "@/components/ui/use-recoverable-draft";
-import { serviceCategories, categoryLabel } from "@/lib/employee-services";
+import { serviceCategories, categoryLabel } from "@/lib/people_payroll/employee-services";
 import type { serviceTeamOptions } from "@/server/modules/support/public/service-team-options";
 import styles from "./services.module.css";
 import { Card } from "@/components/ui/foundation";

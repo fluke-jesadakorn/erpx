@@ -62,8 +62,8 @@ employee และ people_manager จำกัดตามแผนก/สาข
 bun run seed:organization:preview  # อ่านแผนก่อนทำงาน
 bun run seed:organization:acme     # เพิ่มเฉพาะรายการที่ยังไม่มี
 bun run seed:organization:verify   # ตรวจอย่างเดียว ไม่เขียนฐานข้อมูล
-bun run test:integration tests/acme-organization-fixture.test.ts tests/organization-chart.test.ts
-bun run test:e2e:dev tests/e2e/acme-organization-data.spec.ts tests/e2e/organization-chart.spec.ts
+bun run test:integration tests/unit/organization/acme-organization-fixture.test.ts tests/unit/organization/organization-chart.test.ts
+bun run test:e2e:dev tests/e2e/organization/acme-organization-data.spec.ts tests/e2e/organization/organization-chart.spec.ts
 ```
 
 จำกัดการทำงานกับ local development PostgreSQL บน 5434 และ database prefix `erpx_dev_` เท่านั้น ไม่รวมไว้ใน `seed:local` โดยอัตโนมัติ ต้องมี CEO, Level catalog และสาขาเดิมที่ตั้งไว้แล้ว

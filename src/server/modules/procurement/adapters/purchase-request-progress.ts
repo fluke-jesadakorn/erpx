@@ -3,7 +3,7 @@ import { platformOwnerProjectionSources as financePlatformSources } from "../../
 import "server-only";
 import type {WorkContext} from "../../identity_access/public/authorization";
 import type {SqlDatabase} from "../../runtime/public/runtime/types";
-import {hasPermission} from "@/lib/permissions";
+import {hasPermission} from "@/lib/identity_access/permissions";
 import {getEmployeeRequest} from "../../records/public/employee-requests";
 import {ApiError} from "../../runtime/public/http";
 import {BusinessRuleError} from "../../shared";

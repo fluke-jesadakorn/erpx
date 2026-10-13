@@ -4,10 +4,10 @@ import {FinanceBillingRevision} from "./finance-billing-revision";
 import {FinancePrepareOn,financeDraftCommand} from "./finance-prepare-on";
 import { useState,useContext } from "react";
 import {EmbeddedRecord} from "@/components/records/record-context";
-import {recordCanonicalHref} from "@/lib/record-drawer";
+import {recordCanonicalHref} from "@/lib/records/record-drawer";
 import { useRouter } from "next/navigation";
-import { financeCommandFetch as workFetch } from "@/lib/finance-command-fetch";
-import { financeCsvRows } from "@/lib/finance-csv";
+import { financeCommandFetch as workFetch } from "@/lib/finance/finance-command-fetch";
+import { financeCsvRows } from "@/lib/finance/finance-csv";
 import type {
   BusinessContractInput,
   RecognitionItem,

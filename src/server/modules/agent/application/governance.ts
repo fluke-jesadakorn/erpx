@@ -2,7 +2,7 @@ import {z} from 'zod';
 import type {WorkContext} from '../../identity_access/public/authorization';
 type Row=Record<string,unknown>;
 import {hasModuleAccess} from '@/data/module-access';
-import {hasPermission} from '@/lib/permissions';
+import {hasPermission} from "@/lib/identity_access/permissions";
 import {BusinessRuleError,type Clock} from '../../shared';
 import {agentSourceAllowed} from '../domain/source-policy';
 import {reason,version,agentSchema,versionSchema,poolSchema,assignSchema,actionSchema,type AssistantGovernance} from '../domain/governance';

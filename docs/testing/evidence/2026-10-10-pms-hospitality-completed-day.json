@@ -1,0 +1,237 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-10-10",
+  "complete": false,
+  "scope": "Enhanced compiled hotel/POS/Finance browser matrix with post-completion Night Audit visual reload; focused evidence only, not all PMS acceptance.",
+  "candidate": {
+    "id": "2026-10-09T17-38-18-796Z",
+    "sourceFingerprint": "085f513697d1108dd99329767081c3cad886bde53921f4b3fd20c655fc2d3929",
+    "fileManifestSha256": "4265e6d214c278e3d83138961272c9d5701ef21372864bdf974d7d8bb8a3baca"
+  },
+  "verificationFingerprint": "70d9e20721f89298ebfa4c14ae94bfac6c158c3fb1a855c45c4b5afc8ac9ab5f",
+  "sourceAndAssertionsUnchanged": true,
+  "browser": [
+    {
+      "project": "desktop",
+      "cohort": "030fae1736f6",
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "report": {
+        "path": ".scratch/dev/pms-full-guest-journey/hospitality-desktop.json",
+        "sha256": "1ec91910f9a5f0ea2c4bb213bc27b83545fb5ef3d2c23da34de2245641865da5"
+      },
+      "completedPage": {
+        "path": ".scratch/dev/pms-full-guest-journey/hospitality-desktop-results/demo-hospitality-setup-fro-943ba-out-and-recover-Night-Audit-desktop/completed-business-date.png",
+        "sha256": "12f1ad837e8d724a77cbfc81bc067fe6200b9e86b6000ea811f5c19b982cdf86"
+      },
+      "workerRecovery": {
+        "sourceFingerprint": "085f513697d1108dd99329767081c3cad886bde53921f4b3fd20c655fc2d3929",
+        "softwareVersion": "release-085f513697d1108dd99329767081c3cad886bde53921f4b3fd20c655fc2d3929",
+        "fileManifestSha256": "4265e6d214c278e3d83138961272c9d5701ef21372864bdf974d7d8bb8a3baca",
+        "firstWorkerPid": 13458,
+        "restartedWorkerPid": 13747,
+        "blocked": {
+          "job": {
+            "state": "blocked",
+            "error_code": "CONFLICT"
+          },
+          "property": {
+            "state": "closing",
+            "business_date": "2026-10-10"
+          }
+        },
+        "completed": {
+          "job": {
+            "state": "completed",
+            "error_code": null
+          },
+          "property": {
+            "state": "open",
+            "business_date": "2026-10-11"
+          }
+        }
+      },
+      "ownedCohortRemoved": true
+    },
+    {
+      "project": "mobile",
+      "cohort": "44e505669ba0",
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "report": {
+        "path": ".scratch/dev/pms-full-guest-journey/hospitality-mobile.json",
+        "sha256": "ace5b84a915e68ab64da7cce2f497fcaaff97a2c3be3afd01aebccba142927df"
+      },
+      "completedPage": {
+        "path": ".scratch/dev/pms-full-guest-journey/hospitality-mobile-results/demo-hospitality-setup-fro-943ba-out-and-recover-Night-Audit-mobile/completed-business-date.png",
+        "sha256": "5691fe1fded78ea07b03fe6158e1b94c71ef84442e20beb82ac9c5a2cb7b2b9d"
+      },
+      "workerRecovery": {
+        "sourceFingerprint": "085f513697d1108dd99329767081c3cad886bde53921f4b3fd20c655fc2d3929",
+        "softwareVersion": "release-085f513697d1108dd99329767081c3cad886bde53921f4b3fd20c655fc2d3929",
+        "fileManifestSha256": "4265e6d214c278e3d83138961272c9d5701ef21372864bdf974d7d8bb8a3baca",
+        "firstWorkerPid": 13982,
+        "restartedWorkerPid": 14327,
+        "blocked": {
+          "job": {
+            "state": "blocked",
+            "error_code": "CONFLICT"
+          },
+          "property": {
+            "state": "closing",
+            "business_date": "2026-10-10"
+          }
+        },
+        "completed": {
+          "job": {
+            "state": "completed",
+            "error_code": null
+          },
+          "property": {
+            "state": "open",
+            "business_date": "2026-10-11"
+          }
+        }
+      },
+      "ownedCohortRemoved": true
+    }
+  ],
+  "visualInspection": {
+    "desktop": true,
+    "mobile": true,
+    "assertions": [
+      "next Business Date visible after reload",
+      "closing banner absent",
+      "prior day marked Completed"
+    ]
+  },
+  "remaining": [
+    "paid online guest/provider process recovery",
+    "full final-candidate gates and per-feature acceptance",
+    "write p95 below 2 seconds"
+  ],
+  "environment": {
+    "localDevelopmentHealth": 200,
+    "publicDevelopmentHealth": 200,
+    "privateProductionHealth": 200,
+    "publicPage": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms/night-audit",
+    "publicPageObservation": "Normal login: existing session expired; authenticated public-development appearance unverified.",
+    "developmentPid": 72619,
+    "postgresPid": 909,
+    "productionOrStagingConfigurationChanged": false
+  },
+  "native": {
+    "filesPassed": 3,
+    "casesPassed": 52,
+    "failed": 0,
+    "log": {
+      "path": ".scratch/dev/pms-full-guest-journey/native-combined-final.log",
+      "sha256": "46c673f6b23902e3b89a3554beee2f01fa0300951a8ab7ab70359a1c712811f3"
+    },
+    "receipts": {
+      "migration-upgrade.json": {
+        "receipt": {
+          "path": ".scratch/dev/engineering-completion/runs/pms-full-lifecycle-2026-10-10-70d9e207/migration-upgrade.json",
+          "sha256": "0b143bbaea0a0b8b7b991388b182aa3e5dff9a4468bd9029233bb02cac793160"
+        },
+        "result": {
+          "version": 1,
+          "sourceFingerprint": "085f513697d1108dd99329767081c3cad886bde53921f4b3fd20c655fc2d3929",
+          "compiledCandidate": true,
+          "softwareVersion": "release-085f513697d1108dd99329767081c3cad886bde53921f4b3fd20c655fc2d3929",
+          "fileManifestSha256": "4265e6d214c278e3d83138961272c9d5701ef21372864bdf974d7d8bb8a3baca",
+          "tracks": 8,
+          "baselineBoundary": "0920",
+          "beforeSha256": "af337e02d3c37ec1850c587d7a7b7292f83352e2eb08169edcf2104f16aa7eec",
+          "afterSha256": "af337e02d3c37ec1850c587d7a7b7292f83352e2eb08169edcf2104f16aa7eec",
+          "priorReceiptsPreserved": true,
+          "backfillCount": 1,
+          "replayBackfillCount": 0,
+          "originalSha256": "59dd804c5b7c95cd200c1721d56c0029e4dce429d0d47a7e3ee46a98900769ad",
+          "thumbnailSha256": "87dbc0bd56806d3fa24c62d5400c2cbedd57e12cf1a4093837e3181a91419cf0",
+          "postedEvidenceImmutable": true,
+          "checksumsVerified": true,
+          "quotaDeltaBytes": 0,
+          "pmsPriceBackfill": {
+            "count": 1,
+            "originalQuoteRetained": true,
+            "unquotedNotInvented": true,
+            "ownerHistoryRetained": true,
+            "replayCount": 0
+          },
+          "scanner": "declared clean interface fixture; real scanner is verified separately"
+        }
+      },
+      "encrypted-recovery.json": {
+        "receipt": {
+          "path": ".scratch/dev/engineering-completion/runs/pms-full-lifecycle-2026-10-10-70d9e207/encrypted-recovery.json",
+          "sha256": "0aa2c2b49d03c5d90d1b3a0b36111dd3f95e719abcc8cc02a52f67017ced3ce4"
+        },
+        "result": {
+          "sourceFingerprint": "085f513697d1108dd99329767081c3cad886bde53921f4b3fd20c655fc2d3929",
+          "softwareVersion": "release-085f513697d1108dd99329767081c3cad886bde53921f4b3fd20c655fc2d3929",
+          "compiledCandidate": true,
+          "fileManifestSha256": "4265e6d214c278e3d83138961272c9d5701ef21372864bdf974d7d8bb8a3baca",
+          "databaseCount": 8,
+          "tracks": [
+            "CONTROL_DB",
+            "CONTROL_READ_DB",
+            "H001_DB",
+            "H001_READ_DB",
+            "H002_DB",
+            "H002_READ_DB",
+            "H003_DB",
+            "H003_READ_DB"
+          ],
+          "holdingFileStores": 3,
+          "allHoldingFilesSha256": "63e841d7c103124597f8d9983718fb9f8e4503e87f55b94c37e47d0fdd0f1fee",
+          "tableCount": 2375,
+          "tableDigestSha256": "4e353d911d792b0e5328c932a93871626066ade7c10424a94a30aa0e3258fc4e",
+          "ciphertextSha256": "756a5fe301e2aad4c28dbbcb9478190a4eae2d7f67af2903a72b7083788ea0a6",
+          "sourceBytesSha256": "04e1714dfb954cafd89463a425f91802cfe07435fa151d0c780a026002b0c858",
+          "restored": true,
+          "compatibleRollback": true,
+          "incompatibleRollbackRejected": true,
+          "ciphertextTamperingRejected": true,
+          "legal": {
+            "originalSha256": "0960f2cf18897b3d6e37ce84ca7606e225dbb8a0d6062c4eff0be55a4f8908d6",
+            "originalBytesRetained": true,
+            "historyRetained": true,
+            "aclRetained": true,
+            "unassignedReaderRefused": true,
+            "overlappingHoldsRetained": true,
+            "queuedJobRetained": true,
+            "commandReplayWithoutDuplicateEffects": true,
+            "scanner": "declared scanner fixture; actual scanner is covered by compiled browser UAT"
+          },
+          "scope": "Isolated PostgreSQL18.6 and local FileStore; age encryption; no installed environment or external device"
+        }
+      }
+    },
+    "diagnosticFailure": {
+      "log": {
+        "path": ".scratch/dev/pms-full-guest-journey/native-combined.log",
+        "sha256": "d7dad0ff80678c2a1ebf4b59c5a2088d337685a1a886b425720e0c848157dc08"
+      },
+      "reason": "Missing evidence output directory caused receipt write ENOENT in two cases; directory created and all three test files rerun successfully."
+    }
+  },
+  "checks": {
+    "typecheck": {
+      "path": ".scratch/dev/pms-full-guest-journey/final-typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "lint": {
+      "path": ".scratch/dev/pms-full-guest-journey/final-lint.log",
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    },
+    "documentation": {
+      "path": ".scratch/dev/pms-full-guest-journey/docs-check-final.log",
+      "sha256": "6cf297b7526ac1a7581bd4ec9aeeb486422823c5f87874f69026239dcd05b48b"
+    }
+  },
+  "relatedFullLifecycleReceipt": "docs/testing/evidence/2026-10-10-pms-full-guest-journey.json",
+  "aggregateFinalAcceptance": false
+}

@@ -4,7 +4,7 @@ import { billingCorrectionSchema, billingCorrectionDecisionSchema, type Row } fr
 import { billingCorrectionExternalCredit } from '@/server/modules/commerce/public/finance-refund-source';
 import 'server-only';
 import { z } from 'zod';
-import { minorToDecimal } from '@/lib/finance-money';
+import { minorToDecimal } from "@/lib/finance/finance-money";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase, SqlStatement } from "@/server/modules/runtime/public/runtime/types";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";

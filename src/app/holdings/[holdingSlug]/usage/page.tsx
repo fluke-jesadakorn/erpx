@@ -1,5 +1,5 @@
-import { UsageConsole } from "@/components/usage/usage-console";
-import { workspaceBase } from "@/lib/workspace";
+import { UsageConsole } from "@/components/billing/usage/usage-console";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { administrationAccess } from "@/server/modules/runtime/public/administration";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { accessPage } from "@/server/modules/work_projection/public/page-error";

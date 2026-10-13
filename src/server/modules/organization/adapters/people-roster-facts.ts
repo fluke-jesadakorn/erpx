@@ -1,7 +1,7 @@
 import { platformOwnerProjectionSources as identity_accessPlatformSources } from "../../identity_access/public/platform-owner-projection-sources";
 import { platformOwnerProjectionSources as people_payrollPlatformSources } from "../../people_payroll/public/platform-owner-projection-sources";
 import "server-only";
-import { type RosterDepartment } from "@/lib/people-roster";
+import { type RosterDepartment } from "@/lib/people_payroll/people-roster";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import type { RosterGap } from '../../people_payroll/public/roster-worker-contract';
 export function rosterOrganizationFacts(database: SqlDatabase) {

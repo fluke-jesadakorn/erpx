@@ -1,0 +1,497 @@
+{
+  "run": "0ab0fb1823a3",
+  "sourceFingerprint": "3c36a39688b14bbdd5ca72d5e867b2ee72a9c2d4dfaa4529fdb54058b87d983c",
+  "verificationFingerprint": "f8961418a0554779426680161d691fe6f85a679d1bcf1f3d810c1d348d5bdf74",
+  "release": {
+    "id": "2026-10-09T22-30-35-622Z",
+    "fileManifestSha256": "36ca59874395a6774a5e2be601cec5877e1003df642ece8e0afb44a66a470a1a"
+  },
+  "scope": "Release HTTP: 3 × 200 rooms, 730-day synthetic closed stay/reservation/account metadata; 20 distinct normal staff accounts. Historic revenue is not invented.",
+  "applicationPoolMax": 8,
+  "controlPoolMax": 5,
+  "jobsHoldingPoolMax": 1,
+  "counts": [
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    },
+    {
+      "rooms": 200,
+      "archived_stays": 73000,
+      "reservations": 73000,
+      "archived_accounts": 73000
+    }
+  ],
+  "accounts": 20,
+  "rounds": 10,
+  "durationMs": 89550,
+  "readCount": 840,
+  "writeCount": 843,
+  "readP95Ms": 310.6004580000008,
+  "writeP95Ms": 2223.9424169999984,
+  "coreReadCount": 840,
+  "coreWriteCount": 400,
+  "financialEnabled": true,
+  "financialWriteCount": 200,
+  "financialWriteP95Ms": 1639.6565829999963,
+  "financialOperations": [
+    {
+      "operation": "shift.open",
+      "count": 20,
+      "p95Ms": 1411.0816659999982
+    },
+    {
+      "operation": "charge.add",
+      "count": 20,
+      "p95Ms": 1623.9874999999956
+    },
+    {
+      "operation": "payment.receive",
+      "count": 40,
+      "p95Ms": 1714.3714159999945
+    },
+    {
+      "operation": "payment.deposit",
+      "count": 20,
+      "p95Ms": 1612.2580830000006
+    },
+    {
+      "operation": "refund.request",
+      "count": 20,
+      "p95Ms": 1393.2164170000033
+    },
+    {
+      "operation": "refund.approve",
+      "count": 20,
+      "p95Ms": 245.82079099999828
+    },
+    {
+      "operation": "refund.pay",
+      "count": 20,
+      "p95Ms": 1644.5272079999995
+    },
+    {
+      "operation": "shift.close",
+      "count": 20,
+      "p95Ms": 1413.813374999998
+    },
+    {
+      "operation": "shift.review",
+      "count": 20,
+      "p95Ms": 255.56137499999022
+    }
+  ],
+  "financialReconciliation": {
+    "history": {
+      "records": 657000,
+      "versions": "657000"
+    },
+    "balances": {
+      "accounts": 20,
+      "due": "0",
+      "advance": "200000",
+      "deposit": "40000"
+    },
+    "cash": {
+      "shifts": 20,
+      "cash": "475400",
+      "reviewed": true
+    },
+    "receipts": {
+      "receipts": 60,
+      "refunds": 20,
+      "received": "495400",
+      "refunded": "20000",
+      "settled": true
+    },
+    "journals": {
+      "debit": "999280",
+      "credit": "999280"
+    }
+  },
+  "operationalEnabled": true,
+  "operationalWriteCount": 220,
+  "operationalWriteP95Ms": 1493.2330419999926,
+  "operationalOperations": [
+    {
+      "operation": "reservation.create",
+      "count": 20,
+      "p95Ms": 1467.455415999997
+    },
+    {
+      "operation": "stay.assign",
+      "count": 20,
+      "p95Ms": 1413.5407919999998
+    },
+    {
+      "operation": "stay.check_in",
+      "count": 20,
+      "p95Ms": 1418.881167000014
+    },
+    {
+      "operation": "stay.move",
+      "count": 20,
+      "p95Ms": 1439.7081250000047
+    },
+    {
+      "operation": "stay.change_dates",
+      "count": 20,
+      "p95Ms": 1471.4017080000049
+    },
+    {
+      "operation": "stay.preview_checkout",
+      "count": 20,
+      "p95Ms": 1667.9077499999985
+    },
+    {
+      "operation": "shift.open",
+      "count": 20,
+      "p95Ms": 1412.0375829999975
+    },
+    {
+      "operation": "payment.receive",
+      "count": 20,
+      "p95Ms": 1693.55799999999
+    },
+    {
+      "operation": "stay.check_out",
+      "count": 20,
+      "p95Ms": 1420.9450829999987
+    },
+    {
+      "operation": "shift.close",
+      "count": 20,
+      "p95Ms": 1397.721333999987
+    },
+    {
+      "operation": "shift.review",
+      "count": 20,
+      "p95Ms": 228.38937499999884
+    }
+  ],
+  "operationalReconciliation": {
+    "occupancy": {
+      "stays": 20,
+      "completed": true
+    },
+    "balances": {
+      "accounts": 20,
+      "due": "0",
+      "advance": "0",
+      "deposit": "0"
+    },
+    "cash": {
+      "shifts": 20,
+      "cash": "7062000",
+      "reviewed": true
+    },
+    "rooms": {
+      "rooms": 40,
+      "dirty": true
+    },
+    "charges": {
+      "charges": 20,
+      "total": "7062000"
+    },
+    "receipts": {
+      "receipts": 20,
+      "received": "7062000",
+      "settled": true
+    },
+    "journals": {
+      "debit": "22185280",
+      "credit": "22185280"
+    },
+    "history": {
+      "records": 657000,
+      "versions": "657000"
+    }
+  },
+  "closingEnabled": true,
+  "closingWriteCount": 23,
+  "closingWriteP95Ms": 1497.7062920000026,
+  "closingOperations": [
+    {
+      "operation": "guest_account.close",
+      "count": 20,
+      "p95Ms": 1497.7062920000026
+    },
+    {
+      "operation": "night.start",
+      "count": 3,
+      "p95Ms": 207.55837499999325
+    }
+  ],
+  "closingReconciliation": {
+    "invoices": {
+      "invoices": 20,
+      "total": "7062000",
+      "outstanding": "0",
+      "paid": true
+    },
+    "days": {
+      "hotels": 3,
+      "advanced": true
+    },
+    "nights": {
+      "nights": 3,
+      "capacity": 600,
+      "sold": 20,
+      "completed": true
+    },
+    "journals": {
+      "debit": "22185280",
+      "credit": "22185280"
+    },
+    "history": {
+      "records": 657000,
+      "versions": "657000"
+    }
+  },
+  "failedSamples": 0,
+  "sameProcesses": true,
+  "unchanged": true,
+  "samplesSha256": "82ad298c0114aa435f5a18d6ec62d70e57a595763c89f581e53e2708a3ae1970",
+  "passed": false,
+  "complete": false,
+  "acceptance": false,
+  "financialCorrectnessPassed": true,
+  "financialPerformancePassed": true,
+  "operationalCorrectnessPassed": true,
+  "operationalPerformancePassed": true,
+  "closingCorrectnessPassed": true,
+  "closingPerformancePassed": true,
+  "nativeCases": {
+    "pms": 62,
+    "booking": 37,
+    "workCache": 26,
+    "companyMoneyService": 10,
+    "applicationUnit": 56,
+    "companyMoneySemanticUnit": 12,
+    "companyMoneyUnit": 3,
+    "total": 206
+  },
+  "checks": {
+    "typecheck": true,
+    "lint": true,
+    "lintExistingWarnings": 3,
+    "architecture": true,
+    "isolatedReleaseBuild": true
+  },
+  "coreOperations": [
+    {
+      "operation": "guest.save",
+      "count": 200,
+      "p95Ms": 1985.6092500000013,
+      "attemptsP95": 8
+    },
+    {
+      "operation": "reservation.create",
+      "count": 200,
+      "p95Ms": 2256.3771670000006,
+      "attemptsP95": 10
+    }
+  ],
+  "writeContext": {
+    "change": "Ordinary PMS/POS transaction-local write context is installed by the existing scoped Property FOR UPDATE query through a materialized CTE. Property creation retains the standalone setter.",
+    "preserved": [
+      "Property session advisory coordination and SERIALIZABLE transaction",
+      "Company/Branch scope, expectedVersion before dependencies",
+      "Fresh IAM checks, command receipt, original replay/envelope and owner rollback",
+      "Booking observers and work-cache trigger lock order",
+      "Finance dated/source evidence and complete account invariants"
+    ],
+    "notClaimed": "One removed SQL per attempt does not establish an overall core latency improvement."
+  },
+  "limitation": "Original 400 core writes still fail p95 < 2000 ms; reservation.create also fails individually. Focused checks do not constitute full same-candidate native/browser/mock-pilot acceptance. Remaining generic command readers require invariant-specific review.",
+  "logs": {
+    "result": {
+      "path": ".scratch/dev/pms-write-context-scale-release-0ab0fb1823a3/result.json",
+      "sha256": "21eedda69f75e7f2af2a93d557be109a1fe13256141759477040b2d39d22e1d4"
+    },
+    "samples": {
+      "path": ".scratch/dev/pms-write-context-scale-release-0ab0fb1823a3/samples.jsonl",
+      "sha256": "82ad298c0114aa435f5a18d6ec62d70e57a595763c89f581e53e2708a3ae1970"
+    },
+    "timings": {
+      "path": ".scratch/dev/pms-write-context-scale-release-0ab0fb1823a3/timings.jsonl",
+      "sha256": "a1c0778da93a110e20a266e9393a800330c701792cec58a7f72e63b24a99ebe0"
+    },
+    "requests": {
+      "path": ".scratch/dev/pms-write-context-scale-release-0ab0fb1823a3/requests.jsonl",
+      "sha256": "09db605ee4d436adb0d9bb817c510cd98a81fb7070876d6d538a2d24a88d0d7f"
+    },
+    "coreOperations": {
+      "path": ".scratch/dev/pms-write-context-scale-release-0ab0fb1823a3/core-operations.json",
+      "sha256": "ddecbd372283b38ab4240777837d6ffa9ec045776d7558f90f0eea1f1f724216"
+    },
+    "native": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-write-context-native.log",
+      "sha256": "c8251b1cd021f01fd81086ec7f9f0b49898aa05ba7ea5786eaf31811940389ff"
+    },
+    "unit": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-write-context-unit.log",
+      "sha256": "8e683858e864e856cbd0d5013a493bc8d6af33239914109e61ddc4cc409d8e9f"
+    },
+    "typecheck": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-write-context-typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "lint": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-write-context-lint.log",
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    },
+    "architecture": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-write-context-architecture.log",
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    "build": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-write-context-build.log",
+      "sha256": "c90a18f8ad53b5af95fb92cff69a53c6a0c33830ba4f01e3eaee3efa49b4cad6"
+    },
+    "prepare": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-write-context-prepare.log",
+      "sha256": "6c6b3bf9327fce8c6db2cb5594619cbb50989a4b0f1b13c41d2434d2d28cf7fc"
+    },
+    "start": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-write-context-start.log",
+      "sha256": "bffe5752cab1f38cd0272a5a3187bb9a18c1d347da05f8790eeb3cedeefc5401"
+    },
+    "performance": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-write-context-performance.log",
+      "sha256": "dda6ac5748fa3f1646c595cf1ad37ac18770cd2520508bd75325021c690e5cb3"
+    },
+    "databaseBefore": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-write-context-db-before.json",
+      "sha256": "1020b4e499f595dc6e6c30106d6d9e905b22304140ffa5df4298960d4980b282"
+    },
+    "databaseAfter": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-write-context-db-after.json",
+      "sha256": "1020b4e499f595dc6e6c30106d6d9e905b22304140ffa5df4298960d4980b282"
+    },
+    "destroy": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-write-context-destroy.log",
+      "sha256": "6070fc40c5700b0270cf233bf40b10667111193815c6ccb9f057de64754e5346"
+    },
+    "docs": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-write-context-docs.log",
+      "sha256": "f29a6104ab9bdaa027513048161a8fda93f7b0e26cc70e7f566bdf28fa272c93"
+    },
+    "finalHealth": {
+      "path": ".scratch/dev/pms-full-guest-journey/pms-write-context-final-health.json",
+      "sha256": "a73b90174487cd8004db6b12b37c0b6f45bfa37a40e775c7c85cdf95eda5d543"
+    }
+  },
+  "databaseCounters": {
+    "before": {
+      "run": "0ab0fb1823a3",
+      "stats": [
+        {
+          "datid": 607434431,
+          "deadlocks": "0",
+          "conflicts": "0"
+        }
+      ],
+      "triggers": [
+        {
+          "tgname": "release_configuration_changed"
+        },
+        {
+          "tgname": "work_cache_change"
+        },
+        {
+          "tgname": "work_cache_pms_booking_observation"
+        },
+        {
+          "tgname": "work_cache_truncate"
+        }
+      ]
+    },
+    "after": {
+      "run": "0ab0fb1823a3",
+      "stats": [
+        {
+          "datid": 607434431,
+          "deadlocks": "0",
+          "conflicts": "0"
+        }
+      ],
+      "triggers": [
+        {
+          "tgname": "release_configuration_changed"
+        },
+        {
+          "tgname": "work_cache_change"
+        },
+        {
+          "tgname": "work_cache_pms_booking_observation"
+        },
+        {
+          "tgname": "work_cache_truncate"
+        }
+      ]
+    }
+  },
+  "environment": {
+    "checkedAt": "2026-10-09T22:37:10.018920+00:00",
+    "health": [
+      {
+        "url": "http://127.0.0.1:3100/api/health",
+        "status": "200",
+        "exit": 0
+      },
+      {
+        "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+        "status": "200",
+        "exit": 0
+      },
+      {
+        "url": "http://127.0.0.1:3101/api/health",
+        "status": "200",
+        "exit": 0
+      }
+    ],
+    "ownedSimulationRemoved": true,
+    "ownedDatabaseCountRemoved": 8,
+    "simulationPortReleased": 3104,
+    "developmentListener": {
+      "pid": 58873,
+      "parentPid": 81955,
+      "cwd": "/Users/fluke/Desktop/Work/erpx"
+    },
+    "postgresListenerPid": 909,
+    "publicPage": {
+      "entry": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms",
+      "resolved": "https://dev-pms.jesadakorn.com/acme/acme-co/holding",
+      "authenticated": true,
+      "observed": "Company Today with Online status, hotel readiness and arrival/departure/housekeeping queues; normal existing session, read-only."
+    },
+    "stagingAccess": false,
+    "productionChanged": false,
+    "cleanupGuard": "Initial destroy without port configuration was rejected with BROWSER_SIMULATION_PORT_MISMATCH before mutation. Explicit matching owned port/profile then stopped only the owned processes and removed its eight databases."
+  },
+  "documentation": {
+    "passed": true,
+    "markdownFiles": 248,
+    "localLinks": 1290,
+    "ledgerFiles": 213
+  },
+  "diffCheck": {
+    "affectedFilesPassed": true,
+    "wholeDirtyTreePassed": false,
+    "existingTrailingWhitespace": [
+      "src/app/book/[holdingSlug]/page.tsx:17",
+      "src/components/pms/workspace.tsx:3679",
+      "src/server/modules/pms/application/reports.ts:80"
+    ],
+    "note": "No runtime source was changed after the frozen performance run to conceal unrelated dirty-tree whitespace."
+  }
+}

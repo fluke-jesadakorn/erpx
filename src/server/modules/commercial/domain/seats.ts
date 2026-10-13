@@ -1,4 +1,4 @@
-import {monthBounds} from '@/lib/billing';
+import {monthBounds} from "@/lib/billing/billing";
 export type SeatInterval = [number,number];
 export type HoldingSeatMeter = {
   coverage: "measured" | "unavailable";

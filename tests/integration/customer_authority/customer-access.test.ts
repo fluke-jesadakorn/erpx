@@ -1,0 +1,91 @@
+import {beforeAll,beforeEach,it,expect,vi} from 'vitest';
+import {applyMigrations,env} from "../../support/runtime-env";
+import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
+import {saveMaster,saveOrder,orderSchema,transitionOrder} from "../../../src/server/modules/commerce/public/commerce";
+import {changeCustomerAccess,customerAccessHistory,customerAccessWork,customerAccessWorkspace,requestCustomerAccess} from "../../../src/server/modules/customer_authority/public/customer-access";
+import {customerPortalCommand,customerPortalProjection} from "../../../src/server/modules/customer_360/public/customer-portal";
+import {customerPortalQuickAccess} from "../../../src/server/modules/work_projection/public/portal-quick-access";
+import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from "../../support/helpers/attachment-v2";
+import {authorizePortalCollaborationAttachmentTarget} from "../../../src/server/modules/files/public/attachments/portal-collaboration-policy";
+import {attachmentPolicy} from "../../../src/server/modules/files/public/attachments/policy";
+import {customerPortalBindingScope,customerPortalWorkContext} from "../../../src/server/modules/customer_360/public/customer-portal-attachments";
+vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+let f:Awaited<ReturnType<typeof expenseFixture>>,orderId:string,requester:typeof f.owner,reviewer:typeof f.head;
+beforeAll(async()=>{enableAttachmentV2ForTest();await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
+beforeEach(async()=>{
+ f=await expenseFixture();requester={...f.owner,role:'sales_manager',branchId:null,departmentId:null};requester.assignmentId=await f.grant(requester,'sales_manager');reviewer={...f.head,role:'sales_manager',branchId:null,departmentId:null};reviewer.assignmentId=await f.grant(reviewer,'sales_manager');
+ const party=await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Portal customer'},key()),warehouse=await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Portal warehouse'},key()),product=await saveMaster(f.owner,'products',null,{sku:key(),name:'Portal product',price:'10'},key()),order=await saveOrder(requester,null,orderSchema.parse({kind:'quote',partyId:party.id,warehouseId:warehouse.id,orderDate:'2026-09-20',dueDate:'2026-09-25',lines:[{productId:product.id,quantity:'1',price:'10',taxBps:0}]}),key());
+ orderId=String(order.id);await transitionOrder(requester,orderId,{action:'submit',expectedVersion:1},key());await transitionOrder(reviewer,orderId,{action:'approve',expectedVersion:2},key());
+});
+const input=()=>({orderId,sourceVersion:3,email:`customer-${f.company}@example.com`,expiresAt:Date.parse('2026-12-01T00:00:00Z'),reason:'Customer authority verified against the approved quotation contact'});
+it('requires an independent current reviewer, exposes Work and retains immutable decisions',async()=>{
+ const body=input(),k=key(),created=await requestCustomerAccess(requester,body,k),id=String(created.id);expect(await requestCustomerAccess(requester,body,k)).toEqual(created);
+ await expect(changeCustomerAccess(requester,id,{action:'approve',expectedVersion:1,reason:'Self approval attempt'},key())).rejects.toMatchObject({code:'INDEPENDENT_APPROVER_REQUIRED'});expect((await customerAccessWork(reviewer)).find(x=>x.id===id)).toMatchObject({queue:'todo',canAct:true});expect(await changeCustomerAccess(reviewer,id,{action:'approve',expectedVersion:1,reason:'Verified recipient controls this customer account'},key())).toMatchObject({status:'approved',version:2});expect((await customerAccessHistory(requester,id)).events).toHaveLength(2);await expect(db.prepare('DELETE FROM customer_access_events WHERE binding_id=?').bind(id).run()).rejects.toThrow('CUSTOMER_ACCESS_HISTORY_IMMUTABLE');
+});
+it('binds the first verified identity, records allowlisted reads and excludes a second account',async()=>{
+ const body=input(),id=String((await requestCustomerAccess(requester,body,key())).id);await changeCustomerAccess(reviewer,id,{action:'approve',expectedVersion:1,reason:'Independent authority evidence accepted'},key());const first=await customerPortalProjection(db,{userId:'customer-user-1',email:body.email});expect(first.items[0]).toMatchObject({binding_id:id,order_id:orderId,state:'confirmed'});expect(first.items[0]).not.toHaveProperty('note');expect((await customerPortalProjection(db,{userId:'customer-user-1',email:body.email})).items).toHaveLength(1);expect((await customerPortalProjection(db,{userId:'customer-user-2',email:body.email})).items).toEqual([]);expect((await customerAccessHistory(requester,id)).reads).toHaveLength(2);
+});
+it('builds customer shortcuts only from currently approved documents',async()=>{
+ const body=input(),id=String((await requestCustomerAccess(requester,body,key())).id);
+ await changeCustomerAccess(reviewer,id,{action:'approve',expectedVersion:1,reason:'Verified recipient controls this customer account'},key());
+ const actor={userId:'customer-shortcut-user',email:body.email};
+ const visible=customerPortalQuickAccess('acme',(await customerPortalProjection(db,actor)).items);
+ expect(visible).toMatchObject([{id:`order:${id}`,tone:'blue'}]);
+ expect(visible[0].href).toContain(`?order=${encodeURIComponent(id)}`);
+ await changeCustomerAccess(requester,id,{action:'revoke',expectedVersion:2,reason:'Customer authority withdrawn'},key());
+ expect(customerPortalQuickAccess('acme',(await customerPortalProjection(db,actor)).items)).toEqual([]);
+});
+it('records customer portal actions idempotently and hands them to Commerce staff',async()=>{
+ const body=input(),id=String((await requestCustomerAccess(requester,body,key())).id);await changeCustomerAccess(reviewer,id,{action:'approve',expectedVersion:1,reason:'Independent portal action review'},key());const projection=await customerPortalProjection(db,{userId:'customer-user-1',email:body.email});const actor={userId:'customer-user-1',email:body.email},payload={bindingId:id,expectedBindingVersion:Number(projection.items[0].binding_version),action:'acknowledge_delivery' as const,note:''},k=key();const first=await customerPortalCommand(db,actor,payload,k);expect(first).toMatchObject({bindingId:id,orderId,action:'acknowledge_delivery',status:'recorded'});expect(await customerPortalCommand(db,actor,payload,k)).toEqual(first);await expect(customerPortalCommand(db,actor,payload,key())).rejects.toMatchObject({code:'CUSTOMER_PORTAL_ACTION_ALREADY_RECORDED'});const support=await customerPortalCommand(db,actor,{bindingId:id,expectedBindingVersion:2,action:'request_support',note:'The delivery needs an updated ETA.'},key());expect(support).toMatchObject({bindingId:id,action:'request_support'});expect(Number((await db.prepare("SELECT count(*) AS count FROM staff_notifications WHERE record_type='commerce_order' AND record_id=? AND message LIKE 'Customer %'").bind(orderId).first<{count:number}>())?.count)).toBeGreaterThan(0);await expect(db.prepare('UPDATE customer_portal_actions SET note=? WHERE id=?').bind('tamper',String(first.id)).run()).rejects.toThrow('CUSTOMER_PORTAL_ACTION_IMMUTABLE');await expect(db.prepare('DELETE FROM customer_portal_actions WHERE id=?').bind(String(first.id)).run()).rejects.toThrow('CUSTOMER_PORTAL_ACTION_IMMUTABLE');
+});
+it('binds authenticated portal evidence atomically and denies revoked or cross-company contexts',async()=>{
+ const body=input(),id=String((await requestCustomerAccess(requester,body,key())).id);
+ await changeCustomerAccess(reviewer,id,{action:'approve',expectedVersion:1,reason:'Independent portal evidence review'},key());
+ const identity={userId:'customer-evidence-user',email:body.email};
+ await customerPortalProjection(db,identity);
+ const file=await seedAttachmentSet(db,requester,{targetType:'customer_access_binding',targetId:id,purposeKey:'customer_support_evidence',componentKind:'action',componentRef:'request_support',expectedTargetVersion:2});
+ const actor={...identity,holdingId:f.owner.holdingId,holdingSlug:f.owner.holdingSlug,holdingName:f.owner.holdingName};
+ const result=await customerPortalCommand(db,actor,{bindingId:id,expectedBindingVersion:2,action:'request_support',note:'Photo shows the delivered package condition.',attachmentSetIds:[file.setId]},key());
+ expect(result).toMatchObject({bindingId:id,action:'request_support'});
+ expect(await attachmentBindingState(db,file.setId)).toMatchObject({set_state:'bound',link_state:'bound',binding_type:'customer_portal_support_request'});
+ expect(await db.prepare('SELECT version FROM customer_access_bindings WHERE id=?').bind(id).first()).toEqual({version:3});
+ const policy=attachmentPolicy('customer_access_binding','customer_support_evidence','action');
+ const wrongCompany=customerPortalWorkContext(actor,{id,company_id:'another-company',branch_id:null,department_id:null,version:3});
+ await expect(authorizePortalCollaborationAttachmentTarget(db,wrongCompany,policy,id,'read')).rejects.toMatchObject({code:'PORTAL_ATTACHMENT_TARGET_NOT_FOUND'});
+ await changeCustomerAccess(requester,id,{action:'revoke',expectedVersion:3,reason:'Customer portal session was withdrawn'},key());
+ await expect(customerPortalBindingScope(db,identity,id)).rejects.toMatchObject({code:'CUSTOMER_PORTAL_ATTACHMENT_UNAVAILABLE'});
+});
+it('rejects expired and stale customer portal action bindings',async()=>{
+ const body=input(),id=String((await requestCustomerAccess(requester,body,key())).id);await changeCustomerAccess(reviewer,id,{action:'approve',expectedVersion:1,reason:'Independent portal action review'},key());await db.prepare('INSERT INTO customer_access_identities(binding_id,user_id,email,bound_at) VALUES(?,?,?,?)').bind(id,'customer-user-1',body.email,Date.now()).run();await expect(customerPortalCommand(db,{userId:'customer-user-1',email:body.email},{bindingId:id,expectedBindingVersion:1,action:'request_support',note:''},key())).rejects.toMatchObject({code:'CUSTOMER_PORTAL_BINDING_CHANGED'});await changeCustomerAccess(requester,id,{action:'revoke',expectedVersion:2,reason:'Customer authority expired for this test'},key());await expect(customerPortalCommand(db,{userId:'customer-user-1',email:body.email},{bindingId:id,expectedBindingVersion:3,action:'request_support',note:''},key())).rejects.toMatchObject({code:'CUSTOMER_PORTAL_BINDING_EXPIRED'});
+});
+it('rolls back customer evidence, grant version, notifications and audit when the final outbox handoff fails, then replays a retry',async()=>{
+ const body=input(),id=String((await requestCustomerAccess(requester,body,key())).id);
+ await changeCustomerAccess(reviewer,id,{action:'approve',expectedVersion:1,reason:'Independent customer authority accepted'},key());
+ const identity={userId:'customer-rollback-user',email:body.email};await customerPortalProjection(db,identity);
+ const file=await seedAttachmentSet(db,requester,{targetType:'customer_access_binding',targetId:id,purposeKey:'customer_support_evidence',componentKind:'action',componentRef:'request_support',expectedTargetVersion:2});
+ const actor={...identity,holdingId:f.owner.holdingId,holdingSlug:f.owner.holdingSlug,holdingName:f.owner.holdingName},commandKey=key(),payload={bindingId:id,expectedBindingVersion:2,action:'request_support',note:'Clean package evidence',attachmentSetIds:[file.setId]};
+ const fault=`portal_late_${crypto.randomUUID().replaceAll('-','')}`;
+ await db.prepare(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.event_type='customer.portal.request_support' THEN RAISE EXCEPTION 'CUSTOMER_PORTAL_LATE_HANDOFF' USING ERRCODE='23514'; END IF; RETURN NEW; END $$`).run();
+ await db.prepare(`CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION ${fault}()`).run();
+ try {
+  await expect(customerPortalCommand(db,actor,payload,commandKey)).rejects.toMatchObject({code:'23514'});
+  expect(await db.prepare('SELECT version FROM customer_access_bindings WHERE id=?').bind(id).first()).toEqual({version:2});
+  expect(await db.prepare('SELECT id FROM customer_portal_actions WHERE request_key=?').bind(commandKey).first()).toBeNull();
+  expect(await db.prepare('SELECT id FROM audit_events WHERE command_id=?').bind(commandKey).first()).toBeNull();
+  expect(await db.prepare('SELECT id FROM staff_notifications WHERE record_id=? AND message LIKE ?').bind(orderId,'Customer %').first()).toBeNull();
+  expect(await attachmentBindingState(db,file.setId)).toMatchObject({set_state:'draft',link_state:'draft'});
+ } finally {
+  await db.prepare(`DROP TRIGGER ${fault} ON outbox_events`).run();await db.prepare(`DROP FUNCTION ${fault}()`).run();
+ }
+ const result=await customerPortalCommand(db,actor,payload,commandKey);
+ expect(await customerPortalCommand(db,actor,payload,commandKey)).toEqual(result);
+ expect(await db.prepare('SELECT version FROM customer_access_bindings WHERE id=?').bind(id).first()).toEqual({version:3});
+ expect(await attachmentBindingState(db,file.setId)).toMatchObject({set_state:'bound',link_state:'bound'});
+ expect(Number((await db.prepare('SELECT count(*) AS count FROM customer_portal_actions WHERE request_key=?').bind(commandKey).first<{count:number}>())?.count)).toBe(1);
+});
+it('revokes immediately, hides wrong-scope bindings and blocks stale decisions',async()=>{
+ const body=input(),id=String((await requestCustomerAccess(requester,body,key())).id);await changeCustomerAccess(reviewer,id,{action:'approve',expectedVersion:1,reason:'Independent recipient review complete'},key());await expect(changeCustomerAccess(reviewer,id,{action:'reject',expectedVersion:1,reason:'Stale parallel review'},key())).rejects.toMatchObject({code:'CONFLICT'});await changeCustomerAccess(requester,id,{action:'revoke',expectedVersion:2,reason:'Customer contact authority was withdrawn'},key());expect((await customerPortalProjection(db,{userId:'customer-user-1',email:body.email})).items).toEqual([]);for(const a of [{...requester,companyId:'other'},{...requester,branchId:'other'},{...requester,departmentId:'other'}])expect((await customerAccessWorkspace(a)).rows).toEqual([]);
+});
+it('refuses draft sources and reviewers whose employment ended',async()=>{
+ const source=await db.prepare('SELECT party_id,warehouse_id FROM commerce_orders WHERE id=?').bind(orderId).first<{party_id:string;warehouse_id:string}>(),line=await db.prepare('SELECT product_id FROM commerce_order_lines WHERE order_id=?').bind(orderId).first<{product_id:string}>(),draft=await saveOrder(requester,null,orderSchema.parse({kind:'quote',partyId:source!.party_id,warehouseId:source!.warehouse_id,orderDate:'2026-09-20',dueDate:'2026-09-25',lines:[{productId:line!.product_id,quantity:'1',price:'10',taxBps:0}]}),key());await expect(requestCustomerAccess(requester,{...input(),orderId:String(draft.id),sourceVersion:1},key())).rejects.toMatchObject({code:'CONFLICT'});const id=String((await requestCustomerAccess(requester,input(),key())).id);await db.prepare("UPDATE hr_engagements SET status='ended' WHERE company_id=? AND person_id IN(SELECT id FROM hr_people WHERE user_id=?)").bind(f.company,reviewer.userId).run();expect((await customerAccessWork(reviewer)).find(x=>x.id===id)?.canAct).toBe(false);await expect(changeCustomerAccess(reviewer,id,{action:'approve',expectedVersion:1,reason:'Ended worker cannot approve access'},key())).rejects.toMatchObject({code:'CONFLICT'});
+});

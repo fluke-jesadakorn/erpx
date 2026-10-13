@@ -28,8 +28,8 @@
 
 ## วิธีตรวจและข้อจำกัด
 
-- `tests/quality.test.ts`: fail/reinspect/pass/release, independent actors, immutable evidence, duplicate/stale/revoked, Company/Branch/Department scope, overlapping holds, reserved Sales fulfillment rollback, Work/Inbox/Calendar และ quarantine/reservation race
-- `tests/pos.test.ts`: reserved retail payment ขณะถูกกักต้องไม่มี payment/receipt ใหม่ และ stock/value คงเดิม
+- `tests/integration/quality/quality.test.ts`: fail/reinspect/pass/release, independent actors, immutable evidence, duplicate/stale/revoked, Company/Branch/Department scope, overlapping holds, reserved Sales fulfillment rollback, Work/Inbox/Calendar และ quarantine/reservation race
+- `tests/integration/pos/pos.test.ts`: reserved retail payment ขณะถูกกักต้องไม่มี payment/receipt ใหม่ และ stock/value คงเดิม
 - รัน owner regression ร่วมกับ reservation, IAM, Calendar, navigation และ schema migration บนฐานข้อมูลทดสอบแยก
 - ตรวจหน้าคิวและฟอร์มด้วย session ที่ได้รับอนุญาตผ่าน public development hostname; ยังไม่ได้ทำ browser acceptance หลายบทบาทหรือธุรกรรม browser จนครบ
 - ช่องว่างที่ยังเหลือ: lot/serial inspection, structured measurements, private attachments, scrap/return disposition, cancellation, timed escalation, Company policy snapshot, provider/production และการรับรองธุรกิจ

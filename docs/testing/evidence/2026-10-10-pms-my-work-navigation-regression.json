@@ -1,0 +1,29 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "redReceipt": ".scratch/dev/test-suites/browser/2026-10-10T14-27-12-402Z/receipt.json",
+  "redReceiptSha256": "77239d8cf9108f0cfa8a1b27280d0874ece873bf497f36a94b0b9e0efc77e286",
+  "diagnosticPassedBeforeFailure": 11,
+  "cleanupFailures": [],
+  "cause": "Browser case expected legacy views in submenu, while committed navigation and existing native contract intentionally expose actions/approvals/tracking/conditional team plus Work reports.",
+  "testChange": "Exercise concise submenu, all four Tracking filters, all five former view deep links and Work reports. Preserve case identity, normal role selection, URL/headings/active-state assertions and no retries.",
+  "nativeContract": "tests/workplace-navigation.test.ts:718",
+  "status": "focused desktop/mobile regression passed; aggregate acceptance pending",
+  "passedCases": 2,
+  "artifacts": [
+    {
+      "log": ".scratch/dev/test-suites/browser/2026-10-10T14-45-50-608Z/8a2b2884d862/playwright.log",
+      "logSha256": "a470cf48877b58f27fcea14c94f61aebae9acdf24262605ccfe81bb433feaa77",
+      "report": ".scratch/dev/test-suites/browser/2026-10-10T14-45-50-608Z/8a2b2884d862/result.json",
+      "reportSha256": "996bca49a5f3899dc21d6e71f298033ac919208d4613d6ea92cde6c5ca5c60ae"
+    },
+    {
+      "log": ".scratch/dev/test-suites/browser/2026-10-10T14-45-50-608Z/5abd1df0f050/playwright.log",
+      "logSha256": "a5ac00f9e5181c040903f184ef96d6fbb8b1cc9155be0fd5d7612f53af67e76d",
+      "report": ".scratch/dev/test-suites/browser/2026-10-10T14-45-50-608Z/5abd1df0f050/result.json",
+      "reportSha256": "cbc0b8a2a4e2fb88e4e68fe9b0ccfed966568798229a59361389f2c685a60e8d"
+    }
+  ],
+  "runtimeFingerprint": "d192e45c236f933726ff122c5f8da978132cdde9e8fc9cab16f7a7a39b4b5135",
+  "verificationFingerprint": "437a2850b861969e8f8b0a3142d97877a2064d4e41e628c997faf6b5b91f5b63"
+}

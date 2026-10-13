@@ -1,11 +1,12 @@
+import { HotelTransferReviews } from "@/components/finance/hotel-transfer-reviews";
 import { Table, TableFrame } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { pmsFinanceOverview } from "@/server/modules/pms/public/pms/finance";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { FinanceWorkspace, financeStyles as styles } from "@/components/finance/finance-workspace";
-import { MoneyAmount } from "@/components/money/currency-provider";
+import { MoneyAmount } from "@/components/finance/money/currency-provider";
 
 export const dynamic = "force-dynamic";
 export default async function HotelAccounting({
@@ -31,7 +32,7 @@ export default async function HotelAccounting({
     >
       <div className={styles.sectionHead}>
         <Link href={`${base}/finance/hotels`}>All accessible hotels</Link>
-        <Link href={`${base}/hospitality/setup`}>Finance setup review →</Link>
+        <Link href={`${base}/finance/hospitality-settings`}>Finance setup review →</Link>
       </div>
       {new Set(data.hotels.map((hotel) => hotel.businessDate)).size > 1 && (
         <p className="alert">
@@ -107,11 +108,11 @@ export default async function HotelAccounting({
                       </strong>
                     </td>
                     <td>
-                      <Link href={`${base}/pms/reports?property=${encodeURIComponent(hotel.id)}`}>
-                        Subledger & journals →
+                      <Link href={`${base}/finance/hotels?property=${encodeURIComponent(hotel.id)}`}>
+                        Reconciliation →
                       </Link>
                       <br />
-                      <Link href={`${base}/pms/import?property=${encodeURIComponent(hotel.id)}`}>
+                      <Link href={`${base}/finance/hotel-import?property=${encodeURIComponent(hotel.id)}`}>
                         Cutover preview →
                       </Link>
                     </td>
@@ -125,8 +126,9 @@ export default async function HotelAccounting({
       </section>
       <section className={styles.section}>
         <h2>Online payment liabilities</h2>
-        <TableFrame appearance="standard" label="Online payment liabilities"><Table className="business-table"><thead><tr><th>Hotel</th><th>Account</th><th>PMS original entries</th><th>Posted GL</th><th>Difference</th></tr></thead><tbody>{data.hotels.flatMap(hotel=>(['refundPayable','unallocated'] as const).map(account=><tr key={`${hotel.id}-${account}`}><td><Link href={`${base}/pms/folios?property=${encodeURIComponent(hotel.id)}&queue=approval`}>{hotel.name}</Link></td><td>{account==='refundPayable'?'Refunds payable':'Unallocated guest receipts'}</td><td><MoneyAmount units={hotel.online[account]} currency={hotel.currency} date={hotel.businessDate} legacyScale={2}/></td><td><MoneyAmount units={hotel.onlineLedger[account]} currency={hotel.currency} date={hotel.businessDate} legacyScale={2}/></td><td><strong data-tone={hotel.onlineDifferences[account]?'danger':'good'}><MoneyAmount units={hotel.onlineDifferences[account]} currency={hotel.currency} date={hotel.businessDate} legacyScale={2}/></strong></td></tr>))}</tbody></Table></TableFrame>
+        <TableFrame appearance="standard" label="Online payment liabilities"><Table className="business-table"><thead><tr><th>Hotel</th><th>Account</th><th>PMS original entries</th><th>Posted GL</th><th>Difference</th></tr></thead><tbody>{data.hotels.flatMap(hotel=>(['refundPayable','unallocated'] as const).map(account=><tr key={`${hotel.id}-${account}`}><td><Link href={`${base}/finance/hotels?property=${encodeURIComponent(hotel.id)}`}>{hotel.name}</Link></td><td>{account==='refundPayable'?'Refunds payable':'Unallocated guest receipts'}</td><td><MoneyAmount units={hotel.online[account]} currency={hotel.currency} date={hotel.businessDate} legacyScale={2}/></td><td><MoneyAmount units={hotel.onlineLedger[account]} currency={hotel.currency} date={hotel.businessDate} legacyScale={2}/></td><td><strong data-tone={hotel.onlineDifferences[account]?'danger':'good'}><MoneyAmount units={hotel.onlineDifferences[account]} currency={hotel.currency} date={hotel.businessDate} legacyScale={2}/></strong></td></tr>))}</tbody></Table></TableFrame>
       </section>
+      <HotelTransferReviews base={base} reviews={data.reviews}/>
       <section className={styles.section}>
         <h2>Bank transfers</h2>
         <p className="muted">
@@ -163,7 +165,7 @@ export default async function HotelAccounting({
                   <td>{review.state}</td>
                   <td>
                     <Link
-                      href={`${base}/pms/folios?property=${review.property_id}&folio=${review.folio_id}&queue=approval`}
+                      href={`${base}/finance/hotel-accounts/${review.guest_account_id}`}
                     >
                       Hotel review
                     </Link>
@@ -201,7 +203,7 @@ export default async function HotelAccounting({
         {data.exceptions.map((entry) => (
           <p key={entry.id}>
             <Link
-              href={`${base}/pms/folios?property=${entry.property_id}&folio=${entry.folio_id}&queue=corrections`}
+              href={`${base}/finance/hotel-accounts/${entry.guest_account_id}`}
             >
               {entry.description} · {entry.kind} →
             </Link>
@@ -231,15 +233,15 @@ export default async function HotelAccounting({
               {data.documents.map((doc) => (
                 <tr key={doc.id}>
                   <td>
-                    <Link href={`${base}/pms/documents/${doc.id}`}>
+                    <Link href={`${base}/finance/hotel-documents/${doc.id}`}>
                       {doc.kind} · {doc.id.slice(-8)}
                     </Link>
                   </td>
                   <td>
                     <Link
-                      href={`${base}/pms/folios?property=${doc.property_id}&folio=${doc.folio_id}`}
+                      href={`${base}/finance/hotel-accounts/${doc.guest_account_id}`}
                     >
-                      Open folio
+                      Open guest account
                     </Link>
                   </td>
                   <td>

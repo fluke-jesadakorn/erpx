@@ -3,7 +3,7 @@ import { requireWorkContext } from "@/server/modules/identity_access/public/auth
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import { getLeave } from "@/server/modules/people_payroll/public/leave";
 import { previewLeave } from "@/server/modules/people_payroll/public/leave-self-service";
-import { leavePreviewSchema } from "@/lib/leave-self-service";
+import { leavePreviewSchema } from "@/lib/people_payroll/leave-self-service";
 
 export async function POST(request: Request, context: RouteContext<"/api/v1/holdings/[holdingSlug]/leave-requests/preview">) {
   try {

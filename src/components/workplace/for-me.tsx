@@ -1,6 +1,6 @@
 import Link from "next/link";
-import type { WorkActionCard, WorkCapabilities } from "@/lib/work-cards";
-import { selfServiceActions } from "@/lib/self-service";
+import type { WorkActionCard, WorkCapabilities } from "@/lib/work_projection/work-cards";
+import { selfServiceActions } from "@/lib/work_projection/self-service";
 import styles from "./work-dashboard.module.css";
 
 export function ForMe({ base, cards, capabilities }: { base: string; cards: WorkActionCard[]; capabilities: WorkCapabilities }) {

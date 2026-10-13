@@ -1,3 +1,0 @@
-/** Compatibility entry point; legacy implementation belongs to operations. */
-export {canAttachTask,canConfigureTask,configGuards,delegateTask,getProject,getTask,listProjects,listTasks,projectSchema,revokeTaskDelegation,saveProject,saveTask,taskActionSchema,taskDelegationRevokeSchema,taskDelegationSchema,taskDetail,taskFieldsSchema,taskSchema,taskSourceReadGuard,taskVersionGuard,taskWorkState,transitionTask,validateTaskConfiguration} from "@/server/modules/operations/adapters/staff-tasks";
-export type {ProjectRow,TaskDetail,TaskRow,TaskWorkState} from "@/server/modules/operations/adapters/staff-tasks";

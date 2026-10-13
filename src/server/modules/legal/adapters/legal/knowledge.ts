@@ -5,7 +5,7 @@ import type {WorkContext} from "../../../identity_access/public/authorization";
 import {requirePermission} from "../../../identity_access/public/iam-permissions";
 import {ApiError} from "../../../runtime/public/http";
 import {access,visibility} from "./access";
-import {documentAccess} from "@/server/legal/documents";
+import {documentAccess} from "@/server/modules/legal/public/legal/documents";
 import {createLegalKnowledgeApplication} from "../../application/knowledge";
 import {validateLegalAiCitations as validateCitations,type LegalEvidenceSource,type LegalAiEvidence} from "../../domain/knowledge";
 /** Shared by search and direct citations; aliases must be legal_documents d and legal_items i. */

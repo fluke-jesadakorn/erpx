@@ -1,0 +1,39 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "runtimeFingerprint": "540ac35fabccd740a0a304facd334889023f0980c31608d6b170be28855093c4",
+  "verificationFingerprint": "408c696da1b6de94845388df8bc40aa846f8f4f3ba1f1c8af78ad33b955a9f77",
+  "release": "2026-10-10T10-59-49-107Z",
+  "changes": "Only required browser trigger selectors updated for lazy Home composer; original draft/focus/unsaved/drawer/layout assertions retained. Runtime source unchanged.",
+  "previousWholeBrowser": {
+    "passedCases": 73,
+    "failedCase": "post drafts survive failures and collapsed UI; dialogs retain keyboard focus",
+    "reason": "stale initial details selector",
+    "receipt": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-10T11-34-13-160Z/receipt.json",
+    "cleanupFailures": []
+  },
+  "focusedPmsRegression": {
+    "passedCases": 4,
+    "failedCases": 0,
+    "projects": [
+      "desktop",
+      "mobile"
+    ],
+    "receipt": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-10T12-47-04-202Z/receipt.json",
+    "cleanupFailures": []
+  },
+  "extraSelfServiceDiagnostic": {
+    "scope": "not in 23 required PMS suites",
+    "failure": "My day / Open Calendar absent before composer step",
+    "ownSelectorEditReverted": true,
+    "countsAsPmsAcceptance": false,
+    "receipt": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-10T12-40-30-910Z/receipt.json"
+  },
+  "pending": [
+    "fresh static/native/security verification",
+    "178 required browser cases",
+    "38 PMS route cases",
+    "guest command p95 below 2 seconds",
+    "final mock feature evidence and development availability"
+  ]
+}

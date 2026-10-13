@@ -1,4 +1,4 @@
-import {billingMonth,monthBounds} from '@/lib/billing';
+import {billingMonth,monthBounds} from "@/lib/billing/billing";
 import {BusinessRuleError,type Clock,type IdentifierSource,type UnitOfWork} from '../../shared';
 import {positiveInteger,reservationAllowed,type AiGatewayFacts,type AiPolicyFacts,type AiGatewayPolicyView,type AiProviderStatement,type AiVerifiedCost,type AiPolicyChange,type SafeAiGatewayRow} from '../domain/gateway';
 export interface AiGatewayReservationRepository{lockHolding(holdingId:string):Promise<void>;policy(start:number,end:number):Promise<AiPolicyFacts|null>;reservationFacts(scope:AiGatewayFacts):Promise<{scopeValid:boolean;alreadyReserved:boolean}>;reserve(scope:AiGatewayFacts,provider:string,model:string,now:number,start:number,end:number):Promise<boolean>;}

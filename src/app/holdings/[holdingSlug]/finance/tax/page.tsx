@@ -1,5 +1,5 @@
 import { financePresentationQueries } from "@/server/modules/finance/public/presentation-queries";
-import {recordCanonicalHref} from "@/lib/record-drawer";
+import {recordCanonicalHref} from "@/lib/records/record-drawer";
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Button, Field, Table, TableFrame, TextInput } from "@/components/ui/foundation";
 
@@ -7,10 +7,10 @@ import { Button, Field, Table, TableFrame, TextInput } from "@/components/ui/fou
 import { listCharts } from "@/server/modules/finance/public/finance";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
-import { workspaceBase } from "@/lib/workspace";
-import { hasPermission } from "@/lib/permissions";
-import { minorToDecimal } from "@/lib/finance-money";
-import { vatPackageLabels, vatReviewLabels, vatTreatmentLabels } from "@/lib/finance-vat-labels";
+import { workspaceBase } from "@/lib/work_projection/workspace";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { minorToDecimal } from "@/lib/finance/finance-money";
+import { vatPackageLabels, vatReviewLabels, vatTreatmentLabels } from "@/lib/finance/finance-vat-labels";
 import { vatWorkspace } from "@/server/modules/finance/public/finance-tax-register";
 import { FinanceWorkspace, financeStyles as styles } from "@/components/finance/finance-workspace";
 import {

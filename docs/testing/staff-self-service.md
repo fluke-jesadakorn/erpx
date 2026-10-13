@@ -21,9 +21,9 @@ The external tests require separately configured Stripe sandbox and live UCS dir
 
 Integration coverage includes concurrent leave submissions, exactly-once reservations/usage/cancellation reversals, rejection release, year-specific balances, repeatable grants/accrual catch-up, policy snapshots, roster half-days and nonworking dates, legacy working-day payloads, evidence privacy and Company isolation. Overtime coverage includes advance and retrospective paths, independent manager/HR review, returned actuals, timezone/overnight duration, future actuals and overlap rejection, explicit contractor eligibility, stale settings updates, unique payroll handoffs, manual-hours reconciliation and payroll preview source snapshots. Work projection, canonical Inbox links and redacted Calendar dates are covered.
 
-The new browser suite is `tests/e2e/self-service.spec.ts`. It checks keyboard access, light/dark presentation, mobile layout, feed interactions, partial Home-source failures, server draft recovery after reload, stale-version recovery with retained edits, overtime preview/withdrawal, leave half-day preview, interrupted private-upload retry, and canonical shift/purchase destinations. Screenshots and logs are under ignored `.scratch/self-service/` and `.scratch/self-service-*.log`.
+The new browser suite is `tests/e2e/people_payroll/self-service.spec.ts`. It checks keyboard access, light/dark presentation, mobile layout, feed interactions, partial Home-source failures, server draft recovery after reload, stale-version recovery with retained edits, overtime preview/withdrawal, leave half-day preview, interrupted private-upload retry, and canonical shift/purchase destinations. Screenshots and logs are under ignored `.scratch/self-service/` and `.scratch/self-service-*.log`.
 
-The connected Demo acceptance in `tests/e2e/demo-overtime-to-payroll.spec.ts` covers the full retrospective overtime handoff: employee draft and submit, independent manager verification, independent HR approval, and Payroll calculation. It confirms the calculated input snapshot retains the source overtime request ID and exact approved minutes after the handoff. [Browser evidence](evidence/2026-09-23-overtime-to-payroll-browser.txt) records the isolated run; statutory payroll/tax, provider delivery, production operation, downstream payment and Company business acceptance remain separate gates.
+The connected Demo acceptance in `tests/journeys/people_payroll/demo-overtime-to-payroll.spec.ts` covers the full retrospective overtime handoff: employee draft and submit, independent manager verification, independent HR approval, and Payroll calculation. It confirms the calculated input snapshot retains the source overtime request ID and exact approved minutes after the handoff. [Browser evidence](evidence/2026-09-23-overtime-to-payroll-browser.txt) records the isolated run; statutory payroll/tax, provider delivery, production operation, downstream payment and Company business acceptance remain separate gates.
 
 The browser suite used a separate Next.js server on loopback port 3102 and six disposable PostgreSQL databases owned by `erpx_test_admin`. Synthetic staff and leave entitlements existed only in that environment. Existing account credentials and real staff setup were not changed. The temporary server and databases were removed after testing.
 
@@ -33,7 +33,7 @@ To run integration checks with the local test-database configuration loaded:
 .runtime/node/node-v24.20.0-darwin-arm64/bin/node --env-file=.env.local node_modules/vitest/vitest.mjs run
 ```
 
-For browser testing, use the normal isolated seed/setup workflow and set `ERPX_E2E_BASE_URL` to its origin before running `bun run test:e2e:dev tests/e2e/self-service.spec.ts`. Do not reset an existing user's credentials to match a fixture.
+For browser testing, use the normal isolated seed/setup workflow and set `ERPX_E2E_BASE_URL` to its origin before running `bun run test:e2e:dev tests/e2e/people_payroll/self-service.spec.ts`. Do not reset an existing user's credentials to match a fixture.
 
 ## Public authenticated inspection
 

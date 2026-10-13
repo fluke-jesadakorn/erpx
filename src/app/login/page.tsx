@@ -4,7 +4,7 @@ import { DirectoryLogin } from "./directory-login";
 import { LoginForm } from "./login-form";
 import { AuthShell } from "@/components/workplace/auth-shell";
 import styles from "@/components/workplace/login.module.css";
-import { safeReturnPath } from "@/lib/access-problem";
+import { safeReturnPath } from "@/lib/shared/access-problem";
 import { publicBetaEnabled } from "@/server/modules/runtime/public/presentation-configuration";
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ reason?: string; next?: string; connection?:string }> }) {

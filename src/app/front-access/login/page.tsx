@@ -1,9 +1,9 @@
 import { headers } from "next/headers";
-import { frontAppForHost, safeFrontReturnPath } from "@/lib/front-host";
+import { frontAppForHost, safeFrontReturnPath } from "@/lib/shared/front-host";
 import { LoginForm } from "@/app/login/login-form";
 import { currentSession } from "@/server/modules/identity_access/public/authorization";
 import { workspaceChoices } from "@/server/modules/organization/public/workspace-choices";
-import { consoleOrigin } from "@/lib/erpx-hosts";
+import { consoleOrigin } from "@/lib/runtime/erpx-hosts";
 import styles from "../front-access.module.css";
 
 export default async function FrontLogin({ searchParams }: { searchParams: Promise<{ next?: string; reason?: string }> }) {

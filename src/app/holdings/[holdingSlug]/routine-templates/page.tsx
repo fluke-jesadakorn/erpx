@@ -1,10 +1,10 @@
 import { staffPresentationQueries } from "@/server/modules/work_projection/public/presentation-context-queries";
-import { FeaturePage, FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
-import { ServiceNavigation } from "@/components/modules/service-navigation";
+import { FeaturePage, FeatureWidget,WidgetGrid } from "@/components/shared/features/feature-page";
+import { ServiceNavigation } from "@/components/field_service/service-navigation";
 import {
 StaffTaskLinks,
 TaskEditor,
-} from "@/components/modules/staff-work-controls";
+} from "@/components/work_projection/staff-work-controls";
 import { ListFilters } from "@/components/ui/list-filters";
 import { EmptyState,PageHeader } from "@/components/ui/primitives";
 import { administrationAccess } from "@/server/modules/runtime/public/administration";

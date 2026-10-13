@@ -3,44 +3,35 @@ import { commercePresentationQueries } from "@/server/modules/commerce/public/pr
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Table, TableFrame } from "@/components/ui/foundation";
-import { TimeText } from "@/components/time/time-preference-context";
+import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 import { BusinessDocumentBranding } from "@/components/brand/business-document";
 import {
   FeaturePage,
   FeatureTabs,
   FeatureWidget,
   WidgetGrid,
-} from "@/components/features/feature-page";
-import {
-  CustomerDeliveryNotification,
-  StockReservationForm,
-  FulfillmentForm,
-  InvoiceDeliveryForm,
-  OrderActions,
-  OrderEditor,
-  ReturnActions,
-  ReturnRequestForm,
-} from "@/components/modules/commerce-controls";
+} from "@/components/shared/features/feature-page";
+import { CustomerDeliveryNotification, StockReservationForm, FulfillmentForm, ServiceCompletionForm, InvoiceDeliveryForm, OrderActions, OrderEditor, ReturnActions, ReturnRequestForm } from "@/components/records/loaders/modules--commerce-controls";
 import { StatusBadge } from "@/components/ui/primitives";
 import { FlowPanel, documentFlow } from "@/components/workplace/flow-panel";
 import { RecordNextAction } from "@/components/workplace/record-next-action";
-import { WorkReturn } from "@/components/workplace/work-return";
-import { minorToDecimal } from "@/lib/finance-money";
-import { hasPermission } from "@/lib/permissions";
-import { workspaceBase } from "@/lib/workspace";
+import { WorkReturn } from "@/components/records/loaders/workplace--work-return";
+import { minorToDecimal } from "@/lib/finance/finance-money";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { commerceOverview, commercePermissions, getOrder } from "@/server/modules/commerce/public/commerce";
 
 
 import { RecordLink as Link } from "@/components/records/record-link";
 import { supplierPromiseDetail } from "@/server/modules/procurement/public/supplier-promises";
-import { SupplierBillCapture } from "@/components/modules/supplier-bill-console";
+import { SupplierBillCapture } from "@/components/records/loaders/modules--supplier-bill-console";
 import { supplierBillWorkspace, supplierInvoicePolicy } from "@/server/modules/procurement/public/supplier-bill-matching";
-import { SupplierPromiseConsole } from "@/components/modules/supplier-promise-console";
+import { SupplierPromiseConsole } from "@/components/records/loaders/modules--supplier-promise-console";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { landedCostsForOrder, landedCostOptions } from "@/server/modules/inventory/public/inventory-landed-costs";
-import { LandedCostCreateForm } from "@/components/modules/landed-cost-controls";
-import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
+import { LandedCostCreateForm } from "@/components/records/loaders/modules--landed-cost-controls";
+import { RecordDocumentPanel } from "@/components/records/loaders/attachments--record-document-panel";
 import { Card } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function OrderPage({
@@ -134,7 +125,7 @@ export default async function OrderPage({
           <p className="eyebrow">{String(order.kind)} document</p>
           <h1>{String(order.number)}</h1>
           <p className="muted">
-            {String(order.party_name)} · {String(order.warehouse_name)} · Required{" "}
+            {String(order.party_name)} · {String(order.warehouse_name ?? "Services")} · Required{" "}
             {String(order.due_date)}
           </p>
         </div>
@@ -316,7 +307,7 @@ export default async function OrderPage({
           </FeatureWidget>
         )}
         {flow.canAct &&
-          permissions.stock &&
+          permissions.stock && lines.some(line => line.item_type !== "service") &&
           order.kind !== "quote" &&
           ["confirmed", "partially_fulfilled"].includes(String(order.state)) && (
             <FulfillmentForm
@@ -327,10 +318,11 @@ export default async function OrderPage({
               pendingEvidence={data.pendingDeliveryEvidence}
             />
           )}
+        {flow.canAct && permissions.sales && order.kind === "sales" && ["confirmed", "partially_fulfilled"].includes(String(order.state)) && <ServiceCompletionForm base={base} order={order} lines={lines} />}
         {permissions.stock &&
           order.kind === "sales" &&
           ["confirmed", "partially_fulfilled"].includes(String(order.state)) && (
-            <StockReservationForm base={base} order={order} lines={lines} />
+            <StockReservationForm base={base} order={order} lines={lines.filter(line => line.item_type !== "service")} />
           )}
         {!!data.reservations.length && (
           <FeatureWidget
@@ -483,7 +475,7 @@ export default async function OrderPage({
                     flow.steps.find((s) => s.key === "invoicing")?.primary?.userId ===
                       actor.userId &&
                     permissions.finance &&
-                    !f.invoice_id && <InvoiceDeliveryForm base={base} fulfillment={f} />}
+                    !f.invoice_id && <InvoiceDeliveryForm base={base} fulfillment={f} useSalesDefaults={order.kind === "sales"} completions={order.kind === "sales" ? data.fulfillments.filter(other => other.id !== f.id && !other.invoice_id && (other.completion_kind === "service" || other.stock_journal_status === "posted")) : []} />}
                   {canEdit &&
                     f.invoice_id &&
                     ["posted", "partially_paid", "paid"].includes(String(f.invoice_status)) && (

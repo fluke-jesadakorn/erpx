@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import { invoiceSchema, invoicePostingSchema, type FinanceRow, type JournalLineInput, type JournalInput } from '../domain/finance';
 import type { JournalPlan } from './journal';
-import { hasPermission } from '@/lib/permissions';
-import { samePerson } from '@/lib/iam';
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { samePerson } from "@/lib/identity_access/iam";
 import { createFinancePolicy } from '../domain/finance-policy';
-import { minorToDecimal } from '@/lib/finance-money';
+import { minorToDecimal } from "@/lib/finance/finance-money";
 import type { FinanceError, InvoicePostingLine } from '../domain/invoice-line-revision';
 import type { WorkContext } from '@/server/modules/identity_access/public/authorization';
 export type InvoiceInput = z.infer<typeof invoiceSchema>;

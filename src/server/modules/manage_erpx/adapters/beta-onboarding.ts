@@ -8,8 +8,8 @@ import {
   resourceSlots,
   registeredResources,
   type RegistryEnv,
-} from "@/lib/holding-registry";
-import { betaLimits, type BetaEnvironment } from "@/server/beta-config";
+} from "@/lib/runtime/holding-registry";
+import { betaLimits, type BetaEnvironment } from "@/server/modules/manage_erpx/domain/config";
 import { ApiError } from "@/server/modules/runtime/public/http";
 
 

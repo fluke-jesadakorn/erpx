@@ -1,7 +1,7 @@
 import { workProjectionPresentationQueries } from "@/server/modules/work_projection/public/presentation-queries";
 
 import { PageContent } from "@/components/ui/patterns";
-import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
+import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/shared/features/feature-page";
 import { PageHeader } from "@/components/ui/primitives";
 import { CountEditor,ExpenseEditor,LeaveControls,RequestEditor,TransferEditor } from "@/components/workplace/work-editors";
 

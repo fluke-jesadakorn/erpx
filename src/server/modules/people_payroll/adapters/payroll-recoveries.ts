@@ -10,7 +10,7 @@ import { requirePermission } from "@/server/modules/identity_access/public/iam-p
 import { assertProductionModuleEnabled, productionFeatureGuard } from "@/server/modules/pms/public/hospitality-rollout";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
 import type { SqlDatabase, SqlStatement } from "@/server/modules/runtime/public/runtime/types";
-import { originalSource } from "@/server/payroll-adjustments";
+import { originalSource } from "@/server/modules/people_payroll/adapters/payroll-adjustments";
 import { BusinessRuleError } from '../../shared';
 import { payrollRecoveryGrant } from '../../identity_access/public/payroll-recovery-grant';
 import { payrollRecoveryChart } from '../../finance/public/payroll-recovery-chart';

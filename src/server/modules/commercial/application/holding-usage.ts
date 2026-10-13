@@ -1,4 +1,4 @@
-import {previewSandboxStorage,sandboxPricingForMonth} from '@/lib/billing-pricing';
+import {previewSandboxStorage,sandboxPricingForMonth} from "@/lib/billing/billing-pricing";
 import {resolveUsageMonth,type UsageItem} from '../domain/usage';
 import {emptyUsageMetrics,addUsageItem,type UsageCompany,type UsageHolding,type UsageBinding,type UsageNode,type AiRow,type StorageRow} from '../domain/holding-usage';
 import type {MonthlySeatSummary,ActiveSeatSnapshot,HoldingSeatMeter} from '../domain/seats';

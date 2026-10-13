@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import {decimalToUnits} from '@/lib/finance-money';
+import {decimalToUnits} from "@/lib/finance/finance-money";
 const side = z.object({
   companyId: z.string().min(1),
   journalId: z.string().min(1),

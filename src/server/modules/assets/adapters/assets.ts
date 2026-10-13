@@ -12,12 +12,12 @@ import type {SqlDatabase} from '../../runtime/public/runtime/types';
 import type {Row} from '../../commerce/public/commerce';
 import {holdingResources} from '../../runtime/public/runtime';
 import {requirePermission} from '../../identity_access/public/iam-permissions';
-import {hasPermission} from '@/lib/permissions';
+import {hasPermission} from "@/lib/identity_access/permissions";
 import {hasModuleAccess} from '@/data/module-access';
 import {assertion,executeCommand,replayCommand} from '../../workflow/public/commands';
 import {ApiError} from '../../runtime/public/http';
 import {snapshotMoney} from '../../finance/public/company-money';
-import {currencyScale,decimalUnits} from '@/lib/company-money';
+import {currencyScale,decimalUnits} from "@/lib/finance/company-money";
 const assetScope="a.company_id=? AND (?::text IS NULL OR a.branch_id=?) AND (?::text IS NULL OR a.department_id=?)",args=(a:WorkContext)=>[a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId];
 const reviewer=(alias:'a'|'w')=>`EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments}) x JOIN (${people_payrollProjectionSources.hr_people}) p ON p.user_id=x.user_id AND p.company_id=x.company_id JOIN (${people_payrollProjectionSources.hr_engagements}) e ON e.person_id=p.id AND e.company_id=p.company_id WHERE x.company_id=${alias}.company_id AND x.user_id=? AND iam_assignment_active(x.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(x.user_id,x.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(x.role,x.company_id,'records.review') AND (x.scope_kind='holding' OR (x.scope_kind='branch' AND x.scope_node_id=${alias}.branch_id) OR (x.scope_kind='department' AND x.scope_node_id=${alias}.department_id)) AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active' AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')))`;
 function domain(a:WorkContext,_module:'assets',write=false){requirePermission(a,write?'records.write':'records.read');if(!hasModuleAccess(a.modules,'assets'))throw new ApiError(403,'MODULE_FORBIDDEN','Your current role cannot access assets.');}

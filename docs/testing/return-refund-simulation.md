@@ -37,15 +37,15 @@ Inbox อ้างอิง owner record และตรวจสิทธิ์
 ## คำสั่งและหลักฐานอัตโนมัติ
 
 ```sh
-bun run test tests/commerce-returns.test.ts
-bun run test tests/finance-payment-corrections.test.ts tests/work-cache.test.ts tests/work-refresh.test.ts
-bun run test tests/calendar.test.ts tests/calendar-api.test.ts tests/work-views.test.ts
+bun run test tests/integration/sales/commerce-returns.test.ts
+bun run test tests/integration/finance/finance-payment-corrections.test.ts tests/integration/shared.work/work-cache.test.ts tests/unit/shared.work/work-refresh.test.ts
+bun run test tests/integration/shared.calendar/calendar.test.ts tests/integration/shared.calendar/calendar-api.test.ts tests/unit/shared.work/work-views.test.ts
 bun run typecheck
 bun run lint
 bun run deploy:build
 ```
 
-`tests/commerce-returns.test.ts` สร้าง fixture ผ่าน owner services จริง: PO/SO → fulfillment → post goods GL → invoice → payment → return → credit → refund → bank. ครอบคลุม unpaid supplier return, paid/part-paid customer และ supplier return, partial/final refund, replay และ source-key mismatch, over-refund, closed period, self approval/payer, company/branch isolation, unknown/failure review, concurrent instructions, balanced source-account GL และ no duplicate bank match พร้อม Work/Inbox/Calendar visibility
+`tests/integration/sales/commerce-returns.test.ts` สร้าง fixture ผ่าน owner services จริง: PO/SO → fulfillment → post goods GL → invoice → payment → return → credit → refund → bank. ครอบคลุม unpaid supplier return, paid/part-paid customer และ supplier return, partial/final refund, replay และ source-key mismatch, over-refund, closed period, self approval/payer, company/branch isolation, unknown/failure review, concurrent instructions, balanced source-account GL และ no duplicate bank match พร้อม Work/Inbox/Calendar visibility
 
 ผลตรวจแต่ละรอบอยู่ใน [progress register](cross-department-implementation-progress.md); ไม่ถือว่ามี test path เท่ากับผ่าน browser/provider acceptance
 

@@ -2,7 +2,7 @@
 import { Select } from "@/components/ui/foundation";
 
 import { useId, useSyncExternalStore } from "react";
-import { appearancePreference, type AppearancePreference } from "@/lib/appearance-preference";
+import { appearancePreference, type AppearancePreference } from "@/lib/shared/appearance-preference";
 import styles from "./appearance-switcher.module.css";
 import { type UiAppearance } from "@/components/ui/foundation";
 

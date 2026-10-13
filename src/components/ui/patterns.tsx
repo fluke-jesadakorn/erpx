@@ -1,5 +1,5 @@
 import type { ComponentPropsWithRef, ElementType, HTMLAttributes, ReactNode } from "react";
-import { cn } from "@/lib/ui";
+import { cn } from "@/lib/shared/ui";
 import type { UiAppearance } from "./appearance";
 
 type BoxProps = HTMLAttributes<HTMLElement> & { as?: ElementType };

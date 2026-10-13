@@ -1,0 +1,2643 @@
+{
+  "checkedAt": "2026-10-11T04:26:12.428863+00:00",
+  "candidate": {
+    "runtime": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+    "verification": "da3577cbc0866b9770ad0279a6a5b54fe7f71120501f1846d6d2cea38c2b43f5",
+    "mainRuntime": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+    "mainVerification": "da3577cbc0866b9770ad0279a6a5b54fe7f71120501f1846d6d2cea38c2b43f5",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T03-48-34-786Z",
+    "releaseId": "2026-10-11T03-48-34-786Z"
+  },
+  "scope": "Fresh per-capability native passing-file source references on frozen runtime, retaining historical proof limits and pending aggregate acceptance. No individual-case execution receipt is invented.",
+  "canonicalStatusRegister": "docs/testing/pms-feature-register-2026-10-09.md",
+  "sourceCatalogue": "src/data/pms-delivery.ts",
+  "sourceCatalogueIsImmutablePrototypeBaseline": true,
+  "wholePlanAccepted": false,
+  "features": [
+    {
+      "id": "property-01",
+      "group": "Properties, rooms & media",
+      "name": "Property/Branch setup",
+      "owner": "PMS / Files",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "docs/contracts/next/pms.md#publishing-media-and-delivery",
+      "remaining": "Actual upload/publication, revocation and hotel-specific content signoff",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 850,
+          "title": "blocks unauthorized, cross-company and revoked actors without business writes",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1796,
+          "title": "filters setup details and resumes from owner records without admitting other branches",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-read-model.test.ts",
+          "line": 206,
+          "title": "retains fresh permission, company and branch privacy for every query model",
+          "sourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+          "passingFileTestCount": 18,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "property-02",
+      "group": "Properties, rooms & media",
+      "name": "Room types, buildings, floors",
+      "owner": "PMS / Files",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "docs/contracts/next/pms.md#publishing-media-and-delivery",
+      "remaining": "Actual upload/publication, revocation and hotel-specific content signoff",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms-read-model.test.ts",
+          "line": 261,
+          "title": "filters room type, building and floor before pagination without losing a selected detail",
+          "sourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+          "passingFileTestCount": 18,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-read-model.test.ts",
+          "line": 362,
+          "title": "protects off-page room assignments, duplicate numbers and maintenance capacity under inventory command locks",
+          "sourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+          "passingFileTestCount": 18,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "property-03",
+      "group": "Properties, rooms & media",
+      "name": "Beds, capacity, amenities",
+      "owner": "PMS / Files",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "docs/contracts/next/pms.md#publishing-media-and-delivery",
+      "remaining": "Actual upload/publication, revocation and hotel-specific content signoff",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 206,
+          "title": "shares exact nightly prices, child occupancy and policy snapshots",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 547,
+          "title": "handles timezone cutoffs and rejects missing child pricing",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "property-04",
+      "group": "Properties, rooms & media",
+      "name": "Reviewed photo galleries",
+      "owner": "PMS / Files",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "docs/contracts/next/pms.md#publishing-media-and-delivery",
+      "remaining": "Actual upload/publication, revocation and hotel-specific content signoff",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 369,
+          "title": "binds room-task photos in the PMS action transaction and leaves stale evidence draft",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 344,
+          "title": "requires explicit publication and prevents selling private rates",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [
+        "docs/testing/evidence/2026-10-11-pms-image-deliverables.json"
+      ],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "rates-01",
+      "group": "Rates & policies",
+      "name": "Daily/seasonal rates",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "tests/pms-booking.test.ts",
+      "remaining": "Complete child/rate/policy browser matrix on final candidate",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1381,
+          "title": "uses daily prices and stop-sell without repricing an existing reservation",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [
+        "docs/testing/evidence/2026-10-11-pms-main-aligned-rate-rooming-domain-proof.json"
+      ],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "rates-02",
+      "group": "Rates & policies",
+      "name": "Company/agent rates",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "tests/pms-booking.test.ts",
+      "remaining": "Complete child/rate/policy browser matrix on final candidate",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [],
+      "supplementalEvidence": [
+        "docs/testing/evidence/2026-10-11-pms-main-aligned-rate-rooming-domain-proof.json"
+      ],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "rates-03",
+      "group": "Rates & policies",
+      "name": "Packages and extra adults/child bands",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "tests/pms-booking.test.ts",
+      "remaining": "Complete child/rate/policy browser matrix on final candidate",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 206,
+          "title": "shares exact nightly prices, child occupancy and policy snapshots",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 547,
+          "title": "handles timezone cutoffs and rejects missing child pricing",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [
+        "docs/testing/evidence/2026-10-11-pms-main-aligned-rate-rooming-domain-proof.json"
+      ],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "rates-04",
+      "group": "Rates & policies",
+      "name": "Arrival/departure restrictions",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "tests/pms-booking.test.ts",
+      "remaining": "Complete child/rate/policy browser matrix on final candidate",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1381,
+          "title": "uses daily prices and stop-sell without repricing an existing reservation",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 560,
+          "title": "withdraws inventory after maintenance and rejects a previously available quote",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [
+        "docs/testing/evidence/2026-10-11-pms-main-aligned-rate-rooming-domain-proof.json"
+      ],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "rates-05",
+      "group": "Rates & policies",
+      "name": "Frozen booking terms",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "tests/pms-booking.test.ts",
+      "remaining": "Complete child/rate/policy browser matrix on final candidate",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 304,
+          "title": "preserves reviewed night prices and original deposit FX through concurrent partial refunds and reload",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 311,
+          "title": "rejects stale price, stale policy, forged and expired quotes",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 792,
+          "title": "applies a paid change with accepted prices even when a rate is edited during Checkout",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [
+        "docs/testing/evidence/2026-10-11-pms-main-aligned-rate-rooming-domain-proof.json"
+      ],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "reservations-01",
+      "group": "Reservations & groups",
+      "name": "Multiple rooms/date sets",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "tests/pms.test.ts",
+      "remaining": "Final candidate group/rooming-list and front-desk UAT",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 605,
+          "title": "holds two rooms, then confirms and allocates each guest account only after Stripe verifies the direct charge",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 759,
+          "title": "collects a 30% room advance and combines pay-at-hotel rooms without inventing income",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "reservations-02",
+      "group": "Reservations & groups",
+      "name": "Walk-in/phone/manual OTA",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "tests/pms.test.ts",
+      "remaining": "Final candidate group/rooming-list and front-desk UAT",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 722,
+          "title": "rejects double booking, duplicate OTA references and stale versions",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1263,
+          "title": "settles a manually entered OTA reservation against approved credit and net bank proceeds",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "reservations-03",
+      "group": "Reservations & groups",
+      "name": "Group allotments and pickup",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "tests/pms.test.ts",
+      "remaining": "Final candidate group/rooming-list and front-desk UAT",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 786,
+          "title": "keeps group pickup from consuming inventory twice and allows back-to-back stays",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "reservations-04",
+      "group": "Reservations & groups",
+      "name": "Rooming list",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "tests/pms.test.ts",
+      "remaining": "Final candidate group/rooming-list and front-desk UAT",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [],
+      "supplementalEvidence": [
+        "docs/testing/evidence/2026-10-11-pms-main-aligned-rate-rooming-domain-proof.json"
+      ],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "reservations-05",
+      "group": "Reservations & groups",
+      "name": "Cancellation/no-show",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "tests/pms.test.ts",
+      "remaining": "Final candidate group/rooming-list and front-desk UAT",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1481,
+          "title": "cancels an unarrived room in a partially checked-in group and ignores stale housekeeping cycles",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 380,
+          "title": "cancels all rooms once and restores inventory without fees",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 407,
+          "title": "rejects cancellation at the exact cutoff and after partial arrival or financial activity",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "front-desk-01",
+      "group": "Front desk",
+      "name": "Arrival/departure queues",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "docs/contracts/next/pms.md#acceptance-register--2026-10-05-in-progress",
+      "remaining": "Full arrival-through-departure desktop/mobile journey",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms-read-model.test.ts",
+          "line": 84,
+          "title": "does not hide overdue stays or unreviewed cash shifts when paging day-close history",
+          "sourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+          "passingFileTestCount": 18,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1630,
+          "title": "keeps overdue arrivals outside the current UI window as Night Audit blockers",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "front-desk-02",
+      "group": "Front desk",
+      "name": "Assignment and check-in/out",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "docs/contracts/next/pms.md#acceptance-register--2026-10-05-in-progress",
+      "remaining": "Full arrival-through-departure desktop/mobile journey",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 601,
+          "title": "completes deposit, stay, durable night audit, checkout and invoice without duplicate revenue",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 761,
+          "title": "requires inspected rooms and independent inspection; maintenance cannot displace guests",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "front-desk-03",
+      "group": "Front desk",
+      "name": "Move/upgrade/extend",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "docs/contracts/next/pms.md#acceptance-register--2026-10-05-in-progress",
+      "remaining": "Full arrival-through-departure desktop/mobile journey",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1332,
+          "title": "moves an in-house guest, extends safely and preserves room history",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1903,
+          "title": "room move supersedes every old-room task beyond a UI page without modifying unrelated closed-account history",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "front-desk-04",
+      "group": "Front desk",
+      "name": "Early departure",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "docs/contracts/next/pms.md#acceptance-register--2026-10-05-in-progress",
+      "remaining": "Full arrival-through-departure desktop/mobile journey",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 2255,
+          "title": "releases unused future room nights on early departure without duplicate revenue or checkout",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "housekeeping-01",
+      "group": "Housekeeping & maintenance",
+      "name": "Dirty/clean/inspected",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "tests/pms.test.ts",
+      "remaining": "Independent inspectors, stale cycles and mobile UAT",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 761,
+          "title": "requires inspected rooms and independent inspection; maintenance cannot displace guests",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "housekeeping-02",
+      "group": "Housekeeping & maintenance",
+      "name": "DND and occupancy discrepancy",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "tests/pms.test.ts",
+      "remaining": "Independent inspectors, stale cycles and mobile UAT",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 2284,
+          "title": "honors DND for room work and resumes the same cycle only after its release",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-read-model.test.ts",
+          "line": 324,
+          "title": "uses authoritative room occupancy and all room tasks for housekeeping commands beyond a UI page",
+          "sourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+          "passingFileTestCount": 18,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "housekeeping-03",
+      "group": "Housekeeping & maintenance",
+      "name": "Checklist/assignment/independent inspection",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "tests/pms.test.ts",
+      "remaining": "Independent inspectors, stale cycles and mobile UAT",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 369,
+          "title": "binds room-task photos in the PMS action transaction and leaves stale evidence draft",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 761,
+          "title": "requires inspected rooms and independent inspection; maintenance cannot displace guests",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-read-model.test.ts",
+          "line": 324,
+          "title": "uses authoritative room occupancy and all room tasks for housekeeping commands beyond a UI page",
+          "sourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+          "passingFileTestCount": 18,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "housekeeping-04",
+      "group": "Housekeeping & maintenance",
+      "name": "Maintenance release",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "tests/pms.test.ts",
+      "remaining": "Independent inspectors, stale cycles and mobile UAT",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 761,
+          "title": "requires inspected rooms and independent inspection; maintenance cannot displace guests",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 560,
+          "title": "withdraws inventory after maintenance and rejects a previously available quote",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-read-model.test.ts",
+          "line": 362,
+          "title": "protects off-page room assignments, duplicate numbers and maintenance capacity under inventory command locks",
+          "sourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+          "passingFileTestCount": 18,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "housekeeping-05",
+      "group": "Housekeeping & maintenance",
+      "name": "Lost property",
+      "owner": "PMS",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "tests/pms.test.ts",
+      "remaining": "Independent inspectors, stale cycles and mobile UAT",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 444,
+          "title": "binds lost-property handover evidence in the release transaction",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "accounts-01",
+      "group": "Guest Accounts",
+      "name": "Individual/company/agent payers",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "docs/adr/ADR-040-hospitality-module-ownership-and-guest-accounts.md",
+      "remaining": "Final multi-role operational and Finance review matrix",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1263,
+          "title": "settles a manually entered OTA reservation against approved credit and net bank proceeds",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1936,
+          "title": "checkout includes all same-party credit exposure beyond a page and excludes unrelated parties without losing account funding",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "accounts-02",
+      "group": "Guest Accounts",
+      "name": "Charge routing, split and merge",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "docs/adr/ADR-040-hospitality-module-ownership-and-guest-accounts.md",
+      "remaining": "Final multi-role operational and Finance review matrix",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1222,
+          "title": "splits and merges charges without repeating revenue and reverses the recipient entry once",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "accounts-03",
+      "group": "Guest Accounts",
+      "name": "Credit and corrections",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "docs/adr/ADR-040-hospitality-module-ownership-and-guest-accounts.md",
+      "remaining": "Final multi-role operational and Finance review matrix",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1609,
+          "title": "retains historical occupancy capacity and posts corrections in the open business date",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 865,
+          "title": "blocks closed accounting periods and keeps the payment and guest account atomic",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "accounts-04",
+      "group": "Guest Accounts",
+      "name": "Original receipt funding",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "docs/adr/ADR-040-hospitality-module-ownership-and-guest-accounts.md",
+      "remaining": "Final multi-role operational and Finance review matrix",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1738,
+          "title": "protects allocated receipt links and journal lines from deletion outside the subledger",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1870,
+          "title": "uses complete original receipt funding beyond a UI page while preserving unrelated closed account history",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1962,
+          "title": "checkout preserves original receipt allocations of another issued credit account for the same payer",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "cashier-01",
+      "group": "Payments & cashier",
+      "name": "Cash/transfer/EDC",
+      "owner": "PMS / Finance",
+      "phase": "direct",
+      "status": "acceptance-pending",
+      "evidence": "docs/testing/evidence/2026-10-05-pms-direct-booking.json",
+      "remaining": "Signed webhooks, payout/bank reconciliation and controlled recipient delivery; live gates remain separate",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 507,
+          "title": "settles a pending hotel transfer only after independent exact bank evidence",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 581,
+          "title": "cancels an unverified hotel transfer without changing guest account or ledger",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 601,
+          "title": "completes deposit, stay, durable night audit, checkout and invoice without duplicate revenue",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "cashier-02",
+      "group": "Payments & cashier",
+      "name": "Card/PromptPay sandbox",
+      "owner": "PMS / Finance",
+      "phase": "direct",
+      "status": "acceptance-pending",
+      "evidence": "docs/testing/evidence/2026-10-05-pms-direct-booking.json",
+      "remaining": "Signed webhooks, payout/bank reconciliation and controlled recipient delivery; live gates remain separate",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 684,
+          "title": "posts a counter PromptPay room payment and deposit only after Stripe confirms each intent",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 707,
+          "title": "requires an independent Finance approval and Stripe confirmation for a counter refund",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [
+        "docs/testing/evidence/2026-10-11-pms-main-aligned-provider-sandbox.json"
+      ],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "cashier-03",
+      "group": "Payments & cashier",
+      "name": "Advances vs security deposits",
+      "owner": "PMS / Finance",
+      "phase": "direct",
+      "status": "acceptance-pending",
+      "evidence": "docs/testing/evidence/2026-10-05-pms-direct-booking.json",
+      "remaining": "Signed webhooks, payout/bank reconciliation and controlled recipient delivery; live gates remain separate",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 807,
+          "title": "separates security deposits, enforces refund independence and reverses advance VAT once",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1136,
+          "title": "allocates new receipts after an earlier deposit was refunded",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 759,
+          "title": "collects a 30% room advance and combines pay-at-hotel rooms without inventing income",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "cashier-04",
+      "group": "Payments & cashier",
+      "name": "Partial refunds",
+      "owner": "PMS / Finance",
+      "phase": "direct",
+      "status": "acceptance-pending",
+      "evidence": "docs/testing/evidence/2026-10-05-pms-direct-booking.json",
+      "remaining": "Signed webhooks, payout/bank reconciliation and controlled recipient delivery; live gates remain separate",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 802,
+          "title": "reserves partial refunds cumulatively and rejects an approval by the requester",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 874,
+          "title": "retains counter partial refund generations and recovers a failed provider attempt without posting debt twice",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 905,
+          "title": "recovers a partial booking refund after the provider accepts it but its response is lost",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1825,
+          "title": "serializes a damage-deposit refund against applying the same deposit to a charge",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [
+        "docs/testing/evidence/2026-10-11-pms-main-aligned-provider-sandbox.json"
+      ],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "cashier-05",
+      "group": "Payments & cashier",
+      "name": "Cash shift variance/handover",
+      "owner": "PMS / Finance",
+      "phase": "direct",
+      "status": "acceptance-pending",
+      "evidence": "docs/testing/evidence/2026-10-05-pms-direct-booking.json",
+      "remaining": "Signed webhooks, payout/bank reconciliation and controlled recipient delivery; live gates remain separate",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 667,
+          "title": "holds Night Audit for restaurant cash, variance and unverified transfer controls",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1093,
+          "title": "settles the original opening receivable and invoices only new hotel service across two business days",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "direct-01",
+      "group": "Direct booking & guest self-service",
+      "name": "Search/quote/gallery",
+      "owner": "PMS / Files",
+      "phase": "direct",
+      "status": "acceptance-pending",
+      "evidence": "docs/contracts/next/pms.md#direct-room-booking--current-implementation-2026-10-05",
+      "remaining": "Full final candidate guest return/change/refund journey and real email to authorized recipients",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 344,
+          "title": "requires explicit publication and prevents selling private rates",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 433,
+          "title": "filters inventory reads and public responses away from guest and financial history",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "direct-02",
+      "group": "Direct booking & guest self-service",
+      "name": "Multiple rooms and rates",
+      "owner": "PMS / Files",
+      "phase": "direct",
+      "status": "acceptance-pending",
+      "evidence": "docs/contracts/next/pms.md#direct-room-booking--current-implementation-2026-10-05",
+      "remaining": "Full final candidate guest return/change/refund journey and real email to authorized recipients",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 605,
+          "title": "holds two rooms, then confirms and allocates each guest account only after Stripe verifies the direct charge",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 759,
+          "title": "collects a 30% room advance and combines pay-at-hotel rooms without inventing income",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "direct-03",
+      "group": "Direct booking & guest self-service",
+      "name": "Pay at hotel/full/deposit",
+      "owner": "PMS / Files",
+      "phase": "direct",
+      "status": "acceptance-pending",
+      "evidence": "docs/contracts/next/pms.md#direct-room-booking--current-implementation-2026-10-05",
+      "remaining": "Full final candidate guest return/change/refund journey and real email to authorized recipients",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 605,
+          "title": "holds two rooms, then confirms and allocates each guest account only after Stripe verifies the direct charge",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 759,
+          "title": "collects a 30% room advance and combines pay-at-hotel rooms without inventing income",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [
+        "docs/testing/evidence/2026-10-11-pms-main-aligned-provider-sandbox.json"
+      ],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "direct-04",
+      "group": "Direct booking & guest self-service",
+      "name": "Manage/change/cancel/recover",
+      "owner": "PMS / Files",
+      "phase": "direct",
+      "status": "acceptance-pending",
+      "evidence": "docs/contracts/next/pms.md#direct-room-booking--current-implementation-2026-10-05",
+      "remaining": "Full final candidate guest return/change/refund journey and real email to authorized recipients",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 775,
+          "title": "changes an unpaid future stay at equal price and releases only selected cancelled rooms",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 783,
+          "title": "keeps the original stay while a more expensive change expires and holds only added capacity",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 792,
+          "title": "applies a paid change with accepted prices even when a rate is edited during Checkout",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 813,
+          "title": "confirms a timely provider payment after local hold expiry only when capacity is still available",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 819,
+          "title": "records unallocated money once when a timely late webhook loses the last room",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 856,
+          "title": "recovers a provider success after the local accounting transaction fails without taking another payment",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 939,
+          "title": "deduplicates signed booking payment callbacks through durable jobs and rejects tampered payloads",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "direct-05",
+      "group": "Direct booking & guest self-service",
+      "name": "Email and private documents",
+      "owner": "PMS / Files",
+      "phase": "direct",
+      "status": "acceptance-pending",
+      "evidence": "docs/contracts/next/pms.md#direct-room-booking--current-implementation-2026-10-05",
+      "remaining": "Full final candidate guest return/change/refund journey and real email to authorized recipients",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 465,
+          "title": "retries email failures while keeping the booking confirmed",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 493,
+          "title": "delivers a queued confirmation in a release process without enabling live payments",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 501,
+          "title": "expires access links and provides non-enumerating email recovery",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-booking.test.ts",
+          "line": 866,
+          "title": "serves only guest documents belonging to the management token and excludes private accounting fields",
+          "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+          "passingFileTestCount": 37,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/unit/pms-application.test.ts",
+          "line": 29,
+          "title": "guest document lookup is bound to the authorized hotel and booking",
+          "sourceSHA256": "3594661ac9c39b6edac062f747f3489974f232f1c8b1cb906b218610de2d1269",
+          "passingFileTestCount": 58,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/unit/pms-application.test.ts",
+          "line": 30,
+          "title": "guest document preserves its issued amounts and excludes Finance and personal identifiers",
+          "sourceSHA256": "3594661ac9c39b6edac062f747f3489974f232f1c8b1cb906b218610de2d1269",
+          "passingFileTestCount": 58,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "guests-01",
+      "group": "Guest services & CRM",
+      "name": "Guest history and identity files",
+      "owner": "PMS / CRM",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "CONTEXT.md",
+      "remaining": "Preferences/requests, reviewed CRM links and explicit service-history grant/revocation implemented; final candidate browser and scope acceptance pending",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1521,
+          "title": "loads real workspace selectors and redacts financial and guest data for housekeeping",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-front-attachments.test.ts",
+          "line": 27,
+          "title": "keeps private room evidence on Front through intake, scan and the hotel action binding",
+          "sourceSHA256": "5df55aed2215b7297f69b1ae883e4ef23a3da1f422584e86037071f38c5f8302",
+          "passingFileTestCount": 2,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "guests-02",
+      "group": "Guest services & CRM",
+      "name": "Preferences and service requests",
+      "owner": "PMS / CRM",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "CONTEXT.md",
+      "remaining": "Preferences/requests, reviewed CRM links and explicit service-history grant/revocation implemented; final candidate browser and scope acceptance pending",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1848,
+          "title": "retains guest preferences and immutable service request history across legacy edits and retries",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "guests-03",
+      "group": "Guest services & CRM",
+      "name": "Reviewed CRM links",
+      "owner": "PMS / CRM",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "CONTEXT.md",
+      "remaining": "Preferences/requests, reviewed CRM links and explicit service-history grant/revocation implemented; final candidate browser and scope acceptance pending",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/crm-marketing-analytics.test.ts",
+          "line": 17,
+          "title": "keeps a confirmed PMS win after cancellation and only counts posted journal revenue",
+          "sourceSHA256": "50bf3e0e5997c89937c83f64e73866fce17dd8e148f59956b04cf0d1e0b58267",
+          "passingFileTestCount": 5,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-crm-privacy.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/crm-marketing-analytics.test.ts",
+          "line": 114,
+          "title": "keeps hotel history private until authority is reviewed and hides it after withdrawal",
+          "sourceSHA256": "50bf3e0e5997c89937c83f64e73866fce17dd8e148f59956b04cf0d1e0b58267",
+          "passingFileTestCount": 5,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-crm-privacy.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "guests-04",
+      "group": "Guest services & CRM",
+      "name": "Scoped privacy and consent",
+      "owner": "PMS / CRM",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "CONTEXT.md",
+      "remaining": "Preferences/requests, reviewed CRM links and explicit service-history grant/revocation implemented; final candidate browser and scope acceptance pending",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/crm-marketing-analytics.test.ts",
+          "line": 114,
+          "title": "keeps hotel history private until authority is reviewed and hides it after withdrawal",
+          "sourceSHA256": "50bf3e0e5997c89937c83f64e73866fce17dd8e148f59956b04cf0d1e0b58267",
+          "passingFileTestCount": 5,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-crm-privacy.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 850,
+          "title": "blocks unauthorized, cross-company and revoked actors without business writes",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/unit/pms-application.test.ts",
+          "line": 39,
+          "title": "PMS source rules keep housekeeping away from guest account and refund money",
+          "sourceSHA256": "3594661ac9c39b6edac062f747f3489974f232f1c8b1cb906b218610de2d1269",
+          "passingFileTestCount": 58,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "pos-stock-01",
+      "group": "POS, minibar & linen",
+      "name": "Atomic full-bill room charge",
+      "owner": "POS / PMS / Inventory",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "docs/testing/hospitality-boundaries-2026-10-08.md",
+      "remaining": "Complete POS/PMS reviewer browser journeys; production room-charge gate remains off",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1541,
+          "title": "defines a POS room-charge contract that rejects foreign scope and already recognized revenue",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 2012,
+          "title": "POS room charge allocates complete original advance sources beyond a UI page",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "pos-stock-02",
+      "group": "POS, minibar & linen",
+      "name": "Independent reversal decisions",
+      "owner": "POS / PMS / Inventory",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "docs/testing/hospitality-boundaries-2026-10-08.md",
+      "remaining": "Complete POS/PMS reviewer browser journeys; production room-charge gate remains off",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 2003,
+          "title": "POS reversal detects an original reversal outside the charged account",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1222,
+          "title": "splits and merges charges without repeating revenue and reverses the recipient entry once",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "pos-stock-03",
+      "group": "POS, minibar & linen",
+      "name": "Minibar/consumables",
+      "owner": "POS / PMS / Inventory",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "docs/testing/hospitality-boundaries-2026-10-08.md",
+      "remaining": "Complete POS/PMS reviewer browser journeys; production room-charge gate remains off",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1413,
+          "title": "posts minibar and inventory cost together, rolling back insufficient stock",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "pos-stock-04",
+      "group": "POS, minibar & linen",
+      "name": "Linen/laundry/loss custody",
+      "owner": "POS / PMS / Inventory",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "docs/testing/hospitality-boundaries-2026-10-08.md",
+      "remaining": "Complete POS/PMS reviewer browser journeys; production room-charge gate remains off",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 2210,
+          "title": "preserves linen custody and original stock cost through replay, laundry and loss",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "night-01",
+      "group": "Night Audit & recovery",
+      "name": "Explicit Business Date",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "tests/pms.test.ts",
+      "remaining": "Two consecutive closes with failure/restart and independent Finance acceptance",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 601,
+          "title": "completes deposit, stay, durable night audit, checkout and invoice without duplicate revenue",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1093,
+          "title": "settles the original opening receivable and invoices only new hotel service across two business days",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "night-02",
+      "group": "Night Audit & recovery",
+      "name": "Cash/POS/financial blockers",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "tests/pms.test.ts",
+      "remaining": "Two consecutive closes with failure/restart and independent Finance acceptance",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 667,
+          "title": "holds Night Audit for restaurant cash, variance and unverified transfer controls",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1630,
+          "title": "keeps overdue arrivals outside the current UI window as Night Audit blockers",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1639,
+          "title": "retains an older open shift behind reviewed history before closing a hotel day",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1648,
+          "title": "does not treat an older closed shift with unknown variance as reconciled",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "night-03",
+      "group": "Night Audit & recovery",
+      "name": "Durable room-night jobs",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "tests/pms.test.ts",
+      "remaining": "Two consecutive closes with failure/restart and independent Finance acceptance",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 905,
+          "title": "durably blocks failed night audit and resumes under a valid auditor",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1686,
+          "title": "resumes a multi-chunk night from committed sources and serializes competing workers",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "night-04",
+      "group": "Night Audit & recovery",
+      "name": "Resume without duplicate revenue",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "tests/pms.test.ts",
+      "remaining": "Two consecutive closes with failure/restart and independent Finance acceptance",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 905,
+          "title": "durably blocks failed night audit and resumes under a valid auditor",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1686,
+          "title": "resumes a multi-chunk night from committed sources and serializes competing workers",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1466,
+          "title": "locks closing-day commands and blocks workers whose originating authority was revoked",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "reports-01",
+      "group": "Hotel reporting",
+      "name": "Occupancy/ADR/RevPAR",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "tests/pms-reports.test.ts",
+      "remaining": "Current channel/gross pickup and append-only historical net pace implemented; pre-observation history stays unknown; final candidate report/browser reconciliation pending",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms-reports.test.ts",
+          "line": 10,
+          "title": "uses corrected room-night revenue for ADR and includes other services only in net revenue",
+          "sourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+          "passingFileTestCount": 6,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/unit/pms-application.test.ts",
+          "line": 27,
+          "title": "PMS report aggregates integer revenue, occupancy and liability signs from provided facts",
+          "sourceSHA256": "3594661ac9c39b6edac062f747f3489974f232f1c8b1cb906b218610de2d1269",
+          "passingFileTestCount": 58,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "reports-02",
+      "group": "Hotel reporting",
+      "name": "Revenue/balances/refunds",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "tests/pms-reports.test.ts",
+      "remaining": "Current channel/gross pickup and append-only historical net pace implemented; pre-observation history stays unknown; final candidate report/browser reconciliation pending",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms-reports.test.ts",
+          "line": 10,
+          "title": "uses corrected room-night revenue for ADR and includes other services only in net revenue",
+          "sourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+          "passingFileTestCount": 6,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1093,
+          "title": "settles the original opening receivable and invoices only new hotel service across two business days",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "reports-03",
+      "group": "Hotel reporting",
+      "name": "Channel performance",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "tests/pms-reports.test.ts",
+      "remaining": "Current channel/gross pickup and append-only historical net pace implemented; pre-observation history stays unknown; final candidate report/browser reconciliation pending",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms-reports.test.ts",
+          "line": 31,
+          "title": "attributes current room nights by channel using original creation evidence rather than edit time",
+          "sourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+          "passingFileTestCount": 6,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "reports-04",
+      "group": "Hotel reporting",
+      "name": "Booking pace/pickup",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "tests/pms-reports.test.ts",
+      "remaining": "Current channel/gross pickup and append-only historical net pace implemented; pre-observation history stays unknown; final candidate report/browser reconciliation pending",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms-reports.test.ts",
+          "line": 44,
+          "title": "retains historical prices and room nights after date changes and partial cancellation",
+          "sourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+          "passingFileTestCount": 6,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-reports.test.ts",
+          "line": 68,
+          "title": "reports unknown pace before coverage instead of inventing legacy observations",
+          "sourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+          "passingFileTestCount": 6,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-reports.test.ts",
+          "line": 74,
+          "title": "retains completed reservation room nights in the historical booked stay period",
+          "sourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+          "passingFileTestCount": 6,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "reports-05",
+      "group": "Hotel reporting",
+      "name": "CSV and drill-down",
+      "owner": "PMS / Finance",
+      "phase": "core",
+      "status": "acceptance-pending",
+      "evidence": "tests/pms-reports.test.ts",
+      "remaining": "Current channel/gross pickup and append-only historical net pace implemented; pre-observation history stays unknown; final candidate report/browser reconciliation pending",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms-reports.test.ts",
+          "line": 21,
+          "title": "bounds ranges, drill-down pages and scope",
+          "sourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+          "passingFileTestCount": 6,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/unit/pms-application.test.ts",
+          "line": 28,
+          "title": "PMS report pagination keeps exactly fifty rows and signals the next page",
+          "sourceSHA256": "3594661ac9c39b6edac062f747f3489974f232f1c8b1cb906b218610de2d1269",
+          "passingFileTestCount": 58,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "group-01",
+      "group": "Multi-property & authority",
+      "name": "Company/Branch Today",
+      "owner": "PMS / IAM",
+      "phase": "pilot",
+      "status": "acceptance-pending",
+      "evidence": "docs/contracts/next/pms.md#company-today-and-shared-erpx-conversations-2026-09-30",
+      "remaining": "3 × 200 rooms, two-year history, concurrency and scope verification",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 961,
+          "title": "aggregates accessible hotels without choosing one and keeps guest amounts private from housekeeping",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "group-02",
+      "group": "Multi-property & authority",
+      "name": "Property-scoped operations",
+      "owner": "PMS / IAM",
+      "phase": "pilot",
+      "status": "acceptance-pending",
+      "evidence": "docs/contracts/next/pms.md#company-today-and-shared-erpx-conversations-2026-09-30",
+      "remaining": "3 × 200 rooms, two-year history, concurrency and scope verification",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 850,
+          "title": "blocks unauthorized, cross-company and revoked actors without business writes",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-read-model.test.ts",
+          "line": 206,
+          "title": "retains fresh permission, company and branch privacy for every query model",
+          "sourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+          "passingFileTestCount": 18,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "group-03",
+      "group": "Multi-property & authority",
+      "name": "Role and assignment revocation",
+      "owner": "PMS / IAM",
+      "phase": "pilot",
+      "status": "acceptance-pending",
+      "evidence": "docs/contracts/next/pms.md#company-today-and-shared-erpx-conversations-2026-09-30",
+      "remaining": "3 × 200 rooms, two-year history, concurrency and scope verification",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 850,
+          "title": "blocks unauthorized, cross-company and revoked actors without business writes",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1466,
+          "title": "locks closing-day commands and blocks workers whose originating authority was revoked",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/unit/pms-application.test.ts",
+          "line": 26,
+          "title": "PMS report permission withdrawal prevents all repository reads",
+          "sourceSHA256": "3594661ac9c39b6edac062f747f3489974f232f1c8b1cb906b218610de2d1269",
+          "passingFileTestCount": 58,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "group-04",
+      "group": "Multi-property & authority",
+      "name": "Cross-property overview",
+      "owner": "PMS / IAM",
+      "phase": "pilot",
+      "status": "acceptance-pending",
+      "evidence": "docs/contracts/next/pms.md#company-today-and-shared-erpx-conversations-2026-09-30",
+      "remaining": "3 × 200 rooms, two-year history, concurrency and scope verification",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 961,
+          "title": "aggregates accessible hotels without choosing one and keeps guest amounts private from housekeeping",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-read-model.test.ts",
+          "line": 289,
+          "title": "measures scoped room reads and guest writes with three 200-room properties and two-year synthetic history",
+          "sourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+          "passingFileTestCount": 18,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "cutover-01",
+      "group": "Documents, import & export",
+      "name": "Issued snapshots/internal tax documents",
+      "owner": "PMS / Finance / Files",
+      "phase": "pilot",
+      "status": "acceptance-pending",
+      "evidence": "docs/contracts/next/pms.md#real-company-cutover-import",
+      "remaining": "Mock opening balance agreement, migration/restore/export and reviewer engineering UAT; real-hotel rollout remains separate",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 601,
+          "title": "completes deposit, stay, durable night audit, checkout and invoice without duplicate revenue",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 928,
+          "title": "protects PMS invoices and payments from generic finance mutations",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1093,
+          "title": "settles the original opening receivable and invoices only new hotel service across two business days",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "cutover-02",
+      "group": "Documents, import & export",
+      "name": "Reviewed opening balances",
+      "owner": "PMS / Finance / Files",
+      "phase": "pilot",
+      "status": "acceptance-pending",
+      "evidence": "docs/contracts/next/pms.md#real-company-cutover-import",
+      "remaining": "Mock opening balance agreement, migration/restore/export and reviewer engineering UAT; real-hotel rollout remains separate",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1047,
+          "title": "previews import errors without writing hotel records and requires independent unchanged approval",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1071,
+          "title": "traces imported advance and deposit to the approved opening journal and reconciles partial refunds",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1093,
+          "title": "settles the original opening receivable and invoices only new hotel service across two business days",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "cutover-03",
+      "group": "Documents, import & export",
+      "name": "Atomic import/replay",
+      "owner": "PMS / Finance / Files",
+      "phase": "pilot",
+      "status": "acceptance-pending",
+      "evidence": "docs/contracts/next/pms.md#real-company-cutover-import",
+      "remaining": "Mock opening balance agreement, migration/restore/export and reviewer engineering UAT; real-hotel rollout remains separate",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1047,
+          "title": "previews import errors without writing hotel records and requires independent unchanged approval",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms.test.ts",
+          "line": 1058,
+          "title": "applies approved imported in-house stays atomically and resumes a repeated apply without past room revenue",
+          "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+          "passingFileTestCount": 84,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "cutover-04",
+      "group": "Documents, import & export",
+      "name": "Data export and restore rehearsal",
+      "owner": "PMS / Finance / Files",
+      "phase": "pilot",
+      "status": "acceptance-pending",
+      "evidence": "docs/contracts/next/pms.md#real-company-cutover-import",
+      "remaining": "Mock opening balance agreement, migration/restore/export and reviewer engineering UAT; real-hotel rollout remains separate",
+      "engineeringAcceptance": "awaiting-combined-candidate",
+      "nativeAssertionSources": [
+        {
+          "file": "tests/engineering-recovery.test.ts",
+          "line": 50,
+          "title": "encrypts a complete isolated snapshot, restores immutable money and files, and rolls back only compatible releases",
+          "sourceSHA256": "8214881129023aa06e055ba3433cc0b48dfd95ea62dfc9bc94cfd7d798864ec8",
+          "passingFileTestCount": 1,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/engineering-migration-upgrade.test.ts",
+          "line": 21,
+          "title": "upgrades populated pre-completion databases without changing posted money or files and replays canonical backfill once",
+          "sourceSHA256": "c9993f5b4616c2e905b9b24f204384b9bc51264afa04fa78b71402cb5c3bc3d7",
+          "passingFileTestCount": 1,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        },
+        {
+          "file": "tests/pms-cache-upgrade.test.ts",
+          "line": 7,
+          "title": "preserves every original cache revision on the populated 1037 upgrade and replays 1038 once",
+          "sourceSHA256": "e6061ccbdacabef4ec6dffc5e2ac555736d098dfe06340602d1eebe4c66d927b",
+          "passingFileTestCount": 1,
+          "fileExecutionEvidence": "docs/testing/evidence/2026-10-11-pms-leaf-native.json",
+          "scope": "Source assertion in a fully passing file; not a separately exported individual-case receipt."
+        }
+      ],
+      "supplementalEvidence": [],
+      "remainingEngineeringGates": [
+        "Original178browser + original38PMSroutes terminal and cleanup",
+        "Supplemental40 persisted rooming/pricing/report/maintenance HTTP checks and cleanup",
+        "Fresh same-candidate strict release capacity840reads843writes + cleanup",
+        "Final per-feature scope and evidence reconciliation"
+      ],
+      "liveBoundary": "User-authorized fictional hotel/staff/money only. Real hotel data/signoff, live provider/bank/email and production activation remain separate."
+    },
+    {
+      "id": "integrations-01",
+      "group": "Partner ecosystem",
+      "name": "OTA/SiteMinder",
+      "owner": "PMS / Finance / CRM",
+      "phase": "after-pilot",
+      "status": "needs-work",
+      "evidence": "docs/testing/pms-market-research-2026-10-09.md",
+      "remaining": "Separate partner contracts, sandbox/certification and approvals after pilot",
+      "engineeringAcceptance": "explicitly-deferred",
+      "nativeAssertionSources": [],
+      "remainingEngineeringGates": [],
+      "activation": "Partner protocol/certification/contracts and separate activation after real pilot; not claimed implemented."
+    },
+    {
+      "id": "integrations-02",
+      "group": "Partner ecosystem",
+      "name": "TM30/e-Tax",
+      "owner": "PMS / Finance / CRM",
+      "phase": "after-pilot",
+      "status": "needs-work",
+      "evidence": "docs/testing/pms-market-research-2026-10-09.md",
+      "remaining": "Separate partner contracts, sandbox/certification and approvals after pilot",
+      "engineeringAcceptance": "explicitly-deferred",
+      "nativeAssertionSources": [],
+      "remainingEngineeringGates": [],
+      "activation": "Partner protocol/certification/contracts and separate activation after real pilot; not claimed implemented."
+    },
+    {
+      "id": "integrations-03",
+      "group": "Partner ecosystem",
+      "name": "RMS/loyalty",
+      "owner": "PMS / Finance / CRM",
+      "phase": "after-pilot",
+      "status": "needs-work",
+      "evidence": "docs/testing/pms-market-research-2026-10-09.md",
+      "remaining": "Separate partner contracts, sandbox/certification and approvals after pilot",
+      "engineeringAcceptance": "explicitly-deferred",
+      "nativeAssertionSources": [],
+      "remainingEngineeringGates": [],
+      "activation": "Partner protocol/certification/contracts and separate activation after real pilot; not claimed implemented."
+    },
+    {
+      "id": "integrations-04",
+      "group": "Partner ecosystem",
+      "name": "Digital keys/messaging",
+      "owner": "PMS / Finance / CRM",
+      "phase": "after-pilot",
+      "status": "needs-work",
+      "evidence": "docs/testing/pms-market-research-2026-10-09.md",
+      "remaining": "Separate partner contracts, sandbox/certification and approvals after pilot",
+      "engineeringAcceptance": "explicitly-deferred",
+      "nativeAssertionSources": [],
+      "remainingEngineeringGates": [],
+      "activation": "Partner protocol/certification/contracts and separate activation after real pilot; not claimed implemented."
+    },
+    {
+      "id": "integrations-05",
+      "group": "Partner ecosystem",
+      "name": "Specialist services",
+      "owner": "PMS / Finance / CRM",
+      "phase": "after-pilot",
+      "status": "needs-work",
+      "evidence": "docs/testing/pms-market-research-2026-10-09.md",
+      "remaining": "Separate partner contracts, sandbox/certification and approvals after pilot",
+      "engineeringAcceptance": "explicitly-deferred",
+      "nativeAssertionSources": [],
+      "remainingEngineeringGates": [],
+      "activation": "Partner protocol/certification/contracts and separate activation after real pilot; not claimed implemented."
+    }
+  ],
+  "historicalMap": "2026-10-11-pms-main-aligned-feature-proof-map.json",
+  "sourceReferencesRevalidated": 137
+}

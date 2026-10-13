@@ -10,7 +10,7 @@ import {
 } from "@/server/modules/identity_access/public/authorization";
 
 import { activeHoldingBindings } from "@/server/modules/runtime/public/runtime";
-import { parseHoldingWorkspace, workspaceHref } from "@/lib/workspace";
+import { parseHoldingWorkspace, workspaceHref } from "@/lib/work_projection/workspace";
 
 import { savedWorkspaceForPresentation } from "@/server/modules/work_projection/public/workspace-entry-presentation-query";
 

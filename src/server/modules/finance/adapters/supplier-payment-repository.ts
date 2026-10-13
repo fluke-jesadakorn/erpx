@@ -3,8 +3,8 @@ import {financeContractorPaymentClaimFacts} from '@/server/modules/people_payrol
 import "server-only";
 import type {WorkContext} from "../../identity_access/public/authorization";
 import type {SqlDatabase,SqlStatement} from "../../runtime/public/runtime/types";
-import {hasPermission} from "@/lib/permissions";
-import {minorToDecimal} from "@/lib/finance-money";
+import {hasPermission} from "@/lib/identity_access/permissions";
+import {minorToDecimal} from "@/lib/finance/finance-money";
 import {assertion,executeCommand} from "../../workflow/public/commands";
 import {supplierExportReceipt} from "../../workflow/public/supplier-export-receipt";
 import {prepareJournal} from "../public/finance";

@@ -1,2 +1,2 @@
 /** Compatibility entry; its legacy implementation is tracked in ownership.json. */
-export { organizationMemberSql, ensureOrganizationChannels } from "../../../organization-channels";
+export { organizationMemberSql, ensureOrganizationChannels } from "@/server/modules/organization/adapters/organization-channels";

@@ -1,2 +1,0 @@
-/** Compatibility entry point; implementation belongs to finance. */
-export {decideWithholdingPackage,prepareWithholdingPackage,remitWithholdingPackage,reverseWithholdingRemittance,withholdingMonthlyWorkspace,withholdingPackageDecisionSchema,withholdingPackageExport,withholdingPackageSchema,withholdingRemittanceReversalSchema,withholdingRemittanceSchema} from "@/server/modules/finance/adapters/finance-withholding-remittance";

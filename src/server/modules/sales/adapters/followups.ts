@@ -3,13 +3,13 @@ import { commercialOwnerProjectionSources as financeProjectionSources } from "..
 import { commercialOwnerProjectionSources as identity_accessProjectionSources } from "../../identity_access/public/commercial-owner-projection-sources";
 import { commercialOwnerProjectionSources as people_payrollProjectionSources } from "../../people_payroll/public/commercial-owner-projection-sources";
 import 'server-only';
-import {salesRecipientEligibility} from "@/server/sales-recipient";
+import {salesRecipientEligibility} from "@/server/modules/sales/adapters/recipient";
 import type {WorkContext} from "@/server/modules/identity_access/public/authorization";
 import type {SqlDatabase} from "@/server/modules/runtime/public/runtime/types";
 import {getOrder,type Row} from "@/server/modules/commerce/public/commerce";
 import {holdingResources} from "@/server/modules/runtime/public/runtime";
 import {requirePermission} from "@/server/modules/identity_access/public/iam-permissions";
-import {hasPermission} from '@/lib/permissions';
+import {hasPermission} from "@/lib/identity_access/permissions";
 import {assertion,executeCommand,replayCommand} from "@/server/modules/workflow/public/commands";
 import {ApiError} from "@/server/modules/runtime/public/http";
 

@@ -1,7 +1,7 @@
 import { platformOwnerProjectionSources as commercePlatformSources } from "../../commerce/public/platform-owner-projection-sources";
 import { platformOwnerProjectionSources as financePlatformSources } from "../../finance/public/platform-owner-projection-sources";
 import "server-only";
-import { type Filters } from "@/lib/executive/canvas";
+import { type Filters } from "@/lib/shared/executive/canvas";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { SupplierBillEvidenceRow } from '@/server/modules/runtime/public/executive/evidence-contract';

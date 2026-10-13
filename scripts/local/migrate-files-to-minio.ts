@@ -14,9 +14,9 @@ import { readFile, readdir, lstat } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 import { ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
 import { Pool, type QueryResult } from 'pg';
-import { LocalFileStore } from '../../src/server/runtime/filesystem';
-import { MinioFileStore } from '../../src/server/runtime/minio';
-import type { FileMetadata, FileStore } from '../../src/server/runtime/types';
+import { LocalFileStore } from "../../src/server/modules/runtime/adapters/runtime/filesystem";
+import { MinioFileStore } from "../../src/server/modules/runtime/adapters/runtime/minio";
+import type { FileMetadata, FileStore } from "../../src/server/modules/runtime/adapters/runtime/types";
 
 type Mode = 'plan' | 'apply' | 'verify';
 type Store = { name: string; local: LocalFileStore; remote: MinioFileStore; prefix: string };

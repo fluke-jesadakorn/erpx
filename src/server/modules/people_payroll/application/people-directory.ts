@@ -98,11 +98,11 @@ export function createPeopleDirectoryApplication<Effect>(ports: PeopleDirectoryP
         return person;
     }
     function placement(actor: WorkContext, id: string, input: z.infer<typeof directorySchema>) {
+        if (input.workerType !== "employee") throw new BusinessRuleError(422, "EXTERNAL_ACCESS_REQUIRED", "Manage external users in People → Users & Access.");
         if ((actor.branchId && input.branchId !== actor.branchId) ||
             (actor.departmentId && input.departmentId !== actor.departmentId))
             throw new BusinessRuleError(403, "SCOPE_FORBIDDEN", "Choose a placement in your assigned workspace.");
-        if ((input.workerType === "contractor") !==
-            (input.employmentType === "contractor"))
+        if (input.employmentType === "contractor")
             throw new BusinessRuleError(422, "WORKER_TYPE_INVALID", "Contractor worker and employment types must agree.");
         return [
             repository.guard3(id, "branch", input.branchId, actor.companyId),

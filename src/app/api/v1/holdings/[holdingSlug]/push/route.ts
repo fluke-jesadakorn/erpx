@@ -3,8 +3,8 @@ import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
 import { pushSettings, registerPush, removePushDevice, savePushPreferences } from "@/server/modules/collaboration/public/web-push";
-import { workspaceBase } from "@/lib/workspace";
-import { frontAppForHost, frontPushLandingPath } from "@/lib/front-host";
+import { workspaceBase } from "@/lib/work_projection/workspace";
+import { frontAppForHost, frontPushLandingPath } from "@/lib/shared/front-host";
 import { frontCompanyBrand } from "@/server/modules/work_projection/public/front-app";
 
 export const dynamic = "force-dynamic";

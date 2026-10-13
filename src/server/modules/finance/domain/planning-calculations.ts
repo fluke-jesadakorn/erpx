@@ -1,6 +1,6 @@
 import type {z} from 'zod';
-import {decimalToMinor,minorToDecimal} from '@/lib/finance-money';
-import {financeCsv} from '@/lib/finance-csv';
+import {decimalToMinor,minorToDecimal} from "@/lib/finance/finance-money";
+import {financeCsv} from "@/lib/finance/finance-csv";
 import type {FinanceError} from './invoice-line-revision';
 import type {financialReportSchema,LedgerLine,RetainedReport} from './planning';
 export const canonicalDimensions = (d: Record<string, string>) =>

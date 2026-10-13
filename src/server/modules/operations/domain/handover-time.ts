@@ -1,4 +1,4 @@
-import type { WorkItem } from "@/lib/work-item";
+import type { WorkItem } from "@/lib/work_projection/work-item";
 
 export type HandoverKind = "completed" | "pending" | "blocked";
 export type HandoverItem = Pick<WorkItem,"id"|"title"|"status"|"updatedAt"|"href"|"nextAction"|"blocker"> & {

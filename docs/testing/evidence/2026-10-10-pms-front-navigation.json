@@ -1,0 +1,189 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "source": {
+    "runtime": "d988cb684890934769db1516a0d478cce25930a5df0ab3f2dde3dcf2ef4c6b6d",
+    "verification": "9bcb412c854d48a00df403f55872ec1ff7882138e9adad65514b2399320705be"
+  },
+  "release": {
+    "id": "2026-10-10T00-41-56-958Z",
+    "runtime": "d988cb684890934769db1516a0d478cce25930a5df0ab3f2dde3dcf2ef4c6b6d",
+    "metadataSha256": "00b9742e8deab55d839f82fcc884ba117d15445c05a771658988c51c227caad8"
+  },
+  "implementation": "Front PMS task navigation uses the existing ModuleTiles Link path with real same-front destinations, unchanged permission filtering and Property query retained including Today. No command/authority or persistence changes.",
+  "documentationRead": [
+    "node_modules/next/dist/docs/01-app/01-getting-started/04-linking-and-navigating.md",
+    "node_modules/next/dist/docs/01-app/02-guides/preventing-flash-before-hydration.md"
+  ],
+  "staticVerification": {
+    "typecheck": true,
+    "lintErrors": 0,
+    "existingWarnings": 3,
+    "architecture": true,
+    "isolatedReleaseBuild": true,
+    "wrongArchitectureScriptAttempt": "check:architecture was unavailable; architecture:check subsequently passed."
+  },
+  "publicUi": {
+    "entry": "https://console-dev-erpx.jesadakorn.com/front/acme/acme-co/pms/holding",
+    "normalExistingSession": true,
+    "initialOldDevBundleAfterFileEdit": true,
+    "devRestartRequiredForRecompile": true,
+    "eightRealTaskLinksBeforeHydration": true,
+    "taskGuestAccountNavigationSucceeded": true,
+    "fourFictionalAccountsRendered": true,
+    "todayNavigationPreservesProperty": true,
+    "thaiToggleEnabledAfterHydration": true,
+    "freshTabHydrationWarningsObserved": false,
+    "transactionsSubmitted": false,
+    "compiledCandidateAcceptance": false,
+    "screenshot": ".scratch/dev/pms-front-navigation/public-today.jpg",
+    "mobile": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "toggleExpandsTaskLinks": true,
+      "guestAccountLinkNavigationSucceeded": true,
+      "menuCollapsesAfterNavigation": true,
+      "propertyPreserved": true,
+      "viewportRestored": true
+    }
+  },
+  "nativeFull": {
+    "passed": true,
+    "frozenSourceMatched": true,
+    "files": 126,
+    "cases": 1294,
+    "units": {
+      "files": 77,
+      "cases": 776
+    },
+    "integration": {
+      "files": 49,
+      "cases": 518
+    },
+    "focusedCountsOverlap": true
+  },
+  "environment": {
+    "developmentPid": 85605,
+    "developmentCwd": "/Users/fluke/Desktop/Work/erpx",
+    "detachedLauncherPid": 85597,
+    "localDevelopmentHealth": 200,
+    "publicDevelopmentHealth": 200,
+    "privateProductionHealth": 200,
+    "postgresPid": 909,
+    "stagingAccessed": false,
+    "privateProductionHealthOnly": true,
+    "port3104Free": true
+  },
+  "remaining": [
+    "Compiled browser/device/language/theme acceptance",
+    "Core command latency and whole-plan mock-pilot acceptance"
+  ],
+  "artifacts": {
+    "front-candidate.tsx": {
+      "path": ".scratch/dev/pms-front-navigation/front-candidate.tsx",
+      "sha256": "2d7bb2b98abb4fe38497b2597fb0f16f65d8a8853a4fc8c76ba0b38061d7e8a8"
+    },
+    "source-before.json": {
+      "path": ".scratch/dev/pms-front-navigation/source-before.json",
+      "sha256": "3b4dd569b15df21c00918f70686a88c5b2316ffbafdeb3b58aedbb187acf7cbd"
+    },
+    "typecheck.log": {
+      "path": ".scratch/dev/pms-front-navigation/typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "lint.log": {
+      "path": ".scratch/dev/pms-front-navigation/lint.log",
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    },
+    "architecture-corrected.log": {
+      "path": ".scratch/dev/pms-front-navigation/architecture-corrected.log",
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    "build.log": {
+      "path": ".scratch/dev/pms-front-navigation/build.log",
+      "sha256": "01dc860dc5090d591b8874d52dfc56d13d2435b11bcfe4bbbebc33de3e54d718"
+    },
+    "restart-development.py": {
+      "path": ".scratch/dev/pms-front-navigation/restart-development.py",
+      "sha256": "a2f973b486080333566cc9f1209e403b55cb5f0402a34bc5240e796111044a90"
+    },
+    "restart-development.log": {
+      "path": ".scratch/dev/pms-front-navigation/restart-development.log",
+      "sha256": "3c874674d02079d23281c7722e68a2d64d727c1159827d4145630f9d3f827eca"
+    },
+    "public-today.jpg": {
+      "path": ".scratch/dev/pms-front-navigation/public-today.jpg",
+      "sha256": "6f6f2f85a964ffadcaddeaf5786c98f4445d55a69d992e576946c32dcb90d026"
+    },
+    "native-full.log": {
+      "path": ".scratch/dev/pms-front-navigation/native-full.log",
+      "sha256": "06f9cbc44f997f6f3dbdd0209a6fe1eabde0f78e02d2659ad3c0044d7cc104fd"
+    },
+    "source-final.json": {
+      "path": ".scratch/dev/pms-front-navigation/source-final.json",
+      "sha256": "3b4dd569b15df21c00918f70686a88c5b2316ffbafdeb3b58aedbb187acf7cbd"
+    },
+    "docs.log": {
+      "path": ".scratch/dev/pms-front-navigation/docs.log",
+      "sha256": "3bbb9b974663fca77e0e7cf5b2c0d166c56dff0702191faff72c36bd50e0fdd6"
+    },
+    "diff-check.log": {
+      "path": ".scratch/dev/pms-front-navigation/diff-check.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "public-mobile-guest-account.jpg": {
+      "path": ".scratch/dev/pms-front-navigation/public-mobile-guest-account.jpg",
+      "sha256": "06006b66fd76efd468f96d5439310d8613ca7c9a5cb215fc9ff12226bc8a18b7"
+    },
+    "final-environment-end.json": {
+      "path": ".scratch/dev/pms-front-navigation/environment-end.json",
+      "sha256": "4841242569d79aa3cdceedf10e343825a30aabf8a7211287235d2496be29851d"
+    },
+    "final-public-guest-account-final.jpg": {
+      "path": ".scratch/dev/pms-front-navigation/public-guest-account-final.jpg",
+      "sha256": "6143de02e7dd6cb0ef11233e6ee11e89feab7833b188cdde047b72104504bfa5"
+    },
+    "final-docs-end.log": {
+      "path": ".scratch/dev/pms-front-navigation/docs-end.log",
+      "sha256": "4e3105e5d26bf2ece456ae896736e3858053581304e89e974d27a6e7063ccc73"
+    },
+    "final-diff-check-end.log": {
+      "path": ".scratch/dev/pms-front-navigation/diff-check-end.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "environmentEnd": {
+    "checkedAt": "2026-10-10T00:56:21.055666+00:00",
+    "checks": [
+      {
+        "url": "http://127.0.0.1:3100/api/health",
+        "status": 200
+      },
+      {
+        "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+        "status": 200
+      },
+      {
+        "url": "http://127.0.0.1:3101/api/health",
+        "status": 200
+      }
+    ],
+    "developmentPid": 85605,
+    "developmentCwd": "/Users/fluke/Desktop/Work/erpx",
+    "detachedLauncherPid": 85597,
+    "postgresPid": 909,
+    "port3104Free": true,
+    "publicUi": {
+      "url": "https://dev-pms.jesadakorn.com/acme/acme-co/holding/guest-accounts?property=property-62ad1a76f1449b00f99ab780d738847e",
+      "normalExistingSession": true,
+      "guestAccountHeadingVisible": true,
+      "eightTaskLinksVisible": true,
+      "transactionsSubmitted": false,
+      "viewportRestored": true
+    },
+    "stagingAccessed": false,
+    "privateProductionHealthOnly": true
+  }
+}

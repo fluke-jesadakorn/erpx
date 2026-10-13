@@ -31,8 +31,8 @@ This checkpoint records the first implementation slice of the seven-stage non-Le
 
 The broader integration run recorded 72 passing files, 2 skipped files, and 3 failing files before the final targeted regression. The capability-widget failure belonged to this checkpoint and was fixed. Two pre-existing/concurrent failures remain outside this slice:
 
-- `tests/directory-operations.test.ts`: expected one-to-one directory validation did not throw.
-- `tests/expense-v2.test.ts`: PostgreSQL trigger references missing `OLD.attachment_id`.
+- `tests/integration/identity_access/directory-operations.test.ts`: expected one-to-one directory validation did not throw.
+- `tests/integration/people_payroll/expense-v2.test.ts`: PostgreSQL trigger references missing `OLD.attachment_id`.
 
 These failures prevent claiming full-regression acceptance for the whole workspace. They do not change the targeted evidence above.
 

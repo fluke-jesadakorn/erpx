@@ -1,0 +1,1905 @@
+{
+  "candidate": {
+    "runtime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+    "verification": "baf2b73727a5106b9153f71c54c336dfc399f763c83607aa41290d0c7943cfbb",
+    "mainRuntime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+    "mainVerification": "baf2b73727a5106b9153f71c54c336dfc399f763c83607aa41290d0c7943cfbb",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-12T03-06-23-612Z",
+    "releaseId": "2026-10-12T03-06-23-612Z",
+    "fileManifestSha256": "9bd3aa57f8e6d8e4b2b89ce95f83b8779b83319b6d749207d052cec130ac09d4",
+    "releaseReusedForIdenticalRuntime": true,
+    "verificationAmendment": "Only three generated route-inventory metadata fields;227 entries, runtime, assertions and required identities unchanged; prior actual native/browser receipts retained at50bc with exact official inverse lineage"
+  },
+  "requiredOriginalPmsRoutes": 38,
+  "additionalNewFinanceRoutes": 96,
+  "exactTotalPassed": 134,
+  "originalIdentitiesRetained": true,
+  "allSelectedRequiredIdentitiesCovered": true,
+  "unexpected": 0,
+  "flaky": 0,
+  "skipped": 0,
+  "interrupted": null,
+  "cleanupFailures": [],
+  "receipt": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/receipt.json",
+  "receiptSHA256": "22b3fcacff4243333b9c42510a7843319440c3dd41f2c5bc82bc8f1a02051d0b",
+  "perCaseEvidence": [
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "UAT source inventory source fingerprint matches the full current route inventory",
+      "run": "3949bbf49f09",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/3949bbf49f09/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "6c2a8cd33e5285aae0bb8ac1085ba0d8d98f888e3e2a6987c1cd46b8fb9f494b"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-out route access /book/[holdingSlug]/[propertyId] \u00b7 anonymous \u00b7 pms",
+      "run": "597fcd20291f",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/597fcd20291f/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "312a2b6e5c11400267e1fd8f990fa56967e3c982e01c47d6dc97139207eed0ea"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-out route access /book/[holdingSlug]/manage \u00b7 anonymous \u00b7 pms",
+      "run": "da976efab9af",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/da976efab9af/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "3fceeb1ccd984a2d0c33c754e6d90ac49ff6f4c14e855b3f618eec9e7fc0015f"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-out route access /book/[holdingSlug] \u00b7 anonymous \u00b7 pms",
+      "run": "1cd7742b5d0f",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/1cd7742b5d0f/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "3dc3778fae3bbb15a8e7b85638df62ecce187e61151bfeeb011069324b3b647c"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-out route access /front/[holdingSlug]/[companySlug]/[app]/[[...path]] \u00b7 anonymous \u00b7 pms",
+      "run": "1bb7dd5ea160",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/1bb7dd5ea160/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "00fadac02dabf2097f9e9219a3f9843c476c6bba1c4a1fcff461df24cf9c5038"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-out route access /holdings/[holdingSlug]/finance/hospitality-settings \u00b7 anonymous \u00b7 pms",
+      "run": "9e452c2b70a8",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/9e452c2b70a8/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "54099d794447fa8ffb522808c91478597d6dbaf5e4a67eca25385c668e4c1c5e"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-out route access /holdings/[holdingSlug]/finance/hotel-accounts/[id] \u00b7 anonymous \u00b7 pms",
+      "run": "98ecd4cc7440",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/98ecd4cc7440/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "8259ea45b0f7dff1e92edbadc0941da288e0a6de5232b67c6e6ec6b652782766"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-out route access /holdings/[holdingSlug]/finance/hotel-documents/[id] \u00b7 anonymous \u00b7 pms",
+      "run": "9d6fa3f43d54",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/9d6fa3f43d54/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "a9f75a3d0c98706a22fd7a7252994e97e195819db20a005322a42e4c31f7ccf8"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-out route access /holdings/[holdingSlug]/finance/hotel-import \u00b7 anonymous \u00b7 pms",
+      "run": "ebce643da692",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/ebce643da692/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "d712c15e939a151c4d2ed7f90ba1ff722fa478db142c74e97f89cec6893fbd41"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-out route access /holdings/[holdingSlug]/finance/restaurants \u00b7 anonymous \u00b7 pms",
+      "run": "4e1855368fc6",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/4e1855368fc6/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "cd10ce61f42128725f2fbb0e0135f7303df04a3e297f24f3e49cde2e1a2ac55d"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-out route access /holdings/[holdingSlug]/finance/sales/new \u00b7 anonymous \u00b7 pms",
+      "run": "db2558edb4bd",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/db2558edb4bd/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "bf4bd3dac3cd1d5273ec634dff72a02234afe4321948976bbd347fbbe5f2da24"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-out route access /holdings/[holdingSlug]/finance/sales \u00b7 anonymous \u00b7 pms",
+      "run": "1d76411ee231",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/1d76411ee231/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "f02ec3e4ee74485a37902d4086f9775c861dc549c986b0f5a54b66ff4fc5dea2"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-out route access /holdings/[holdingSlug]/finance/sales/receipts/[id] \u00b7 anonymous \u00b7 pms",
+      "run": "eccd4ded5c05",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/eccd4ded5c05/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "4ed9fa4257270d1f9d49afc6e1a4b847b254c0502cfe92c8e4bfc11be9ecf8b7"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-out route access /holdings/[holdingSlug]/finance/sales/settings \u00b7 anonymous \u00b7 pms",
+      "run": "cd3d7c0eeaf4",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/cd3d7c0eeaf4/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "c851bc9cf424a2e45ef5a3155ddcd71690bb2bdbae7bbcd50197078ca359c507"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-out route access /holdings/[holdingSlug]/pms/[[...section]] \u00b7 anonymous \u00b7 pms",
+      "run": "27fff830fc34",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/27fff830fc34/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "f3ef21f13792f89568c6ba2ccb7044904240522161a06f06a50b21477a97c723"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-out route access /holdings/[holdingSlug]/pms/documents/[id] \u00b7 anonymous \u00b7 pms",
+      "run": "337e1bc1409e",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/337e1bc1409e/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "d49f1ff230180066342bebab27f38dd0ac399b288b9a3bfe447e3530bc7b3ae7"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-out route access /holdings/[holdingSlug]/pms/import \u00b7 anonymous \u00b7 pms",
+      "run": "57a9c264f681",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/57a9c264f681/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "989bfe4d8b9d093082e9e42128ce90245684cd0bceedbef3ab00a1ec85ee579f"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-out Front pms access /front-access/forgot-password \u00b7 anonymous \u00b7 pms",
+      "run": "155c48370df6",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/155c48370df6/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "5b9215132367abc86a478917b36ee081eded73184449646a21eb4ba72ccef5f4"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-out Front pms access /front-access/login \u00b7 anonymous \u00b7 pms",
+      "run": "35f508090601",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/35f508090601/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "1b887c265c7e9c5254418a7b2efd39cd2f8239032c12f849e96b2550efc56223"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-out Front pms access /front-access \u00b7 anonymous \u00b7 pms",
+      "run": "54eaca49bc34",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/54eaca49bc34/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "3334e63d13d57f7a97022b059823b9a69df4b362669a49c1a484b1ff7a21c44d"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-out Front pms access /front-access/reset-password \u00b7 anonymous \u00b7 pms",
+      "run": "acda7d340aa3",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/acda7d340aa3/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "4c977f0192fc8af21af37c430bf1e2627577ebaefc7b21b042c88c7a74339976"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-out Front pms access /front-access/verify-email \u00b7 anonymous \u00b7 pms",
+      "run": "1195bc39e6ae",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/1195bc39e6ae/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "885bc6c849a9937d152bbeb86c9d98f43230ba5e31254b4df32a31e2261f6fe4"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-in Front pms /front/[holdingSlug]/[companySlug]/[app]/[[...path]] \u00b7 pms role",
+      "run": "a71d3f4fb61c",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/a71d3f4fb61c/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "7b3c90c951263e53a5769e14109d6b00bcad059efb8f13c21a3d0543ca4fe14c"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-in as finance /holdings/[holdingSlug]/finance/hospitality-settings \u00b7 finance \u00b7 holding",
+      "run": "a8636b868786",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/a8636b868786/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "a0191e9b3ba0381a0331cf9a91096901dd94e339cf9a715aa517491afef13925"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-in as finance /holdings/[holdingSlug]/finance/hotel-accounts/[id] \u00b7 finance \u00b7 holding",
+      "run": "5e0b3222a901",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/5e0b3222a901/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "a116b270d3ca98c760239a98cc6ed0ed2ba49c1dfadf1406924bd657f60414e6"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-in as finance /holdings/[holdingSlug]/finance/hotel-documents/[id] \u00b7 finance \u00b7 holding",
+      "run": "efde169bd315",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/efde169bd315/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "09b73b367332399ae1b728c5264ffdfbed76db078ecca8e4c3c57f77515a1792"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-in as finance /holdings/[holdingSlug]/finance/hotel-import \u00b7 finance \u00b7 holding",
+      "run": "9f9f4043f219",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/9f9f4043f219/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "6e451b205c24be151da064c3dbe9a00b135b2f5f79c47406bfa4aaee1af0d15d"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-in as finance /holdings/[holdingSlug]/finance/restaurants \u00b7 finance \u00b7 holding",
+      "run": "59202d16e661",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/59202d16e661/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "2d81fbee1d0f89c780beec04e919ea470ab4c32876fe1f491d112026a1e1a032"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-in as finance /holdings/[holdingSlug]/finance/sales/new \u00b7 finance \u00b7 holding",
+      "run": "77ebe1c294c5",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/77ebe1c294c5/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "fd65d41790e1598771fd7d7b78435655c5ebf4f3897261b68b34e20d583321b1"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-in as finance /holdings/[holdingSlug]/finance/sales \u00b7 finance \u00b7 holding",
+      "run": "7cf9d64e3a86",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/7cf9d64e3a86/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "a690373018225800c58bad8bc64ddf59561b50ed8f7d4e06dd32b9ad05caa55a"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-in as finance /holdings/[holdingSlug]/finance/sales/receipts/[id] \u00b7 finance \u00b7 holding",
+      "run": "b57b18895d2a",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/b57b18895d2a/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "2717b43831e47e22e9da9c79dc83d324e4831b503171baeba9699f0e69c8647e"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-in as finance /holdings/[holdingSlug]/finance/sales/settings \u00b7 finance \u00b7 holding",
+      "run": "5f1af3f1d61d",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/5f1af3f1d61d/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "a1a623e4e10840542e3848874cd82b2101c1e037fd9a1928829513a625783632"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-in as pms-holding /holdings/[holdingSlug]/pms/[[...section]] \u00b7 pms-holding \u00b7 holding",
+      "run": "ee8a0b8888a8",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/ee8a0b8888a8/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "bde1c654a80c5d83d36be0eb8bbb9950d5d80d28c7def217f6f9d7dbe504ff8c"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-in as pms-holding /holdings/[holdingSlug]/pms/documents/[id] \u00b7 pms-holding \u00b7 holding",
+      "run": "a9503a112f71",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/a9503a112f71/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "90c33e233bd4967d27ce2242095157c3d2a2622bbd239124ce189727e77b34ed"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "signed-in as pms-holding /holdings/[holdingSlug]/pms/import \u00b7 pms-holding \u00b7 holding",
+      "run": "02915610ffbb",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/02915610ffbb/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "ca2c9338000dfd7fc9c5ab4440ca9a2d1aaa83ac303ccad7e8737ddb171ce4fa"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch /holdings/[holdingSlug]/finance/hospitality-settings \u00b7 scope:branch",
+      "run": "7dc43cb627c8",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/7dc43cb627c8/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "2484b42fc8896f6e1d6732fd8c612943d671b99765a33bea98c947d0383c3ac7"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch /holdings/[holdingSlug]/finance/hotel-accounts/[id] \u00b7 scope:branch",
+      "run": "910132fbdfe3",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/910132fbdfe3/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "cd9633d600b92a296900a1e8552c9f0f38e47ea55c054672dd73f491cb1e42ca"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch /holdings/[holdingSlug]/finance/hotel-documents/[id] \u00b7 scope:branch",
+      "run": "5e92e25fd011",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/5e92e25fd011/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "15729aff56cb7e8652bbf8e44957db584ddf4c1942ab8a674639155d362d5de1"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch /holdings/[holdingSlug]/finance/hotel-import \u00b7 scope:branch",
+      "run": "3a8d0e1573a2",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/3a8d0e1573a2/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "0e2426fa858839a81ab5cf2370368288dd3debd1679b0d77eb3825f0bfe8e6d5"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch /holdings/[holdingSlug]/finance/restaurants \u00b7 scope:branch",
+      "run": "658268232ae9",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/658268232ae9/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "629e8faca3153522bdcc05c8a134fe48b248ba1475f5bf2648194202f6e765b1"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch /holdings/[holdingSlug]/finance/sales/new \u00b7 scope:branch",
+      "run": "0529502916aa",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/0529502916aa/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "2c3178b3fdb26bd4eed4d7f1c9048a23f5e613759f553f9272cdfe810aedff56"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch /holdings/[holdingSlug]/finance/sales \u00b7 scope:branch",
+      "run": "8577e7ee9930",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/8577e7ee9930/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "ea8183fd2d7948681f6efb146f18e5f55f1c8a531bbfda51ba9ca997cc5c9a93"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch /holdings/[holdingSlug]/finance/sales/receipts/[id] \u00b7 scope:branch",
+      "run": "932258589ec4",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/932258589ec4/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "71f82abf06b8d5e224f0fa56c2bfe20ad1fbd59769e26b1cc3173fdfe2fa61c4"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch /holdings/[holdingSlug]/finance/sales/settings \u00b7 scope:branch",
+      "run": "a326e331740c",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/a326e331740c/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "f3db90c7de9f5d10731253b53d33d5431b87458a9ec4f5ee06dc89b4769b1e2d"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 department /holdings/[holdingSlug]/finance/hospitality-settings \u00b7 scope:department",
+      "run": "ae6ecc8bc8e2",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/ae6ecc8bc8e2/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "7c84fa28d28fee28e0826e67551e6f05b2bcd5f703daafa704a5e3d981ec626b"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 department /holdings/[holdingSlug]/finance/hotel-accounts/[id] \u00b7 scope:department",
+      "run": "1d5c36a94c1d",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/1d5c36a94c1d/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "7000a60e3863e4eca9e123bc0ece4e70ff29eaec2f3150a4f67fb4c970a2a1ba"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 department /holdings/[holdingSlug]/finance/hotel-documents/[id] \u00b7 scope:department",
+      "run": "2942c41d2c53",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/2942c41d2c53/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "e1034d529bdb1a31f93f73f29ee329b9daab569571327cb3e9605e825aa3f73f"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 department /holdings/[holdingSlug]/finance/hotel-import \u00b7 scope:department",
+      "run": "b5bf9c35376f",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/b5bf9c35376f/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "624ee100f4c1fbb03c9e9f377474fad686ea3f34b6b9e274c31892e173d96643"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 department /holdings/[holdingSlug]/finance/restaurants \u00b7 scope:department",
+      "run": "049a20023a97",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/049a20023a97/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "4c62f509c91317b3bf8476803b050cc8e4a74fd22f475c51a07e4fcf0824442a"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 department /holdings/[holdingSlug]/finance/sales/new \u00b7 scope:department",
+      "run": "def317c6abf7",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/def317c6abf7/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "52658146574c64bc3bbe43070aa6d94cb53fce2ff9525646d7bc4f410421630b"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 department /holdings/[holdingSlug]/finance/sales \u00b7 scope:department",
+      "run": "0e760a1ddd78",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/0e760a1ddd78/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "ed42bac17b898f1ed1225d7395661fe437bc5b4b87c344e1a5d70db1c339d686"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 department /holdings/[holdingSlug]/finance/sales/receipts/[id] \u00b7 scope:department",
+      "run": "a2bca6deb5ce",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/a2bca6deb5ce/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "3ca85056feadd2150eb3283ee7d52e8ff508b6b9b66e8aad24d315edf27d3dac"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 department /holdings/[holdingSlug]/finance/sales/settings \u00b7 scope:department",
+      "run": "cb8ce3b1a5d8",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/cb8ce3b1a5d8/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "b71e3788cd42caf4ee02a34cbaccd63a116dc2338635bd05eab7eb60b220c7b8"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch-department /holdings/[holdingSlug]/finance/hospitality-settings \u00b7 scope:branch-department",
+      "run": "692a6fc3ae0a",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/692a6fc3ae0a/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "4fb0009c8fbf978b677933ae6df8564b49c579c72d77dd78d10262a14a1121e7"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch-department /holdings/[holdingSlug]/finance/hotel-accounts/[id] \u00b7 scope:branch-department",
+      "run": "f24842b2570a",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/f24842b2570a/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "ee4c1521ea596274d9eafc114e65f001e6e34a6a9038c20106c9c7bdab683549"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch-department /holdings/[holdingSlug]/finance/hotel-documents/[id] \u00b7 scope:branch-department",
+      "run": "4f195cce1600",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/4f195cce1600/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "b180c7383071adcb0b74774c64ecb1e750f3e7fe2fc090b3c70525a5b25ac352"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch-department /holdings/[holdingSlug]/finance/hotel-import \u00b7 scope:branch-department",
+      "run": "781948b9696d",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/781948b9696d/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "02ad45b156edc30956a06fa1ab2a2380c6d4a7303f6a35414094c3926b588cfd"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch-department /holdings/[holdingSlug]/finance/restaurants \u00b7 scope:branch-department",
+      "run": "4f909e9b8e1b",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/4f909e9b8e1b/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "3c842304789f831f41ec34b374116354ef243eb6ef4f9ef4d18fbf4ff763069f"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch-department /holdings/[holdingSlug]/finance/sales/new \u00b7 scope:branch-department",
+      "run": "a8b3b138e66c",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/a8b3b138e66c/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "8300efbaccbc2860c24509cc57753a96b1c19af06a6b4df89ab53dc7db4fe3fc"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch-department /holdings/[holdingSlug]/finance/sales \u00b7 scope:branch-department",
+      "run": "2549bd18a945",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/2549bd18a945/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "d4342f9a5538567d42c248519e1ed32ee38e4ea91ec72624413e2738ae20195f"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch-department /holdings/[holdingSlug]/finance/sales/receipts/[id] \u00b7 scope:branch-department",
+      "run": "d5103dd21c8f",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/d5103dd21c8f/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "a26cd2e74cad25377e8a381afe790ffa9d437e69527bf94d4d61396b28974161"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch-department /holdings/[holdingSlug]/finance/sales/settings \u00b7 scope:branch-department",
+      "run": "80a68a952e2f",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/80a68a952e2f/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "c12a76e78d15447c23f4dfb6c9422215249c569c6ed55dfc850956ade857ca6b"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "dynamic record invalid-ID recovery /book/[holdingSlug]/[propertyId] \u00b7 owner invalid id is handled explicitly on both viewports",
+      "run": "f3cfdb1086d2",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/f3cfdb1086d2/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "291fb007bd27e951efca67ad26435c42ccbad719ec718cb04099679666286ea1"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "dynamic record invalid-ID recovery /holdings/[holdingSlug]/finance/hotel-accounts/[id] \u00b7 finance invalid id is handled explicitly on both viewports",
+      "run": "d956429a6f8c",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/d956429a6f8c/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "128acaabb360a4cc739244a12d2aebf72b20b860674658d4457ad3e7e3bacbc2"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "dynamic record invalid-ID recovery /holdings/[holdingSlug]/finance/hotel-documents/[id] \u00b7 finance invalid id is handled explicitly on both viewports",
+      "run": "190ebd691db9",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/190ebd691db9/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "06f37b47e4a2327df87087d8ed605f407266656d6a349c9bf46e32301786e794"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "dynamic record invalid-ID recovery /holdings/[holdingSlug]/finance/sales/receipts/[id] \u00b7 finance invalid id is handled explicitly on both viewports",
+      "run": "4c5954af3e9c",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/4c5954af3e9c/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "f7a4eaa4ee148dabbe6128e6de82e774191967eacf25f17ab5cf8991ea656c74"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "dynamic record invalid-ID recovery /holdings/[holdingSlug]/pms/documents/[id] \u00b7 pms-holding invalid id is handled explicitly on both viewports",
+      "run": "ad9d153e6928",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/ad9d153e6928/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "372b1ce2bf947d9c5d30435cfbc4d8c5558a100c955012c68b3721ca6a374725"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "UAT source inventory source fingerprint matches the full current route inventory",
+      "run": "15201f699fa6",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/15201f699fa6/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "66c9806d7b0e9d28b453428eba77bb6fcb161e45150dffc3554ab137d15575ec"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-out route access /book/[holdingSlug]/[propertyId] \u00b7 anonymous \u00b7 pms",
+      "run": "b8fd0f731a79",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/b8fd0f731a79/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "9cfd4305261a128787f67bd5d31a3d1fc886eb0d1a8683b084c23ab879c10186"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-out route access /book/[holdingSlug]/manage \u00b7 anonymous \u00b7 pms",
+      "run": "6442cc34911f",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/6442cc34911f/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "17d4701ae5b80f602f497e5b45d913db463f3f1202d213f654cf05ec2775d702"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-out route access /book/[holdingSlug] \u00b7 anonymous \u00b7 pms",
+      "run": "67b32cd5363f",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/67b32cd5363f/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "ec5a07b005abfaa0e1d793486f4c53bf309697fecb3c41b35d9a76d616974bc1"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-out route access /front/[holdingSlug]/[companySlug]/[app]/[[...path]] \u00b7 anonymous \u00b7 pms",
+      "run": "fab82880f744",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/fab82880f744/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "2719601ba6ab16b2f6f40ec48eb6d05670fde3c1118b52c70fe8915eeed909a9"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-out route access /holdings/[holdingSlug]/finance/hospitality-settings \u00b7 anonymous \u00b7 pms",
+      "run": "41d98090d954",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/41d98090d954/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "71ef4e9c70b62d81f9248c6f8cafd90ed8eb6a199b128c95f20eb49cd3598d25"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-out route access /holdings/[holdingSlug]/finance/hotel-accounts/[id] \u00b7 anonymous \u00b7 pms",
+      "run": "86026571db12",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/86026571db12/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "a7f6270b190191ee03051aae993199a91e672c32d79be9e0faffa176cc92c496"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-out route access /holdings/[holdingSlug]/finance/hotel-documents/[id] \u00b7 anonymous \u00b7 pms",
+      "run": "e6f67eee4d27",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/e6f67eee4d27/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "8118ab6920c58cf297c2be0aec33670e83011dc7a48ddf4311df33f333078d1a"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-out route access /holdings/[holdingSlug]/finance/hotel-import \u00b7 anonymous \u00b7 pms",
+      "run": "119ef45ce126",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/119ef45ce126/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "3c2c187991300c27f4eb4d438930e7e240b621b63917f45ad4150a071eb18a58"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-out route access /holdings/[holdingSlug]/finance/restaurants \u00b7 anonymous \u00b7 pms",
+      "run": "c7422f92f0c6",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/c7422f92f0c6/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "20a3e52bd85a1017764bbc891bff04cda624b44556f967e1db881187313134d0"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-out route access /holdings/[holdingSlug]/finance/sales/new \u00b7 anonymous \u00b7 pms",
+      "run": "448de40aa5fb",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/448de40aa5fb/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "3b649f865422c8198504c58c0def58429722d48cd45bf1f26807ab5cbfb39455"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-out route access /holdings/[holdingSlug]/finance/sales \u00b7 anonymous \u00b7 pms",
+      "run": "c97dfba1c282",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/c97dfba1c282/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "8c1d1926c212735b53fa59bb73bfc3174a62029089709cced61feeb4ca1410b8"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-out route access /holdings/[holdingSlug]/finance/sales/receipts/[id] \u00b7 anonymous \u00b7 pms",
+      "run": "5071c36e3b4d",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/5071c36e3b4d/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "4994c8d155c6856cbd3e9713ccd8b597a254deb273a2cee08aa8525051cae168"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-out route access /holdings/[holdingSlug]/finance/sales/settings \u00b7 anonymous \u00b7 pms",
+      "run": "b11fe738b61e",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/b11fe738b61e/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "2eb32d4e8f25d8729deed785d31f30dfb3e92c501a49de0d7fd935fe836938d6"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-out route access /holdings/[holdingSlug]/pms/[[...section]] \u00b7 anonymous \u00b7 pms",
+      "run": "d8ecd1c36946",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/d8ecd1c36946/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "ebf579b66b0e9f588b081977cee46175406fd8daa88afdbff8d3d3c0888a47f4"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-out route access /holdings/[holdingSlug]/pms/documents/[id] \u00b7 anonymous \u00b7 pms",
+      "run": "028ba5621269",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/028ba5621269/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "9583b70d62007b37a92b71de379d9ae151729a90ac9c7b61a1578d76a1b5650e"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-out route access /holdings/[holdingSlug]/pms/import \u00b7 anonymous \u00b7 pms",
+      "run": "4d7391232c6d",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/4d7391232c6d/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "d4e7a2253bfade47bc17ca69cc65d9c1dd8b91d88047139d592e0f4cf9956e2a"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-out Front pms access /front-access/forgot-password \u00b7 anonymous \u00b7 pms",
+      "run": "5f1c9a69e8ea",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/5f1c9a69e8ea/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "e667457467dd69673723aa12f446d6ef4939caeffe639c593de2cb39b45f7f2d"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-out Front pms access /front-access/login \u00b7 anonymous \u00b7 pms",
+      "run": "8835f0783d6d",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/8835f0783d6d/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "58d7ab5ae95bbcf86938d0247baa76547d9a288d61b2d06b69a503094d9ace99"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-out Front pms access /front-access \u00b7 anonymous \u00b7 pms",
+      "run": "afc2d22fe81d",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/afc2d22fe81d/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "5068d653434af9ea0b0e1d230a27363dccc5f2e85ce317cacabb5ff7fe6e935c"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-out Front pms access /front-access/reset-password \u00b7 anonymous \u00b7 pms",
+      "run": "22772f2032af",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/22772f2032af/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "ee19c2a7291ebbbfc35928b56899acb87fec47e8756b22931abeccc3106bc5dc"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-out Front pms access /front-access/verify-email \u00b7 anonymous \u00b7 pms",
+      "run": "f61f9008cd90",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/f61f9008cd90/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "f01167b1a8ed7061b529c898e8988a6987b05e846c8625dc59e1f0820a546f98"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-in Front pms /front/[holdingSlug]/[companySlug]/[app]/[[...path]] \u00b7 pms role",
+      "run": "f4243e47f758",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/f4243e47f758/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "f90eb9520ab43dc28791ba417004232656c6ba2c96777200dbed7cebd1264a96"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-in as finance /holdings/[holdingSlug]/finance/hospitality-settings \u00b7 finance \u00b7 holding",
+      "run": "295c98abc67d",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/295c98abc67d/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "4ff7f4a74ebd286e73e0a229922135bd29089e8edee21afb3b98869c82bd4e9b"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-in as finance /holdings/[holdingSlug]/finance/hotel-accounts/[id] \u00b7 finance \u00b7 holding",
+      "run": "ffe090e9ecb4",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/ffe090e9ecb4/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "e9850f9e72ded70b68d6c516bf2c755d1c5caf211d7f155e235a73045d6881b1"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-in as finance /holdings/[holdingSlug]/finance/hotel-documents/[id] \u00b7 finance \u00b7 holding",
+      "run": "5778afc5109a",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/5778afc5109a/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "5a9beee07a7ab64fc4a46ccc91bd47d5bfc942686d402e954f671876740d54d1"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-in as finance /holdings/[holdingSlug]/finance/hotel-import \u00b7 finance \u00b7 holding",
+      "run": "f1296bb20d39",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/f1296bb20d39/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "24083d3429baa30ee024071dbeada9bb58d9322f9c727971090e94ed339e7e07"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-in as finance /holdings/[holdingSlug]/finance/restaurants \u00b7 finance \u00b7 holding",
+      "run": "6d1772aa5f55",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/6d1772aa5f55/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "b33c789fa29a74eb884e89252d9d0216b4a00c10a3e554bb54c653ed91c63d6e"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-in as finance /holdings/[holdingSlug]/finance/sales/new \u00b7 finance \u00b7 holding",
+      "run": "e907c59d6f46",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/e907c59d6f46/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "875dca69a7d9781db47a1bdc217922828fb68d2bd95053a21d04e8293b95331c"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-in as finance /holdings/[holdingSlug]/finance/sales \u00b7 finance \u00b7 holding",
+      "run": "bb6d90b70522",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/bb6d90b70522/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "e7e1adde3ae2bb92ae329f06db32750e98de84834e9200a6a4d4b645e2676c8f"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-in as finance /holdings/[holdingSlug]/finance/sales/receipts/[id] \u00b7 finance \u00b7 holding",
+      "run": "adff44fa9743",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/adff44fa9743/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "ea93127f48da56efa5aa443f8cecd077fa4f1b131c503a16be9b617586eb6758"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-in as finance /holdings/[holdingSlug]/finance/sales/settings \u00b7 finance \u00b7 holding",
+      "run": "95ba88466bf3",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/95ba88466bf3/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "9654290ce18b0cecdb30e9cd93fd9e86c1c0d2b39c826d86e2ce8744cedc3c1e"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-in as pms-holding /holdings/[holdingSlug]/pms/[[...section]] \u00b7 pms-holding \u00b7 holding",
+      "run": "aa6afbbdc0b3",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/aa6afbbdc0b3/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "16bf605411260f11daa995f65e7713079517c78a7c18ef088912fd406a5e2338"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-in as pms-holding /holdings/[holdingSlug]/pms/documents/[id] \u00b7 pms-holding \u00b7 holding",
+      "run": "e21ac0f8cf70",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/e21ac0f8cf70/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "a5033c667b6ce5afef2f6a7469ad534a5b18075f8376277c59b5456bad5039ab"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "signed-in as pms-holding /holdings/[holdingSlug]/pms/import \u00b7 pms-holding \u00b7 holding",
+      "run": "641b2b2c43ef",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/641b2b2c43ef/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "824c52f9f3ea9aa547092166d232e81b28986394088c64f57b1726a9052c5cb9"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch /holdings/[holdingSlug]/finance/hospitality-settings \u00b7 scope:branch",
+      "run": "41e5b6968404",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/41e5b6968404/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "eeff5dd9c8bd2257f0c84c5e30e50120d00357aaa702a40fca16a49c20eeed54"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch /holdings/[holdingSlug]/finance/hotel-accounts/[id] \u00b7 scope:branch",
+      "run": "c53f8220f20e",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/c53f8220f20e/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "aa4fb132dae3373767617714755b4b41098136b2cf5630aa56244d5145dee03f"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch /holdings/[holdingSlug]/finance/hotel-documents/[id] \u00b7 scope:branch",
+      "run": "59b3b36652a3",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/59b3b36652a3/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "1a52663597ee3dc156cd6a59f98d3410c973fb5c37cb76729bbdbf6e7e3191b4"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch /holdings/[holdingSlug]/finance/hotel-import \u00b7 scope:branch",
+      "run": "65a80276bc6f",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/65a80276bc6f/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "e62713ae90f5b033fa5e4599bdb902d86e56d60abddda38d37551172c306cb3a"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch /holdings/[holdingSlug]/finance/restaurants \u00b7 scope:branch",
+      "run": "f8246a14262f",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/f8246a14262f/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "3688cf3c520e0ce8f0dc92a901a26c9ce125e0446198820f93c6ac5f9bb6e3ff"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch /holdings/[holdingSlug]/finance/sales/new \u00b7 scope:branch",
+      "run": "ab5ac70cc9f4",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/ab5ac70cc9f4/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "a4339f8517181ceb82ec8a742562c6a915e3b54b7bec2757b2fd9cf9957e5849"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch /holdings/[holdingSlug]/finance/sales \u00b7 scope:branch",
+      "run": "d290be0fd610",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/d290be0fd610/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "6fe40bfe8750eed306c2392963a6a9a7e427728e0ac1eae78afcf3dd7269aed7"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch /holdings/[holdingSlug]/finance/sales/receipts/[id] \u00b7 scope:branch",
+      "run": "3ec24e37418d",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/3ec24e37418d/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "9f0c2d29d4aa6321c59a2022be02024b9e5a2b9e84d0908fc78d0d75f2255697"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch /holdings/[holdingSlug]/finance/sales/settings \u00b7 scope:branch",
+      "run": "ef2ef4cb0f13",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/ef2ef4cb0f13/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "b975b7d851af1dfb832a21f5ee32b6a799e166575c71b1b81e3b80f1972d64b7"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 department /holdings/[holdingSlug]/finance/hospitality-settings \u00b7 scope:department",
+      "run": "a436574fe79e",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/a436574fe79e/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "b6926495468a3e8a0f43bbe42c8de75f0f2a96f531eda932ea8b413a3dabc4ff"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 department /holdings/[holdingSlug]/finance/hotel-accounts/[id] \u00b7 scope:department",
+      "run": "c8165cbb868b",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/c8165cbb868b/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "86b8aa1c27f07e7a96536a2fe4e1240038ef8af217cd51442a689aae1f61f699"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 department /holdings/[holdingSlug]/finance/hotel-documents/[id] \u00b7 scope:department",
+      "run": "7cb057efbc61",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/7cb057efbc61/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "5b13a5dccd78556266af20bc80f504df752673910fd5c4a375f435ad28136ea9"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 department /holdings/[holdingSlug]/finance/hotel-import \u00b7 scope:department",
+      "run": "0bf1f4c86566",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/0bf1f4c86566/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "253b60abdfdfe1b7b169ffdae56e9ba273c5a5b6aa92d4d0a358fdfeb35fff8b"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 department /holdings/[holdingSlug]/finance/restaurants \u00b7 scope:department",
+      "run": "cb8002f362db",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/cb8002f362db/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "c7ca3551323f96d7cae52537129878b8f20f2b79b44c1031af6002aca316c9b3"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 department /holdings/[holdingSlug]/finance/sales/new \u00b7 scope:department",
+      "run": "03bf932449d4",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/03bf932449d4/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "2f8e796f15f23ac00e6141dc598e71baf72d3794554a4f0e8915d401e7c02973"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 department /holdings/[holdingSlug]/finance/sales \u00b7 scope:department",
+      "run": "1d0c524163d8",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/1d0c524163d8/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "6df2281430543e3e690b13946e2e131af9959c51a8dfa1aed29c783a2a7630de"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 department /holdings/[holdingSlug]/finance/sales/receipts/[id] \u00b7 scope:department",
+      "run": "65867f1f430f",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/65867f1f430f/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "b0710684ecd861598a505b3b0cd4cd24ee29ca87b4319311394b13d43bf1d4d1"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 department /holdings/[holdingSlug]/finance/sales/settings \u00b7 scope:department",
+      "run": "f5d1a7f24068",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/f5d1a7f24068/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "2a6a66ad81a9122bd2ef346898a8bce565de0de66769847e5192d32399a277d9"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch-department /holdings/[holdingSlug]/finance/hospitality-settings \u00b7 scope:branch-department",
+      "run": "a5ae4e8dbc99",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/a5ae4e8dbc99/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "0c7af2132dffa398fe801678d079c2ef45567ab3428beb0a74361a2ce6439213"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch-department /holdings/[holdingSlug]/finance/hotel-accounts/[id] \u00b7 scope:branch-department",
+      "run": "754ce7fd8a36",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/754ce7fd8a36/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "6adc369fb20c76a4fafa3dc9f0ff2b4cbba2d12232df66a4fe8b2228b0d7db5e"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch-department /holdings/[holdingSlug]/finance/hotel-documents/[id] \u00b7 scope:branch-department",
+      "run": "541820ffb681",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/541820ffb681/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "8175b0157091d704bdd03bc7ba7ecb9fe490fad4893b328e4be5f358f9d04bf1"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch-department /holdings/[holdingSlug]/finance/hotel-import \u00b7 scope:branch-department",
+      "run": "cf286828aa72",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/cf286828aa72/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "0efb06112c08b9b5069d879ce790c1c511269c3271110da2c807ce19ac012f01"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch-department /holdings/[holdingSlug]/finance/restaurants \u00b7 scope:branch-department",
+      "run": "02df00110804",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/02df00110804/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "3285e6784fb12f0f30fcef9d86c950202f970508150e9840863b3155f65e33b3"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch-department /holdings/[holdingSlug]/finance/sales/new \u00b7 scope:branch-department",
+      "run": "4ace88936c14",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/4ace88936c14/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "6fb40dcfb407360f9d80cc986870c959991de489eca8656b7d1995c1a35b4ba9"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch-department /holdings/[holdingSlug]/finance/sales \u00b7 scope:branch-department",
+      "run": "57d60dcbbaf6",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/57d60dcbbaf6/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "3490499cd1beddf60753cf9eeba6ba4625a48f007b41d1623f69b106049d07b5"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch-department /holdings/[holdingSlug]/finance/sales/receipts/[id] \u00b7 scope:branch-department",
+      "run": "eefb67e9f4ac",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/eefb67e9f4ac/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "26df1e6d08b707ccda42f12f2119601a32880dc5b46e842a604c91392c882b15"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch-department /holdings/[holdingSlug]/finance/sales/settings \u00b7 scope:branch-department",
+      "run": "fd98337361ad",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/fd98337361ad/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "9cd004f25ac8200491344c9768f00d59fc6a8bacc3042c92ec04b212444c4c61"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "dynamic record invalid-ID recovery /book/[holdingSlug]/[propertyId] \u00b7 owner invalid id is handled explicitly on both viewports",
+      "run": "d09461360685",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/d09461360685/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "e12f477861aeebe66b007d84db2106a7e07cac2f8b27b99353915c24d5feff45"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "dynamic record invalid-ID recovery /holdings/[holdingSlug]/finance/hotel-accounts/[id] \u00b7 finance invalid id is handled explicitly on both viewports",
+      "run": "4b5f2061ec0e",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/4b5f2061ec0e/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "152e5f0a5b8309a6b0057119af0be6926e1c3a01580ead71ab899890ac25bdf2"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "dynamic record invalid-ID recovery /holdings/[holdingSlug]/finance/hotel-documents/[id] \u00b7 finance invalid id is handled explicitly on both viewports",
+      "run": "6367ac718ebb",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/6367ac718ebb/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "7bcca062a7310b3b21e3504d4794bb8cfdd79b46b45177b7e3a1629e6413989d"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "dynamic record invalid-ID recovery /holdings/[holdingSlug]/finance/sales/receipts/[id] \u00b7 finance invalid id is handled explicitly on both viewports",
+      "run": "f4e4cab48b3b",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/f4e4cab48b3b/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "638488d88f2f82594acb08c17d88087b1f27e6db991f97b00f8bdfe6a0530289"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "dynamic record invalid-ID recovery /holdings/[holdingSlug]/pms/documents/[id] \u00b7 pms-holding invalid id is handled explicitly on both viewports",
+      "run": "50e2f6f44897",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-12T05-35-48-193Z/50e2f6f44897/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "cd7127bb2a1af06da837a04d142142aceb4e8e9cd7b37cb666e9687a3b998f04"
+    }
+  ],
+  "scope": "Original38required PMS routes plus96required anonymous/intended-role/branch/department/combined/invalid-ID checks for9new Finance page sources. Normal UAT actor fixtures and original assertions retained. Read-only route/render/scope evidence; dynamic placeholder/not-found routes are not transaction or actual-record acceptance. Native and original business journeys provide separate operational evidence.",
+  "wholePlanAccepted": false
+}

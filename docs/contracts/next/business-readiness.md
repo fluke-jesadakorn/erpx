@@ -51,4 +51,4 @@ Thai payroll is required engineering delivery. Production-mode runs require the 
 
 ## Validation
 
-`tests/release-acceptance.test.ts` covers persistence, migration reapplication, independent review, cross-Company reads, revoked authority, stale/concurrent versions, replay conflicts, immutable evidence, all-criterion completion, configuration invalidation and shared owner/worker guards. `tests/capability-gate-reviews.test.ts` covers repeatable generation and gate vocabulary. Synthetic test decisions are never real hotel sign-off.
+`tests/integration/shared.evidence/release-acceptance.test.ts` covers persistence, migration reapplication, independent review, cross-Company reads, revoked authority, stale/concurrent versions, replay conflicts, immutable evidence, all-criterion completion, configuration invalidation and shared owner/worker guards. `tests/unit/shared.evidence/capability-gate-reviews.test.ts` covers repeatable generation and gate vocabulary. Synthetic test decisions are never real hotel sign-off.

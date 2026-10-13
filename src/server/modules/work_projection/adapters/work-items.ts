@@ -6,7 +6,7 @@ import "server-only";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { getDomainWork } from "./domain-work";
 import { getWork } from "../public/work";
-import { type WorkItem } from "@/lib/work-item";
+import { type WorkItem } from "@/lib/work_projection/work-item";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
 import { ApiError } from "@/server/modules/runtime/public/http";
 import { createWorkSnapshot, type WorkSnapshotPorts } from "../application/work-items";

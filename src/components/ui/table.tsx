@@ -1,10 +1,10 @@
 "use client";
 import {useContext,Children,cloneElement,isValidElement,type HTMLAttributes,type TableHTMLAttributes,type ReactNode,type ReactElement} from "react";
 import {RecordScope} from "@/components/records/record-context";
-import {recordTarget,type RecordTarget} from "@/lib/record-drawer";
+import {recordTarget,type RecordTarget} from "@/lib/records/record-drawer";
 import {CollectionRecordLink} from "@/components/records/record-collection";
 import type { UiAppearance } from "./appearance";
-import { cn } from "@/lib/ui";
+import { cn } from "@/lib/shared/ui";
 
 export function TableFrame({
   label,

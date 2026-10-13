@@ -1,6 +1,6 @@
 import type {CanvasDefinition,MetricData,Widget} from "@/server/modules/runtime/public/rules/canvas-domain";
 import type sanitizeHtml from "sanitize-html";
-import {canvasAccent,widgetThemeCss} from "@/lib/executive/theme";
+import {canvasAccent,widgetThemeCss} from "@/lib/shared/executive/theme";
 import {escape,amount,chart} from "../../domain/executive/html-widget";
 export function createHtmlWidgetDocument(ports:{sanitize:typeof sanitizeHtml;allowedTags:string[];hash(value:string):string;documents:Map<string,string>}){
 /** No scripts, navigation, network, credentials or parent access. Binding values are escaped before sanitization. */

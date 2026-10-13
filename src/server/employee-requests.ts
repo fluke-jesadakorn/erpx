@@ -1,3 +1,0 @@
-/** Compatibility entry point; legacy implementation belongs to records. */
-export {actOnEmployeeRequest,canOverrideEmployeeRequest,employeeRequestDetail,employeeRequestSchema,employeeRequestUpload,employeeRequestWork,getEmployeeRequest,listEmployeeRequests,prepareRequestOrderHandoff,previewEmployeeRequest,readRequestForOverride,requestActionSchema,requestAttachments,requestOwn,requestQuotationSource,requestVersionGuard,saveEmployeeRequest} from "@/server/modules/records/adapters/employee-requests";
-export type {EmployeeRequest,SavedApproval} from "@/server/modules/records/adapters/employee-requests";

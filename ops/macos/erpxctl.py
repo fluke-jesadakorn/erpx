@@ -179,6 +179,20 @@ def restore(home,snapshot,offline=False):
             # exhausts PostgreSQL's lock table on the shared local cluster.
             # PG18 bounds locks per batch; maintenance remains active if any
             # batch fails, before files or the matching release are activated.
+            # A full, checksum-verified snapshot is restored while services are
+            # paused, after a protected backup of the current state. pg_restore
+            # --clean cannot remove an inherited child PK before its parent.
+            # Remove partition roots (and their FK/index dependencies) first;
+            # the complete archive recreates and validates those dependencies.
+            # Never ignore restore errors or omit constraints from the archive.
+            run([pg/'psql','-X','--set','ON_ERROR_STOP=1','--dbname',name,'--command',
+                 """DO $$ DECLARE parent record; BEGIN
+                 FOR parent IN SELECT c.relname,n.nspname FROM pg_class c
+                   JOIN pg_namespace n ON n.oid=c.relnamespace
+                   WHERE c.relkind='p' AND NOT c.relispartition AND n.nspname='public'
+                   ORDER BY c.relname LOOP
+                   EXECUTE format('DROP TABLE %I.%I CASCADE',parent.nspname,parent.relname);
+                 END LOOP; END $$;"""],env=env)
             options=['--clean','--if-exists','--exit-on-error','--transaction-size=64']
             if offline: options.append('--no-owner')
             run([pg/'pg_restore',*options,'--dbname',name,snapshot/'databases'/(name+'.dump')],env=env)

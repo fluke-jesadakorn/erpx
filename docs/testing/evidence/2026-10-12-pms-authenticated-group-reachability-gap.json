@@ -1,0 +1,63 @@
+{
+  "checkedAt": "2026-10-12T01:32:47.318221+00:00",
+  "scope": "Actual normal owned Front authentication and desktop reachability diagnostic, not supplementalGUI6 acceptance",
+  "candidate": {
+    "runtime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+    "verification": "6bec217508702c495235e2a3740598d3132176d24be4d6af9cb1845bfe5c95c9",
+    "mainRuntime": "51701d69c6d65dc1ee28480e7de4b404c89f3e32f8ab6c912c551568114b6bf6",
+    "mainVerification": "6bec217508702c495235e2a3740598d3132176d24be4d6af9cb1845bfe5c95c9",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T19-44-51-044Z",
+    "releaseId": "2026-10-11T19-44-51-044Z",
+    "releaseReusedForIdenticalRuntime": true,
+    "verificationAmendment": "Only existing shared keyboard readiness and null-safe theme init; all runtime/native sources unchanged"
+  },
+  "run": "e81659b3e5ed",
+  "actualObservation": {
+    "initialConsoleRedirect": "http://127.0.0.1:3104/holdings/booking-test/pms/reservations?property=property-ea97e8042382fcbf4248585a51ad55da",
+    "frontNormalSignInSucceeded": true,
+    "frontAssignmentVerified": true,
+    "actualUrl": "http://dev-pms.localhost:3104/booking-test/expense-603f4abc-4352-4e14-9e8e-db0a63528713/holding/reservations?property=property-ea97e8042382fcbf4248585a51ad55da",
+    "groupCreateSummaryCount": 0,
+    "groupAllocationSelectCount": 0,
+    "visibleHeadingTexts": [
+      " Isolated Family Hotel",
+      "Availability and new reservation",
+      "Reservations"
+    ],
+    "frontApp": "pms"
+  },
+  "rawResult": {
+    "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-keyboard-repair-2026-10-12/front-group-auth-observation-v2/e81659b3e5ed/result/result.json",
+    "SHA256": "3c007c47dd71acbfd54b743495db22df5fac47970a6798f57bd46db82988fbda"
+  },
+  "screenshot": {
+    "file": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-joint-keyboard-repair-2026-10-12/front-group-auth-observation-v2/e81659b3e5ed/result/authenticated-front-reservations.png",
+    "SHA256": "835853d7328a0977b12f312b8ba09fb19a79eb8b0c05bf041136629b1ac8c424",
+    "visuallyInspected": true
+  },
+  "cleanup": {
+    "run": "e81659b3e5ed",
+    "destroyed": true,
+    "processesExited": true,
+    "checkedAt": "2026-10-12T01:09:59.571Z"
+  },
+  "sourceCountercase": {
+    "consolePmsPage": "Daily reservations redirects to available Front unless existing review/prototype exception applies",
+    "creator": "block.create and Create group block exist only in Backoffice reservations",
+    "frontMode": "Front reservations supports pickup but does not expose creator; Front operation allowlist excludes block administration"
+  },
+  "limits": [
+    "Empty fixture groupAllocationSelectCount0 is not evidence that pickup is broken",
+    "Initial Console URL snapshot does not prove settled redirect timing; prior UI6 failure captures actual Front login redirect separately",
+    "One normal desktop actor only; no mobile, group UI, public development or performance acceptance",
+    "First diagnostic failed on incorrectly expecting options in GETroles; its cleanup and failure remain retained"
+  ],
+  "preparedRepair": {
+    "file": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-group-admin-prepared/candidate.patch",
+    "SHA256": "2110c18a15b861b142461fe566886a0bc81bfaae170cca26d97e06dafc51a179",
+    "applied": false,
+    "files": 3,
+    "preservesFrontAuthAndOperationRestrictions": true
+  },
+  "wholePlanAccepted": false
+}

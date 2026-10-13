@@ -1,6 +1,6 @@
 import {z} from "zod";
 import type {Row} from "../../commerce/public/commerce";
-import type {WorkItem} from "@/lib/work-item";
+import type {WorkItem} from "@/lib/work_projection/work-item";
 const reason=z.string().trim().min(3).max(2000),version=z.number().int().positive(),id=z.string().min(1);
 export const crmLeadSchema=z.object({branchId:id,title:z.string().trim().min(3).max(160),contactName:z.string().trim().min(2).max(160),contactDetail:reason,source:reason,sourceEvidence:reason.optional(),sourceKind:z.enum(['staff','form','pms']).optional(),sourceId:id.optional(),campaignId:id.optional(),accountId:id.optional(),contactId:id.optional(),brief:reason,dueDate:z.iso.date()});
 export const crmLeadChangeSchema=z.discriminatedUnion('action',[

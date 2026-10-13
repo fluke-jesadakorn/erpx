@@ -5,7 +5,7 @@ const workflowSources=workflowSnapshotSources();
 const commerceSources=commerceSnapshotSources();
 const financeSources=financeSnapshotSources();
 import type {SqlDatabase} from '../../runtime/public/runtime/types';
-import type {FlowKind} from '@/lib/flow';
+import type {FlowKind} from "@/lib/shared/flow";
 /** Fixed projections supplied only by the native Workflow composition. */
 export function stageWorkflowNotification(db:SqlDatabase,input:{id:string;kind:FlowKind;now:number;companyId:string;recordId:string;actorId:string;documentTable:string;recipientSql:string}){
  const {recipientSql:recipient,documentTable}=input;

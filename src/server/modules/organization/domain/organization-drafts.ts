@@ -1,8 +1,8 @@
 import {BusinessRuleError} from '../../shared';
 import {organizationNodeChangeSchema} from './organization';
-import {projectOrganization,changedPeople,personPlacement,positionPlacement,type DraftDefinition,type DraftItem} from '@/lib/organization-draft-domain';
+import {projectOrganization,changedPeople,personPlacement,positionPlacement,type DraftDefinition,type DraftItem} from "@/lib/organization/organization-draft-domain";
 import type {WorkContext} from '../../identity_access/public/authorization';
-import type {OrganizationAccessData} from '@/lib/organization-access';
+import type {OrganizationAccessData} from "@/lib/organization/organization-access";
 export const decode=<T,>(value:T|string):T=>typeof value==='string'?JSON.parse(value) as T:value;
 export const canonical=(value:unknown):unknown=>Array.isArray(value)?value.map(canonical):value&&typeof value==='object'?Object.fromEntries(Object.entries(value).sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>[k,canonical(v)])):value;
 export const fail=(message:string,code='ORGANIZATION_DRAFT_CHANGED',status=409):never=>{throw new BusinessRuleError(status,code,message);};

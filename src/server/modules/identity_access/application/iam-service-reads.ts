@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import type { IamActor } from '../domain/iam-actor';
 import { iamPermission } from '../domain/iam-actor';
-import type { RoleRevision } from '@/lib/iam';
-import { permissionCatalog, hasPermission, evaluateAccess } from '@/lib/permissions';
+import type { RoleRevision } from "@/lib/identity_access/iam";
+import { permissionCatalog, hasPermission, evaluateAccess } from "@/lib/identity_access/permissions";
 import type { IdentityError } from './authorization';
 export interface IamServiceReadPorts {
     error: IdentityError;

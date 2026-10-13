@@ -1,6 +1,6 @@
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { AttachmentBindingContract } from "@/server/modules/files/public/attachments/types";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { SupportCommandPorts, SupportCommand, SupportRow, SupportMutation } from "./command";
 import { supportEvidenceBindSchema, supportEvidenceRevokeSchema, supportEvidenceActive, supportEvidenceBindingContract, type SupportEvidenceBind, type SupportEvidenceRevoke, type SupportEvidenceBinding } from "../domain/support-evidence";
 function requireSupportEvidenceWrite(ports: Pick<SupportCommandPorts, "error"> & {

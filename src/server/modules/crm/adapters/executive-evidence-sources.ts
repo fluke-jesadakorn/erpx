@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { type Filters } from "@/lib/executive/canvas";
+import { type Filters } from "@/lib/shared/executive/canvas";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { inputSchema, type OpportunityRow, parseCursor } from '@/server/modules/runtime/public/executive/crm-evidence-contract';

@@ -1,5 +1,5 @@
 import "server-only";
-import { type Filters, type MetricId } from "@/lib/executive/canvas";
+import { type Filters, type MetricId } from "@/lib/shared/executive/canvas";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { sha256 } from "@/server/modules/runtime/public/crypto";

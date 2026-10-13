@@ -1,7 +1,7 @@
 import {z} from 'zod';
 import {BusinessRuleError} from '../../shared';
-import {attributeAccess,validateAttributeValue,type AttributeDefinition} from '@/lib/user-management';
-import type {DirectoryInventory} from '@/lib/directory-operations';
+import {attributeAccess,validateAttributeValue,type AttributeDefinition} from "@/lib/identity_access/user-management";
+import type {DirectoryInventory} from "@/lib/identity_access/directory-operations";
 export const fieldSyncInput=z.object({connectionId:z.string().min(1),personId:z.string().min(1),direction:z.enum(['read','write']),reason:z.string().trim().min(3).max(1000),previewToken:z.string().optional()});
 export type FieldSyncInput=z.infer<typeof fieldSyncInput>;
 export type DirectoryFieldState={version:number;connection_version:number;tested_version:number;inventory:DirectoryInventory|null;definition:{mappings?:{direction:'read'|'write';field:string;attributeId:string}[]}};

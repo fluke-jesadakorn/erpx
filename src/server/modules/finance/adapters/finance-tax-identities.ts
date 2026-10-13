@@ -4,7 +4,7 @@ import { taxSignatureMetadata, taxSignatureGuard, taxSignatureWorkspace } from '
 import "server-only";
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { thaiFinanceTaxPack } from "@/lib/thai-finance-tax-pack";
+import { thaiFinanceTaxPack } from "@/lib/finance/thai-finance-tax-pack";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { assertion, executeCommand, replayCommand } from "@/server/modules/workflow/public/commands";
 import { ApiError } from "@/server/modules/runtime/public/http";

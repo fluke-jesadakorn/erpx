@@ -37,7 +37,7 @@ Mixed pages retain the geometry around specialized children. In particular, the 
 
 ## Coverage and completion
 
-Run with pinned Bun 1.2.17 / Node 24.20.0:
+Run with pinned Bun 1.4.3 / Node 26.11.1:
 
 ```sh
 bun run ui:coverage

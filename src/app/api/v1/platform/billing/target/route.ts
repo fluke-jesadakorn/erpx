@@ -1,6 +1,6 @@
 import {appBillingFinanceProjection} from "@/server/modules/billing/public/app-finance-projection-source";
 import {customerHoldingBindingExists} from "@/server/modules/runtime/public/app-native-sources";
-import { billingMonth } from "@/lib/billing";
+import { billingMonth } from "@/lib/billing/billing";
 import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
 import { readTargetBillingPeriod } from "@/server/modules/billing/public/billing-target";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";

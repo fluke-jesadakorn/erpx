@@ -1,0 +1,80 @@
+{
+  "date": "2026-10-09",
+  "scope": "PMS expansion engineering checkpoint; pilot acceptance incomplete",
+  "releaseId": "2026-10-09T12-19-56-267Z",
+  "runtimeFingerprint": "6850b586c68fa38f12a935736e0bedb9668238b0d60d149808370f5abf71fb92",
+  "verificationFingerprint": "2bc41fac09a8380071e253002f77eaed7314d3001474c043e57befbcff16e17b",
+  "checks": {
+    "focusedUnit": {
+      "files": 1,
+      "passed": 31
+    },
+    "focusedIntegration": {
+      "files": 5,
+      "passed": 104
+    },
+    "typecheck": "passed",
+    "lint": {
+      "errors": 0,
+      "existingWarnings": 3
+    },
+    "architecture": "passed, zero boundary exceptions",
+    "documentation": "passed",
+    "isolatedReleaseBuild": "passed"
+  },
+  "health": {
+    "developmentLocal": {
+      "url": "http://127.0.0.1:3100/api/health",
+      "httpStatus": 200
+    },
+    "developmentPublic": {
+      "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+      "httpStatus": 200
+    },
+    "privateProduction": {
+      "url": "http://127.0.0.1:3101/api/health",
+      "httpStatus": 200
+    }
+  },
+  "browser": {
+    "origin": "https://console-dev-erpx.jesadakorn.com",
+    "authenticatedConsole": "existing session",
+    "verified": [
+      "A calendar, B photo room board, C task queues",
+      "Desktop right drawer and Escape",
+      "390px full-width drawer and simulated check-in",
+      "Guest room gallery/capacity/child pricing/deposit/confirmation/manage/cancel",
+      "834px Light guest view and Dark staff/guest views"
+    ],
+    "limitations": [
+      "Prototype browser-memory actions are not operational acceptance",
+      "Separate Front login prevents required actual Front operational journeys",
+      "Full translation, permissions and keyboard matrix not certified"
+    ],
+    "screenshots": "ignored .scratch/dev/pms-ui/"
+  },
+  "scaleDiagnostic": {
+    "scope": "source-level diagnostic, not release acceptance",
+    "properties": 3,
+    "roomsPerProperty": 200,
+    "historyDays": 730,
+    "completedStays": 219000,
+    "concurrency": 20,
+    "readSamples": 60,
+    "writeSamples": 20,
+    "readP95Ms": 550.8957499999997,
+    "guestWriteP95Ms": 135.12537499999962,
+    "remaining": "Release HTTP candidate and other financial commands still require measurement"
+  },
+  "remaining": [
+    "Historical net pace and reviewed CRM linkage/consent",
+    "Authoritative command-read scaling outside guest operations",
+    "Same-release operational/browser/payment/recovery acceptance matrix",
+    "Release HTTP load rehearsal",
+    "Real-hotel migration/opening balance/restore and reviewer acceptance",
+    "Provider and production approvals"
+  ],
+  "productionDeployed": false,
+  "stagingAccessed": false,
+  "pilotAccepted": false
+}

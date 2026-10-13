@@ -12,7 +12,7 @@ import type {SqlDatabase} from "../../runtime/public/runtime/types";
 import type {Row} from "../../commerce/public/commerce";
 import {holdingResources} from "../../runtime/public/runtime";
 import {requirePermission} from "../../identity_access/public/iam-permissions";
-import {hasPermission} from "@/lib/permissions";
+import {hasPermission} from "@/lib/identity_access/permissions";
 import {assertion,executeCommand,replayCommand} from "../../workflow/public/commands";
 import {ApiError} from "../../runtime/public/http";
 import {prepareCustomerDuplicateNotice1,prepareCustomerDuplicateNotice2} from "../../collaboration/public/customer-authority-notifications";

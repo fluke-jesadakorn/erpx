@@ -1,8 +1,8 @@
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { ExpenseRecordFacts, ExpenseViolation } from "../domain/expense-policy";
 import { expenseAccountingViolation, mayEditExpense } from "../domain/expense-policy";
-import { samePerson } from "@/lib/iam";
-import { hasPermission } from "@/lib/permissions";
+import { samePerson } from "@/lib/identity_access/iam";
+import { hasPermission } from "@/lib/identity_access/permissions";
 
 export type ExpenseRecord = ExpenseRecordFacts;
 export type ExpenseAccountingInput = { expectedVersion: number; categoryAccountId: string; tax: string; entryDate: string; periodId: string; note: string };

@@ -9,6 +9,7 @@ export interface ExpenseReadPorts<Row extends ExpenseRecord> {
   visibleRow(actor: WorkContext, id: string): Promise<Row | null>;
   canRead(actor: WorkContext, row: Row): Promise<boolean>;
   decorate(actor: WorkContext, row: Row): Promise<Row>;
+  prepareBatch?(actor: WorkContext, rows: readonly Row[]): Promise<Pick<ExpenseReadPorts<Row>, "canRead" | "decorate">>;
   error: ExpenseCommandPort["error"];
 }
 
@@ -17,7 +18,9 @@ export function createExpenseReads<Row extends ExpenseRecord>(ports: ExpenseRead
   return {
     async list(actor: WorkContext): Promise<Row[]> {
       for (const id of await ports.legacyIds(actor)) await ports.initializeApproval(actor, id);
-      const visible = await Promise.all((await ports.visibleRows(actor)).map(async (row): Promise<{ row: Row | null }> => ({ row: await ports.canRead(actor, row) ? await ports.decorate(actor, row) : null })));
+      const rows = await ports.visibleRows(actor);
+      const batch = await ports.prepareBatch?.(actor, rows) ?? ports;
+      const visible = await Promise.all(rows.map(async (row): Promise<{ row: Row | null }> => ({ row: await batch.canRead(actor, row) ? await batch.decorate(actor, row) : null })));
       return visible.flatMap(value => value.row === null ? [] : [value.row]);
     },
     async get(actor: WorkContext, id: string): Promise<Row> {

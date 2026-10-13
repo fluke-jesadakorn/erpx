@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { hasModuleAccess } from "@/data/module-access";
 import { filtersSchema } from "@/server/modules/runtime/public/rules/canvas-domain";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { posEvidenceMetrics, type PosEvidenceMetric, providerId, grossSalesFields, inputSchema, type EvidenceRow, type PosDetailRow, type PosCursor, fieldsFor, safeIntegerString, safeVersion, notFound, scopeKey, parseCursor, hrefFor } from '../../domain/executive/pos-evidence';
 import { BusinessRuleError, type Clock } from '../../../shared';

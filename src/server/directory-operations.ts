@@ -1,2 +1,0 @@
-/** Compatibility entry point; legacy implementation belongs to identity_access. */
-export {affectedObjects,applyDirectoryOperationReview,cancelDirectoryOperation,configureDirectoryAutomation,connectorMappingInput,directoryAutomationData,drainDirectoryOperations,prepareDirectoryPreview,previewDirectoryChange,refreshDirectoryInventory,retryDirectoryOperation,submitDirectoryChange} from "@/server/modules/identity_access/adapters/directory-operations";

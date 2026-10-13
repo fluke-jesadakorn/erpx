@@ -1,0 +1,86 @@
+{
+  "scope": "Finance Sales & collections development delivery",
+  "automatedCheckpoint": {
+    "typecheck": "passed",
+    "lint": {
+      "result": "passed",
+      "existingWarnings": 3,
+      "lastChangedFiles": "passed"
+    },
+    "architecture": {
+      "result": "passed",
+      "legacyEdges": 0
+    },
+    "focusedNativeCases": 70,
+    "salesEvidenceRetestCases": 4,
+    "salesBrowserReceipt": ".scratch/dev/test-suites/browser/2026-10-09T19-38-01-021Z/receipt.json",
+    "goodsCollectionJourneyReceipt": ".scratch/dev/test-suites/browser/2026-10-09T19-31-59-914Z/receipt.json",
+    "release": ".runtime/releases/2026-10-09T19-38-32-299Z",
+    "runtimeFingerprint": "d0d27937497e7050f693cafbd6acf928b1da89aa9b848ce2883c9512029c76f5"
+  },
+  "publicVisualAcceptance": {
+    "observedAt": "2026-10-09T21:17:01.570092+00:00",
+    "origin": "https://console-dev-erpx.jesadakorn.com",
+    "page": "/holdings/acme/finance/sales",
+    "authentication": "Existing normal authenticated Chrome session reused; no authentication bypass.",
+    "result": "passed",
+    "desktop": "Normal Chrome viewport",
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "pageWidth": 375,
+      "drawerWidth": 375,
+      "drawerX": 0,
+      "temporaryOverrideReset": true
+    },
+    "checks": [
+      "All four document tabs rendered existing Company-scoped records.",
+      "Document search, September date range and ready receipt status selected one existing fictional receipt.",
+      "Awaiting USD 16102.00 drilldown matched twelve outstanding invoices totaling USD 16102.00.",
+      "Unsaved quotation right drawer calculated subtotal 200.00, VAT 14.00 and total 214.00; no ledger account inputs.",
+      "Mobile drawer filled the available page width and retained its fixed header while body scrolled.",
+      "Sales settings opened account configuration in a right drawer; missing independent approval linked to setup.",
+      "Existing fictional posted SERVICE-RECEIPT-002 issued RC-2026-000001 for USD 107.00 allocated to SERVICE-ACCEPTANCE-002.",
+      "Receipt detail rendered on desktop/mobile; retained printable export rendered its original allocation and payment reference.",
+      "VAT readiness remained separate from receipt/payment state."
+    ],
+    "developmentMutation": {
+      "kind": "Issue retained copy of an existing fictional posted customer receipt",
+      "number": "RC-2026-000001",
+      "paymentReference": "SERVICE-RECEIPT-002",
+      "amount": "107.00",
+      "currency": "USD",
+      "receiptId": "customer-receipt-payment-c739a34bf3e3ff7d5eb988aa54a2f38a6827"
+    },
+    "setupRequirement": "Acme Company sales defaults still need independently approved Finance configuration; readiness correctly explains this.",
+    "screenshots": [
+      ".scratch/finance-sales/public-sales-desktop.jpg",
+      ".scratch/finance-sales/public-sales-mobile.jpg",
+      ".scratch/finance-sales/public-quotation-drawer-desktop.jpg",
+      ".scratch/finance-sales/public-quotation-drawer-mobile.jpg",
+      ".scratch/finance-sales/public-quotation-total-mobile.jpg",
+      ".scratch/finance-sales/public-sales-defaults-drawer-desktop.jpg",
+      ".scratch/finance-sales/public-issued-receipt-desktop.jpg",
+      ".scratch/finance-sales/public-issued-receipt-mobile.jpg",
+      ".scratch/finance-sales/public-retained-receipt-desktop.jpg"
+    ],
+    "limitation": "This public visual check is separate from the earlier frozen automated checkpoints. It does not claim a new whole-workspace regression run or production promotion."
+  },
+  "health": {
+    "localDev": 200,
+    "publicDev": 200,
+    "privateProduction": 200,
+    "checkedAt": "2026-10-09T21:17:01.570092+00:00"
+  },
+  "availability": {
+    "devPort": 3100,
+    "devPid": 45054,
+    "launcherPid": 81935,
+    "node": "24.20.0",
+    "bun": "1.2.17",
+    "detached": true,
+    "postgresPort": 5432
+  },
+  "stagingAccess": false,
+  "productionPromotion": false
+}

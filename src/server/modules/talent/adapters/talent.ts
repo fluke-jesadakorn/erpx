@@ -7,12 +7,12 @@ import type { WorkContext } from "@/server/modules/identity_access/public/author
 import type { Row } from "@/server/modules/commerce/public/commerce";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
 import { requirePermission } from "@/server/modules/identity_access/public/iam-permissions";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { hasModuleAccess } from "@/data/module-access";
 import { assertion, executeCommand, replayCommand } from "@/server/modules/workflow/public/commands";
 import { snapshotMoney } from "@/server/modules/finance/public/company-money";
 import { ApiError } from "@/server/modules/runtime/public/http";
-import { decimalToMinor } from "@/lib/finance-money";
+import { decimalToMinor } from "@/lib/finance/finance-money";
 import type { SqlDatabase, SqlStatement } from "@/server/modules/runtime/public/runtime/types";
 import { createTalentWorkspace, createTalentCandidate as createTalentCandidateApplication, createTalentApplication as createTalentApplicationApplication, createTalentProposal as createTalentProposalApplication, createTalentOffer as createTalentOfferApplication, createChangeTalentRecord, createTalentDetail, createTalentExecutiveEvidence, createTalentWork, type TalentCommandPorts, type TalentCommand, type TalentMutation, type TalentExecutiveEvidenceMetric } from "../application/talent";
 import type { TalentKind } from "../domain/talent";
@@ -403,7 +403,7 @@ export function nativeTalentExecutiveEvidence(db:SqlDatabase){return createTalen
     .bind(id, a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId, range.from, range.toExclusive)
     .first<Row>()});}
 export async function talentExecutiveEvidenceRow(db:SqlDatabase,a:WorkContext,metric:TalentExecutiveEvidenceMetric,recordId:string,range?:{from:number;toExclusive:number}){return nativeTalentExecutiveEvidence(db)(a,metric,recordId,range);}
-export async function talentWork(a:WorkContext):Promise<import("@/lib/work-item").WorkItem[]>{const database=lazyDatabase(a);return createTalentWork({authorize:access,async rows(a){const write=await database();return (
+export async function talentWork(a:WorkContext):Promise<import("@/lib/work_projection/work-item").WorkItem[]>{const database=lazyDatabase(a);return createTalentWork({authorize:access,async rows(a){const write=await database();return (
       await write
         .prepare(
           `SELECT a.*,r.job_title,c.legal_name candidate_name,CASE WHEN ${eligibleOwner} THEN 1 ELSE 0 END owner_eligible FROM talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id JOIN talent_candidates c ON c.id=a.candidate_id WHERE a.company_id=? AND a.status NOT IN ('accepted','rejected','withdrawn') AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) ORDER BY a.updated_at DESC`,

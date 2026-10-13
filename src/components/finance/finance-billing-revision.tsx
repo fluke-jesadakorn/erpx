@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { BusinessContractInput } from "@/server/modules/finance/public/rules/finance-contract-policy";
-import { financeCsvRows } from "@/lib/finance-csv";
+import { financeCsvRows } from "@/lib/finance/finance-csv";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import {
   Button,

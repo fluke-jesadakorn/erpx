@@ -1,0 +1,110 @@
+{
+  "checkedAt": "2026-10-11T10:56:59.642001+00:00",
+  "candidate": {
+    "runtime": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+    "verification": "4690053d9c623dac5dd654126c19ed6b148b7ac969fd1948be8f0d599496c095",
+    "mainRuntime": "ac53b636bb8e08700a3bace57c442d1ab211fc299e8110c21de2ba9ba2afd48f",
+    "mainVerification": "4690053d9c623dac5dd654126c19ed6b148b7ac969fd1948be8f0d599496c095",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T10-52-06-388Z",
+    "releaseId": "2026-10-11T10-52-06-388Z"
+  },
+  "requiredOriginalDiagnosticCases": 4,
+  "passed": true,
+  "receipt": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-11T10-54-08-391Z/receipt.json",
+  "receiptSHA256": "dbab973adc52a5f8d540bce26a78bf755c58f46fa8ef52dd605765f218d72fc6",
+  "perCaseEvidence": [
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 department /holdings/[holdingSlug]/finance/restaurants \u00b7 scope:department",
+      "run": "5650d07e074b",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-11T10-54-08-391Z/5650d07e074b/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "b26d81721deb104d24a25c9a3b0d20183a52b7d1039ae1e0372b53c4f29d32d3"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "desktop",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch-department /holdings/[holdingSlug]/finance/restaurants \u00b7 scope:branch-department",
+      "run": "16c293047794",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-11T10-54-08-391Z/16c293047794/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "5adba2fe706dbff6917160e2d266f5f1c03920940b65a72f8ab13d9623c4af7d"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 department /holdings/[holdingSlug]/finance/restaurants \u00b7 scope:department",
+      "run": "a884f2a34589",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-11T10-54-08-391Z/a884f2a34589/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "4d847545f88531d5ec290d40fcd64261e187635b79dca555c90414f1afd903b9"
+    },
+    {
+      "suite": "shared.ui.uat-route-matrix.uat",
+      "file": "uat-route-matrix.spec.ts",
+      "project": "mobile",
+      "title": "holding, branch, department, and combined scope routes \u00b7 branch-department /holdings/[holdingSlug]/finance/restaurants \u00b7 scope:branch-department",
+      "run": "b37cb0faf353",
+      "report": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/test-suites/browser/2026-10-11T10-54-08-391Z/b37cb0faf353/result.json",
+      "passed": true,
+      "cleanup": {
+        "completed": true,
+        "ownedDirectoryAbsent": true
+      },
+      "reportSHA256": "09e97884fe3dfaef86e33b080a7329cc95b2569c4cf3f84c118892b49be62efc"
+    }
+  ],
+  "scope": "Exactly four unchanged original Finance restaurants Department/Branch+Department desktop/mobile route identities on fresh compiled ac53 release. Original normal UAT actor fixtures, assertions and owned cleanup retained. This proves repaired expected-scope page handling only; does not close full134 routes,178 browser,native1342,HTTP40,strictcapacity or metadata8. No extra unique required browser count.",
+  "wholePlanAccepted": false,
+  "explicitPermissionPageObservations": [
+    {
+      "case": "holding, branch, department, and combined scope routes \u00b7 department /holdings/[holdingSlug]/finance/restaurants \u00b7 scope:department",
+      "project": "desktop",
+      "HTTPStatus": 200,
+      "headingText": "Your role cannot open this view",
+      "accessReason": "permission",
+      "rawObservationSHA256": "7ce4540927b189298e18feb082bbac1c17a2f525b92f2035a14feee608dcdc71"
+    },
+    {
+      "case": "holding, branch, department, and combined scope routes \u00b7 branch-department /holdings/[holdingSlug]/finance/restaurants \u00b7 scope:branch-department",
+      "project": "desktop",
+      "HTTPStatus": 200,
+      "headingText": "Your role cannot open this view",
+      "accessReason": "permission",
+      "rawObservationSHA256": "4f06c35e6f8b64d6372b89f1d46116a8c1a272b641fc899fbf9e7945cdabe0e5"
+    },
+    {
+      "case": "holding, branch, department, and combined scope routes \u00b7 department /holdings/[holdingSlug]/finance/restaurants \u00b7 scope:department",
+      "project": "mobile",
+      "HTTPStatus": 200,
+      "headingText": "Your role cannot open this view",
+      "accessReason": "permission",
+      "rawObservationSHA256": "58357d9bbd037b6ebc7835e6d833e615409115881411e97a2c9aaa1432ef3e52"
+    },
+    {
+      "case": "holding, branch, department, and combined scope routes \u00b7 branch-department /holdings/[holdingSlug]/finance/restaurants \u00b7 scope:branch-department",
+      "project": "mobile",
+      "HTTPStatus": 200,
+      "headingText": "Your role cannot open this view",
+      "accessReason": "permission",
+      "rawObservationSHA256": "beba682379e84e9d60e04360acf00031843e0e6ac160d6056345d88ea24b79b6"
+    }
+  ],
+  "HTTPStatusLimit": "Streamed page responses are200; proof is typed403 service refusal and explicit permission UI, not HTTP403 page response."
+}

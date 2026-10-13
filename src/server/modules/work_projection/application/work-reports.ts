@@ -1,6 +1,6 @@
 import type {WorkContext} from "../../identity_access/public/authorization";
-import type {FlowKind,FlowView} from "@/lib/flow";
-import {decimalToMinor} from "@/lib/finance-money";
+import type {FlowKind,FlowView} from "@/lib/shared/flow";
+import {decimalToMinor} from "@/lib/finance/finance-money";
 import {reportQuery,type WorkReportCandidate} from "../domain/work-reports";
 export {reportQuery} from "../domain/work-reports";
 type WorkReportRows<Row>={results:Row[]};

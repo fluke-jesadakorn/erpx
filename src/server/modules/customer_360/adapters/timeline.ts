@@ -14,7 +14,7 @@ import type {WorkContext} from "@/server/modules/identity_access/public/authoriz
 import {holdingResources} from "@/server/modules/runtime/public/runtime";
 import {requirePermission} from "@/server/modules/identity_access/public/iam-permissions";
 import {ApiError} from "@/server/modules/runtime/public/http";
-import {hasPermission} from '@/lib/permissions';
+import {hasPermission} from "@/lib/identity_access/permissions";
 import {hasModuleAccess} from '@/data/module-access';
 import {visibility as legalVisibility} from "@/server/modules/legal/public/legal/access";
 const cursorSchema=z.object({at:z.number().int().nonnegative(),id:z.string().min(1).max(250)});

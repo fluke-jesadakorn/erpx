@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import type { PageCutEntry } from '@/lib/hospitality-page-cut';
+import type { PageCutEntry } from "@/lib/shared/hospitality-page-cut";
 import { type UiAppearance } from "@/components/ui/foundation";
 
 export function ComingSoonPage({ appearance = "legacy",entry,base}:({entry:PageCutEntry;base:string}) & { appearance?: UiAppearance }) {

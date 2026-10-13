@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { WorkContext } from '../../identity_access/public/authorization';
-import type { MessagingPerson, MessagingRoom, MessagingTeam, MessagingMessage, MessagingFile } from '@/lib/messaging';
+import type { MessagingPerson, MessagingRoom, MessagingTeam, MessagingMessage, MessagingFile } from "@/lib/collaboration/messaging";
 import { BusinessRuleError, type Clock } from '../../shared';
 import { roomSchema, teamSchema, channelSchema, manageSchema, messageSchema } from '../domain/messaging';
 import type { prepareAttachmentBinding } from '../../files/public/attachments/service';

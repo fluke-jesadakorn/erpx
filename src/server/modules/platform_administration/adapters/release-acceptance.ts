@@ -9,7 +9,7 @@ import "server-only";
 import {createHash} from "node:crypto";
 import artifact from "@/data/release-artifact.json";
 import {productionScope,legalProductionScope,criteriaForScope,type ReleaseScopeVersion} from "@/data/production-scope";
-import {samePerson} from "@/lib/iam";
+import {samePerson} from "@/lib/identity_access/iam";
 import type {WorkContext} from "../../identity_access/public/authorization";
 import type {SqlDatabase} from "../../runtime/public/runtime/types";
 import {ApiError} from "../../runtime/public/http";

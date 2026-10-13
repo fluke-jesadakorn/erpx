@@ -16,18 +16,18 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useFrontLanguage } from "@/components/front/front-language";
-import { SocialTextInput } from "@/components/beta/social-text-input";
-import { SocialTextBody } from "@/components/beta/social-text-body";
+import { SocialTextInput } from "@/components/collaboration/social-text-input";
+import { SocialTextBody } from "@/components/collaboration/social-text-body";
 import { PersonAvatar } from "@/components/ui/person-avatar";
-import { HandoverAcknowledgement } from "@/components/today/handover-acknowledgement";
-import { useMoneyFormatter } from "@/components/money/currency-provider";
-import { betaFetch } from "@/lib/beta-client";
-import { bangkokToday } from "@/lib/handover";
+import { HandoverAcknowledgement } from "@/components/work_projection/today/handover-acknowledgement";
+import { useMoneyFormatter } from "@/components/finance/money/currency-provider";
+import { betaFetch } from "@/lib/shared/beta-client";
+import { bangkokToday } from "@/lib/shared/handover";
 import type { Mention } from "@/server/modules/collaboration/public/rules/social-text";
-import type { RichNode } from "@/lib/home-rich-content";
+import type { RichNode } from "@/lib/shared/home-rich-content";
 import type { HomePost } from "@/server/modules/collaboration/public/social-home";
 import type { PmsHome, PmsHomeTask, PmsHomeView } from "@/server/modules/pms/public/pms/home";
-import { scheduleWorkRefresh } from "@/lib/work-refresh";
+import { scheduleWorkRefresh } from "@/lib/work_projection/work-refresh";
 import styles from "./home.module.css";
 
 const queueLabels: Record<string, [string, string]> = {

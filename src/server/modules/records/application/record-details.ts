@@ -1,7 +1,7 @@
 import { metricIds, breakdowns, filtersSchema } from "@/server/modules/runtime/public/rules/canvas-domain";
 import { z } from "zod";
-import { hasPermission } from "@/lib/permissions";
-import type { RecordTarget } from "@/lib/record-drawer";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import type { RecordTarget } from "@/lib/records/record-drawer";
 import type { Row } from "@/server/modules/commerce/public/commerce";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { agentEvidenceRecord } from "@/server/modules/agent/public/agent-governance";

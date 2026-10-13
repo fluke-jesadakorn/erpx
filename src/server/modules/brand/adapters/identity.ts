@@ -8,14 +8,14 @@ import { BrandRuleError } from "../domain/policy";
 import "server-only";
 import type {WorkContext} from "@/server/modules/identity_access/public/authorization";
 import type {SqlDatabase,SqlStatement} from "@/server/modules/runtime/public/runtime/types";
-import {hasPermission} from "@/lib/permissions";
+import {hasPermission} from "@/lib/identity_access/permissions";
 import {hasModuleAccess} from "@/data/module-access";
 import {holdingResources} from "@/server/modules/runtime/public/runtime";
 import {requirePermission} from "@/server/modules/identity_access/public/iam-permissions";
-import {requireBrandManagement,readStorefrontAppBrand} from "@/server/branding";
+import {requireBrandManagement,readStorefrontAppBrand} from "@/server/modules/brand/public/branding";
 import {assertion,executeCommand,replayCommand} from "@/server/modules/workflow/public/commands";
 import {ApiError} from "@/server/modules/runtime/public/http";
-import {samePerson} from "@/lib/iam";
+import {samePerson} from "@/lib/identity_access/iam";
 
 export function publishedBrandIdentity(db:SqlDatabase,companyId:string){
  return readPublishedBrandIdentity({

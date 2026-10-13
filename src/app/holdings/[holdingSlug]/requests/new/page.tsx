@@ -1,11 +1,11 @@
 import { recordsPresentationQueries } from "@/server/modules/records/public/presentation-queries";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { notFound } from "next/navigation";
-import { FeaturePage } from "@/components/features/feature-page";
+import { FeaturePage } from "@/components/shared/features/feature-page";
 import { PageHeader } from "@/components/ui/primitives";
 import { RequestEditor } from "@/components/workplace/request-controls";
-import { requestKinds, type RequestKind } from "@/lib/employee-services";
-import { workspaceBase } from "@/lib/workspace";
+import { requestKinds, type RequestKind } from "@/lib/people_payroll/employee-services";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 
 

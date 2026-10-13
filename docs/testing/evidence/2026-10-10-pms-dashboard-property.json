@@ -1,0 +1,144 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "status": "Public development and compiled non-default hotel navigation verified for all four dashboard cards",
+  "source": {
+    "runtime": "e7a3311f0fb810c6ee12f52b8c169584f1388f9c3f7feaf0588306ec6adea590",
+    "verification": "79703288bd71de36f5fbb88192cd4f1d1c4aa8907b8ce07fc39190be20342620"
+  },
+  "implementation": "Keep native Next Link and existing permission filters; append the snapshot Property to all four dashboard card links, preserving arrivals/departures queue parameters. Use the actual selected snapshot rather than inferred first hotel.",
+  "onlyHrefExpressionChanged": true,
+  "publicUi": {
+    "entry": "https://console-dev-erpx.jesadakorn.com/front/acme/acme-co/pms/holding",
+    "normalExistingSession": true,
+    "actualFourRenderedLinksContainSelectedProperty": true,
+    "arrivalsQueueAndSelectedHotelAtDestination": true,
+    "departuresQueueAndSelectedHotelAtDestination": true,
+    "housekeepingSelectedHotelAtDestination": true,
+    "guestAccountSelectedHotelAtDestination": true,
+    "transactionsSubmitted": false,
+    "availableHotels": 1,
+    "nonDefaultMultiHotelAcceptance": false
+  },
+  "staticVerification": {
+    "typecheck": true,
+    "lintErrors": 0,
+    "existingWarnings": 3
+  },
+  "remaining": [
+    "Same-candidate final full browser matrix"
+  ],
+  "artifacts": {
+    "lint.log": {
+      "path": ".scratch/dev/pms-dashboard-property/lint.log",
+      "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+    },
+    "public-arrivals.jpg": {
+      "path": ".scratch/dev/pms-dashboard-property/public-arrivals.jpg",
+      "sha256": "6d50fcbf40e381d094b283cea3ff1efab04056e65cd31670d9aec25536420b23"
+    },
+    "public-dashboard.jpg": {
+      "path": ".scratch/dev/pms-dashboard-property/public-dashboard.jpg",
+      "sha256": "cf3ecb483cb7658301c7b3a3e00ceca778e95cf01067ac86c91213f8c4309713"
+    },
+    "public-guest-account.jpg": {
+      "path": ".scratch/dev/pms-dashboard-property/public-guest-account.jpg",
+      "sha256": "6143de02e7dd6cb0ef11233e6ee11e89feab7833b188cdde047b72104504bfa5"
+    },
+    "typecheck.log": {
+      "path": ".scratch/dev/pms-dashboard-property/typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    "workspace-before.tsx": {
+      "path": ".scratch/dev/pms-dashboard-property/workspace-before.tsx",
+      "sha256": "f3f7d3c77ae9f92600896bb29e963c61612fcb70fa4bb9b3c2fb211566ed7e47"
+    },
+    "workspace-candidate.tsx": {
+      "path": ".scratch/dev/pms-dashboard-property/workspace-candidate.tsx",
+      "sha256": "2ee8b2b285a99e901aafd464a20663e4a58ee355419fa2674724ab11959ef3c9"
+    },
+    "compiled-non-default-guest-account.jpg": {
+      "path": ".scratch/dev/pms-dashboard-property/compiled-non-default-guest-account.jpg",
+      "sha256": "4d00394ccda9a4ae850bce191c6530410fac6d87382dbc9e472f9a0f80cbd046"
+    },
+    "compiled-non-default-dashboard.jpg": {
+      "path": ".scratch/dev/pms-dashboard-property/compiled-non-default-dashboard.jpg",
+      "sha256": "9ae14334ad38723d3f1e4707ce59c1b51bf1e3bea23178620d6237816b0e1fcd"
+    },
+    "compiled-non-default.json": {
+      "path": ".scratch/dev/pms-dashboard-property/compiled-non-default.json",
+      "sha256": "ebf7ce9c0a897f090381729d0cc1c2d4978a1df0110679431119105c88c99301"
+    }
+  },
+  "featureFixVerified": true,
+  "compiledNonDefault": {
+    "run": "f19fbbb1d5aa",
+    "release": "2026-10-10T01-35-06-354Z",
+    "sourceFingerprint": "e7a3311f0fb810c6ee12f52b8c169584f1388f9c3f7feaf0588306ec6adea590",
+    "normalManagerLogin": true,
+    "hotels": 3,
+    "selectedHotel": "Fictional Capacity Hotel 3",
+    "selectedProperty": "property-58f9fab19f52a47f8787921c7df8e99a",
+    "nonDefaultHotel": true,
+    "links": [
+      {
+        "href": "/booking-test/expense-207c77cb-4666-46e4-8e35-d40af8bf2aad/holding/front-desk?queue=arrivals&property=property-58f9fab19f52a47f8787921c7df8e99a",
+        "text": "Arrivals0Open check-in queue \u2192"
+      },
+      {
+        "href": "/booking-test/expense-207c77cb-4666-46e4-8e35-d40af8bf2aad/holding/front-desk?queue=departures&property=property-58f9fab19f52a47f8787921c7df8e99a",
+        "text": "Departures0Open checkout queue \u2192"
+      },
+      {
+        "href": "/booking-test/expense-207c77cb-4666-46e4-8e35-d40af8bf2aad/holding/housekeeping?property=property-58f9fab19f52a47f8787921c7df8e99a",
+        "text": "Rooms to prepare0Open housekeeping \u2192"
+      },
+      {
+        "href": "/booking-test/expense-207c77cb-4666-46e4-8e35-d40af8bf2aad/holding/guest-accounts?property=property-58f9fab19f52a47f8787921c7df8e99a",
+        "text": "Balances due0Open guest accounts \u2192"
+      }
+    ],
+    "destinations": [
+      {
+        "queue": "arrivals",
+        "url": "http://dev-pms.localhost:3104/booking-test/expense-207c77cb-4666-46e4-8e35-d40af8bf2aad/holding/front-desk?queue=arrivals&property=property-58f9fab19f52a47f8787921c7df8e99a",
+        "hotel": {
+          "label": "Fictional Capacity Hotel 3",
+          "value": "property-58f9fab19f52a47f8787921c7df8e99a"
+        },
+        "heading": true
+      },
+      {
+        "queue": "departures",
+        "url": "http://dev-pms.localhost:3104/booking-test/expense-207c77cb-4666-46e4-8e35-d40af8bf2aad/holding/front-desk?queue=departures&property=property-58f9fab19f52a47f8787921c7df8e99a",
+        "hotel": {
+          "label": "Fictional Capacity Hotel 3",
+          "value": "property-58f9fab19f52a47f8787921c7df8e99a"
+        },
+        "heading": true
+      },
+      {
+        "queue": "housekeeping",
+        "url": "http://dev-pms.localhost:3104/booking-test/expense-207c77cb-4666-46e4-8e35-d40af8bf2aad/holding/housekeeping?property=property-58f9fab19f52a47f8787921c7df8e99a",
+        "hotel": {
+          "label": "Fictional Capacity Hotel 3",
+          "value": "property-58f9fab19f52a47f8787921c7df8e99a"
+        },
+        "heading": true
+      },
+      {
+        "queue": "guest-accounts",
+        "url": "http://dev-pms.localhost:3104/booking-test/expense-207c77cb-4666-46e4-8e35-d40af8bf2aad/holding/guest-accounts?property=property-58f9fab19f52a47f8787921c7df8e99a",
+        "hotel": {
+          "label": "Fictional Capacity Hotel 3",
+          "value": "property-58f9fab19f52a47f8787921c7df8e99a"
+        },
+        "heading": true
+      }
+    ],
+    "transactionsSubmitted": false,
+    "onlyReadNavigationAfterPerformanceRunTerminated": true,
+    "allFourDestinationsSelectedNonDefaultHotel": true,
+    "viewport": "desktop"
+  }
+}

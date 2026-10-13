@@ -56,13 +56,13 @@
       ]
     },
     {
-      "source": "src/components/platform/platform-holding-provisioning.tsx",
+      "source": "src/components/platform_administration/platform-holding-provisioning.tsx",
       "components": [
         "RecordCollectionDrawer"
       ]
     },
     {
-      "source": "src/components/usage/usage-console.tsx",
+      "source": "src/components/billing/usage/usage-console.tsx",
       "components": [
         "RecordCollectionDrawer"
       ]
@@ -1248,8 +1248,8 @@
       "fingerprint": "0b132f80b71bd50378f84f523a89a72bdd1ae6c4182b9ae316db0f78ef273ce7"
     },
     {
-      "id": "src/components/hospitality/setup-guide.tsx#1",
-      "source": "src/components/hospitality/setup-guide.tsx",
+      "id": "src/components/shared/hospitality/setup-guide.tsx#1",
+      "source": "src/components/shared/hospitality/setup-guide.tsx",
       "line": 479,
       "headers": [
         "Mapping",
@@ -1261,8 +1261,8 @@
       "fingerprint": "19250ba73ee922b43b786d2018a8ad7123824253432f55b596839d6b182acd9f"
     },
     {
-      "id": "src/components/hospitality/setup-guide.tsx#2",
-      "source": "src/components/hospitality/setup-guide.tsx",
+      "id": "src/components/shared/hospitality/setup-guide.tsx#2",
+      "source": "src/components/shared/hospitality/setup-guide.tsx",
       "line": 637,
       "headers": [
         "Room numbers / range",
@@ -1275,8 +1275,8 @@
       "fingerprint": "1306114e1df94b72955bb799b3c4281b9f6cd5e6d49c59da15589a91d7d46914"
     },
     {
-      "id": "src/components/hospitality/setup-guide.tsx#3",
-      "source": "src/components/hospitality/setup-guide.tsx",
+      "id": "src/components/shared/hospitality/setup-guide.tsx#3",
+      "source": "src/components/shared/hospitality/setup-guide.tsx",
       "line": 826,
       "headers": [
         "Table",
@@ -1288,8 +1288,8 @@
       "fingerprint": "c2bf4a3f118cc08ee2ca7e832c46b38b4e4cc1d42a029662bd9852db29637b6f"
     },
     {
-      "id": "src/components/hospitality/setup-guide.tsx#4",
-      "source": "src/components/hospitality/setup-guide.tsx",
+      "id": "src/components/shared/hospitality/setup-guide.tsx#4",
+      "source": "src/components/shared/hospitality/setup-guide.tsx",
       "line": 927,
       "headers": [
         "SKU",
@@ -1362,8 +1362,8 @@
       "fingerprint": "adb7118f93254a3d70519d0dc8497abb0d5faa18b13e42a2651a8288a32b8f22"
     },
     {
-      "id": "src/components/calendar/calendar-workspace.tsx#1",
-      "source": "src/components/calendar/calendar-workspace.tsx",
+      "id": "src/components/work_projection/calendar/calendar-workspace.tsx#1",
+      "source": "src/components/work_projection/calendar/calendar-workspace.tsx",
       "line": 1093,
       "headers": [
         "People & coverage",
@@ -1377,8 +1377,8 @@
       "fingerprint": "618634eb18b1ca92dbb99c027b1430c4f6d277af6696c538daa63aaf794acfe7"
     },
     {
-      "id": "src/components/technology/organization-access-workspace.tsx#1",
-      "source": "src/components/technology/organization-access-workspace.tsx",
+      "id": "src/components/identity_access/technology/organization-access-workspace.tsx#1",
+      "source": "src/components/identity_access/technology/organization-access-workspace.tsx",
       "line": 2751,
       "headers": [
         "Policy target",
@@ -1391,8 +1391,8 @@
       "fingerprint": "8098753962ce1085a6219ad99836c5fab142e50b8824d72335fd50c8612a9343"
     },
     {
-      "id": "src/components/technology/organization-access-workspace.tsx#2",
-      "source": "src/components/technology/organization-access-workspace.tsx",
+      "id": "src/components/identity_access/technology/organization-access-workspace.tsx#2",
+      "source": "src/components/identity_access/technology/organization-access-workspace.tsx",
       "line": 2817,
       "headers": [
         "Placement",
@@ -1405,8 +1405,8 @@
       "fingerprint": "27dcf39675908b4a9892dc6afa6a52dc6646d58294d3f07ea5be094ca05ce99d"
     },
     {
-      "id": "src/components/technology/organization-access-workspace.tsx#3",
-      "source": "src/components/technology/organization-access-workspace.tsx",
+      "id": "src/components/identity_access/technology/organization-access-workspace.tsx#3",
+      "source": "src/components/identity_access/technology/organization-access-workspace.tsx",
       "line": 2920,
       "headers": [
         "Placement",
@@ -1419,8 +1419,8 @@
       "fingerprint": "a3207caa7d1e211fb7bb8909d255301194e82083d4325d228a3c3fac5732a5dd"
     },
     {
-      "id": "src/components/platform/platform-holding-provisioning.tsx#1",
-      "source": "src/components/platform/platform-holding-provisioning.tsx",
+      "id": "src/components/platform_administration/platform-holding-provisioning.tsx#1",
+      "source": "src/components/platform_administration/platform-holding-provisioning.tsx",
       "line": 86,
       "headers": [
         "Holding",
@@ -1434,8 +1434,8 @@
       "fingerprint": "d39f10965e261969448d50b9f9dda753a002ffe2dea02f0d044880b40e474a9a"
     },
     {
-      "id": "src/components/usage/usage-console.tsx#1",
-      "source": "src/components/usage/usage-console.tsx",
+      "id": "src/components/billing/usage/usage-console.tsx#1",
+      "source": "src/components/billing/usage/usage-console.tsx",
       "line": 312,
       "headers": [
         "Holding",
@@ -1453,8 +1453,8 @@
       "fingerprint": "62d279c2eb44d62fdddf34e2898d320f333ff6e0483b4dff09cbfda7ccc7b805"
     },
     {
-      "id": "src/components/usage/usage-console.tsx#2",
-      "source": "src/components/usage/usage-console.tsx",
+      "id": "src/components/billing/usage/usage-console.tsx#2",
+      "source": "src/components/billing/usage/usage-console.tsx",
       "line": 421,
       "headers": [
         "Location",
@@ -1468,8 +1468,8 @@
       "fingerprint": "7b7e7799dfa89795cca5b2307fc4c83f5a411fff656e1088a5125e7886e64c03"
     },
     {
-      "id": "src/components/usage/usage-console.tsx#3",
-      "source": "src/components/usage/usage-console.tsx",
+      "id": "src/components/billing/usage/usage-console.tsx#3",
+      "source": "src/components/billing/usage/usage-console.tsx",
       "line": 468,
       "headers": [
         "Type",
@@ -1486,8 +1486,8 @@
       "fingerprint": "ddd6218d6732cdc62e29f8c3527f44f86705ddae60f346507301d1d092bb0750"
     },
     {
-      "id": "src/components/usage/usage-console.tsx#4",
-      "source": "src/components/usage/usage-console.tsx",
+      "id": "src/components/billing/usage/usage-console.tsx#4",
+      "source": "src/components/billing/usage/usage-console.tsx",
       "line": 523,
       "headers": [
         "Source",
@@ -2023,8 +2023,8 @@
       "fingerprint": "0358c8547ca8d2a7abcf4523c381cfe7d927f7a5a0adb07d98b303e6b314e3ec"
     },
     {
-      "id": "src/components/modules/document-posting-preview.tsx#1",
-      "source": "src/components/modules/document-posting-preview.tsx",
+      "id": "src/components/finance/document-posting-preview.tsx#1",
+      "source": "src/components/finance/document-posting-preview.tsx",
       "line": 117,
       "headers": [
         "Account",
@@ -2038,8 +2038,8 @@
       "fingerprint": "8457a37e8109c593293e7697f3b3c2989c6ff60d7a8445b543bbdb643a447d69"
     },
     {
-      "id": "src/components/modules/analytics-report.tsx#1",
-      "source": "src/components/modules/analytics-report.tsx",
+      "id": "src/components/runtime/executive/analytics-report.tsx#1",
+      "source": "src/components/runtime/executive/analytics-report.tsx",
       "line": 214,
       "headers": [
         "Campaign ID",
@@ -2057,8 +2057,8 @@
       "fingerprint": "4b426ff69d152e36db0f984e12f603efe1c08efbca33bb26dcf1feabaecd352e"
     },
     {
-      "id": "src/components/modules/sales-pricing-console.tsx#1",
-      "source": "src/components/modules/sales-pricing-console.tsx",
+      "id": "src/components/sales/sales-pricing-console.tsx#1",
+      "source": "src/components/sales/sales-pricing-console.tsx",
       "line": 425,
       "headers": [
         "Price list",
@@ -2075,8 +2075,8 @@
       "fingerprint": "bebc83bba0dbd8942b267def7fb26d2373083a48d1d7f7bfa3d3bc39fef63592"
     },
     {
-      "id": "src/components/modules/expense-posting-preview.tsx#1",
-      "source": "src/components/modules/expense-posting-preview.tsx",
+      "id": "src/components/people_payroll/expense-posting-preview.tsx#1",
+      "source": "src/components/people_payroll/expense-posting-preview.tsx",
       "line": 33,
       "headers": [
         "Account",
@@ -2088,8 +2088,8 @@
       "fingerprint": "7778531437251309c7376a1cd4ae51c5a7a57827796ac41896fe602a33501be7"
     },
     {
-      "id": "src/components/modules/expense-posting-preview.tsx#2",
-      "source": "src/components/modules/expense-posting-preview.tsx",
+      "id": "src/components/people_payroll/expense-posting-preview.tsx#2",
+      "source": "src/components/people_payroll/expense-posting-preview.tsx",
       "line": 111,
       "headers": [
         "Account",
@@ -2103,8 +2103,8 @@
       "fingerprint": "f3735bcd3eda7d5c55816e7e77bfd8a7ba789a944c02afa4d03dc3b54af282bd"
     },
     {
-      "id": "src/components/modules/finance-chart-controls.tsx#1",
-      "source": "src/components/modules/finance-chart-controls.tsx",
+      "id": "src/components/finance/finance-chart-controls.tsx#1",
+      "source": "src/components/finance/finance-chart-controls.tsx",
       "line": 354,
       "headers": [
         "Code",
@@ -2120,8 +2120,8 @@
       "fingerprint": "3291231efc6098481e67b539a9f950e102b349b18e5d15cde38c99f285ff8caf"
     },
     {
-      "id": "src/components/modules/supplier-promise-console.tsx#1",
-      "source": "src/components/modules/supplier-promise-console.tsx",
+      "id": "src/components/procurement/supplier-promise-console.tsx#1",
+      "source": "src/components/procurement/supplier-promise-console.tsx",
       "line": 88,
       "headers": [
         "Product",
@@ -2134,8 +2134,8 @@
       "fingerprint": "7a45ff86fcb47226393403746a817261b33f5da36bf947f4a35484270ec4d542"
     },
     {
-      "id": "src/components/modules/finance-reporting-console.tsx#1",
-      "source": "src/components/modules/finance-reporting-console.tsx",
+      "id": "src/components/finance/finance-reporting-console.tsx#1",
+      "source": "src/components/finance/finance-reporting-console.tsx",
       "line": 25,
       "headers": [
         "Reporting dates",
@@ -2148,8 +2148,8 @@
       "fingerprint": "d56d8ae19256300f46f7c0e459a8fb880de3a7910c8f526066c0279d0af675ab"
     },
     {
-      "id": "src/components/modules/ledger-controls.tsx#1",
-      "source": "src/components/modules/ledger-controls.tsx",
+      "id": "src/components/finance/ledger-controls.tsx#1",
+      "source": "src/components/finance/ledger-controls.tsx",
       "line": 732,
       "headers": [
         "Account",
@@ -2163,8 +2163,8 @@
       "fingerprint": "288c54ab0ef8c0996ceffe0fa88d6c063e0c04109045816e27e0807c2af87573"
     },
     {
-      "id": "src/components/modules/procurement-rfq-console.tsx#1",
-      "source": "src/components/modules/procurement-rfq-console.tsx",
+      "id": "src/components/procurement/procurement-rfq-console.tsx#1",
+      "source": "src/components/procurement/procurement-rfq-console.tsx",
       "line": 123,
       "headers": [
         "Approved item",
@@ -2178,8 +2178,8 @@
       "fingerprint": "f80df38dedda24e848d60fdc024f9bd57dd1a48bd18602e2388c5b9e68e7c7f9"
     },
     {
-      "id": "src/components/modules/procurement-rfq-console.tsx#2",
-      "source": "src/components/modules/procurement-rfq-console.tsx",
+      "id": "src/components/procurement/procurement-rfq-console.tsx#2",
+      "source": "src/components/procurement/procurement-rfq-console.tsx",
       "line": 373,
       "headers": [
         "Product demand",
@@ -2192,8 +2192,8 @@
       "fingerprint": "e9161b8b5ffca343d59ca228805e03e3d90f2e0c30fb4be0e7c2e87fa92fa334"
     },
     {
-      "id": "src/components/modules/procurement-rfq-console.tsx#3",
-      "source": "src/components/modules/procurement-rfq-console.tsx",
+      "id": "src/components/procurement/procurement-rfq-console.tsx#3",
+      "source": "src/components/procurement/procurement-rfq-console.tsx",
       "line": 403,
       "headers": [
         "Supplier / reference",
@@ -2208,8 +2208,8 @@
       "fingerprint": "d8c6899f80af40fcf2f2ea5d2e56f4d7edf6d16daff58a9469962409199742e7"
     },
     {
-      "id": "src/components/modules/payroll-accounting-panel.tsx#1",
-      "source": "src/components/modules/payroll-accounting-panel.tsx",
+      "id": "src/components/people_payroll/payroll-accounting-panel.tsx#1",
+      "source": "src/components/people_payroll/payroll-accounting-panel.tsx",
       "line": 300,
       "headers": [
         "{\"Account\"}",
@@ -2224,8 +2224,8 @@
       "fingerprint": "ac4f56e6f01ce442c76de4be88fd353a4b234fdbff4283fe623b48fcaf6c3304"
     },
     {
-      "id": "src/components/modules/supplier-bill-console.tsx#1",
-      "source": "src/components/modules/supplier-bill-console.tsx",
+      "id": "src/components/procurement/supplier-bill-console.tsx#1",
+      "source": "src/components/procurement/supplier-bill-console.tsx",
       "line": 371,
       "headers": [
         "PO / receipt / item",
@@ -2240,8 +2240,8 @@
       "fingerprint": "0a7ad062be950e86e449e0516e791e5386a1c40d25adf23e336f6d681a0038f3"
     },
     {
-      "id": "src/components/modules/inventory-reorder-console.tsx#1",
-      "source": "src/components/modules/inventory-reorder-console.tsx",
+      "id": "src/components/inventory/inventory-reorder-console.tsx#1",
+      "source": "src/components/inventory/inventory-reorder-console.tsx",
       "line": 184,
       "headers": [
         "Product",
@@ -2256,8 +2256,8 @@
       "fingerprint": "41d71efd1ad13b7df2cdd45e6ac261c306e8f64061f3809bff71ba3090bb5dee"
     },
     {
-      "id": "src/components/sales-customers/hub-list.tsx#1",
-      "source": "src/components/sales-customers/hub-list.tsx",
+      "id": "src/components/sales/customers/hub-list.tsx#1",
+      "source": "src/components/sales/customers/hub-list.tsx",
       "line": 18,
       "headers": [
         "{columns.map(column => {column}"
@@ -2330,8 +2330,8 @@
       "fingerprint": "2483866ab48278bfee455f621fae805a597d22aac1f063316f1a4789e2a2b161"
     },
     {
-      "id": "src/components/executive/widget.tsx#1",
-      "source": "src/components/executive/widget.tsx",
+      "id": "src/components/runtime/executive/widget.tsx#1",
+      "source": "src/components/runtime/executive/widget.tsx",
       "line": 128,
       "headers": [
         "{data.unit === \"quantity\"\n                            ? data.metric === \"available-stock\"\n                              ? \"Product / warehouse\"\n                              : data.metric === \"inventory-movements\"\n                                ? \"Movement group\"\n                                : \"Group\"\n                            : \"Group\"}",

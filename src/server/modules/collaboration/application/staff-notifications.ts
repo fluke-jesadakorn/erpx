@@ -1,5 +1,5 @@
 import type { WorkContext } from '../../identity_access/public/authorization';
-import { sourceRecordLabel } from '@/lib/source-record';
+import { sourceRecordLabel } from "@/lib/records/source-record";
 import { BusinessRuleError } from '../../shared';
 import { staffNotificationSourceTypes, type StaffNotification } from '../domain/staff-notifications';
 import type { ListPage } from '../../work_projection/public/list-page';

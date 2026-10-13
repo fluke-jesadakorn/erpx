@@ -6,9 +6,9 @@ import { Button, Field, Select, Table, TableFrame, TextInput } from "@/component
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { financeCommandFetch as workFetch } from "@/lib/finance-command-fetch";
-import { minorToDecimal } from "@/lib/finance-money";
-import { RecordDocumentDrawer } from "@/components/attachments/record-document-drawer";
+import { financeCommandFetch as workFetch } from "@/lib/finance/finance-command-fetch";
+import { minorToDecimal } from "@/lib/finance/finance-money";
+import { RecordDocumentDrawer } from "@/components/files/record-document-drawer";
 import { Card, FormLayout } from "@/components/ui/foundation";
 type Row = Record<string, unknown>;
 type Data = { schedules: Row[]; runs: Row[]; accounts: Row[] };

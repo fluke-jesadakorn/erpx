@@ -1,11 +1,11 @@
 import { forbidden } from "next/navigation";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { queryValue, type HubQuery, type SalesView } from "@/server/modules/sales/public/rules/navigation";
 import { salesCustomersAccess } from "@/server/modules/sales/public/sales-customers";
-import { HubShell } from "@/components/sales-customers/hub-shell";
-import { SalesDocumentsView, SalesPipelineView, SalesPricingView, SalesReportsView, SalesTodayView } from "@/components/sales-customers/sales-views";
+import { HubShell } from "@/components/sales/customers/hub-shell";
+import { SalesDocumentsView, SalesPipelineView, SalesPricingView, SalesReportsView, SalesTodayView } from "@/components/sales/customers/sales-views";
 export const dynamic = "force-dynamic";
 export default async function Page({ params, searchParams }: { params: Promise<{ holdingSlug: string }>; searchParams: Promise<HubQuery> }) {
   const { holdingSlug } = await params, actor = await requireWorkContext(holdingSlug), base = workspaceBase(publicScope(actor)), access = await salesCustomersAccess(actor), query = await searchParams;

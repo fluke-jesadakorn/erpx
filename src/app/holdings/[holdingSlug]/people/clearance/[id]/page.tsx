@@ -1,9 +1,9 @@
 import { peoplePayrollPresentationQueries } from "@/server/modules/people_payroll/public/presentation-queries";
-import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
-import { ClearanceWorkspace } from "@/components/people/clearance-workspace";
+import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/shared/features/feature-page";
+import { ClearanceWorkspace } from "@/components/records/loaders/people--clearance-workspace";
 import { PageHeader } from "@/components/ui/primitives";
-import { WorkReturn } from "@/components/workplace/work-return";
-import { workspaceBase } from "@/lib/workspace";
+import { WorkReturn } from "@/components/records/loaders/workplace--work-return";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 
 

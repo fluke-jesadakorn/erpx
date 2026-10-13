@@ -1,6 +1,6 @@
 import type {CommandActor} from '../domain/commands';
 import {flowCommandTarget} from '../domain/flow-routing';
-import type {FlowKind} from '@/lib/flow';
+import type {FlowKind} from "@/lib/shared/flow";
 export interface CommandPolicyPorts<Effect>{
  financeReview(actor:CommandActor,operation:string,recordId:string,version:number,input:unknown,key:string):Promise<Effect[]>;
  invoiceFlow(actor:CommandActor,key:string,recordId:string,input:unknown,version:number):Promise<{before:Effect[];after:Effect[]}|null>;

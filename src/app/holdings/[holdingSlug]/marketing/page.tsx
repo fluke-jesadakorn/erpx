@@ -2,20 +2,20 @@ import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Table } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { marketingWorkspace } from "@/server/modules/marketing/public/marketing";
-import { MarketingConsole } from "@/components/modules/marketing-console";
+import { MarketingConsole } from "@/components/marketing/marketing-console";
 import {
   marketingAnalytics,
   analyticsOptions,
   defaultAnalyticsRange,
 } from "@/server/modules/crm/public/crm-marketing-report";
-import { AnalyticsReport } from "@/components/modules/analytics-report";
-import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
-import { MediaPublicationPanel } from "@/components/attachments/media-publication-panel";
-import { AttachmentFeatureSurface } from "@/components/attachments/attachment-feature-context";
-import { hasPermission } from "@/lib/permissions";
+import { AnalyticsReport } from "@/components/runtime/executive/analytics-report";
+import { RecordDocumentPanel } from "@/components/files/record-document-panel";
+import { MediaPublicationPanel } from "@/components/files/media-publication-panel";
+import { AttachmentFeatureSurface } from "@/components/files/attachment-feature-context";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { PageContent, Card, TableFrame } from "@/components/ui/foundation";
 export const dynamic = "force-dynamic";
 export default async function Page({

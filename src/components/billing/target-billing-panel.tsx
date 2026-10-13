@@ -5,11 +5,11 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Button, Field, Select, Table, TableFrame, TextInput } from "@/components/ui/foundation";
 
-import { TimeText } from "@/components/time/time-preference-context";
+import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 
-import { betaFetch } from "@/lib/beta-client";
-import { billingMonth, monthBounds } from "@/lib/billing";
-import { workFetch } from "@/lib/work-fetch";
+import { betaFetch } from "@/lib/shared/beta-client";
+import { billingMonth, monthBounds } from "@/lib/billing/billing";
+import { workFetch } from "@/lib/work_projection/work-fetch";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { useCallback, useEffect, useState } from "react";
 import styles from "./target-billing-panel.module.css";

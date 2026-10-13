@@ -1,7 +1,7 @@
-import { PayrollHistoryContent } from "@/components/modules/payroll-workspace";
+import { PayrollHistoryContent } from "@/components/people_payroll/payroll-workspace";
 import { ListPagination } from "@/components/ui/list-pagination";
-import { hasPermission } from "@/lib/permissions";
-import { workspaceBase } from "@/lib/workspace";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { listPayrollRuns, payrollRunsPage } from "@/server/modules/people_payroll/public/people-payroll";

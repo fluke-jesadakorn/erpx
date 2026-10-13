@@ -1,4 +1,4 @@
-import { requestPublicOrigin } from "@/server/public-origin";
+import { requestPublicOrigin } from "@/server/modules/manage_erpx/adapters/public-origin";
 import { ApiError } from "@/server/modules/runtime/public/http";
 export async function betaBody(request: Request) {
   const origin = request.headers.get("origin");

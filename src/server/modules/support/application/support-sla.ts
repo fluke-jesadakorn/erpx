@@ -1,7 +1,7 @@
 import type { SupportAlert } from "../domain/support-sla-alerts";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
-import { hasPermission } from "@/lib/permissions";
-import { samePerson } from "@/lib/iam";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { samePerson } from "@/lib/identity_access/iam";
 import type { SupportCommandPorts, SupportCommand, SupportRow, SupportMutation } from "./command";
 import { supportPolicyCreateSchema, supportPolicyChangeSchema, supportClockAttachSchema, supportClockValue, supportPolicyWorkItems, supportPolicyClock, type SupportPolicyCreate, type SupportPolicyChange, type SupportClockAttach } from "../domain/support-sla";
 import { supportSlaPolicySchema, type SupportClock } from "../domain/support-clock";

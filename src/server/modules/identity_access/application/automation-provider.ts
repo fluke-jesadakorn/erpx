@@ -1,6 +1,6 @@
-import type { DirectoryAction, DirectoryInventory } from '@/lib/directory-operations';
-import { compileAdministrativePolicies } from '@/lib/directory-operations';
-import { compilePreferences } from '@/lib/windows-preferences';
+import type { DirectoryAction, DirectoryInventory } from "@/lib/identity_access/directory-operations";
+import { compileAdministrativePolicies } from "@/lib/identity_access/directory-operations";
+import { compilePreferences } from "@/lib/shared/windows-preferences";
 import { createDirectoryPolicy, directoryActionTargets } from '../domain/directory-provider';
 import type { DirectorySecret, ProviderConnection } from '../domain/providers';
 import type { IdentityError } from './authorization';

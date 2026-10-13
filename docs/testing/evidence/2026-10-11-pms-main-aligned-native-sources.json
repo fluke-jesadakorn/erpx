@@ -1,0 +1,1086 @@
+{
+  "checkedAt": "2026-10-10T21:52:47.054Z",
+  "candidate": {
+    "runtime": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+    "verification": "d338abbdd6e4fb68b035f2003c0337f66e54f7b3f2615dfa780eec899d15bd2e",
+    "mainRuntime": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+    "mainVerification": "d338abbdd6e4fb68b035f2003c0337f66e54f7b3f2615dfa780eec899d15bd2e",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-10T21-33-53-720Z",
+    "releaseId": "2026-10-10T21-33-53-720Z"
+  },
+  "nativeEvidence": "docs/testing/evidence/2026-10-11-pms-main-aligned-native.json",
+  "scope": "Current native passing file counts with AST-extracted literal assertion declarations and source hashes for PMS/POS/recovery. Declarative titles are source references, not separately exported case execution receipts or per-feature acceptance.",
+  "wholePlanAccepted": false,
+  "files": [
+    {
+      "file": "tests/unit/pms-provider-fixture.test.ts",
+      "passed": 7,
+      "sha256": "b632167d1138e8bcd1c4f99be170bf3ec1625f5233e71f266b0f2d36210582ce",
+      "literalDeclarations": [
+        {
+          "title": "retains one accepted refund across lost response and a new transport instance",
+          "line": 24,
+          "registration": "it"
+        },
+        {
+          "title": "replays durable provider acceptance after killing the process waiting for its response",
+          "line": 36,
+          "registration": "it"
+        },
+        {
+          "title": "holds concurrent reads of the same accepted payment until the response fault is released",
+          "line": 52,
+          "registration": "it"
+        },
+        {
+          "title": "rejects live or mismatched credentials without provider network access and delegates unrelated fetches",
+          "line": 66,
+          "registration": "it"
+        },
+        {
+          "title": "refuses activation outside the exact compiled booking cohort before installing a fetch override",
+          "line": 75,
+          "registration": "it"
+        },
+        {
+          "title": "strips ambient provider activation and forwards only explicitly scoped fictional test credentials",
+          "line": 80,
+          "registration": "it"
+        },
+        {
+          "title": "binds activation to the owned manifest, compiled release and unchanged preload bytes",
+          "line": 91,
+          "registration": "it"
+        }
+      ]
+    },
+    {
+      "file": "tests/unit/pms-application.test.ts",
+      "passed": 58,
+      "sha256": "3594661ac9c39b6edac062f747f3489974f232f1c8b1cb906b218610de2d1269",
+      "literalDeclarations": [
+        {
+          "title": "a PMS report rejects a range over ninety-three days before any owner facts",
+          "line": 24,
+          "registration": "it"
+        },
+        {
+          "title": "a PMS report conceals another branch before reading its money and metrics",
+          "line": 25,
+          "registration": "it"
+        },
+        {
+          "title": "PMS report permission withdrawal prevents all repository reads",
+          "line": 26,
+          "registration": "it"
+        },
+        {
+          "title": "PMS report aggregates integer revenue, occupancy and liability signs from provided facts",
+          "line": 27,
+          "registration": "it"
+        },
+        {
+          "title": "PMS report pagination keeps exactly fifty rows and signals the next page",
+          "line": 28,
+          "registration": "it"
+        },
+        {
+          "title": "guest document lookup is bound to the authorized hotel and booking",
+          "line": 29,
+          "registration": "it"
+        },
+        {
+          "title": "guest document preserves its issued amounts and excludes Finance and personal identifiers",
+          "line": 30,
+          "registration": "it"
+        },
+        {
+          "title": "staff booking quotes retain the trimmed reason and injected time",
+          "line": 31,
+          "registration": "it"
+        },
+        {
+          "title": "staff booking confirmation requires a reviewed proposal token",
+          "line": 32,
+          "registration": "it"
+        },
+        {
+          "title": "development rollout route does not read or mutate release prerequisites",
+          "line": 34,
+          "registration": "it"
+        },
+        {
+          "title": "production history reads remain accessible while rollout is off",
+          "line": 35,
+          "registration": "it"
+        },
+        {
+          "title": "production activation denies a command when no current owner rollout is enabled",
+          "line": 36,
+          "registration": "it"
+        },
+        {
+          "title": "rollout mutation requires company scope before loading persistence",
+          "line": 37,
+          "registration": "it"
+        },
+        {
+          "title": "formal delivery acceptance requires all four retained evidence gates",
+          "line": 38,
+          "registration": "it"
+        },
+        {
+          "title": "PMS source rules keep housekeeping away from guest account and refund money",
+          "line": 39,
+          "registration": "it"
+        },
+        {
+          "title": "unrelated outbox events never open a PMS projection transaction",
+          "line": 40,
+          "registration": "it"
+        },
+        {
+          "title": "a retained PMS event receipt stops feed and notification writes",
+          "line": 41,
+          "registration": "it"
+        },
+        {
+          "title": "PMS import permission withdrawal prevents preview validation and unit-of-work acquisition",
+          "line": 42,
+          "registration": "it"
+        },
+        {
+          "title": "PMS refund approval checks operational permission before querying the payment",
+          "line": 43,
+          "registration": "it"
+        },
+        {
+          "title": "Finance receipt recovery requires an owner reason before consulting Stripe",
+          "line": 44,
+          "registration": "it"
+        },
+        {
+          "title": "a PMS command cannot consume a partial list snapshot as authoritative state",
+          "line": 46,
+          "registration": "it"
+        },
+        {
+          "title": "PMS rejects restaurant imports outside the POS owner transaction before permission or repository access",
+          "line": 47,
+          "registration": "it"
+        },
+        {
+          "title": "production PMS requires verified bank evidence before acquiring the payment unit of work",
+          "line": 48,
+          "registration": "it"
+        },
+        {
+          "title": "PMS command permission withdrawal prevents transaction acquisition",
+          "line": 49,
+          "registration": "it"
+        },
+        {
+          "title": "day-close advancement requires the worker boundary",
+          "line": 50,
+          "registration": "it"
+        },
+        {
+          "title": "a stale command reveals no version across a Branch boundary",
+          "line": 62,
+          "registration": "it"
+        },
+        {
+          "title": "HTTP only exposes a safe scoped PMS conflict version",
+          "line": 66,
+          "registration": "it"
+        },
+        {
+          "title": "booking access rejects oversized private tokens before hashing or owner reads",
+          "line": 77,
+          "registration": "it"
+        },
+        {
+          "title": "payment access rejects invalid signatures before consulting the provider or receipt",
+          "line": 78,
+          "registration": "it"
+        },
+        {
+          "title": "booking recovery gives the same non-enumerating response when no guest matches",
+          "line": 79,
+          "registration": "it"
+        },
+        {
+          "title": "disabled booking mail does not lease messages or prepare provider delivery",
+          "line": 80,
+          "registration": "it"
+        },
+        {
+          "title": "booking throttling binds the injected clock bucket and conceals the original key",
+          "line": 81,
+          "registration": "it"
+        },
+        {
+          "title": "staff booking permission withdrawal happens before reading Holding facts",
+          "line": 82,
+          "registration": "it"
+        },
+        {
+          "title": "release timing diagnostics require an exact owned local cohort and cannot enable installed services",
+          "line": 84,
+          "registration": "it"
+        }
+      ]
+    },
+    {
+      "file": "tests/pms-read-model.test.ts",
+      "passed": 18,
+      "sha256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7",
+      "literalDeclarations": [
+        {
+          "title": "pages the guest directory without loading hotel history and preserves a selected guest outside the page",
+          "line": 36,
+          "registration": "it"
+        },
+        {
+          "title": "retains occupied rooms, open tasks and staff in bounded room/housekeeping views",
+          "line": 56,
+          "registration": "it"
+        },
+        {
+          "title": "loads guest account sources and original refund reservations while excluding unrelated entries",
+          "line": 73,
+          "registration": "it"
+        },
+        {
+          "title": "does not hide overdue stays or unreviewed cash shifts when paging day-close history",
+          "line": 84,
+          "registration": "it"
+        },
+        {
+          "title": "reads setup definitions and report control totals without serializing old guest or financial history",
+          "line": 96,
+          "registration": "it"
+        },
+        {
+          "title": "keeps occupied guest accounts and original movement item names available without expanding the inventory page",
+          "line": 112,
+          "registration": "it"
+        },
+        {
+          "title": "keeps dashboard totals, readiness, guest labels and the complete legacy read while excluding history",
+          "line": 130,
+          "registration": "it"
+        },
+        {
+          "title": "uses exclusive calendar overlap and retains maintenance and group availability semantics",
+          "line": 155,
+          "registration": "it"
+        },
+        {
+          "title": "bounds detail to the selected property and keeps related guest account entries and references",
+          "line": 169,
+          "registration": "it"
+        },
+        {
+          "title": "keeps property readiness for detail and calendars with no rates in their window",
+          "line": 181,
+          "registration": "it"
+        },
+        {
+          "title": "retains fresh permission, company and branch privacy for every query model",
+          "line": 206,
+          "registration": "it"
+        },
+        {
+          "title": "rejects detail targets removed by Front ownership redaction",
+          "line": 216,
+          "registration": "it"
+        },
+        {
+          "title": "retains all 20 measurements and reduces dashboard payload by at least half on identical data",
+          "line": 240,
+          "registration": "it"
+        },
+        {
+          "title": "filters room type, building and floor before pagination without losing a selected detail",
+          "line": 261,
+          "registration": "it"
+        },
+        {
+          "title": "measures scoped room reads and guest writes with three 200-room properties and two-year synthetic history",
+          "line": 289,
+          "registration": "it"
+        },
+        {
+          "title": "uses authoritative room occupancy and all room tasks for housekeeping commands beyond a UI page",
+          "line": 324,
+          "registration": "it"
+        },
+        {
+          "title": "keeps complete inventory and overdue occupancy for configuration commands without reading closed hotel history",
+          "line": 339,
+          "registration": "it"
+        },
+        {
+          "title": "protects off-page room assignments, duplicate numbers and maintenance capacity under inventory command locks",
+          "line": 362,
+          "registration": "it"
+        }
+      ]
+    },
+    {
+      "file": "tests/engineering-recovery.test.ts",
+      "passed": 1,
+      "sha256": "8214881129023aa06e055ba3433cc0b48dfd95ea62dfc9bc94cfd7d798864ec8",
+      "literalDeclarations": [
+        {
+          "title": "encrypts a complete isolated snapshot, restores immutable money and files, and rolls back only compatible releases",
+          "line": 50,
+          "registration": "it"
+        }
+      ]
+    },
+    {
+      "file": "tests/pms.test.ts",
+      "passed": 84,
+      "sha256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6",
+      "literalDeclarations": [
+        {
+          "title": "allows staff payout of approved PMS refunds while keeping independent decisions in ERPX",
+          "line": 35,
+          "registration": "it"
+        },
+        {
+          "title": "batches changed PMS records in input order while retaining row counters, multiple flushes and rollback",
+          "line": 172,
+          "registration": "it"
+        },
+        {
+          "title": "keeps multi-chunk PMS writes atomic under a real later SQL failure and supports replay",
+          "line": 214,
+          "registration": "it"
+        },
+        {
+          "title": "orders PMS and booking-history cache locks across concurrent hotel writes",
+          "line": 238,
+          "registration": "it"
+        },
+        {
+          "title": "blocks a new booking when the selected currency lacks the hotel's account setup or manual rate",
+          "line": 292,
+          "registration": "it"
+        },
+        {
+          "title": "preserves reviewed night prices and original deposit FX through concurrent partial refunds and reload",
+          "line": 304,
+          "registration": "it"
+        },
+        {
+          "title": "binds room-task photos in the PMS action transaction and leaves stale evidence draft",
+          "line": 369,
+          "registration": "it"
+        },
+        {
+          "title": "binds lost-property handover evidence in the release transaction",
+          "line": 444,
+          "registration": "it"
+        },
+        {
+          "title": "does not settle a production hotel transfer from a typed reference alone",
+          "line": 485,
+          "registration": "it"
+        },
+        {
+          "title": "settles a pending hotel transfer only after independent exact bank evidence",
+          "line": 507,
+          "registration": "it"
+        },
+        {
+          "title": "cancels an unverified hotel transfer without changing guest account or ledger",
+          "line": 581,
+          "registration": "it"
+        },
+        {
+          "title": "completes deposit, stay, durable night audit, checkout and invoice without duplicate revenue",
+          "line": 601,
+          "registration": "it"
+        },
+        {
+          "title": "holds Night Audit for restaurant cash, variance and unverified transfer controls",
+          "line": 667,
+          "registration": "it"
+        },
+        {
+          "title": "serializes competing bookings for the last room and rolls back the losing command",
+          "line": 693,
+          "registration": "it"
+        },
+        {
+          "title": "rejects double booking, duplicate OTA references and stale versions",
+          "line": 722,
+          "registration": "it"
+        },
+        {
+          "title": "creates reservations without archived capacity while retaining cancelled channel references and original history",
+          "line": 748,
+          "registration": "it"
+        },
+        {
+          "title": "requires inspected rooms and independent inspection; maintenance cannot displace guests",
+          "line": 761,
+          "registration": "it"
+        },
+        {
+          "title": "keeps group pickup from consuming inventory twice and allows back-to-back stays",
+          "line": 786,
+          "registration": "it"
+        },
+        {
+          "title": "separates security deposits, enforces refund independence and reverses advance VAT once",
+          "line": 807,
+          "registration": "it"
+        },
+        {
+          "title": "blocks unauthorized, cross-company and revoked actors without business writes",
+          "line": 850,
+          "registration": "it"
+        },
+        {
+          "title": "blocks closed accounting periods and keeps the payment and guest account atomic",
+          "line": 865,
+          "registration": "it"
+        },
+        {
+          "title": "durably blocks failed night audit and resumes under a valid auditor",
+          "line": 905,
+          "registration": "it"
+        },
+        {
+          "title": "protects PMS invoices and payments from generic finance mutations",
+          "line": 928,
+          "registration": "it"
+        },
+        {
+          "title": "aggregates accessible hotels without choosing one and keeps guest amounts private from housekeeping",
+          "line": 961,
+          "registration": "it"
+        },
+        {
+          "title": "links one PMS handover in Social and Work and withdraws its body and acknowledgement with source access",
+          "line": 990,
+          "registration": "it"
+        },
+        {
+          "title": "rejects a handover from a stale PMS source and bounds task pages with cursors",
+          "line": 1016,
+          "registration": "it"
+        },
+        {
+          "title": "projects durable PMS events once and combines room updates in the same Social post",
+          "line": 1029,
+          "registration": "it"
+        },
+        {
+          "title": "previews import errors without writing hotel records and requires independent unchanged approval",
+          "line": 1047,
+          "registration": "it"
+        },
+        {
+          "title": "applies approved imported in-house stays atomically and resumes a repeated apply without past room revenue",
+          "line": 1058,
+          "registration": "it"
+        },
+        {
+          "title": "traces imported advance and deposit to the approved opening journal and reconciles partial refunds",
+          "line": 1071,
+          "registration": "it"
+        },
+        {
+          "title": "settles the original opening receivable and invoices only new hotel service across two business days",
+          "line": 1093,
+          "registration": "it"
+        },
+        {
+          "title": "calculates inclusive prices with exact integer money",
+          "line": 1126,
+          "registration": "it"
+        },
+        {
+          "title": "allocates new receipts after an earlier deposit was refunded",
+          "line": 1136,
+          "registration": "it"
+        },
+        {
+          "title": "traces a partially refunded damage deposit used to settle a room charge",
+          "line": 1183,
+          "registration": "it"
+        },
+        {
+          "title": "splits and merges charges without repeating revenue and reverses the recipient entry once",
+          "line": 1222,
+          "registration": "it"
+        },
+        {
+          "title": "settles a manually entered OTA reservation against approved credit and net bank proceeds",
+          "line": 1263,
+          "registration": "it"
+        },
+        {
+          "title": "moves an in-house guest, extends safely and preserves room history",
+          "line": 1332,
+          "registration": "it"
+        },
+        {
+          "title": "uses daily prices and stop-sell without repricing an existing reservation",
+          "line": 1381,
+          "registration": "it"
+        },
+        {
+          "title": "posts minibar and inventory cost together, rolling back insufficient stock",
+          "line": 1413,
+          "registration": "it"
+        },
+        {
+          "title": "locks closing-day commands and blocks workers whose originating authority was revoked",
+          "line": 1466,
+          "registration": "it"
+        },
+        {
+          "title": "cancels an unarrived room in a partially checked-in group and ignores stale housekeeping cycles",
+          "line": 1481,
+          "registration": "it"
+        },
+        {
+          "title": "loads real workspace selectors and redacts financial and guest data for housekeeping",
+          "line": 1521,
+          "registration": "it"
+        },
+        {
+          "title": "defines a POS room-charge contract that rejects foreign scope and already recognized revenue",
+          "line": 1541,
+          "registration": "it"
+        },
+        {
+          "title": "retains historical occupancy capacity and posts corrections in the open business date",
+          "line": 1609,
+          "registration": "it"
+        },
+        {
+          "title": "keeps overdue arrivals outside the current UI window as Night Audit blockers",
+          "line": 1630,
+          "registration": "it"
+        },
+        {
+          "title": "retains an older open shift behind reviewed history before closing a hotel day",
+          "line": 1639,
+          "registration": "it"
+        },
+        {
+          "title": "does not treat an older closed shift with unknown variance as reconciled",
+          "line": 1648,
+          "registration": "it"
+        },
+        {
+          "title": "reuses complete next-day stayover tasks and preserves unrelated closed account metadata",
+          "line": 1656,
+          "registration": "it"
+        },
+        {
+          "title": "refuses account closing while a future active stay is behind terminal account history",
+          "line": 1679,
+          "registration": "it"
+        },
+        {
+          "title": "resumes a multi-chunk night from committed sources and serializes competing workers",
+          "line": 1686,
+          "registration": "it"
+        },
+        {
+          "title": "protects allocated receipt links and journal lines from deletion outside the subledger",
+          "line": 1738,
+          "registration": "it"
+        },
+        {
+          "title": "prepares reviewed PMS mappings once and retains independent approval and the financial freeze",
+          "line": 1768,
+          "registration": "it"
+        },
+        {
+          "title": "rejects non-THB hotel charts and selected accounts without creating partial mappings",
+          "line": 1785,
+          "registration": "it"
+        },
+        {
+          "title": "filters setup details and resumes from owner records without admitting other branches",
+          "line": 1796,
+          "registration": "it"
+        },
+        {
+          "title": "does not reuse an applied damage deposit as a later room-advance refund source",
+          "line": 1814,
+          "registration": "it"
+        },
+        {
+          "title": "serializes a damage-deposit refund against applying the same deposit to a charge",
+          "line": 1825,
+          "registration": "it"
+        },
+        {
+          "title": "pages booking queries while retaining related records and honoring guest search and hotel scope",
+          "line": 1834,
+          "registration": "it"
+        },
+        {
+          "title": "retains guest preferences and immutable service request history across legacy edits and retries",
+          "line": 1848,
+          "registration": "it"
+        },
+        {
+          "title": "uses complete original receipt funding beyond a UI page while preserving unrelated closed account history",
+          "line": 1870,
+          "registration": "it"
+        },
+        {
+          "title": "retains every pending refund beyond the first UI page when rejecting a new receipt",
+          "line": 1891,
+          "registration": "it"
+        },
+        {
+          "title": "room move supersedes every old-room task beyond a UI page without modifying unrelated closed-account history",
+          "line": 1903,
+          "registration": "it"
+        },
+        {
+          "title": "reservation cancellation sees terminal booking siblings beyond a UI page and rolls back without changing the reserved room",
+          "line": 1926,
+          "registration": "it"
+        },
+        {
+          "title": "checkout includes all same-party credit exposure beyond a page and excludes unrelated parties without losing account funding",
+          "line": 1936,
+          "registration": "it"
+        },
+        {
+          "title": "checkout preserves original receipt allocations of another issued credit account for the same payer",
+          "line": 1962,
+          "registration": "it"
+        },
+        {
+          "title": "POS duplicate identity remains hotel-wide after checkout and beyond a UI page",
+          "line": 1985,
+          "registration": "it"
+        },
+        {
+          "title": "POS charge reads every pending refund in the target account before allocating advance",
+          "line": 1996,
+          "registration": "it"
+        },
+        {
+          "title": "POS reversal detects an original reversal outside the charged account",
+          "line": 2003,
+          "registration": "it"
+        },
+        {
+          "title": "POS room charge allocates complete original advance sources beyond a UI page",
+          "line": 2012,
+          "registration": "it"
+        },
+        {
+          "title": "proves cross-hotel serializable cache retries and pre-snapshot coordination without changing owner counters",
+          "line": 2027,
+          "registration": "it"
+        },
+        {
+          "title": "commits independent verified Property cache scopes under SERIALIZABLE without losing logical revision increments",
+          "line": 2053,
+          "registration": "it"
+        },
+        {
+          "title": "does not consume the remaining pool connections with local waiters for one Property",
+          "line": 2082,
+          "registration": "it"
+        },
+        {
+          "title": "retains the PostgreSQL Property lock across clients while local waiters leave capacity for other Properties",
+          "line": 2095,
+          "registration": "it"
+        },
+        {
+          "title": "expires a local lock waiter without letting the next command bypass the active owner",
+          "line": 2111,
+          "registration": "it"
+        },
+        {
+          "title": "releases the local capacity turn between serialization retries so a queued Property command can progress",
+          "line": 2125,
+          "registration": "it"
+        },
+        {
+          "title": "selects transaction-local indexed reads for actual PMS commands without changing their Property lock",
+          "line": 2136,
+          "registration": "it"
+        },
+        {
+          "title": "retains the original Property lock before rejecting a stale guest envelope",
+          "line": 2144,
+          "registration": "it"
+        },
+        {
+          "title": "preserves receipt replay and key-conflict precedence for a guest envelope after the Property version advances",
+          "line": 2158,
+          "registration": "it"
+        },
+        {
+          "title": "does not expose a stale guest Property version to another Branch",
+          "line": 2165,
+          "registration": "it"
+        },
+        {
+          "title": "waits for an in-flight identical guest command and replays its atomically committed receipt",
+          "line": 2170,
+          "registration": "it"
+        },
+        {
+          "title": "rejects guest writes and committed receipt replay while the production module is disabled",
+          "line": 2188,
+          "registration": "it"
+        },
+        {
+          "title": "uses the same production pilot availability predicate for a guest write and its replay",
+          "line": 2198,
+          "registration": "it"
+        },
+        {
+          "title": "preserves linen custody and original stock cost through replay, laundry and loss",
+          "line": 2210,
+          "registration": "it"
+        },
+        {
+          "title": "releases unused future room nights on early departure without duplicate revenue or checkout",
+          "line": 2255,
+          "registration": "it"
+        },
+        {
+          "title": "honors DND for room work and resumes the same cycle only after its release",
+          "line": 2284,
+          "registration": "it"
+        }
+      ]
+    },
+    {
+      "file": "tests/engineering-service-hospitality-attachments.test.ts",
+      "passed": 30,
+      "sha256": "6dd59157e13eff6dd21eea4e1c5a249b58986e841fae71b22989817e19060392",
+      "literalDeclarations": [
+        {
+          "title": "proves authorized intake scan binding reload and revocation for %s",
+          "line": 29,
+          "registration": "it.each(tuples.map(row=>[row.id,row] as const))"
+        }
+      ]
+    },
+    {
+      "file": "tests/engineering-migration-upgrade.test.ts",
+      "passed": 1,
+      "sha256": "c9993f5b4616c2e905b9b24f204384b9bc51264afa04fa78b71402cb5c3bc3d7",
+      "literalDeclarations": [
+        {
+          "title": "upgrades populated pre-completion databases without changing posted money or files and replays canonical backfill once",
+          "line": 21,
+          "registration": "it"
+        }
+      ]
+    },
+    {
+      "file": "tests/pms-booking.test.ts",
+      "passed": 37,
+      "sha256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2",
+      "literalDeclarations": [
+        {
+          "title": "shares exact nightly prices, child occupancy and policy snapshots",
+          "line": 206,
+          "registration": "it"
+        },
+        {
+          "title": "atomically confirms and queues email without creating money entries",
+          "line": 242,
+          "registration": "it"
+        },
+        {
+          "title": "replays identical submissions and rejects a reused key with new input",
+          "line": 266,
+          "registration": "it"
+        },
+        {
+          "title": "serializes staff and guest bookings for the last room",
+          "line": 291,
+          "registration": "it"
+        },
+        {
+          "title": "rejects stale price, stale policy, forged and expired quotes",
+          "line": 311,
+          "registration": "it"
+        },
+        {
+          "title": "requires explicit publication and prevents selling private rates",
+          "line": 344,
+          "registration": "it"
+        },
+        {
+          "title": "never exposes another Holding's booking through a token or confirmation",
+          "line": 362,
+          "registration": "it"
+        },
+        {
+          "title": "cancels all rooms once and restores inventory without fees",
+          "line": 380,
+          "registration": "it"
+        },
+        {
+          "title": "rejects cancellation at the exact cutoff and after partial arrival or financial activity",
+          "line": 407,
+          "registration": "it"
+        },
+        {
+          "title": "filters inventory reads and public responses away from guest and financial history",
+          "line": 433,
+          "registration": "it"
+        },
+        {
+          "title": "retries email failures while keeping the booking confirmed",
+          "line": 465,
+          "registration": "it"
+        },
+        {
+          "title": "delivers a queued confirmation in a release process without enabling live payments",
+          "line": 493,
+          "registration": "it"
+        },
+        {
+          "title": "expires access links and provides non-enumerating email recovery",
+          "line": 501,
+          "registration": "it"
+        },
+        {
+          "title": "blocks bookings during night closure and rate limits abuse",
+          "line": 532,
+          "registration": "it"
+        },
+        {
+          "title": "handles timezone cutoffs and rejects missing child pricing",
+          "line": 547,
+          "registration": "it"
+        },
+        {
+          "title": "withdraws inventory after maintenance and rejects a previously available quote",
+          "line": 560,
+          "registration": "it"
+        },
+        {
+          "title": "keeps confirmation replay immutable after cancellation",
+          "line": 576,
+          "registration": "it"
+        },
+        {
+          "title": "holds two rooms, then confirms and allocates each guest account only after Stripe verifies the direct charge",
+          "line": 605,
+          "registration": "it"
+        },
+        {
+          "title": "releases an unpaid hold and sends a payment that arrives later to refund review",
+          "line": 637,
+          "registration": "it"
+        },
+        {
+          "title": "requires Finance approval and Stripe success before a free-cancellation refund reaches each guest account",
+          "line": 657,
+          "registration": "it"
+        },
+        {
+          "title": "posts a counter PromptPay room payment and deposit only after Stripe confirms each intent",
+          "line": 684,
+          "registration": "it"
+        },
+        {
+          "title": "requires an independent Finance approval and Stripe confirmation for a counter refund",
+          "line": 707,
+          "registration": "it"
+        },
+        {
+          "title": "collects a 30% room advance and combines pay-at-hotel rooms without inventing income",
+          "line": 759,
+          "registration": "it"
+        },
+        {
+          "title": "prevents staff changes and accounting changes while a provider hold is pending",
+          "line": 769,
+          "registration": "it"
+        },
+        {
+          "title": "changes an unpaid future stay at equal price and releases only selected cancelled rooms",
+          "line": 775,
+          "registration": "it"
+        },
+        {
+          "title": "keeps the original stay while a more expensive change expires and holds only added capacity",
+          "line": 783,
+          "registration": "it"
+        },
+        {
+          "title": "applies a paid change with accepted prices even when a rate is edited during Checkout",
+          "line": 792,
+          "registration": "it"
+        },
+        {
+          "title": "reserves partial refunds cumulatively and rejects an approval by the requester",
+          "line": 802,
+          "registration": "it"
+        },
+        {
+          "title": "confirms a timely provider payment after local hold expiry only when capacity is still available",
+          "line": 813,
+          "registration": "it"
+        },
+        {
+          "title": "records unallocated money once when a timely late webhook loses the last room",
+          "line": 819,
+          "registration": "it"
+        },
+        {
+          "title": "requires a signed staff revision after payment and records the authorized actor and reason",
+          "line": 829,
+          "registration": "it"
+        },
+        {
+          "title": "uses each accepted room policy and posts cancellation fees separately from room revenue",
+          "line": 841,
+          "registration": "it"
+        },
+        {
+          "title": "recovers a provider success after the local accounting transaction fails without taking another payment",
+          "line": 856,
+          "registration": "it"
+        },
+        {
+          "title": "serves only guest documents belonging to the management token and excludes private accounting fields",
+          "line": 866,
+          "registration": "it"
+        },
+        {
+          "title": "retains counter partial refund generations and recovers a failed provider attempt without posting debt twice",
+          "line": 874,
+          "registration": "it"
+        },
+        {
+          "title": "recovers a partial booking refund after the provider accepts it but its response is lost",
+          "line": 905,
+          "registration": "it"
+        },
+        {
+          "title": "deduplicates signed booking payment callbacks through durable jobs and rejects tampered payloads",
+          "line": 939,
+          "registration": "it"
+        }
+      ]
+    },
+    {
+      "file": "tests/command-composition.test.ts",
+      "passed": 3,
+      "sha256": "32a676446248792c063775ec7ab51a0c5f3cea8196591eb9499a5447b83270dd",
+      "literalDeclarations": [
+        {
+          "title": "rolls back a composed handoff and preserves its original constraint cause",
+          "line": 14,
+          "registration": "it"
+        },
+        {
+          "title": "lets the owning transaction retry serialization failures across the whole workflow",
+          "line": 28,
+          "registration": "it"
+        },
+        {
+          "title": "recovers a committed composed command after a lost response without repeating its handoff",
+          "line": 43,
+          "registration": "it"
+        }
+      ]
+    },
+    {
+      "file": "tests/pms-reports.test.ts",
+      "passed": 6,
+      "sha256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7",
+      "literalDeclarations": [
+        {
+          "title": "uses corrected room-night revenue for ADR and includes other services only in net revenue",
+          "line": 10,
+          "registration": "it"
+        },
+        {
+          "title": "bounds ranges, drill-down pages and scope",
+          "line": 21,
+          "registration": "it"
+        },
+        {
+          "title": "attributes current room nights by channel using original creation evidence rather than edit time",
+          "line": 31,
+          "registration": "it"
+        },
+        {
+          "title": "retains historical prices and room nights after date changes and partial cancellation",
+          "line": 44,
+          "registration": "it"
+        },
+        {
+          "title": "reports unknown pace before coverage instead of inventing legacy observations",
+          "line": 68,
+          "registration": "it"
+        },
+        {
+          "title": "retains completed reservation room nights in the historical booked stay period",
+          "line": 74,
+          "registration": "it"
+        }
+      ]
+    },
+    {
+      "file": "tests/pms-cache-upgrade.test.ts",
+      "passed": 1,
+      "sha256": "e6061ccbdacabef4ec6dffc5e2ac555736d098dfe06340602d1eebe4c66d927b",
+      "literalDeclarations": [
+        {
+          "title": "preserves every original cache revision on the populated 1037 upgrade and replays 1038 once",
+          "line": 7,
+          "registration": "it"
+        }
+      ]
+    },
+    {
+      "file": "tests/pms-front-attachments.test.ts",
+      "passed": 2,
+      "sha256": "5df55aed2215b7297f69b1ae883e4ef23a3da1f422584e86037071f38c5f8302",
+      "literalDeclarations": [
+        {
+          "title": "keeps private room evidence on Front through intake, scan and the hotel action binding",
+          "line": 27,
+          "registration": "it"
+        },
+        {
+          "title": "rejects non-hotel targets, publication and administrative actions on Front",
+          "line": 46,
+          "registration": "it"
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "Parameterized tests may register several executions from a declaration. Do not equate declaration count with passing test count.",
+    "Each file passed in the fresh complete native run; full browser/route/capacity gates remain pending."
+  ],
+  "followupAudit": {
+    "feature": "reservations-04",
+    "requirement": "Persisted authenticated rooming-list reassignment",
+    "observed": "Current PMS native file contains no stay.guest command invocation. The existing 18-scenario supplemental proof covers pure-engine reassignment only. The UI has per-stay Assign guest to this room; source existence does not prove the command boundary.",
+    "currentStatus": "Unverified; feature remains acceptance-pending.",
+    "needed": "After original178+38 terminal cleanup, execute normal-account HTTP stay.guest on a separate owned compiled booking cohort using the same frozen release. Check selected stay changes, other stay/payer/ledger/frozen prices unchanged, durable replay, stale-version refusal and foreign/missing guest refusal; retain script/result hashes. Keep original native/browser counts unchanged and clean only that cohort."
+  }
+}

@@ -1,6 +1,6 @@
 import 'server-only';
 import { moduleRegistry } from '@/data/module-registry';
-import { isReleaseModule } from '@/lib/hospitality-rollout';
+import { isReleaseModule } from "@/lib/shared/hospitality-rollout";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { ApiError } from "@/server/modules/runtime/public/http";

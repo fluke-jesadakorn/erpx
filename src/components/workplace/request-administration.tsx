@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { requestAdministrationData } from "@/server/modules/records/public/request-administration";
 import { RequestRepair } from "./service-teams";
-import { approvalAdminHref } from "@/lib/administration";
+import { approvalAdminHref } from "@/lib/shared/administration";
 import { Card } from "@/components/ui/foundation";
 export async function RequestAdministration({
   actor,

@@ -1,2 +1,0 @@
-/** Compatibility entry point; implementation belongs to finance. */
-export {budgetActuals,budgetEditionSchema,budgetSourceRecords,decideFinancePlan,exportFinancialReport,financePlanRecord,financePlanningWorkspace,financialReportSchema,financialReportSourceRecords,forecastEditionSchema,importBudgetCsv,prepareBudgetEdition,prepareFinancialReport,prepareForecastEdition,snapshotFinancialReport} from "@/server/modules/finance/adapters/finance-planning";

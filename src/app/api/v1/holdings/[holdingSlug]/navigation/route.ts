@@ -1,8 +1,6 @@
-import { isMyAction, workMatchesView } from "@/lib/work-item";
+import { navigationSnapshot } from "@/server/modules/work_projection/public/navigation-snapshot";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
-import { workSnapshot } from "@/server/modules/work_projection/public/work-items";
-import { getWorkCardProjection } from "@/server/modules/work_projection/public/work-summary";
 import { markHomeRead, unreadHomeCount } from "@/server/modules/work_projection/public/navigation-counts";
 import { betaBody } from "@/server/modules/manage_erpx/public/beta-http";
 import { errorResponse } from "@/server/modules/runtime/public/http";
@@ -10,23 +8,11 @@ import { z } from "zod";
 
 type Context = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
-export async function GET(_request: Request, context: Context) {
+export async function GET(request: Request, context: Context) {
   try {
     const actor = await requireWorkContext((await context.params).holdingSlug);
-    const { write } = await holdingResources(actor.holdingId);
-    const workPending = workSnapshot(actor);
-    const [home, work, { cards, preferences, preferencesUnavailable, capabilities }] = await Promise.all([
-      unreadHomeCount(write, actor), workPending, getWorkCardProjection(actor, workPending),
-    ]);
-    return Response.json({ data: {
-      home,
-      work: work.unavailableSources.length ? null : work.items.filter(isMyAction).length,
-      workViewAvailability: {
-        team: capabilities.teamQueue || work.items.some(item => item.relationships?.includes("team")),
-        routing: work.items.some(item => workMatchesView(item, "routing")),
-      },
-      quickAccess: { cards, preferences, preferencesUnavailable, capabilities },
-    } }, { headers });
+    const data = await navigationSnapshot(actor, new URL(request.url).searchParams.get("include") === "attention");
+    return Response.json({ data }, { headers });
   } catch (error) { return errorResponse(error); }
 }
 

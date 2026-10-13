@@ -1,0 +1,277 @@
+{
+  "checkedAt": "2026-10-11T07:35:36.263762+00:00",
+  "candidate": {
+    "runtime": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+    "verification": "195e82fdcd1f26b32c58c7d610e5a3db960b0f89abdcfa0873bc21d4900030e3",
+    "mainRuntime": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+    "mainVerification": "195e82fdcd1f26b32c58c7d610e5a3db960b0f89abdcfa0873bc21d4900030e3",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T03-48-34-786Z",
+    "releaseId": "2026-10-11T03-48-34-786Z"
+  },
+  "status": "inventory-repaired-route134-running",
+  "inventory": {
+    "existingRouteCount": 218,
+    "preparedRouteCount": 227,
+    "originalRoutesAndAuthScopePoliciesUnchanged": true,
+    "newRoutes": [
+      {
+        "source": "src/app/holdings/[holdingSlug]/finance/hospitality-settings/page.tsx",
+        "template": "/holdings/[holdingSlug]/finance/hospitality-settings",
+        "area": "Holding workspace",
+        "signedOut": "login-or-explicit-denial",
+        "primaryActor": "finance_approver",
+        "workspaceScopes": [
+          "holding",
+          "branch",
+          "department",
+          "branch-department"
+        ],
+        "dynamicParameters": [
+          "holdingSlug"
+        ],
+        "detailRoute": false,
+        "sourceSignals": [
+          "error",
+          "permission"
+        ]
+      },
+      {
+        "source": "src/app/holdings/[holdingSlug]/finance/hotel-accounts/[id]/page.tsx",
+        "template": "/holdings/[holdingSlug]/finance/hotel-accounts/[id]",
+        "area": "Holding workspace",
+        "signedOut": "login-or-explicit-denial",
+        "primaryActor": "finance_approver",
+        "workspaceScopes": [
+          "holding",
+          "branch",
+          "department",
+          "branch-department"
+        ],
+        "dynamicParameters": [
+          "holdingSlug",
+          "id"
+        ],
+        "detailRoute": true,
+        "sourceSignals": [
+          "error",
+          "long/Thai"
+        ]
+      },
+      {
+        "source": "src/app/holdings/[holdingSlug]/finance/hotel-documents/[id]/page.tsx",
+        "template": "/holdings/[holdingSlug]/finance/hotel-documents/[id]",
+        "area": "Holding workspace",
+        "signedOut": "login-or-explicit-denial",
+        "primaryActor": "finance_approver",
+        "workspaceScopes": [
+          "holding",
+          "branch",
+          "department",
+          "branch-department"
+        ],
+        "dynamicParameters": [
+          "holdingSlug",
+          "id"
+        ],
+        "detailRoute": true,
+        "sourceSignals": []
+      },
+      {
+        "source": "src/app/holdings/[holdingSlug]/finance/hotel-import/page.tsx",
+        "template": "/holdings/[holdingSlug]/finance/hotel-import",
+        "area": "Holding workspace",
+        "signedOut": "login-or-explicit-denial",
+        "primaryActor": "finance_approver",
+        "workspaceScopes": [
+          "holding",
+          "branch",
+          "department",
+          "branch-department"
+        ],
+        "dynamicParameters": [
+          "holdingSlug"
+        ],
+        "detailRoute": false,
+        "sourceSignals": [
+          "error",
+          "permission",
+          "long/Thai"
+        ]
+      },
+      {
+        "source": "src/app/holdings/[holdingSlug]/finance/restaurants/page.tsx",
+        "template": "/holdings/[holdingSlug]/finance/restaurants",
+        "area": "Holding workspace",
+        "signedOut": "login-or-explicit-denial",
+        "primaryActor": "finance_approver",
+        "workspaceScopes": [
+          "holding",
+          "branch",
+          "department",
+          "branch-department"
+        ],
+        "dynamicParameters": [
+          "holdingSlug"
+        ],
+        "detailRoute": false,
+        "sourceSignals": [
+          "error"
+        ]
+      },
+      {
+        "source": "src/app/holdings/[holdingSlug]/finance/sales/new/page.tsx",
+        "template": "/holdings/[holdingSlug]/finance/sales/new",
+        "area": "Holding workspace",
+        "signedOut": "login-or-explicit-denial",
+        "primaryActor": "finance_approver",
+        "workspaceScopes": [
+          "holding",
+          "branch",
+          "department",
+          "branch-department"
+        ],
+        "dynamicParameters": [
+          "holdingSlug"
+        ],
+        "detailRoute": false,
+        "sourceSignals": [
+          "error",
+          "permission",
+          "success"
+        ]
+      },
+      {
+        "source": "src/app/holdings/[holdingSlug]/finance/sales/page.tsx",
+        "template": "/holdings/[holdingSlug]/finance/sales",
+        "area": "Holding workspace",
+        "signedOut": "login-or-explicit-denial",
+        "primaryActor": "finance_approver",
+        "workspaceScopes": [
+          "holding",
+          "branch",
+          "department",
+          "branch-department"
+        ],
+        "dynamicParameters": [
+          "holdingSlug"
+        ],
+        "detailRoute": false,
+        "sourceSignals": [
+          "error",
+          "permission",
+          "destructive",
+          "success"
+        ]
+      },
+      {
+        "source": "src/app/holdings/[holdingSlug]/finance/sales/receipts/[id]/page.tsx",
+        "template": "/holdings/[holdingSlug]/finance/sales/receipts/[id]",
+        "area": "Holding workspace",
+        "signedOut": "login-or-explicit-denial",
+        "primaryActor": "finance_approver",
+        "workspaceScopes": [
+          "holding",
+          "branch",
+          "department",
+          "branch-department"
+        ],
+        "dynamicParameters": [
+          "holdingSlug",
+          "id"
+        ],
+        "detailRoute": true,
+        "sourceSignals": [
+          "error",
+          "destructive"
+        ]
+      },
+      {
+        "source": "src/app/holdings/[holdingSlug]/finance/sales/settings/page.tsx",
+        "template": "/holdings/[holdingSlug]/finance/sales/settings",
+        "area": "Holding workspace",
+        "signedOut": "login-or-explicit-denial",
+        "primaryActor": "finance_approver",
+        "workspaceScopes": [
+          "holding",
+          "branch",
+          "department",
+          "branch-department"
+        ],
+        "dynamicParameters": [
+          "holdingSlug"
+        ],
+        "detailRoute": false,
+        "sourceSignals": [
+          "error",
+          "permission"
+        ]
+      }
+    ],
+    "sourceFingerprint": "7c6b9d5aec8f44ccba8b4931dde29698fbca35622fffc222b058947007c242d9",
+    "authoritativeInventoryStillUnmodified": false,
+    "scope": "Ignored preparation generated by original algorithm with only root/output-path relocation; awaiting actual fullsuite native terminal/phase hold before applying JSON/MD.",
+    "wholePlanAccepted": false
+  },
+  "applied": {
+    "heldFullsuitePID": 71260,
+    "heldState": "T",
+    "native2095ReceiptPassed": true,
+    "changedInputs": [
+      "docs/testing/uat-route-inventory.json",
+      "docs/testing/uat-route-inventory.md"
+    ],
+    "runtimeCodeChanged": false,
+    "original218AccessPoliciesPreserved": true,
+    "nineNewRoutesAdded": true,
+    "wholePlanAccepted": false
+  },
+  "threeInputProvenance": {
+    "checkedAt": "2026-10-11T07:27:42.708Z",
+    "runtime": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+    "currentVerification": "195e82fdcd1f26b32c58c7d610e5a3db960b0f89abdcfa0873bc21d4900030e3",
+    "priorVerification": "da3577cbc0866b9770ad0279a6a5b54fe7f71120501f1846d6d2cea38c2b43f5",
+    "canonicalAlgorithmOnCurrentBytesMatched": true,
+    "onlyThreeVerificationInputsChanged": true,
+    "changes": [
+      {
+        "file": "tests/e2e/work-journeys.spec.ts",
+        "beforeSHA256": "42f477c5ba7f2f748233938aa943b85a5a4a644a7ac25fd1cfb5ef3579183adb",
+        "currentSHA256": "3c12fa24fc106b71ced39c94c1c41a189edbc83e7f8ffef3706f495770b4f8b2"
+      },
+      {
+        "file": "tests/engineering-recovery.test.ts",
+        "beforeSHA256": "8214881129023aa06e055ba3433cc0b48dfd95ea62dfc9bc94cfd7d798864ec8",
+        "currentSHA256": "eba0733f74e1a8569f7862361cc0905a45ec10366dcf5137622610d812b6fc8e"
+      },
+      {
+        "file": "docs/testing/uat-route-inventory.json",
+        "beforeSHA256": "c8522646d0b4f2555e2ee0b59c1e05fa12612da182d01c0534f264c43943afb1",
+        "currentSHA256": "292570da5d37653d9d7af499fe5067712c5fd4797381ea05a3a394dceb71f9b5"
+      }
+    ],
+    "scope": "Read-only provenance. All runtime bytes and other tests/configs/workflows match the original f13/da35 snapshot. The third verification change repairs the generated inventory to227existing sources while preserving all218old route/access/scope policies and adding9missingroutes; required case identities are extended, never removed. This does not make the old failed aggregate pass or establish completion of unexecuted cases.",
+    "wholePlanAccepted": false
+  },
+  "original38RouteIdentitiesExactlyRetained": true,
+  "additionalNewFinanceRouteIdentities": 96,
+  "newRouteTotal": 134,
+  "inventoryConsumers": {
+    "files": 2,
+    "existingCases": 83,
+    "passed": true,
+    "exitCode": 0,
+    "log": ".scratch/dev/pms-route-inventory-repair-2026-10-11/inventory-consumer-unit.log",
+    "logSHA256": "93a360b3d5ef062d373a92c41fc1ee9ff760cf4066135741d213201f015f0101",
+    "notAdditionalUniqueNativeCases": true
+  },
+  "oldRequired178Consolidation": "docs/testing/evidence/2026-10-11-pms-required-browser-consolidation.json",
+  "originalRouteFailureRetained": {
+    "receipt": ".scratch/dev/test-suites/browser/2026-10-11T07-19-00-942Z/receipt.json",
+    "error": "UAT_ROUTE_SOURCE_INVENTORY_MISMATCH",
+    "actualSourcePages": 227,
+    "staleInventoryPages": 218,
+    "cleanupComplete": true
+  },
+  "scope": "Generated route inventory repair only; runtimef13 unchanged. Original38 routes preserved and96 new Finance identities added, no original case removed or threshold weakened. Current195e provenance reconstructs originalda35 exactly through onlythree changed verification inputs. Existing1342native count unchanged; augmented restore1 and re-executed83 inventory consumer cases supersede their old receipts without duplicate unique counts. No completed route134/40HTTP/capacity or whole-plan acceptance claim.",
+  "wholePlanAccepted": false
+}

@@ -12,8 +12,8 @@ import {
 } from "lucide-react";
 import { AppearanceSwitcher } from "@/components/brand/appearance-switcher";
 import { ProductBrand } from "@/components/brand/product-brand";
-import { appearancePreference } from "@/lib/appearance-preference";
-import { marketingConsoleUrl, marketingIsIndexable } from "@/lib/erpx-hosts";
+import { appearancePreference } from "@/lib/shared/appearance-preference";
+import { marketingConsoleUrl, marketingIsIndexable } from "@/lib/runtime/erpx-hosts";
 import styles from "./site.module.css";
 
 export const dynamic = "force-dynamic";

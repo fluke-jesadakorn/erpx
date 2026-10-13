@@ -1,5 +1,5 @@
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { SupportCommandPorts, SupportCommand, SupportMutation, SupportRow } from "./command";
 import { supportSessionRequestSchema, supportSessionActionSchema, supportSessionProjection, supportSessionWorkItems, type SupportSession, type SupportSessionView, type SupportContextRow, type SupportSessionRequest, type SupportSessionAction } from "../domain/support-sessions";
 export type SupportSessionWorkspace = {

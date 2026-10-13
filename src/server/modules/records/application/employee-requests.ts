@@ -1,10 +1,10 @@
 import type { namedRoute } from "../public/request-preview";
-import { samePerson } from "@/lib/iam";
-import { hasWorkflowPermission } from "@/lib/permissions";
+import { samePerson } from "@/lib/identity_access/iam";
+import { hasWorkflowPermission } from "@/lib/identity_access/permissions";
 import { z } from "zod";
-import { categoryLabel, type RequestItem } from "@/lib/employee-services";
-import type { WorkItem } from "@/lib/work-item";
-import { quantityMilli } from "@/lib/commerce-math";
+import { categoryLabel, type RequestItem } from "@/lib/people_payroll/employee-services";
+import type { WorkItem } from "@/lib/work_projection/work-item";
+import { quantityMilli } from "@/lib/commerce/commerce-math";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { ApprovalRoute } from "@/server/modules/operations/public/staff-policy";
 import type { activeStaff } from "@/server/modules/operations/public/staff-policy";

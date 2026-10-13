@@ -15,7 +15,7 @@ Incident เป็นงานสืบสวนและแก้สาเห�
 
 ## หลักฐานและขอบเขต
 
-- Owner service `src/server/support-incidents.ts`, API `/api/v1/holdings/{holdingSlug}/support/incidents`, UI `/support/incidents`; additive migration0219
+- Owner service `src/server/modules/support/public/support-incidents.ts`, API `/api/v1/holdings/{holdingSlug}/support/incidents`, UI `/support/incidents`; additive migration0219
 - ทุกคำสั่งใช้ expectedVersion/idempotency/current role และ transaction SERIALIZABLE; incident events เปลี่ยนย้อนหลังไม่ได้
 - ทดสอบสองลูกค้าที่สร้าง quotation→ticket ผ่าน owner commands จริง: link/unlink/relink→investigate→mitigate→reject→rework→independent close→reopen โดย ticket ทั้งสองไม่ถูกแก้แทน
 - ทดสอบ Company/Branch/Department, stale/racing commands, duplicate links, inactive owner/reviewer และป้องกัน self-review หลัง reassignment

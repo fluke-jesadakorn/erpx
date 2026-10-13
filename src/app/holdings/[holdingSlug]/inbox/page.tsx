@@ -1,12 +1,12 @@
 import { collaborationPresentationQueries } from "@/server/modules/collaboration/public/presentation-queries";
 
 import { PageContent } from "@/components/ui/patterns";
-import { FeaturePage } from "@/components/features/feature-page";
-import { MessagingInbox } from "@/components/messaging/inbox";
-import { InboxUpdates } from "@/components/messaging/inbox-updates";
+import { FeaturePage } from "@/components/shared/features/feature-page";
+import { MessagingInbox } from "@/components/collaboration/messaging/inbox";
+import { InboxUpdates } from "@/components/collaboration/messaging/inbox-updates";
 import { PageHeader } from "@/components/ui/primitives";
-import { hasPermission } from "@/lib/permissions";
-import { workspaceBase } from "@/lib/workspace";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 
 

@@ -1,6 +1,6 @@
 import {BusinessRuleError} from '../../shared';
 import type {IamActor} from '../domain/iam-actor';
-import {directoryChangeInput,type DirectoryChangeInput} from '@/lib/directory-operations';
+import {directoryChangeInput,type DirectoryChangeInput} from "@/lib/identity_access/directory-operations";
 import {mappedFieldChange,type FieldSyncInput,type DirectoryFieldState,type DirectoryFieldIdentity,type DirectoryFieldValues,type DirectoryFieldAttribute} from '../domain/directory-field-mapping';
 export interface DirectoryFieldFacts{state(actor:IamActor,connectionId:string):Promise<DirectoryFieldState|null>;identities(actor:IamActor,connectionId:string,personId:string):Promise<DirectoryFieldIdentity[]>;person(actor:IamActor,personId:string):Promise<{legal_name:string}|null>;values(actor:IamActor,personId:string):Promise<DirectoryFieldValues|null>;attribute(actor:IamActor,id:string):Promise<DirectoryFieldAttribute|null>;}
 export type MappingManagementChange={operation:'values';input:{target:'person';objectId:string;expectedVersion:number;values:Record<string,unknown>;reason:string}};

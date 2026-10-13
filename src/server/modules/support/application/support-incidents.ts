@@ -1,6 +1,6 @@
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
-import { hasPermission } from "@/lib/permissions";
-import { samePerson } from "@/lib/iam";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { samePerson } from "@/lib/identity_access/iam";
 import type { AttachmentBindingContract } from "@/server/modules/files/public/attachments/types";
 import type { SupportCommandPorts, SupportCommand, SupportMutation, SupportRow } from "./command";
 import { incidentCreateSchema, incidentChangeSchema, incidentWorkItems, supportIncidentBindingContract, type SupportIncidentCreate, type SupportIncidentChange, type SupportIncidentBinding } from "../domain/support-incidents";

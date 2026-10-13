@@ -1,11 +1,11 @@
 import { seedExpenseCompany } from "../expenses/company";
-import type { SqlDatabase, FileStore } from "../../src/server/runtime/types";
-import { setFinanceCompanyTool } from "../../src/server/finance-company-tools";
+import type { SqlDatabase, FileStore } from "../../src/server/modules/runtime/adapters/runtime/types";
+import { setFinanceCompanyTool } from "../../src/server/modules/finance/public/finance-company-tools";
 import {
   prepareBookRule,
   decideBookRule,
   bookRuleSchema,
-} from "../../src/server/finance-books";
+} from "../../src/server/modules/finance/public/finance-books";
 import {
   prepareBudgetEdition,
   budgetEditionSchema,
@@ -16,7 +16,7 @@ import {
   decideFinancePlan,
   snapshotFinancialReport,
   exportFinancialReport,
-} from "../../src/server/finance-planning";
+} from "../../src/server/modules/finance/public/finance-planning";
 import {
   createJournal,
   createJournalSchema,
@@ -28,66 +28,66 @@ import {
   closePeriod,
   calculateCloseReconciliations,
   trialBalance,
-} from "../../src/server/finance";
+} from "../../src/server/modules/finance/public/finance";
 import {
   createBankCsvMapping,
   bankCsvMappingSchema,
   importMappedBankCsv,
   proposeBankMatchGroup,
   decideBankMatchGroup,
-} from "../../src/server/finance-bank-automation";
+} from "../../src/server/modules/finance/public/finance-bank-automation";
 import {
   prepareCollectionCase,
   decideCollectionCase,
   reviseCollectionCase,
-} from "../../src/server/finance-collections";
+} from "../../src/server/modules/finance/public/finance-collections";
 import {
   prepareBusinessContract,
   businessContractSchema,
   prepareRecognitionRun,
   decideBusinessContract,
   decideRecognitionRun,
-} from "../../src/server/finance-business-contracts";
+} from "../../src/server/modules/finance/public/finance-business-contracts";
 import {
   prepareBillingCorrection,
   decideBillingCorrection,
   billingCorrectionSchema,
-} from "../../src/server/finance-billing-corrections";
+} from "../../src/server/modules/finance/public/finance-billing-corrections";
 import {
   prepareInstrument,
   decideInstrument,
   prepareInstrumentRun,
   decideInstrumentRun,
   instrumentEditionSchema,
-} from "../../src/server/finance-instruments";
+} from "../../src/server/modules/finance/public/finance-instruments";
 import {
   createAsset,
   activateAsset,
   assetSchema,
-} from "../../src/server/finance-assets";
+} from "../../src/server/modules/finance/public/finance-assets";
 import {
   prepareAssetPolicy,
   decideAssetPolicy,
   prepareAssetPolicyRun,
   decideAssetPolicyRun,
-} from "../../src/server/finance-asset-policies";
+} from "../../src/server/modules/finance/public/finance-asset-policies";
 import {
   prepareAccountingProfile,
   decideAccountingProfile,
-} from "../../src/server/accounting-profiles";
+} from "../../src/server/modules/finance/public/accounting-profiles";
 import {
   prepareYearClosing,
   decideYearClosing,
-} from "../../src/server/finance-reporting";
+} from "../../src/server/modules/finance/public/finance-reporting";
 import {
   prepareGroupReportEdition,
   decideGroupReportEdition,
   groupReportEditionExport,
-} from "../../src/server/finance-group-editions";
+} from "../../src/server/modules/finance/public/finance-group-editions";
 import {
   scheduleFinanceDraft,
   drainFinanceDueDrafts,
-} from "../../src/server/finance-due-drafts";
+} from "../../src/server/modules/finance/public/finance-due-drafts";
 const key = () => crypto.randomUUID();
 type Row = Record<string, string | number | null>;
 /** Synthetic source-owned rehearsal. All amounts are stated in the companion test.

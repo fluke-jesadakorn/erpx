@@ -4,7 +4,7 @@ import type { StaffActor } from '../../operations/public/staff-policy';
 import type { PostRow } from '../domain/social-source';
 import type { Mention } from '../domain/social-text';
 import { hashtags } from '../domain/social-text';
-import { plainRichContent, validateRichContent, type RichContent, type RichNode } from '@/lib/home-rich-content';
+import { plainRichContent, validateRichContent, type RichContent, type RichNode } from "@/lib/shared/home-rich-content";
 import { postContentSchema, postDraftSchema, postSourceSchema, contentBody, contentImages, storedContent, selectedAudience, audienceScope, commentView, type Actor, type PostAudience, type PostSource, type PostDraft, type PostContent, type PostPurpose, type CommentRow } from '../domain/social-home';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '../../shared';
 import type { ListPage } from '../../work_projection/public/list-page';

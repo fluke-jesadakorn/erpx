@@ -1,8 +1,8 @@
 import { staffPresentationQueries } from "@/server/modules/work_projection/public/presentation-context-queries";
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
-import { FeaturePage } from "@/components/features/feature-page";
-import { TaskEditor } from "@/components/modules/staff-work-controls";
+import { FeaturePage } from "@/components/shared/features/feature-page";
+import { TaskEditor } from "@/components/work_projection/staff-work-controls";
 
 
 import { RecordLink as Link } from "@/components/records/record-link";

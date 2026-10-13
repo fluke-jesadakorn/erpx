@@ -1,12 +1,12 @@
 import { z } from 'zod';
-import { samePerson } from '@/lib/iam';
-import { hasPermission } from '@/lib/permissions';
+import { samePerson } from "@/lib/identity_access/iam";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { WorkContext } from '../../identity_access/public/authorization';
 import type { StaffActor, StaffPerson } from '../../operations/public/staff-policy';
 import type { ProjectRow } from '../domain/staff-projects';
 import { BusinessRuleError, type Clock } from '../../shared';
 import { projectWorkLogSchema, projectWorkLogDecisionSchema, projectCostAllocationSchema, projectCostAllocationDecisionSchema, type ProjectWorkLogRow, type ProjectCostAllocationRow, type ProjectCostSourceRow, type ProjectFinanceScope } from '../domain/actuals';
-import { decimalToMinor, minorToDecimal } from '@/lib/finance-money';
+import { decimalToMinor, minorToDecimal } from "@/lib/finance/finance-money";
 export interface ProjectActualsRepository<Effect> {
     prepareActualEvent(value: string, id: string, version: number, action: string, userId: string, reason: string, value2: string, now: number, table: string): Effect;
     workLogs(userId: string, userId2: string, userId3: string, companyId: string, id: string, userId4: string, userId5: string): Promise<{

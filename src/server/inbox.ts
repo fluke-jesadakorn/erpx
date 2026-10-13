@@ -1,1 +1,0 @@
-export {publishInboxEvent,inboxPage,inboxSummary,changeInboxState,sendNotice,drainInboxNotices,inboxOperationalMetrics,noticeInput} from './modules/collaboration/public/inbox';export type {InboxCategory,InboxEventInput,InboxItem} from './modules/collaboration/public/inbox';

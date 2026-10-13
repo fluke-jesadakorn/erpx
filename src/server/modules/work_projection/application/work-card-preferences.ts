@@ -1,6 +1,6 @@
 import type {WorkContext} from "../../identity_access/public/authorization";
 import type {Clock} from "../../shared/application/ports";
-import type {WorkCardId,WorkCardPreferences} from "@/lib/work-cards";
+import type {WorkCardId,WorkCardPreferences} from "@/lib/work_projection/work-cards";
 import type {WorkCardPreferenceInput} from "../domain/work-card-preferences";
 export type WorkCardPreferenceUnit<Effect>={member(actor:WorkContext):Promise<boolean>;preference(actor:WorkContext):Promise<{pinned_ids_json:string|null;version:number}|null>;authority(companyId:string):Promise<(key:string)=>Effect[]>;versionGuard(key:string,actor:WorkContext,version:number):Effect;savePreference(actor:WorkContext,result:WorkCardPreferences,now:number):Effect;replayCommand<Result>(actor:WorkContext,key:string,operation:string,recordId:string,input:unknown):Promise<Result|null>;executeCommand<Result>(actor:WorkContext,key:string,operation:string,input:unknown,recordId:string,version:number,result:Result,effects:Effect[]):Promise<Result>;};
 export function createWorkCardPreferenceService<Effect>(ports:{clock:Clock;error(status:number,code:string,message:string):Error}){

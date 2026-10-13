@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { DirectoryConfig, DirectoryProvider } from '@/lib/iam';
+import type { DirectoryConfig, DirectoryProvider } from "@/lib/identity_access/iam";
 export const connectionInput = z
     .object({
     id: z.string().optional(),

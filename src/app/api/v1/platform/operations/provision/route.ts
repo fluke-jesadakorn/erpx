@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
 import { errorResponse, ApiError } from "@/server/modules/runtime/public/http";
-import { resourceSlots } from "@/lib/holding-registry";
+import { resourceSlots } from "@/lib/runtime/holding-registry";
 import { holdingResources, runtimeEnv } from "@/server/modules/runtime/public/runtime";
 import { provisionHolding, platformProvisioningSnapshot } from "@/server/modules/platform_administration/public/platform-operations";
 

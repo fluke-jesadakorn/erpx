@@ -1,5 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title"><title id="title">ERPX BRIDGE — app icon</title><rect x="0" y="0" width="512" height="512" rx="112" fill="#1E4FCC" stroke="none"/><g transform="translate(0 16)">
-    <path d="M80 400V256C80 176 120 128 184 104L208 176C168 192 152 218 152 256V400Z" fill="#FFFFFF"/>
-    <path d="M80 400V256C80 176 120 128 184 104L208 176C168 192 152 218 152 256V400Z" transform="translate(512 0) scale(-1 1)" fill="#FFFFFF"/>
-    <path d="M224 80H288L272 216H240Z" fill="#FFFFFF"/>
-  </g></svg>

@@ -13,17 +13,17 @@ import { ApiError } from "@/server/modules/runtime/public/http";
 import { sha256 } from "@/server/modules/runtime/public/crypto";
 import { calculateThaiHotelPayrollFixture, isThaiHotelPayrollMockEnabled, thaiHotelPayrollMockId } from "@/server/modules/runtime/public/simulation-only-adapters";
 import { assertion, executeCommand, replayCommand } from "@/server/modules/workflow/public/commands";
-import { directoryPerson, canReadCompensation, canManagePeople } from "@/server/people-directory";
+import { directoryPerson, canReadCompensation, canManagePeople } from "@/server/modules/people_payroll/adapters/people-directory";
 import { prepareJournal } from "@/server/modules/finance/public/finance";
-import { type PayrollPostingItem } from "@/server/payroll-accounting";
-import { assertPayrollSourceFresh, payrollSourceGuards } from "@/server/payroll-readiness";
+import { type PayrollPostingItem } from "@/server/modules/people_payroll/adapters/payroll-accounting";
+import { assertPayrollSourceFresh, payrollSourceGuards } from "@/server/modules/people_payroll/adapters/payroll-readiness";
 import { prepareAttachmentBinding } from "@/server/modules/files/public/attachments/service";
 import { snapshotMoney } from "@/server/modules/finance/public/company-money";
-import { assertStatutoryRunReady, recognizedThaiPack, thaiEvidenceForEmployee, thaiEvidenceGuards, thaiPackForRun, type PayrollStatutoryRun } from "@/server/payroll-statutory";
-import { preparePayslipIssue } from "@/server/payroll-payslips";
-import { calculatePayrollAdjustmentRun } from "@/server/payroll-adjustments";
-import { assertPayrollRecoveryDeductionLimits } from "@/server/payroll-recoveries";
-import { preparePayrollDeductionConsumption } from "@/server/payroll-deductions";
+import { assertStatutoryRunReady, recognizedThaiPack, thaiEvidenceForEmployee, thaiEvidenceGuards, thaiPackForRun, type PayrollStatutoryRun } from "@/server/modules/people_payroll/adapters/payroll-statutory";
+import { preparePayslipIssue } from "@/server/modules/people_payroll/adapters/payroll-payslips";
+import { calculatePayrollAdjustmentRun } from "@/server/modules/people_payroll/adapters/payroll-adjustments";
+import { assertPayrollRecoveryDeductionLimits } from "@/server/modules/people_payroll/adapters/payroll-recoveries";
+import { preparePayrollDeductionConsumption } from "@/server/modules/people_payroll/adapters/payroll-deductions";
 import type { FileStore } from '../../runtime/public/runtime/types';
 import { BusinessRuleError } from '../../shared';
 import { createPersonSchema, createEngagementSchema, compensationSchema, compensationTransitionSchema, engagementTransitionSchema, payrollCostVerificationSchema, payGroupSchema, countryPackSchema, countryPackTransitionSchema, payrollRunSchema, paymentBatchSchema, timeEntrySchema, paymentConfirmationSchema, payrollPostSchema, payrollAccountMappingSchema, payrollCorrectionRequestSchema, payrollCorrectionDecisionSchema, finalPayPreparationSchema, payrollAdvanceRequestSchema, payrollAdvanceDecisionSchema, assignPayGroupSchema, timeEntryUpdateSchema, timeEntryReviewSchema } from '../domain/people-payroll';
@@ -34,8 +34,8 @@ import { payrollIdentityFacts } from '../../identity_access/public/payroll-owner
 import { payrollBenefitOwnerFacts } from '../../benefits/public/payroll-owner-facts';
 import { payrollFinanceFacts } from '../../finance/public/payroll-owner-facts';
 export { createPersonSchema, createEngagementSchema, compensationSchema, compensationTransitionSchema, engagementTransitionSchema, payrollCostVerificationSchema, payGroupSchema, countryPackSchema, countryPackTransitionSchema, payrollRunSchema, paymentBatchSchema, timeEntrySchema, paymentConfirmationSchema, payrollPostSchema, payrollAccountMappingSchema, payrollCorrectionRequestSchema, payrollCorrectionDecisionSchema, finalPayPreparationSchema, payrollAdvanceRequestSchema, payrollAdvanceDecisionSchema, assignPayGroupSchema, timeEntryUpdateSchema, timeEntryReviewSchema } from '../domain/people-payroll';
-export { cancelPayrollRun, payrollCancelSchema } from "@/server/payroll-cancellation";
-export { createPayrollAdjustment, editPayrollAdjustment, payrollAdjustmentCreateSchema, payrollAdjustmentEditSchema } from "@/server/payroll-adjustments";
+export { cancelPayrollRun, payrollCancelSchema } from "@/server/modules/people_payroll/adapters/payroll-cancellation";
+export { createPayrollAdjustment, editPayrollAdjustment, payrollAdjustmentCreateSchema, payrollAdjustmentEditSchema } from "@/server/modules/people_payroll/adapters/payroll-adjustments";
 function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
     let database = provided!, files: FileStore;
     const repository: PeoplePayrollRepository<SqlStatement> = { readPayrollCostAssignmentsEngagement(engagementId: string, companyId: string) { return database.prepare("SELECT id FROM hr_engagements WHERE id=? AND company_id=?").bind(engagementId, companyId).first(); },

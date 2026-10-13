@@ -284,4 +284,4 @@ export function nativeLearningExecutiveEvidence(db:SqlDatabase){return createLea
     .first<Row>(),
  });}
 export async function learningExecutiveEvidenceRow(db:SqlDatabase,a:WorkContext,metric:LearningExecutiveEvidenceMetric,recordId:string,range?:{from:number;toExclusive:number}){return nativeLearningExecutiveEvidence(db)(a,metric,recordId,range);}
-export async function learningWork(a:WorkContext):Promise<import("@/lib/work-item").WorkItem[]>{return createLearningWork({workspace:nativeLearningWorkspace(lazyDatabase(a))})(a);}
+export async function learningWork(a:WorkContext):Promise<import("@/lib/work_projection/work-item").WorkItem[]>{return createLearningWork({workspace:nativeLearningWorkspace(lazyDatabase(a))})(a);}

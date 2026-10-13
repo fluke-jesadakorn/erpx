@@ -331,6 +331,3 @@
     max-height: min(70dvh, 620px);
   }
 }
-.moreNav { padding-top: 4px; }
-.moreNav > summary { padding: 10px 14px; color: var(--ui-muted); cursor: pointer; font-size: 13px; }
-.moreNav[open] > summary { margin-bottom: 4px; }

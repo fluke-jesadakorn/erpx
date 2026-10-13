@@ -1,6 +1,6 @@
 'use client';
 import {useEffect} from 'react';
-import { enqueueWorkspaceMemory } from '@/lib/workspace-memory-client';
+import { enqueueWorkspaceMemory } from "@/lib/work_projection/workspace-memory-client";
 
 export function RememberWorkspace({base,companyId,assignmentId,revision}:{base:string;companyId?:string;assignmentId?:string;revision?:number}) {
   useEffect(()=>{

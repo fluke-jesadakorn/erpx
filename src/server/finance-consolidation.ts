@@ -1,2 +1,0 @@
-/** Compatibility entry point; implementation belongs to finance. */
-export {consolidationDecisionSchema,consolidationDetail,consolidationEliminationDecisionSchema,consolidationEliminationDetail,consolidationEliminationSchema,consolidationRunSchema,consolidationRunWorkspace,createConsolidationElimination,createConsolidationRun,decideConsolidationElimination,decideConsolidationRun} from "@/server/modules/finance/adapters/finance-consolidation";

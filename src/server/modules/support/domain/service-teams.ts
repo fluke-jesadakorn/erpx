@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { serviceCategories } from "@/lib/employee-services";
+import { serviceCategories } from "@/lib/people_payroll/employee-services";
 const category = z.enum(serviceCategories.map(([id]) => id));
 export const serviceTeamSchema = z.object({
     name: z.string().trim().min(2).max(160),

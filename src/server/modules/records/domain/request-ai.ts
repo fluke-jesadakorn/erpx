@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { serviceCategories } from "@/lib/employee-services";
+import { serviceCategories } from "@/lib/people_payroll/employee-services";
 export const requestAiInput = z.object({
     expectedVersion: z.number().int().positive(),
     retry: z.boolean().default(false),

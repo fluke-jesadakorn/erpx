@@ -1,4 +1,4 @@
-import type { QuickAccessItem } from "@/lib/quick-access";
+import type { QuickAccessItem } from "@/lib/work_projection/quick-access";
 
 type CustomerDocument = {
   binding_id: string;

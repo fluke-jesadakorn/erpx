@@ -1,8 +1,8 @@
 import { notFound, redirect } from "next/navigation";
-import { iamSections } from "@/lib/iam";
+import { iamSections } from "@/lib/identity_access/iam";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
-import { workspaceBase } from "@/lib/workspace";
-import { peopleIamDestination } from "@/lib/people-lifecycle";
+import { workspaceBase } from "@/lib/work_projection/workspace";
+import { peopleIamDestination } from "@/lib/people_payroll/people-lifecycle";
 export default async function IamPage({
   params,
 }: {
@@ -16,6 +16,7 @@ export default async function IamPage({
   )
     notFound();
   const actor = await requireWorkContext(p.holdingSlug);
+  if (section === "my-access") redirect("/my-access");
   redirect(
     `${workspaceBase(publicScope(actor))}/${peopleIamDestination(section)}`,
   );

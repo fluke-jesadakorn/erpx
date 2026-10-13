@@ -1,17 +1,17 @@
 "use client";
 import {RecordLink} from "@/components/records/record-link";
-import {recordCanonicalHref} from "@/lib/record-drawer";
+import {recordCanonicalHref} from "@/lib/records/record-drawer";
 import { Button, Field, TextInput, Table, TableFrame } from "@/components/ui/foundation";
 import {FormDisclosure} from "@/components/ui/form-disclosure";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { workFetch } from "@/lib/work-fetch";
+import { workFetch } from "@/lib/work_projection/work-fetch";
 
 type Refund = {
   id: string;
   property_id: string;
-  folio_id: string;
+  guest_account_id: string;
   amount_minor: number;
   refund_amount_minor: number | null;
   refund_state: string;

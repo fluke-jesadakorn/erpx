@@ -1,8 +1,8 @@
 import { InlineNotice } from "@/components/ui/foundation";
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/primitives";
-import type { OperationPresentation } from "@/lib/operation-presentation";
-import { TimeText } from "@/components/time/time-preference-context";
+import type { OperationPresentation } from "@/lib/shared/operation-presentation";
+import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 import { Card } from "@/components/ui/foundation";
 
 export function OperationSummary({ operation, children }: { operation: OperationPresentation; children?: React.ReactNode }) {

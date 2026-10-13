@@ -15,7 +15,7 @@ The final Playwright run used isolated simulation `fe7095e14f6f` on port 3104 an
 
 The 1,462 HTTP 200 responses include normal pages and expected access states. Four responses were 404: each viewport returned 404 for the representative public booking property because the simulation hotel is not published in the public booking catalog, and each viewport returned 404 for a deliberately invalid property ID. The invalid-ID behavior is correct; the public booking flow for a published property was not exercised by this fixture.
 
-Route evidence is retained privately at `.scratch/uat/fe7095e14f6f/route-results.jsonl`. The matrix is implemented in [uat-route-matrix.spec.ts](../../tests/e2e/uat-route-matrix.spec.ts). The 3104 simulation was destroyed after the run; the pre-existing simulation on 3102 was left untouched and remains healthy.
+Route evidence is retained privately at `.scratch/uat/fe7095e14f6f/route-results.jsonl`. The matrix is implemented in [uat-route-matrix.spec.ts](../../tests/uat/shared.ui/uat-route-matrix.spec.ts). The 3104 simulation was destroyed after the run; the pre-existing simulation on 3102 was left untouched and remains healthy.
 
 ## Simulated workflow journeys
 
@@ -52,7 +52,7 @@ The journeys used isolated fixture databases. The tested flows covered primary a
 | `bun run test:integration` | 140 files passed, 2 skipped; 1,088 tests passed, 3 skipped |
 | `bun run deploy:build` | Passed using isolated release output |
 
-The successful release is `.runtime/releases/2026-09-25T01-31-43-294Z` with software version `release-62bbe0de7631cdea2d24938fb2ea0107417ee64afbf47f7263d73d4e9cd71ca6`. The build emitted a Turbopack tracing warning because `src/server/runtime/env.ts` uses a dynamic filesystem path; the build still completed.
+The successful release is `.runtime/releases/2026-09-25T01-31-43-294Z` with software version `release-62bbe0de7631cdea2d24938fb2ea0107417ee64afbf47f7263d73d4e9cd71ca6`. The build emitted a Turbopack tracing warning because `src/server/modules/runtime/adapters/runtime/env.ts` uses a dynamic filesystem path; the build still completed.
 
 ## Service and public UI checks
 

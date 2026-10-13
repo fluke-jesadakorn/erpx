@@ -4,7 +4,7 @@ import type {WorkContext} from "../../../identity_access/public/authorization";
 import {legalProcessingAssignmentCurrent,legalProcessingAuthority} from "../../../identity_access/public/legal-processing-authority";
 import {ApiError} from "../../../runtime/public/http";
 import {access,guards} from "./access";
-import {documentAccess,inspectDocument} from "@/server/legal/documents";
+import {documentAccess,inspectDocument} from "@/server/modules/legal/public/legal/documents";
 import {legalRuntimePredicate,legalCompanyCapabilityReady} from "./runtime-gate";
 import {executeCommand,assertion} from "../../../workflow/public/commands";
 import {createLegalProcessingApplication,type LegalProcessingKind,type LegalProcessingJob,type LegalProcessingStatus} from "../../application/processing";

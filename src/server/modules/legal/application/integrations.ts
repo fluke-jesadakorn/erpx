@@ -1,6 +1,6 @@
 import type {WorkContext} from "../../identity_access/public/authorization";
 import type {Clock} from "../../shared/application/ports";
-import type {WorkItem} from "@/lib/work-item";
+import type {WorkItem} from "@/lib/work_projection/work-item";
 import type {CalendarItem,CalendarQuery} from "@/server/modules/work_projection/public/rules/calendar-domain";
 import type {LegalItem} from "../domain/model";
 export type LegalAssignedTask={id:string;item_id:string;title:string;record_title:string;state:string;updated_at:number};

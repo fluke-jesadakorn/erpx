@@ -1,10 +1,10 @@
 import { RecordLink as Link } from "@/components/records/record-link";
 import {requireWorkContext,publicScope} from "@/server/modules/identity_access/public/authorization";
-import {workspaceBase} from '@/lib/workspace';
+import {workspaceBase} from "@/lib/work_projection/workspace";
 import {pageError} from "@/server/modules/work_projection/public/page-error";
 import {preventivePlanDetail} from "@/server/modules/maintenance/public/maintenance-preventive";
-import {MaintenancePreventiveConsole} from '@/components/modules/maintenance-preventive-console';
-import {TimeText} from '@/components/time/time-preference-context';
+import { MaintenancePreventiveConsole } from "@/components/records/loaders/modules--maintenance-preventive-console";
+import {TimeText} from "@/components/people_payroll/time/time-preference-context";
 import { PageContent, Card } from "@/components/ui/foundation";
 export const dynamic='force-dynamic';
 export default async function Page({params}:{params:Promise<{holdingSlug:string;id:string}>}){

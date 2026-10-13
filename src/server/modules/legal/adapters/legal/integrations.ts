@@ -2,9 +2,9 @@ import { finalRootOwnerProjectionSources as workflowProjectionSources } from "..
 import "server-only";
 import type {SqlDatabase} from "../../../runtime/public/runtime/types";
 import type {WorkContext} from "../../../identity_access/public/authorization";
-import {hasPermission} from "@/lib/permissions";
-import {featureSpecs} from "@/lib/legal/features";
-import type {CalendarQuery} from "@/lib/calendar";
+import {hasPermission} from "@/lib/identity_access/permissions";
+import {featureSpecs} from "@/lib/legal/legal/features";
+import type {CalendarQuery} from "@/lib/work_projection/calendar";
 import type {LegalItem} from "../../domain/model";
 import {visibility} from "./access";
 import {createLegalIntegrations} from "../../application/integrations";

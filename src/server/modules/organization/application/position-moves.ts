@@ -2,7 +2,7 @@ import {BusinessRuleError,type Clock} from '../../shared';
 import type {WorkContext} from '../../identity_access/public/authorization';
 import type {GpoRuleRow} from '../../identity_access/public/gpo-rules';
 import type {OrganizationPerson,OrganizationPosition} from "@/server/modules/organization/public/rules/organization-domain";
-import {positionMoveDate,type PositionMoveInput,type PositionMovePreview,type PositionMoveRecord,type PositionMovePolicyImpact} from '@/lib/position-moves';
+import {positionMoveDate,type PositionMoveInput,type PositionMovePreview,type PositionMoveRecord,type PositionMovePolicyImpact} from "@/lib/people_payroll/position-moves";
 import {decode,scoped,positionGpoMatches,positionMoveGraphIssues,positionMoveLeaveImpact,type Leave,type LeaveDefault} from '../domain/position-moves';
 const placement=(person:OrganizationPerson)=>({branchId:person.branch_id,departmentId:person.department_id,levelId:person.level_id,managerPersonId:person.manager_person_id});
 const positionPlacement=(position:OrganizationPosition)=>({branchId:position.branch_id,departmentId:position.department_id,levelId:position.level_id,reportsToPositionId:position.reports_to_position_id});

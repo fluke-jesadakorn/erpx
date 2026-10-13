@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { hasModuleAccess } from "@/data/module-access";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { filtersSchema, type MetricId } from "@/server/modules/runtime/public/rules/canvas-domain";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { agentEvidenceMetrics, type AgentEvidenceMetric, providerId, approvedVersionMetric, approvedVersionFields, invocationFields, inputSchema, type ApprovedVersionRow, type InvocationRow, parseCursor, encodeCursor, exactNumber } from '../../domain/executive/agent-evidence';

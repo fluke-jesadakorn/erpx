@@ -1,2 +1,0 @@
-/** Compatibility entry point for the Procurement application. */
-export {captureSupplierBill,decideSupplierBill,getSupplierBill,matchedBillLines,matchedInvoicePosting,saveSupplierInvoicePolicy,supplierBillCaptureOptions,supplierBillDecisionSchema,supplierBillDetail,supplierBillInvoiceHandoff,supplierBillSchema,supplierBillWork,supplierBillWorkspace,supplierInvoicePolicy,supplierInvoicePolicySchema} from "@/server/modules/procurement/adapters/supplier-bills";

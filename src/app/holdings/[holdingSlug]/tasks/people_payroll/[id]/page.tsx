@@ -1,12 +1,12 @@
-import { RecordSections } from "@/components/workplace/record-sections";
+import { RecordSections } from "@/components/records/loaders/workplace--record-sections";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { WorkReturn } from "@/components/workplace/work-return";
-import { LeaveDecisions, LeaveEditor } from "@/components/self-service/leave-editor";
-import styles from "@/components/leave/leave-flow.module.css";
-import { workspaceBase } from "@/lib/workspace";
+import { WorkReturn } from "@/components/records/loaders/workplace--work-return";
+import { LeaveDecisions, LeaveEditor } from "@/components/records/loaders/self-service--leave-editor";
+import styles from "@/components/people_payroll/leave/leave-flow.module.css";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { ApprovalView } from "@/server/modules/workflow/public/approvals";
-import { ApprovalHistory } from "@/components/modules/approval-history";
+import { ApprovalHistory } from "@/components/workflow/approval-history";
 import { OperationSummary } from "@/components/workplace/operation-summary";
 import { getLeave } from "@/server/modules/people_payroll/public/leave";
 import { leaveSummary } from "@/server/modules/people_payroll/public/leave-self-service";
@@ -17,7 +17,7 @@ import {
   attachmentsV2ReadOnly,
 } from "@/server/modules/files/public/attachments/feature";
 import { parseLeaveEvidencePolicy } from "@/server/modules/people_payroll/public/leave-evidence";
-import { LeaveEvidencePanel } from "@/components/self-service/leave-evidence-panel";
+import { LeaveEvidencePanel } from "@/components/records/loaders/self-service--leave-evidence-panel";
 import { ApiError } from "@/server/modules/runtime/public/http";
 
 function dateLabel(value: string | null | undefined) {

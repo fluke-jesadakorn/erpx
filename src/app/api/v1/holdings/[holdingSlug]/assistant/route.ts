@@ -1,4 +1,4 @@
-import { assistantAskSchema, assistantPageSchema } from "@/lib/ai/workspace-assistant";
+import { assistantAskSchema, assistantPageSchema } from "@/lib/work_projection/ai/workspace-assistant";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { holdingResources, runtimeEnv } from "@/server/modules/runtime/public/runtime";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";

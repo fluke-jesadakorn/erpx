@@ -1,9 +1,9 @@
 import { customerPortalPresentationQueries } from "@/server/modules/customer_360/public/presentation-context-queries";
-import { TimeText } from "@/components/time/time-preference-context";
-import { CustomerPortalActions } from "@/components/customer-portal/customer-portal-actions";
+import { TimeText } from "@/components/people_payroll/time/time-preference-context";
+import { CustomerPortalActions } from "@/components/customer_authority/customer-portal-actions";
 import { EmptyState, StatusBadge } from "@/components/ui/primitives";
-import { QuickAccessShelf } from "@/components/quick-access/shelf";
-import rail from "@/components/quick-access/area-rail.module.css";
+import { QuickAccessShelf } from "@/components/work_projection/quick-access/shelf";
+import rail from "@/components/work_projection/quick-access/area-rail.module.css";
 
 import { customerPortalQuickAccess } from "@/server/modules/work_projection/public/portal-quick-access";
 import { readQuickAccessPreferences } from "@/server/modules/work_projection/public/quick-access-preferences";

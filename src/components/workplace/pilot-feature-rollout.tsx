@@ -4,8 +4,8 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { Button, Field, TextInput } from "@/components/ui/foundation";
 
 import { useState } from "react";
-import { isPilotModule } from "@/lib/hospitality-rollout";
-import { workFetch } from "@/lib/work-fetch";
+import { isPilotModule } from "@/lib/shared/hospitality-rollout";
+import { workFetch } from "@/lib/work_projection/work-fetch";
 
 type Entry = {
   id: string;

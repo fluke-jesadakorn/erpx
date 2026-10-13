@@ -1,13 +1,13 @@
 "use client";
-import { Card } from "@/components/ui/foundation";
+import { Card } from "@/components/ui/card";
 
 import { useMainLandmark } from "@/components/ui/main";
-import { ActionAnchor as UiActionAnchor } from "@/components/ui/foundation";
+import { ActionAnchor as UiActionAnchor } from "@/components/ui/action-anchor";
 
-import { Button } from "@/components/ui/foundation";
+import { Button } from "@/components/ui/button";
 
 /* eslint-disable @next/next/no-html-link-for-pages -- Recovery needs document navigation to re-read access cookies and leave failed route boundaries. */
-import { useSyncExternalStore } from "react";
+import { useSyncExternalStore, useTransition } from "react";
 import {
   ArrowRight,
   FileQuestion,
@@ -16,7 +16,7 @@ import {
   ShieldAlert,
   WifiOff,
 } from "lucide-react";
-import { accessProblems, type AccessProblem } from "@/lib/access-problem";
+import { accessProblems, type AccessProblem } from "@/lib/shared/access-problem";
 import styles from "./access-state.module.css";
 import { ProductBrand } from "@/components/brand/product-brand";
 import { FrontError } from "@/components/front/front-error";
@@ -45,6 +45,7 @@ export function AccessState({
   returnTo?: string;
 }) {
   const insideMain = useMainLandmark();
+  const [retrying, startRetry] = useTransition();
   const online = useSyncExternalStore(
     subscribe,
     () => navigator.onLine,
@@ -118,10 +119,11 @@ export function AccessState({
               type="submit"
               variant="primary"
               className={styles.primary}
-              onClick={() => (retry ? retry() : window.location.reload())}
+              disabled={retrying}
+              onClick={() => startRetry(() => (retry ? retry() : window.location.reload()))}
             >
               <RefreshCw size={16} />
-              Try again
+              {retrying ? "Trying again…" : "Try again"}
             </Button>
           ) : (
             <UiActionAnchor appearance="standard" variant="primary" className={styles.primary} href="/">

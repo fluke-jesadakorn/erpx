@@ -1,3 +1,4 @@
+import { assertPmsProviderAuthority } from "./provider-authority";
 import 'server-only';
 import { createHash, randomUUID } from 'node:crypto';
 import { type Snapshot } from "@/server/modules/pms/public/rules/pms";
@@ -9,13 +10,14 @@ import { effects as persistEffects, persistPmsRecords } from "@/server/modules/p
 import { verifiedStripePaymentTime } from "@/server/modules/pos/public/stripe-payment-time";
 import { stripeCall } from "@/server/modules/pos/public/pos-stripe";
 import type { TransactionalSqlDatabase, SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
-import type { Effects } from "@/lib/pms-engine";
+import type { Effects } from "@/lib/pms/pms-engine";
 import { createPmsCounterPayment, type PmsCounterPaymentUnit, type PmsCounterPaymentRepository, type Payment } from "../application/pms-stripe";
 import { holdingResources as resolveResources } from "../../runtime/public/runtime";
 import { requirePermission } from "../../identity_access/public/iam-permissions";
 function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase): PmsCounterPaymentUnit {
     void _whole;
     return {
+        authorize: (actor,permission)=>assertPmsProviderAuthority(db,actor,permission),
         readPmsStripePayments: (facts: {
             key: string;
         }) => db.prepare('SELECT id,request_hash FROM pms_stripe_payments WHERE id=?').bind(facts.key).first<{
@@ -28,7 +30,7 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase): PmsCounterPay
             key: string;
             digest: string;
             propertyId: string;
-            folioId: string;
+            guestAccountId: string;
             companyId: string;
             account_id: string;
             livemode: boolean;
@@ -40,7 +42,7 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase): PmsCounterPay
             now: number;
             now2: number;
             clearing: unknown;
-        }) => db.prepare("INSERT INTO pms_stripe_payments(id,request_hash,property_id,folio_id,company_id,account_id,livemode,kind,amount_minor,payer_email,state,expires_at,created_by,created_at,updated_at,clearing_account) VALUES(?,?,?,?,?,?,?,?,?,?,'requested',?,?,?,?,?)").bind(facts.key, facts.digest, facts.propertyId, facts.folioId, facts.companyId, facts.account_id, facts.livemode, facts.kind, facts.amountMinor, facts.fact9, facts.fact10, facts.userId, facts.now, facts.now2, facts.clearing).run(),
+        }) => db.prepare("INSERT INTO pms_stripe_payments(id,request_hash,property_id,guest_account_id,company_id,account_id,livemode,kind,amount_minor,payer_email,state,expires_at,created_by,created_at,updated_at,clearing_account) VALUES(?,?,?,?,?,?,?,?,?,?,'requested',?,?,?,?,?)").bind(facts.key, facts.digest, facts.propertyId, facts.guestAccountId, facts.companyId, facts.account_id, facts.livemode, facts.kind, facts.amountMinor, facts.fact9, facts.fact10, facts.userId, facts.now, facts.now2, facts.clearing).run(),
         readPmsStripePayments2: (facts: {
             id: string;
         }) => db.prepare('SELECT * FROM pms_stripe_payments WHERE id=?').bind(facts.id).first<Payment>(),
@@ -214,10 +216,10 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase): PmsCounterPay
         }) => db.prepare("UPDATE pms_stripe_payments SET refund_state='succeeded',updated_at=? WHERE id=?").bind(facts.now, facts.id).run(),
         readPmsStripePayments15: (facts: {
             companyId: string;
-        }) => db.prepare("SELECT id,property_id,folio_id,amount_minor,refund_amount_minor,refund_state,last_error,refund_reason,payer_email FROM pms_stripe_payments WHERE company_id=? AND refund_state IS NOT NULL ORDER BY updated_at DESC LIMIT 100").bind(facts.companyId).all<{
+        }) => db.prepare("SELECT id,property_id,guest_account_id,amount_minor,refund_amount_minor,refund_state,last_error,refund_reason,payer_email FROM pms_stripe_payments WHERE company_id=? AND refund_state IS NOT NULL ORDER BY updated_at DESC LIMIT 100").bind(facts.companyId).all<{
             id: string;
             property_id: string;
-            folio_id: string;
+            guest_account_id: string;
             amount_minor: number;
             refund_amount_minor: number | null;
             refund_state: string;

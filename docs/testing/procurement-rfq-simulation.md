@@ -15,7 +15,7 @@
 
 ## หลักฐานและสิ่งที่ยังเหลือ
 
-`tests/procurement-rfqs.test.ts` ตรวจ comparison, independent approval, return/replacement history, stale/replay/race, scope/revocation, immutable offers, changed award terms, PO normal approval, Inbox/Calendar และ missing reviewer coverage; `tests/staff-migration.test.ts` ตรวจ complete/idempotent baseline 337 tables
+`tests/integration/procurement/procurement-rfqs.test.ts` ตรวจ comparison, independent approval, return/replacement history, stale/replay/race, scope/revocation, immutable offers, changed award terms, PO normal approval, Inbox/Calendar และ missing reviewer coverage; `tests/integration/operations/staff-migration.test.ts` ตรวจ complete/idempotent baseline 337 tables
 
 เพิ่ม PR→RFQ แบบจับคู่ทุกรายการกับ product/quantity เดิมแล้ว: เริ่มจากคำขอที่อนุมัติและผู้รับเริ่มงานแล้ว เก็บ source version/evidence version/items snapshot ป้องกัน RFQ ซ้ำและห้ามข้าม award ไปสร้างหรือ link PO อื่น; PR→RFQ→PO commit พร้อมกันโดยตรวจ approval/handler ปัจจุบัน การเพิ่ม comment ใช้ current version โดยไม่เปลี่ยน evidence snapshot.
 

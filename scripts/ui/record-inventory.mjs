@@ -13,11 +13,11 @@ const reviewedTables={
  'src/app/holdings/[holdingSlug]/finance/tax/corrections/[id]/page.tsx#1':{category:'input-or-comparison',trigger:'not-applicable',reason:'Immutable original/replacement tax evidence comparison; source documents are linked above this matrix.'},
  'src/app/dev/ui/page.tsx#1':{category:'presentation-fixture',trigger:'not-applicable',reason:'UI foundation demonstration with fictional invoices; no owner records.'},
  'src/components/records/platform-executive-sources.tsx#1':{category:'immutable-observations',trigger:'not-applicable',reason:'Owner-authorized redacted service/provisioning source observations. Event identities and Holding identifiers are intentionally absent from the Platform executive projection.'},
- 'src/components/modules/analytics-report.tsx#1':{trigger:'owner-record-or-source',reason:'SourceLinks helper opens marketing_campaign_sources using the same campaign/source cohort and individual candidate IDs.'},
- 'src/components/modules/expense-posting-preview.tsx#2':{category:'input-or-comparison',trigger:'not-applicable',reason:'Unsaved computed journal proposal; actual posted journal and accounts have owner links in the first table.'},
+ 'src/components/runtime/executive/analytics-report.tsx#1':{trigger:'owner-record-or-source',reason:'SourceLinks helper opens marketing_campaign_sources using the same campaign/source cohort and individual candidate IDs.'},
+ 'src/components/people_payroll/expense-posting-preview.tsx#2':{category:'input-or-comparison',trigger:'not-applicable',reason:'Unsaved computed journal proposal; actual posted journal and accounts have owner links in the first table.'},
  'src/components/finance/finance-group-edition-controls.tsx#1':{category:'input-or-comparison',trigger:'not-applicable',reason:'Unsaved group account mapping and translation rate inputs; retained report and journal tables below have owner links.'},
  'src/components/finance/finance-group-edition-controls.tsx#2':{category:'record-lines',trigger:'not-applicable',reason:'Immutable paired-document lines inside their own scoped evidence viewer; the pair header opens its owner record drawer.'},
- 'src/components/sales-customers/hub-list.tsx#1':{trigger:'owner-record-or-source',reason:'Generic rows delegate record links to typed Sales/Customers owner callers.'}
+ 'src/components/sales/customers/hub-list.tsx#1':{trigger:'owner-record-or-source',reason:'Generic rows delegate record links to typed Sales/Customers owner callers.'}
 };
 const tables=[];const collections=[];
 for(const file of walkFiles('src')){

@@ -2,7 +2,7 @@ import { executiveReportSources as peopleSources } from '../../../people_payroll
 import { executiveReportSources as identitySources } from '../../../identity_access/public/executive-report-sources';
 import "server-only";
 import { z } from "zod";
-import { shareSchema, sharePreviewSchema, transferOwnershipSchema, type Filters, type ReportView } from "@/lib/executive/canvas";
+import { shareSchema, sharePreviewSchema, transferOwnershipSchema, type Filters, type ReportView } from "@/lib/shared/executive/canvas";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { ApiError } from "@/server/modules/runtime/public/http";

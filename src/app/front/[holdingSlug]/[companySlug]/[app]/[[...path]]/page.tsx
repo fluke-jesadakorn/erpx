@@ -3,12 +3,13 @@ import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { FrontAppShell, FrontLocationPicker, FrontPmsNavigation } from "@/components/front/front-app-shell";
 import { PosConsole } from "@/components/pos/pos-console";
+import { PmsVisualPrototype } from "@/components/pms/visual-prototype";
 import { PmsWorkspaceView } from "@/components/pms/workspace";
 import { PmsToday } from "@/components/pms/home";
 import { pmsHome } from "@/server/modules/pms/public/pms/home";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { WorkContextBoundary } from "@/components/workplace/work-context-boundary";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { publicScope, requireWorkContext, currentSession } from "@/server/modules/identity_access/public/authorization";
 import { frontCompanyApp, frontCompanyBrand, frontCookieName, frontRouteForLocation, frontScopeFromLocation, ensureFrontRole, frontPmsSections, type FrontAppKind } from "@/server/modules/work_projection/public/front-app";
 import { posWorkspace } from "@/server/modules/pos/public/pos";
@@ -19,14 +20,14 @@ import { pmsWorkspace } from "@/server/modules/pms/public/pms";
 import { pmsCrossLinks } from "@/server/modules/pms/public/rules/pms-cross-links";
 import { companyFeatureCatalogue } from "@/server/modules/pms/public/hospitality-rollout";
 import type { Metadata } from "next";
-import { frontAppForHost, frontVisibleLocation, frontVisiblePath } from "@/lib/front-host";
+import { frontAppForHost, frontVisibleLocation, frontVisiblePath } from "@/lib/shared/front-host";
 import { frontActionItems } from "@/server/modules/work_projection/public/front-quick-access";
 import { readQuickAccessPreferences } from "@/server/modules/work_projection/public/quick-access-preferences";
 import { moneyContext } from "@/server/modules/finance/public/company-money";
-import { PushSettings } from "@/components/settings/push-settings";
+import { PushSettings } from "@/components/platform_administration/settings/push-settings";
 import Link from "next/link";
-import { consoleOrigin } from "@/lib/erpx-hosts";
-import { appearancePreference } from "@/lib/appearance-preference";
+import { consoleOrigin } from "@/lib/runtime/erpx-hosts";
+import { appearancePreference } from "@/lib/shared/appearance-preference";
 
 export const dynamic = "force-dynamic";
 
@@ -173,10 +174,14 @@ export default async function FrontAppPage({
     const movement = typeof query.movement === "string"
       ? await posMovementSaleForPresentation(actor, query.movement)
       : null;
-    const dailyTabs = [["sale", "pos.sell"], ["kitchen", "pos.kitchen"], ["shifts", "pos.sell"], ["history", "pos.read"]].filter(([tab, permission]) => hasPermission(actor, permission) || (tab === "shifts" && hasPermission(actor, "pos.approve"))).map(([tab]) => tab);
+    const dailyTabs = [["sale", "pos.sell"], ["kitchen", "pos.kitchen"], ["shifts", "pos.sell"], ["history", "pos.read"]].filter(([tab, permission]) => hasPermission(actor, permission) || (tab === "kitchen" && hasPermission(actor, "pos.sell")) || (tab === "shifts" && hasPermission(actor, "pos.approve"))).map(([tab]) => tab);
     const posTab = typeof query.tab === "string" && dailyTabs.includes(query.tab) ? query.tab : dailyTabs[0] ?? "history";
     const data = await posWorkspace(actor, typeof query.sale === "string" ? query.sale : movement ? String(movement.sale_id) : undefined, typeof query.q === "string" ? query.q : "", posTab, typeof query.cursor === "string" ? query.cursor : undefined, true);
-    content = <PosConsole initial={data} base={base} erpBase={workspace} initialTab={posTab} frontMode frontHref={frontHref} commandScopeKey={localPath} />;
+    content = <PosConsole key={`${actor.companyId}:${actor.branchId}:${actor.assignmentId}`} initial={data} base={base} erpBase={workspace} initialTab={posTab} initialRead={{sale:typeof query.sale === "string" ? query.sale : movement ? String(movement.sale_id) : undefined,q:typeof query.q === "string" ? query.q : "",tab:posTab,cursor:typeof query.cursor === "string" ? query.cursor : undefined}} frontMode frontHref={frontHref} commandScopeKey={localPath} />;
+  } else if (process.env.NODE_ENV !== "production" && (query.prototype === "1" || query.variant === "A" || query.variant === "B" || query.variant === "C")) {
+    if (!hasPermission(actor, "pms.read")) notFound();
+    const prototypePermissions = ["pms.read", "pms.frontdesk", "pms.reservations", "pms.cashier", "pms.reports"].filter(permission => hasPermission(actor, permission));
+    content = <PmsVisualPrototype initialSection={explicitSection} permissions={prototypePermissions} language={language} />;
   } else if (explicitSection === "dashboard" && !query.property) {
     const data = await pmsHome(actor);
     content = <>
@@ -193,7 +198,7 @@ export default async function FrontAppPage({
       "front-desk": ["pms.frontdesk"],
       rooms: ["pms.housekeeping", "pms.maintenance"],
       housekeeping: ["pms.housekeeping", "pms.inspect"],
-      folios: ["pms.cashier"],
+      "guest-accounts": ["pms.cashier"],
       cashier: ["pms.cashier"],
       "night-audit": ["pms.audit"],
     };
@@ -203,13 +208,13 @@ export default async function FrontAppPage({
       : null;
     content = <>
       <FrontPmsNavigation href={frontHref} section={section} permissions={data.permissions} propertyId={data.snapshot?.property.id} />
-      <PmsWorkspaceView initial={data} base={base} erpBase={workspace} section={section} frontHref={frontHref} selectedRecord={query.detailKind === "pms_record" && typeof query.detailId === "string" ? query.detailId : typeof query.record === "string" ? query.record : undefined} initialQueue={query.queue === "arrivals" || query.queue === "departures" ? query.queue : undefined} selectedFolio={typeof query.folio === "string" ? query.folio : undefined} crossLinks={pmsCrossLinks(actor, enabled ?? undefined)} frontMode />
+      <PmsWorkspaceView key={`${actor.companyId}:${actor.branchId}:${actor.assignmentId}`} initial={data} base={base} erpBase={workspace} section={section} frontHref={frontHref} selectedRecord={query.detailKind === "pms_record" && typeof query.detailId === "string" ? query.detailId : typeof query.record === "string" ? query.record : undefined} initialQueue={query.queue === "arrivals" || query.queue === "departures" ? query.queue : undefined} selectedGuestAccount={typeof query.guestAccount === "string" ? query.guestAccount : undefined} crossLinks={pmsCrossLinks(actor, enabled ?? undefined)} frontMode />
     </>;
   }
   const quickAccessItems = frontActionItems(app, actor, frontHref);
   const quickAccessPreference = await readQuickAccessPreferences(entry.userId, "front-" + app, entry.companyId);
-  const money = await moneyContext(actor);
-  return <FrontAppShell holdingSlug={holdingSlug} companySlug={companySlug} companyId={entry.companyId} companyName={entry.companyName} shortName={entry.shortName} accentColor={entry.accentColor} logoAttachmentId={entry.logoPublicationId??entry.logoAttachmentId} app={app} standalone={standalone} erpHref={workspace} frontLocation={localPath} locationName={actor.scope.kind === "branch" ? actor.scope.branchName : actor.scope.kind === "department" ? actor.scope.departmentName : entry.companyName} userId={entry.userId} initialLanguage={language} initialTheme={appearancePreference(cookieStore.get("erpx_appearance")?.value)} money={money} moneyApiBase={`/api/v1${workspaceBase(publicScope(actor))}`} quickAccess={{
+  const money = { ...await moneyContext(actor), canConfirmRate: false };
+  return <FrontAppShell holdingSlug={holdingSlug} companySlug={companySlug} companyId={entry.companyId} companyName={entry.companyName} shortName={entry.shortName} accentColor={entry.accentColor} logoAttachmentId={entry.logoPublicationId??entry.logoAttachmentId} app={app} standalone={standalone} erpHref={workspace} frontLocation={localPath} locationName={actor.scope.kind === "branch" ? actor.scope.branchName : actor.scope.kind === "department" ? actor.scope.departmentName : entry.companyName} userId={entry.userId} initialLanguage={language} initialTheme={appearancePreference(cookieStore.get("erpx_appearance")?.value)} money={money} moneyApiBase={`/api/v1/front/${encodeURIComponent(holdingSlug)}/${encodeURIComponent(companySlug)}/${app}`} quickAccess={{
     items: quickAccessItems,
     preference: quickAccessPreference,
     defaultIds: quickAccessItems.slice(0, 6).map((item) => item.id),

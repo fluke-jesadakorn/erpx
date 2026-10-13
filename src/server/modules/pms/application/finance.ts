@@ -1,3 +1,5 @@
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { samePerson } from "@/lib/identity_access/iam";
 import type { WorkContext } from "../../identity_access/public/authorization";
 import type { Clock } from "../../shared/application/ports";
 import type { Snapshot } from "../domain/pms-model";
@@ -6,6 +8,7 @@ export type PmsFinancialRows<Row> = {
     results: Row[];
 };
 export type PmsFinancialOverviewRepository = {
+    bankEvidence(companyId: string, bank: string, currency: string): Promise<Array<{id:string;transaction_date:string;external_id:string;amount_minor:number;currency:string;version:number}>>;
     ledger(facts: {
         companyId: string;
         branchId: string | null;
@@ -43,7 +46,9 @@ export type PmsFinancialOverviewRepository = {
     }): Promise<PmsFinancialRows<{
         id: string;
         property_id: string;
-        folio_id: string;
+        property_version: number;
+        bank_account: string;
+        guest_account_id: string;
         state: string;
         amount_minor: number;
         currency: string;
@@ -64,7 +69,7 @@ export type PmsFinancialOverviewRepository = {
     }): Promise<PmsFinancialRows<{
         id: string;
         property_id: string;
-        folio_id: string;
+        guest_account_id: string;
         description: string;
         kind: string;
         total: number;
@@ -78,7 +83,7 @@ export type PmsFinancialOverviewRepository = {
     }): Promise<PmsFinancialRows<{
         id: string;
         property_id: string;
-        folio_id: string;
+        guest_account_id: string;
         kind: string;
         finance_id: string | null;
         journal_id: string | null;
@@ -109,6 +114,12 @@ export function createPmsFinancialOverview(ports: {
         const reviews = (await write.transfers({ companyId: actor.companyId, branchId: actor.branchId, branchId2: actor.branchId, propertyId: propertyId ?? null, propertyId2: propertyId ?? null })).results;
         const exceptions = (await write.exceptions({ companyId: actor.companyId, branchId: actor.branchId, branchId2: actor.branchId, propertyId: propertyId ?? null, propertyId2: propertyId ?? null })).results;
         const documents = (await write.documents({ companyId: actor.companyId, branchId: actor.branchId, branchId2: actor.branchId, propertyId: propertyId ?? null, propertyId2: propertyId ?? null })).results;
+        const reviewedTransfers = await Promise.all(reviews.map(async row => {
+            const canVerify = hasPermission(actor,'finance.approve') && !samePerson(actor,row.recorded_by);
+            const bankEvidence = row.state==='pending' && canVerify ? (await write.bankEvidence(actor.companyId,row.bank_account,row.currency)).filter(bank=>bank.external_id===row.reference && Number(bank.amount_minor)===Number(row.amount_minor)) : [];
+            const {bank_account:_bank,...evidence}=row; void _bank;
+            return {...evidence,bankEvidence,canVerify,reasonDisabled:!hasPermission(actor,'finance.approve')?'The selected assignment requires finance.approve.':samePerson(actor,row.recorded_by)?'A different person must verify this transfer.':null};
+        }));
         return { hotels: hotels.map(hotel => {
                 const line = gl.find(row => row.id === hotel.id);
                 const ledger = { receivable: Number(line?.receivable ?? 0), advance: Number(line?.advance ?? 0), deposit: Number(line?.deposit ?? 0), received: Number(line?.received ?? 0) };
@@ -118,7 +129,7 @@ export function createPmsFinancialOverview(ports: {
                 return { ...hotel, ledger, differences: { receivable: (hotel.receivable ?? 0) - ledger.receivable, advance: (hotel.advance ?? 0) - ledger.advance, deposit: (hotel.deposit ?? 0) - ledger.deposit },
                     online, onlineLedger, onlineDifferences: { refundPayable: online.refundPayable - onlineLedger.refundPayable, unallocated: online.unallocated - onlineLedger.unallocated },
                     unbalanced: Number(line?.debit ?? 0) - Number(line?.credit ?? 0), pendingTransfers: reviews.filter(row => row.property_id === hotel.id && row.state === "pending").length };
-            }), reviews, exceptions, documents, updatedAt: ports.clock.now() };
+            }), reviews: reviewedTransfers, exceptions, documents, updatedAt: ports.clock.now() };
     }
     return { pmsFinanceOverview };
 }

@@ -2,7 +2,7 @@ import {peoplePayrollFinalOwnerProjections as organizationFinalOwnerProjections}
 const organizationFinalSources=organizationFinalOwnerProjections();
 import {peoplePayrollFinalOwnerProjections as identityaccessFinalOwnerProjections} from "../../identity_access/public/people-payroll-final-owner-projections";
 const identityaccessFinalSources=identityaccessFinalOwnerProjections();
-import type { ClearanceKind } from "@/lib/retirement";
+import type { ClearanceKind } from "@/lib/people_payroll/retirement";
 import "server-only";
 import type { SqlDatabase } from "../../runtime/public/runtime/types";
 const inList = (expression: string) => `${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`;

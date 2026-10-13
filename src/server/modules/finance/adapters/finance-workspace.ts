@@ -1,6 +1,6 @@
 import "server-only";
 
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { ApiError } from "@/server/modules/runtime/public/http";
 import { requirePermission } from "@/server/modules/identity_access/public/iam-permissions";

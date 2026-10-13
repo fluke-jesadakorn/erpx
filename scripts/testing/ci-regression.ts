@@ -64,7 +64,7 @@ if (mode === "aggregate") {
   }
   if (mode === "native") {
     const receipt: NativeCiReceipt = { version: 1, kind: "native", candidate, runtimeFingerprint, verificationFingerprint, passed: false, phases: [], cases: [] };
-    const commands: Record<typeof requiredNativePhases[number], string[]> = { architecture: ["scripts/architecture/acceptance.ts"], unit: ["scripts/local/test.ts", "unit"], integration: ["scripts/local/test.ts", "integration"], lint: ["run", "lint"], typecheck: ["run", "typecheck"], "isolated-release": ["run", "deploy:build"] };
+    const commands: Record<typeof requiredNativePhases[number], string[]> = { architecture: ["scripts/architecture/acceptance.ts"], unit: ["scripts/testing/test.ts", "unit"], integration: ["scripts/testing/test.ts", "integration"], lint: ["run", "lint"], typecheck: ["run", "typecheck"], "isolated-release": ["run", "deploy:build"] };
     try {
       for (const phase of requiredNativePhases) {
         const native = phase === "unit" || phase === "integration", caseReceipt = join(directory, `${phase}-cases.json`);

@@ -1,0 +1,756 @@
+{
+  "checkedAt": "2026-10-11T04:11:20.754540+00:00",
+  "candidate": {
+    "runtime": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+    "verification": "da3577cbc0866b9770ad0279a6a5b54fe7f71120501f1846d6d2cea38c2b43f5",
+    "mainRuntime": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+    "mainVerification": "da3577cbc0866b9770ad0279a6a5b54fe7f71120501f1846d6d2cea38c2b43f5",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T03-48-34-786Z",
+    "releaseId": "2026-10-11T03-48-34-786Z"
+  },
+  "scope": "Fresh frozen candidate complete native1342 + focused47security + static/build. Original browser178/routes38, supplemental40 and strict capacity remain live or pending.",
+  "wholePlanAccepted": false,
+  "native": {
+    "unitPassed": 781,
+    "integrationPassed": 561,
+    "totalPassed": 1342,
+    "passingFiles": 133,
+    "fileCounts": [
+      {
+        "file": "tests/unit/test-selection.test.ts",
+        "passed": 65,
+        "sourceSHA256": "a70a7b62703261ca12641dbc2f97b855ba7c5bf4671bd75779f39e0a482e2648"
+      },
+      {
+        "file": "tests/unit/browser-readiness.test.ts",
+        "passed": 5,
+        "sourceSHA256": "97719cefadf569804241dba00854a797247172c5e896c4d3cd1fca1a59825f41"
+      },
+      {
+        "file": "tests/unit/architecture-relocation.test.ts",
+        "passed": 2,
+        "sourceSHA256": "e4d1e5d49521d71e5c73068ca13deeab0644f6295f0f4b4711c12a6921f4119a"
+      },
+      {
+        "file": "tests/unit/architecture-boundaries.test.ts",
+        "passed": 30,
+        "sourceSHA256": "3148c1d3e26a118666603a1599729c6efaa218214c557b020e338748ea1e2cdc"
+      },
+      {
+        "file": "tests/inbox-source-coverage.test.ts",
+        "passed": 1,
+        "sourceSHA256": "f8ed60fa8206e63335a25a25e548c52b543aea0c4fe99d2da516501eae868cfe"
+      },
+      {
+        "file": "tests/feature-widget-registry.test.ts",
+        "passed": 2,
+        "sourceSHA256": "383def8cf7ead524fe6a4abfb8ae893a86fbd92193bda6da0742694e586dae04"
+      },
+      {
+        "file": "tests/unit/pms-provider-fixture.test.ts",
+        "passed": 7,
+        "sourceSHA256": "b632167d1138e8bcd1c4f99be170bf3ec1625f5233e71f266b0f2d36210582ce"
+      },
+      {
+        "file": "tests/local-file-streams.test.ts",
+        "passed": 2,
+        "sourceSHA256": "fd47447a3e87873f7ccedbaea7e0a33609e4a70b744acafefbfa38b9f7c963bb"
+      },
+      {
+        "file": "tests/unit/ci-regression.test.ts",
+        "passed": 18,
+        "sourceSHA256": "3a62860e8d4b60d3a4df1e8cd6bb6d8cf718f637072438a18b4bd595b4cc2dcf"
+      },
+      {
+        "file": "tests/unit/browser-execution-plan.test.ts",
+        "passed": 5,
+        "sourceSHA256": "5feefb55962787f854bf0628ddd126a621a4dcea14be28d76c3454a3b0f05d15"
+      },
+      {
+        "file": "tests/business-time.test.ts",
+        "passed": 3,
+        "sourceSHA256": "50a778bf800bfa4b22e242102b7c000abd73beeea26959a2afe96c3ba069963c"
+      },
+      {
+        "file": "tests/workplace-navigation.test.ts",
+        "passed": 62,
+        "sourceSHA256": "935f3f37f53c78ad18af8beedfc0327e511b4fcbd3ea5ad07adc5e2ebe166827"
+      },
+      {
+        "file": "tests/engineering-gate-evidence.test.ts",
+        "passed": 4,
+        "sourceSHA256": "e7b5bf753c4329a7058e4c9534c27d558430eee01b494215ac855b5b21b6648d"
+      },
+      {
+        "file": "tests/native-proxy.test.ts",
+        "passed": 10,
+        "sourceSHA256": "d04a26f6044782337ee4b7921668e369de174e7cab7c10032b054fdc8985a24a"
+      },
+      {
+        "file": "tests/unit/investor-report.test.ts",
+        "passed": 4,
+        "sourceSHA256": "9e1f1ca50240b095a0a0be4c5328af5d273a97288359db09719bcae73322f040"
+      },
+      {
+        "file": "tests/unit/pms-application.test.ts",
+        "passed": 58,
+        "sourceSHA256": "3594661ac9c39b6edac062f747f3489974f232f1c8b1cb906b218610de2d1269"
+      },
+      {
+        "file": "tests/unit/guest-account-compat.test.ts",
+        "passed": 4,
+        "sourceSHA256": "1432bc09fdd09c0a9a3d40ef22b8943ff9a8591f0e578dc9151a52dc9b5d9497"
+      },
+      {
+        "file": "tests/unit/runtime-connection-services.test.ts",
+        "passed": 13,
+        "sourceSHA256": "47c5b0981374ffa6f5ea3926408771361e4654d479a4b23428742ab028545f36"
+      },
+      {
+        "file": "tests/unit/home-cache.test.ts",
+        "passed": 7,
+        "sourceSHA256": "0ae3b987dbe2ce220096bbf6ace45f940ab7e1ea19798c3cb738c1bfa005370f"
+      },
+      {
+        "file": "tests/capability-delivery.test.ts",
+        "passed": 4,
+        "sourceSHA256": "f9d8246e1c5ce8acb50640a399f556ef0dac34bc4b31cd0448c25fb958a23183"
+      },
+      {
+        "file": "tests/unit/navigation-streaming.test.ts",
+        "passed": 2,
+        "sourceSHA256": "fb545f360bbd41f8597caf095cdad72a68c1e0e04e7e90afd107b95ca12e4c7c"
+      },
+      {
+        "file": "tests/unit/browser-prerequisites.test.ts",
+        "passed": 19,
+        "sourceSHA256": "abe17c546864672e29c462c79c11d61f27d8963619aaf1886df4694c0b9d2ed9"
+      },
+      {
+        "file": "tests/calendar-timeline.test.ts",
+        "passed": 5,
+        "sourceSHA256": "e01315597cd13b528c07f74f518c1d1d6ba522178eca359e6a2e6e05ce85b083"
+      },
+      {
+        "file": "tests/engineering-inventory-report.test.ts",
+        "passed": 8,
+        "sourceSHA256": "f12ad0c607906e549dda2a54700e9fa53cff99a4b1a905d57dba12174f39ca58"
+      },
+      {
+        "file": "tests/unit/files-application.test.ts",
+        "passed": 31,
+        "sourceSHA256": "c7b2c96b88173515cf7f0fb0442c7a9befdc7ca08f4ccd3607a99c24162ae451"
+      },
+      {
+        "file": "tests/work-fetch.test.ts",
+        "passed": 28,
+        "sourceSHA256": "ae94e2e203b5a536ce1aacd6435cd78a8739279b3ba82dbb604fb09fec8ca35d"
+      },
+      {
+        "file": "tests/unit/work-services.test.ts",
+        "passed": 13,
+        "sourceSHA256": "ef4ab8b6685fdf1aa1ce2ff9dc8969021422fb8a6774e3aa338dffd96f18ff6c"
+      },
+      {
+        "file": "tests/unit/work-calendar-services.test.ts",
+        "passed": 8,
+        "sourceSHA256": "38b293d5f84a8bd95f5f8acd9ee91ae4ab386d1f6032328eef9e8fdef62cda5a"
+      },
+      {
+        "file": "tests/attachment-ops-health.test.ts",
+        "passed": 6,
+        "sourceSHA256": "13a64510b43c823dd5c762b4afcadd7dec9b4365e7eefd13e74be63258be4d03"
+      },
+      {
+        "file": "tests/work-refresh.test.ts",
+        "passed": 3,
+        "sourceSHA256": "6637111a036621a0eedcfb85f4b8ab0ff70532aa508a5e59aa8309e733916705"
+      },
+      {
+        "file": "tests/calendar-recurrence.test.ts",
+        "passed": 2,
+        "sourceSHA256": "8a492f0e7913a23de11e444cf6d775fa5c9d5e8b74a2bcdfdcf7a9c3d79f50d3"
+      },
+      {
+        "file": "tests/unit/work-shortcut-readiness.test.ts",
+        "passed": 11,
+        "sourceSHA256": "b659a5caa915e5fcd061ab72c40a12adbcbea3264c2aeddd62245be084a2fec2"
+      },
+      {
+        "file": "tests/ui-format.test.ts",
+        "passed": 5,
+        "sourceSHA256": "6ae0d70f99bd113d382d30a2301adc70eed4394f7d9519b6be171fec976f734a"
+      },
+      {
+        "file": "tests/attachment-withdraw-route.test.ts",
+        "passed": 1,
+        "sourceSHA256": "45a85b190368877a4a42764847e2cb10f789794e311e144530078ee934ea3e26"
+      },
+      {
+        "file": "tests/unit/work-shortcut-focus.test.ts",
+        "passed": 6,
+        "sourceSHA256": "18742dd6022eceb572ec6824c79667f2461f2266d33a602486297ac998128fd5"
+      },
+      {
+        "file": "tests/attachment-client.test.ts",
+        "passed": 5,
+        "sourceSHA256": "bfaaf9012f3408fab514307af46e9fbf3371894b8116a498b15a8c7c18becd8d"
+      },
+      {
+        "file": "tests/routine-calendar.test.ts",
+        "passed": 3,
+        "sourceSHA256": "cab63cbf0ac0fdca0ea48bf91b2a51a83627213d129e23a6ce3c5aa04ee37282"
+      },
+      {
+        "file": "tests/request-draft-create.test.ts",
+        "passed": 2,
+        "sourceSHA256": "9b4a9daeb6669f80b050f42e06a1a8d1bffb4b293c79db0f2627eec3802bad99"
+      },
+      {
+        "file": "tests/unit/work-ui-services.test.ts",
+        "passed": 30,
+        "sourceSHA256": "2ee09d29fda6edf53f88a548a99b63414255fcafce770ac8875d883335c683fb"
+      },
+      {
+        "file": "tests/unit/simulation-email.test.ts",
+        "passed": 3,
+        "sourceSHA256": "d88aa6a4bdde16018c314b370709849caccec39fdad3b2ea6f6cddff31d8975e"
+      },
+      {
+        "file": "tests/work-cards.test.ts",
+        "passed": 10,
+        "sourceSHA256": "f6a750478b32cfe0034d1ddfde0f0495c869230fa487d1c6d49c85c519459e02"
+      },
+      {
+        "file": "tests/unit/next-development-debug.test.ts",
+        "passed": 15,
+        "sourceSHA256": "4d540896005aff9c69754410f7c86e9e70192ed6eae58bd1c5a17582f300b40a"
+      },
+      {
+        "file": "tests/unit/home-lazy-loading.test.ts",
+        "passed": 2,
+        "sourceSHA256": "c0d32b11a2a0f69ad4e30defaad97be4bc46ae0b997374f26955b050df6a92ae"
+      },
+      {
+        "file": "tests/unit/record-services.test.ts",
+        "passed": 26,
+        "sourceSHA256": "43f9d4f88a1a16deee1c7960ea5f23aca5dd71fda1c88125e641f157020c9a27"
+      },
+      {
+        "file": "tests/unit/workflow-services.test.ts",
+        "passed": 38,
+        "sourceSHA256": "1c9878a79244c3e211e2f4feaf4d17732f81c5a4dc6d163d1b4bbd553c431d58"
+      },
+      {
+        "file": "tests/engineering-performance.test.ts",
+        "passed": 3,
+        "sourceSHA256": "2701a11f3ae472f55eb86c70c281f0b3950a3ca2bb8c8f6365af1ad8ddb63ad3"
+      },
+      {
+        "file": "tests/attachment-reconciliation-adjudication.test.ts",
+        "passed": 4,
+        "sourceSHA256": "044865a7f4dcbe460ad50171c952b342b1936256b63bb37889827b4991f5d12d"
+      },
+      {
+        "file": "tests/unit/operations-services.test.ts",
+        "passed": 18,
+        "sourceSHA256": "9ef56efe14db0999126a6e213f3cbfb6489888010850cf9eba80cf325d79bc1d"
+      },
+      {
+        "file": "tests/acceptance-evidence.test.ts",
+        "passed": 4,
+        "sourceSHA256": "5c75eda8424bc070e0a96534c5fc8bfa4cecaad3e5e1514a457c726c95ce4ab7"
+      },
+      {
+        "file": "tests/work-sources.test.ts",
+        "passed": 5,
+        "sourceSHA256": "1be33c59a45083f1e3f909b9ac8e3737bed40b05c6c1585beee88620dc9926df"
+      },
+      {
+        "file": "tests/unit/navigation-snapshot.test.ts",
+        "passed": 5,
+        "sourceSHA256": "8e0139e0a97dfc5e7efe2868e25055e0b03265b7370795e64eef8ce6b4df859a"
+      },
+      {
+        "file": "tests/capability-gate-reviews.test.ts",
+        "passed": 1,
+        "sourceSHA256": "290a5d37623c722fda5e7df6294f424dbb0927cca442c9b126e0d99461531914"
+      },
+      {
+        "file": "tests/attachment-feature-context.test.tsx",
+        "passed": 9,
+        "sourceSHA256": "56a573a9148d35e706619dce79ee3e10fa18e7dfa8da0c617830a2d4f5261005"
+      },
+      {
+        "file": "tests/work-page.test.ts",
+        "passed": 5,
+        "sourceSHA256": "53b275aaf369c1572e5b3913bdffd8092cd6cd1a81c0071eedde6414a536be20"
+      },
+      {
+        "file": "tests/hospitality-grid.test.ts",
+        "passed": 4,
+        "sourceSHA256": "81b758baf7aae31010b21351ebe1d5d2918a3cc952d3278b7eb35e0081378f74"
+      },
+      {
+        "file": "tests/page-error.test.ts",
+        "passed": 22,
+        "sourceSHA256": "58e52ea3c650935884ec116182f9d07f29e9fe15809823f09139d2e86ee4bdb5"
+      },
+      {
+        "file": "tests/ui-registry.test.ts",
+        "passed": 8,
+        "sourceSHA256": "c053623f27b74c8bdd07b0668b11d96c15f05a2a2149b701ddf9a747cc9f2f54"
+      },
+      {
+        "file": "tests/work-views.test.ts",
+        "passed": 6,
+        "sourceSHA256": "6799a4c015476e5855b2fb8c84634cff4ea0349ec4258e8c8f8eff584852cde9"
+      },
+      {
+        "file": "tests/engineering-completion.test.ts",
+        "passed": 6,
+        "sourceSHA256": "7d0f1e55bff31be2391862c138e12129e130f61ada15e81c2fee8f098156eb10"
+      },
+      {
+        "file": "tests/unit/presentation-owner-queries.test.ts",
+        "passed": 10,
+        "sourceSHA256": "53c69d0456dcb5e90ca3debcbf276eb503048c828ad2b80ff78e84cfb18065a0"
+      },
+      {
+        "file": "tests/attachment-gate-contract.test.ts",
+        "passed": 5,
+        "sourceSHA256": "70aeb49d76746353ff9babbae32732c211a474b39076eed24fb97fa622c0ef85"
+      },
+      {
+        "file": "tests/unit/case-screenshot.test.ts",
+        "passed": 7,
+        "sourceSHA256": "90a34418c1a4e76410c8556d687e566d92afcac26ddf0f7497f1b1a4d6b5c118"
+      },
+      {
+        "file": "tests/workplace-catalogue.test.ts",
+        "passed": 3,
+        "sourceSHA256": "01e0479711c46672edecb2c35395ff78432290bb064675d21a00204b99c782c8"
+      },
+      {
+        "file": "tests/unit/browser-results.test.ts",
+        "passed": 8,
+        "sourceSHA256": "d46a1b7da999832bc0d4c9776578c3f2cc2f0f273b6f1dfa9619efaefd4429a4"
+      },
+      {
+        "file": "tests/unit/browser-isolation-receipts.test.ts",
+        "passed": 7,
+        "sourceSHA256": "30fa805e6107dfe0e5af451c890e3eb98aeb4806a5d3ace468289d7176bd8e4c"
+      },
+      {
+        "file": "tests/simulation-only-adapters.test.ts",
+        "passed": 4,
+        "sourceSHA256": "ccf8df3a1de0029870045a99ec14ff39541a313047eef499d9f949eb567eae8b"
+      },
+      {
+        "file": "tests/work-attention.test.ts",
+        "passed": 6,
+        "sourceSHA256": "4b8e80bb7b4c31e0ae338c169bcc81bb00ebf15e0012771603a253021202609a"
+      },
+      {
+        "file": "tests/unit/database-pool-policy.test.ts",
+        "passed": 9,
+        "sourceSHA256": "72635dafdff90ea61595b5c1a2aa7bffea2e01fd9292793e6f3b06ec57e9800b"
+      },
+      {
+        "file": "tests/general-company-demo.test.ts",
+        "passed": 1,
+        "sourceSHA256": "5fe01976c839a880e4918f51ed5ee12224bcaddd06b76ffa2878470a2ab858ca"
+      },
+      {
+        "file": "tests/unit/request-memo.test.ts",
+        "passed": 6,
+        "sourceSHA256": "927bfbb233b9fed063c61d83be350b75b838f99d7ebf564c18f0bb305c5eb00e"
+      },
+      {
+        "file": "tests/record-drawer-routing.test.ts",
+        "passed": 5,
+        "sourceSHA256": "62d99e3eff8cd40ab441c25de0a2ab3f58318a614cf9bfeffa31fd019efaf9d3"
+      },
+      {
+        "file": "tests/unit/architecture-transaction.test.ts",
+        "passed": 2,
+        "sourceSHA256": "cc96402ecb09d85d7ccb2d10df49478a397eb8faba3b2769b2fc8954d902ad37"
+      },
+      {
+        "file": "tests/workspace.test.ts",
+        "passed": 5,
+        "sourceSHA256": "ee30f09b1143489c852fe4c123b1575c17d048024ec367c485e6de087742190b"
+      },
+      {
+        "file": "tests/hospitality-page-cut.test.ts",
+        "passed": 2,
+        "sourceSHA256": "a79cc5f5b7cf40f1b94c77d8396e1b20f8944b701cc7a9927ceb5752f27d41e5"
+      },
+      {
+        "file": "tests/local-shortcuts.test.ts",
+        "passed": 4,
+        "sourceSHA256": "3863e8686afc1598449320b1a7fadd4a8a0f8c801233873fd4beea7b4ddf9d35"
+      },
+      {
+        "file": "tests/attachment-state.test.ts",
+        "passed": 8,
+        "sourceSHA256": "3e3d196ee4ea70af303e969bf2806f38499a8be3c55140e5391e5d52c9c86e4b"
+      },
+      {
+        "file": "tests/work-decision-kind.test.ts",
+        "passed": 1,
+        "sourceSHA256": "d1d352a0424d2efa1ccffdf026937d735023d2e44ee37348669e7d10196baf38"
+      },
+      {
+        "file": "tests/pms-read-model.test.ts",
+        "passed": 18,
+        "sourceSHA256": "2b8fb57799f7e19d94a96d325ed8ea218b05dc059b7480b5f8aafdc07431bdf7"
+      },
+      {
+        "file": "tests/engineering-recovery.test.ts",
+        "passed": 1,
+        "sourceSHA256": "8214881129023aa06e055ba3433cc0b48dfd95ea62dfc9bc94cfd7d798864ec8"
+      },
+      {
+        "file": "tests/pms.test.ts",
+        "passed": 84,
+        "sourceSHA256": "6bb3c9116da6f8ccc60bc6f89f6d5158e91cedca1c41f1a334439577194dc5f6"
+      },
+      {
+        "file": "tests/engineering-service-hospitality-attachments.test.ts",
+        "passed": 30,
+        "sourceSHA256": "6dd59157e13eff6dd21eea4e1c5a249b58986e841fae71b22989817e19060392"
+      },
+      {
+        "file": "tests/work-cache.test.ts",
+        "passed": 27,
+        "sourceSHA256": "5dad0bbfeeba71031179a499c7a78d8eaf58dbee4acce48ed1bdc5555d5d7ae3"
+      },
+      {
+        "file": "tests/file-orphan-preservation.test.ts",
+        "passed": 3,
+        "sourceSHA256": "16f2f06f66ad2204dfd8db8b6a23a70c7274e4bc87c56cbf341cd28ea8685a0c"
+      },
+      {
+        "file": "tests/executive-canvas.test.ts",
+        "passed": 68,
+        "sourceSHA256": "1c76c50caba3c51c1b45843b5d3d23a1d8cd1b4470047193c204664c0df3c77d"
+      },
+      {
+        "file": "tests/flow-routing.test.ts",
+        "passed": 15,
+        "sourceSHA256": "e9c4befcf7173ca84bedaa278e980579c163ec4ad6773fe6168828ad4b96a121"
+      },
+      {
+        "file": "tests/pms-booking.test.ts",
+        "passed": 37,
+        "sourceSHA256": "93e5655ae746cf341f14ed0eb99a731caee6c2aef0c21dd0196b70e1d2ea90d2"
+      },
+      {
+        "file": "tests/engineering-migration-upgrade.test.ts",
+        "passed": 1,
+        "sourceSHA256": "c9993f5b4616c2e905b9b24f204384b9bc51264afa04fa78b71402cb5c3bc3d7"
+      },
+      {
+        "file": "tests/attachments-v2.test.ts",
+        "passed": 29,
+        "sourceSHA256": "2e89374177d0f93018b67bc0e4fd45ca76346824b28a778325aa0848795b5e48"
+      },
+      {
+        "file": "tests/routing-attention.test.ts",
+        "passed": 3,
+        "sourceSHA256": "f8bfb4c7cff84d8c34ff5d046e044e44e2d6a7415664f94ed3372ae1450c3353"
+      },
+      {
+        "file": "tests/command-receipts-partitions.test.ts",
+        "passed": 3,
+        "sourceSHA256": "33f409b2caaac782366b7f7e6ed4a84579179f032e186af64525cf7526318d01"
+      },
+      {
+        "file": "tests/command-receipts-upgrade.test.ts",
+        "passed": 2,
+        "sourceSHA256": "e472f6a561f4d0a4d7e284706638b5010ddb5301d7b4f085f6048436eac6609c"
+      },
+      {
+        "file": "tests/spending-approvals.test.ts",
+        "passed": 14,
+        "sourceSHA256": "146c9111c4a1fa867f61082f4bbe4c69673b9624c8f01505aeafd020560a365c"
+      },
+      {
+        "file": "tests/engineering-verification.test.ts",
+        "passed": 11,
+        "sourceSHA256": "687de55974b0f45780d2cafa071dead2e3580d406b39ca9dcae74554b084c3d5"
+      },
+      {
+        "file": "tests/release-acceptance.test.ts",
+        "passed": 7,
+        "sourceSHA256": "0bf442bf632c58066bf051aedecde9adb17922fd280bc5846e84f84cded55704"
+      },
+      {
+        "file": "tests/navigation-counts.test.ts",
+        "passed": 2,
+        "sourceSHA256": "25ed6cd1dfbe9c80104613c8cc8b2d8ec9c030af629144834cfac37d4f240341"
+      },
+      {
+        "file": "tests/work-review.test.ts",
+        "passed": 6,
+        "sourceSHA256": "75a698c88f0e80c486e89a72cf8098075590495a6a6aef493f39e039ad260590"
+      },
+      {
+        "file": "tests/request-experience.test.ts",
+        "passed": 4,
+        "sourceSHA256": "edc5ba04790e45ea9a2b41782794ad417ff301cc8699318bf2bc405ea1f95d4c"
+      },
+      {
+        "file": "tests/executive-mcp.test.ts",
+        "passed": 16,
+        "sourceSHA256": "9d13387c982b530e83e8e603e40a179f174538def265db377b091413e819d1ae"
+      },
+      {
+        "file": "tests/request-ai.test.ts",
+        "passed": 9,
+        "sourceSHA256": "53be77d421d732cfc368ce88ed62f946de3c1f7f6d8401d49e11dbf1badf4b6d"
+      },
+      {
+        "file": "tests/native-runtime.test.ts",
+        "passed": 7,
+        "sourceSHA256": "081b7ae6a1792767b5fe180b9e667c900e4dff3416dd317f649168ff28989642"
+      },
+      {
+        "file": "tests/work-card-preferences.test.ts",
+        "passed": 8,
+        "sourceSHA256": "03499374ccc74d6e06758aa31ed7aca83d795e65bd94142a08bd2853f55b00aa"
+      },
+      {
+        "file": "tests/guided-intake.test.ts",
+        "passed": 9,
+        "sourceSHA256": "67e25234a82b4e5a4a5c378493153649cddce5a1491a8c334b29a65cf17d01d1"
+      },
+      {
+        "file": "tests/record-details.test.ts",
+        "passed": 6,
+        "sourceSHA256": "c6ac5976881ae9bec5427336badb5cd73ee2ada6e080ab11b08dd16a7e658ce7"
+      },
+      {
+        "file": "tests/page-layouts.test.ts",
+        "passed": 13,
+        "sourceSHA256": "6cd4d3ad69d87abdd0653a7d24f58b8ae4a4876c01440b6929c7d3891f03003d"
+      },
+      {
+        "file": "tests/command-assertions-upgrade.test.ts",
+        "passed": 1,
+        "sourceSHA256": "e163ef49487e41ccd5f2c0f7b6bdebc7d04ada653aab9e0db41f6ec67f9b00ab"
+      },
+      {
+        "file": "tests/inbox.test.ts",
+        "passed": 5,
+        "sourceSHA256": "133d1eb6f7a55a59f85aae66df026c50a9cf894adf592af475924115ea5b2209"
+      },
+      {
+        "file": "tests/calendar.test.ts",
+        "passed": 22,
+        "sourceSHA256": "24b9b7ea49bb1c04331383a87db3c94fadc9405b9d2397d1818a038a9d1323e5"
+      },
+      {
+        "file": "tests/business-readiness.test.ts",
+        "passed": 2,
+        "sourceSHA256": "cf9ad412cceb8733dc7c70872d72943a1e67130a8ae41b421e1c125a879d9cd9"
+      },
+      {
+        "file": "tests/business-commands.test.ts",
+        "passed": 4,
+        "sourceSHA256": "351148781fbc247fcd72717ac8c9d79b77a07e147065d6c2566429bffad88465"
+      },
+      {
+        "file": "tests/work-read-model.test.ts",
+        "passed": 1,
+        "sourceSHA256": "0c47fe4448318e4bb4a92aa22573bc4ebac83089df05ae4870305d3f741722f3"
+      },
+      {
+        "file": "tests/pms-reports.test.ts",
+        "passed": 6,
+        "sourceSHA256": "038679c10c1e8e20a29e0dc73147e921f3b60570ecb34069c2cd9ef2a9309ce7"
+      },
+      {
+        "file": "tests/daily-plan.test.ts",
+        "passed": 4,
+        "sourceSHA256": "8ef29f025c266f2f59a2121b86c7eb153dc2cc1e143cd8cd48432457d427b105"
+      },
+      {
+        "file": "tests/engineering-platform-access.test.ts",
+        "passed": 4,
+        "sourceSHA256": "5a1c4473b8e291a2aa4acb71a5a693993761cbc6108b5392ebfde07cb49397f5"
+      },
+      {
+        "file": "tests/attachment-crm-atomic-guard.test.ts",
+        "passed": 5,
+        "sourceSHA256": "0c674cdf1a0a1cb7a0437de2e0e1c6f977886e362e3b68d6783579a24268e9f9"
+      },
+      {
+        "file": "tests/calendar-api.test.ts",
+        "passed": 1,
+        "sourceSHA256": "7abc18d1661c89f0929d2fababdbb5bf950e917901e709d192cdad95fc415357"
+      },
+      {
+        "file": "tests/web-push.test.ts",
+        "passed": 13,
+        "sourceSHA256": "1a02b540312f9de5da584e4c6170e6edbf8ac1cb9bf880d59e8412f4dbf364f4"
+      },
+      {
+        "file": "tests/command-assertions.test.ts",
+        "passed": 7,
+        "sourceSHA256": "a4072a0d77633efada2262d151f797df933aef0181e16f29cdc741d6e2aa67b2"
+      },
+      {
+        "file": "tests/specialized-attachment-adapters.test.ts",
+        "passed": 4,
+        "sourceSHA256": "a94ed4c571f8e5c9ac0547478f08efae7c565d0221570a96cbba1bbf63ee93a1"
+      },
+      {
+        "file": "tests/indexed-property-transactions.test.ts",
+        "passed": 2,
+        "sourceSHA256": "913756edfb141e349fc822780db37f02dda0e122decdc3e944ef28440dc91dc2"
+      },
+      {
+        "file": "tests/sensitive-attachment-access.test.ts",
+        "passed": 5,
+        "sourceSHA256": "0897f5bf8c89edf66994e08b2492fcb871e3af8a5852a3a32a6fc02046102b43"
+      },
+      {
+        "file": "tests/scoped-browser-staff.test.ts",
+        "passed": 2,
+        "sourceSHA256": "5612446a6b49281360b184e1774d1eff010b85c7184f382744b1c3f841024f36"
+      },
+      {
+        "file": "tests/engineering-stock-continuity.test.ts",
+        "passed": 1,
+        "sourceSHA256": "299a0aeb759a5b9d6cba1c406e152950bb1287fe2d88980d9b47c4d63eba2e3a"
+      },
+      {
+        "file": "tests/pms-cache-upgrade.test.ts",
+        "passed": 1,
+        "sourceSHA256": "e6061ccbdacabef4ec6dffc5e2ac555736d098dfe06340602d1eebe4c66d927b"
+      },
+      {
+        "file": "tests/pms-front-attachments.test.ts",
+        "passed": 2,
+        "sourceSHA256": "5df55aed2215b7297f69b1ae883e4ef23a3da1f422584e86037071f38c5f8302"
+      },
+      {
+        "file": "tests/command-composition.test.ts",
+        "passed": 3,
+        "sourceSHA256": "32a676446248792c063775ec7ab51a0c5f3cea8196591eb9499a5447b83270dd"
+      },
+      {
+        "file": "tests/attachment-formats.test.ts",
+        "passed": 8,
+        "sourceSHA256": "3b5bfa3ed21547b4f980fbf994b289e3726af926018d379e6a9135dfcfa489e8"
+      },
+      {
+        "file": "tests/read-metrics.test.ts",
+        "passed": 8,
+        "sourceSHA256": "2828145e8b76080378cae41cdd59b5f49a3f4df87f6cfac1f8aeccb26b12a12c"
+      },
+      {
+        "file": "tests/workflow-projection.test.ts",
+        "passed": 5,
+        "sourceSHA256": "34bfcb8ff11e0a7c99b61831e81b3fc2b9c1e5b08f0d19ef5666c08538e4854f"
+      },
+      {
+        "file": "tests/cloudflare-bindings.test.ts",
+        "passed": 2,
+        "sourceSHA256": "25d7ba914ba9ae3847dc1d17a048ece17b9355879833471f2f409dddb6cf33db"
+      },
+      {
+        "file": "tests/workspace-preferences.test.ts",
+        "passed": 1,
+        "sourceSHA256": "23c61d82b73effde7940d41febd6c1163b9850f0f4ca8fb0a6866a7f65706923"
+      },
+      {
+        "file": "tests/pipelined-transactions.test.ts",
+        "passed": 4,
+        "sourceSHA256": "038f523b529f332f468327a8d32d96c035ec786fa46323b4bd73a34e9536ba6a"
+      },
+      {
+        "file": "tests/list-page.test.ts",
+        "passed": 2,
+        "sourceSHA256": "fef511f8691757c1079b19bd788731bfabdd1bcdaf4af678afbb977fe6a0bd73"
+      },
+      {
+        "file": "tests/read-request.test.ts",
+        "passed": 3,
+        "sourceSHA256": "b8e3d971d3c0ae14265fd68ca81c61d9df92787fd58ddf12fe34a1e98e6a564d"
+      }
+    ]
+  },
+  "security": {
+    "passed": 47,
+    "files": 4
+  },
+  "static": {
+    "typecheck": "passed",
+    "lintErrors": 0,
+    "lintExistingWarnings": 3,
+    "architecture": "passed",
+    "guestAccountTerminology": "passed",
+    "documentation": "passed",
+    "releaseBuild": "passed"
+  },
+  "sourceAfterNative": {
+    "runtime": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+    "verification": "da3577cbc0866b9770ad0279a6a5b54fe7f71120501f1846d6d2cea38c2b43f5",
+    "mainRuntime": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+    "mainVerification": "da3577cbc0866b9770ad0279a6a5b54fe7f71120501f1846d6d2cea38c2b43f5"
+  },
+  "logs": [
+    {
+      "file": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/typecheck.log",
+      "sha256": "ae3aa3d40f2b7fdeaf8ae4398c41416876c85fc2ccc6aa232e526fdb75f340ef"
+    },
+    {
+      "file": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/lint.log",
+      "sha256": "0211741eacc108089202fadacf856c584e3bfc48d4ce33a4fa7a8b4d08de2a88"
+    },
+    {
+      "file": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/architecture.log",
+      "sha256": "61f27aa5d383438fa7955c201143725c76302dadbcb2c312efa2d398a9d6f86b"
+    },
+    {
+      "file": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/docs.log",
+      "sha256": "1cd616bf683e46b7b5627e3f1021a09ba555e93b25f6a81991a07193e25d12ca"
+    },
+    {
+      "file": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/build.log",
+      "sha256": "9319f4805bb4aaf9588ca30925c27339114f19559696b948961e49b89f48ec1d"
+    },
+    {
+      "file": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/native-full.log",
+      "sha256": "f52dac2a88b13b79921d68173ebabe1a0f2da9fbedabb3b18647bca710c95058"
+    },
+    {
+      "file": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/security.log",
+      "sha256": "e460ef27c4a274511ef5c15ad834fb9c4fabc4299f5144ebc6a9c3d469a1db12"
+    },
+    {
+      "file": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/source-before.log",
+      "sha256": "81e0666a2b5c783db6a6d2aa82a765704637e814b9f8751399be17cd09a59398"
+    },
+    {
+      "file": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/source-after-build.log",
+      "sha256": "81e0666a2b5c783db6a6d2aa82a765704637e814b9f8751399be17cd09a59398"
+    },
+    {
+      "file": ".scratch/dev/pms-final-acceptance-leaf-2026-10-11/source-after-native.log",
+      "sha256": "81e0666a2b5c783db6a6d2aa82a765704637e814b9f8751399be17cd09a59398"
+    }
+  ],
+  "supplementalCrmPrivacy": "docs/testing/evidence/2026-10-11-pms-leaf-crm-privacy.json",
+  "historicalEvidenceRetained": true,
+  "remaining": [
+    "Originalbrowser178/routes38 terminal+cleanup",
+    "Supplemental40 terminal+cleanup",
+    "Current7Stripe sandbox terminal+cleanup",
+    "Strict same-release840read843write capacity+cleanup",
+    "Final67features/19requirements reconciliation"
+  ]
+}

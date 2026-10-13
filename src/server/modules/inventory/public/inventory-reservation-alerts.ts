@@ -1,2 +1,2 @@
 /** Compatibility entry; its legacy implementation is tracked in ownership.json. */
-export { escalateInventoryReservations } from "../../../inventory-reservation-alerts";
+export { escalateInventoryReservations } from "@/server/modules/inventory/adapters/inventory-reservation-alerts";

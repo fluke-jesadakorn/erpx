@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { sourceRecordInput } from "@/server/modules/shared";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
-import type { WorkItem } from "@/lib/work-item";
-import { hasPermission } from "@/lib/permissions";
-import { samePerson } from "@/lib/iam";
+import type { WorkItem } from "@/lib/work_projection/work-item";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { samePerson } from "@/lib/identity_access/iam";
 import type { SupportRow as Row } from "./support-facts";
 import type { SupportClock } from "./support-clock";
 const reason = z.string().trim().min(3).max(4000), version = z.number().int().positive(), id = z.string().min(1);

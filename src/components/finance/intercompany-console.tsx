@@ -4,10 +4,10 @@ import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, Table, TableFrame, TextInput } from "@/components/ui/foundation";
 
-import { workFetch } from "@/lib/work-fetch";
+import { workFetch } from "@/lib/work_projection/work-fetch";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { minorToDecimal } from "@/lib/finance-money";
+import { minorToDecimal } from "@/lib/finance/finance-money";
 import { Card, FormLayout } from "@/components/ui/foundation";
 
 type Entity = {

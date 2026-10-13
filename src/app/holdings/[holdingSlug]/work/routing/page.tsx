@@ -1,9 +1,9 @@
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Button, Field, Select, Table } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { flowKinds } from "@/lib/flow";
+import { flowKinds } from "@/lib/shared/flow";
 import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
-import { workspaceBase } from "@/lib/workspace";
+import { workspaceBase } from "@/lib/work_projection/workspace";
 import { routingAttention } from "@/server/modules/workflow/public/routing-attention";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { PageContent, FormLayout, Card, TableFrame } from "@/components/ui/foundation";

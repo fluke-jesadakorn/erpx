@@ -41,8 +41,8 @@ if (process.argv.slice(2).includes("--list")) {
   }
   try {
     await phase("architecture", ["scripts/architecture/acceptance.ts"]);
-    await phase("unit", ["scripts/local/test.ts", "unit"]);
-    await phase("integration", ["scripts/local/test.ts", "integration"]);
+    await phase("unit", ["scripts/testing/test.ts", "unit"]);
+    await phase("integration", ["scripts/testing/test.ts", "integration"]);
     await phase("lint", ["run", "lint"]);
     await phase("typecheck", ["run", "typecheck"]);
     await phase("isolated-release", ["run", "deploy:build"]);

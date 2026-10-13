@@ -1,0 +1,46 @@
+{
+  "checkedAt": "2026-10-10T21:10:47.958443+00:00",
+  "scope": "Browser verification change only. No production runtime/source behavior changed. Full acceptance remains pending.",
+  "runtimeFingerprint": "61d02a05665bdec4bc25a5b25cb9af9b40140960da76ed51b0228f9a37652581",
+  "verificationFingerprint": "c33b74582a24bd068fa0c95b1a80098acdd9e5d5ab5837bde747bc46dab86084",
+  "retainedFailedRun": {
+    "receipt": ".scratch/dev/test-suites/browser/2026-10-10T21-07-57-663Z/receipt.json",
+    "sha256": "1332f7de2421c9d9a2ce353c21dc915d67ba750a47e22b102ce7229aaed7da1a",
+    "terminalExitCode": 1,
+    "passedCases": 0,
+    "cleanupFailures": [],
+    "case": "paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money",
+    "project": "desktop",
+    "failure": "Finance summary locator matched2elements: visibleworkspace summary and hiddenstreaming copy; strictmode refusedclick."
+  },
+  "change": {
+    "file": "tests/e2e/pms-booking-payment-recovery.spec.ts",
+    "sha256": "6c46ee97d615b1d36e224b924a20c4c44f5d194621f1bdf45f7e9732a6dd3d39",
+    "behavior": "Select exact summary in #workspace-content filteredvisible and assertcount1 beforeclick. No first/nth and no increasedtimeouts; originalfinancial/independentapproval/workerrestart assertions preserved."
+  },
+  "focusedVerification": {
+    "session": 86317,
+    "state": "passed",
+    "projects": [
+      "desktop",
+      "mobile"
+    ],
+    "compiledRelease": ".runtime/releases/2026-10-10T18-04-29-147Z",
+    "evidence": ".scratch/dev/test-suites/browser/2026-10-10T21-09-52-655Z",
+    "terminalExitCode": 0,
+    "passedCases": 2,
+    "cleanupFailures": [],
+    "receiptSha256": "ac4690ea6a00190bbc5a84e3739926b1497c03786c18e3c183a32adb7306671f",
+    "runtimeFingerprint": "61d02a05665bdec4bc25a5b25cb9af9b40140960da76ed51b0228f9a37652581",
+    "verificationFingerprint": "c33b74582a24bd068fa0c95b1a80098acdd9e5d5ab5837bde747bc46dab86084"
+  },
+  "eslint": {
+    "terminalExitCode": 0,
+    "file": "tests/e2e/pms-booking-payment-recovery.spec.ts"
+  },
+  "wholePlanAccepted": false,
+  "typecheck": {
+    "terminalExitCode": 0,
+    "log": ".scratch/dev/pms-final-visible-candidate/typecheck-after-recovery-selector.log"
+  }
+}

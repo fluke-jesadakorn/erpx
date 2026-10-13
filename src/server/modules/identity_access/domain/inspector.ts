@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { flowKinds, type FlowKind } from '@/lib/flow';
+import { flowKinds, type FlowKind } from "@/lib/shared/flow";
 export const recordPermissions: Record<FlowKind, readonly string[]> = {
     expense: [
         "self.requests",

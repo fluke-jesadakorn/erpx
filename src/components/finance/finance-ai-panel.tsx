@@ -9,14 +9,14 @@ import { RecordLink as Link } from "@/components/records/record-link";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, Sparkles } from "lucide-react";
-import { workFetch } from "@/lib/work-fetch";
+import { workFetch } from "@/lib/work_projection/work-fetch";
 import {
   financeAiDate,
   financeAiKinds,
   financeAiLabels,
   type FinanceAiKind,
   type FinanceAiResult,
-} from "@/lib/finance-ai";
+} from "@/lib/finance/finance-ai";
 import type { financeAiWorkspace } from "@/server/modules/finance/public/finance-ai";
 import styles from "./finance-workspace.module.css";
 

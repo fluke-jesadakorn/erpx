@@ -1,6 +1,6 @@
 # ERPX operations
 
-The current runtime is pinned Node.js 24.20.0 / Bun 1.2.17 / PostgreSQL 18.6, with private file-store adapters and PostgreSQL jobs behind Cloudflare Tunnel. [Runtime and private production](macos/README.md) owns service, backup, restore and release commands.
+The development and new-release toolchain is pinned Node.js 26.11.1 / Bun 1.4.3 / Next.js 16.4 / React 19.3 / PostgreSQL 18.6. The installed private production service remains on Node.js 24.20.0 until a reviewed release is deployed. [Runtime and private production](macos/README.md) owns service, backup, restore and release commands.
 
 - [Incident handling](runbooks/nextjs-incident.md), [recovery](runbooks/nextjs-recovery.md), [canonical attachment rollout](macos/attachment-rollout.md)
 - [Shared PostgreSQL topology](macos/postgres-consolidation.md), [Front applications](macos/front-apps.md)

@@ -1,4 +1,4 @@
-import type { RequestPreview } from "@/lib/request-preview";
+import type { RequestPreview } from "@/lib/work_projection/request-preview";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { ApprovalRoute } from "@/server/modules/operations/public/staff-policy";
 import { type Clock, type IdentifierSource } from '../../shared';

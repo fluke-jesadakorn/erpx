@@ -1,6 +1,6 @@
 import type { CalendarAccess } from "../../domain/calendar/access";
 import "server-only";
-import type { CalendarQuery } from "@/lib/calendar";
+import type { CalendarQuery } from "@/lib/work_projection/calendar";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { calendarLeavePeoplePayrollFacts } from "../../../people_payroll/public/calendar-leave-facts";
 import { createCalendarLeave, type CalendarLeaveUnit } from "../../application/calendar/leave";

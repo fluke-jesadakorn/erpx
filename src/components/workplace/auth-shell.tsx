@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import { ArrowUpRight, Check, Layers3 } from "lucide-react";
 import { cookies } from "next/headers";
 import { AppearanceSwitcher } from "@/components/brand/appearance-switcher";
-import { marketingOrigin } from "@/lib/erpx-hosts";
-import { appearancePreference } from "@/lib/appearance-preference";
+import { marketingOrigin } from "@/lib/runtime/erpx-hosts";
+import { appearancePreference } from "@/lib/shared/appearance-preference";
 import { ProductBrand } from "@/components/brand/product-brand";
 import styles from "./login.module.css";
 

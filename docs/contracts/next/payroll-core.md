@@ -1,6 +1,6 @@
 # Payroll core and controlled corrections
 
-Payroll is a Company-scoped, versioned workflow that snapshots approved compensation, approved time, overtime handoffs, released Benefits inputs and approved advance repayments. Gross-pay previews remain available with their explicit fixture label. A production-mode Thai run requires the recognized, independently activated `thai-payroll-v1` source-dated rule pack and an independently approved employee allowance, Section 33 eligibility and opening-YTD profile. Readiness checks the adapter and its retained evidence rather than blocking every production-mode run. [Primary source review](../../testing/thai-payroll-rules-2026-10-02.md) records the reviewed 2026 rules and explicit unsupported statutory categories.
+Payroll is a Company-scoped, versioned workflow that snapshots approved compensation, approved time, overtime handoffs, released Benefits inputs and approved advance repayments. Gross-pay previews remain available with their explicit fixture label. A production-mode Thai run requires the recognized, independently activated `thai-payroll-v1` source-dated rule pack and an independently approved employee allowance, Section 33 eligibility and opening-YTD profile. Readiness checks the adapter and its retained evidence rather than blocking every production-mode run. [Primary source review](../../research/thai-payroll-rules-2026-10-02.md) records the reviewed 2026 rules and explicit unsupported statutory categories.
 
 ## Corrections after posting and payment
 

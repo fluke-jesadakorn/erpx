@@ -5,7 +5,7 @@ import { requireWorkContext } from "@/server/modules/identity_access/public/auth
 import { holdingResources, runtimeEnv } from "@/server/modules/runtime/public/runtime";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
-import { filtersSchema, generateSchema, metricIds, shareSchema, sharePreviewSchema, transferOwnershipSchema } from "@/lib/executive/canvas";
+import { filtersSchema, generateSchema, metricIds, shareSchema, sharePreviewSchema, transferOwnershipSchema } from "@/lib/shared/executive/canvas";
 import { createReport, reportLibrary, reportView, reportData, reportAccess, saveReport, saveSchema, saveShare, revokeShare, recipients, restoreReport, recipientPreviewContexts, previewShare, ownershipCandidates, transferReportOwnership } from "@/server/modules/runtime/public/executive/reports";
 import { queueGeneration, generationHistory, cancelGeneration, drainExecutiveGeneration } from "@/server/modules/runtime/public/executive/generation";
 import { executiveAiContext } from "@/server/modules/runtime/public/executive/context";

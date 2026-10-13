@@ -1,5 +1,5 @@
-import { hasPermission } from "@/lib/permissions";
-import { type AccessPackageDefinition } from "@/lib/people-lifecycle";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { type AccessPackageDefinition } from "@/lib/people_payroll/people-lifecycle";
 import { z } from 'zod';
 import type { WorkContext } from '../../identity_access/public/authorization';
 import { BusinessRuleError } from '../../shared';

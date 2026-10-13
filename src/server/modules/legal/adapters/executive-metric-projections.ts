@@ -1,7 +1,7 @@
 import { readMetricSources } from '@/server/modules/runtime/public/executive/metric-sources';
 import { visibility as legalVisibility } from "@/server/modules/legal/public/legal/access";
 import "server-only";
-import { type Breakdown, type Filters, type MetricId } from "@/lib/executive/canvas";
+import { type Breakdown, type Filters, type MetricId } from "@/lib/shared/executive/canvas";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from '@/server/modules/runtime/public/runtime/types';
 import { specs } from '@/server/modules/runtime/public/executive/metric-projection-contract';

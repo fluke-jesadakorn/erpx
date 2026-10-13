@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ConnectionRow } from './directories';
-import type { DirectoryAction, DirectoryInventory, DirectoryChangeInput, DirectoryPreview } from '@/lib/directory-operations';
+import type { DirectoryAction, DirectoryInventory, DirectoryChangeInput, DirectoryPreview } from "@/lib/identity_access/directory-operations";
 export type State = {
     connection_id: string;
     company_id: string;

@@ -1,4 +1,4 @@
-import { lifecycleInput, type LifecycleInput } from '@/lib/people-lifecycle';
+import { lifecycleInput, type LifecycleInput } from "@/lib/people_payroll/people-lifecycle";
 import type { WorkContext } from '../../identity_access/public/authorization';
 import { BusinessRuleError } from '../../shared';
 import type { PayrollStatutoryCommands } from './payroll-statutory';

@@ -4,7 +4,7 @@ import type { WorkContext } from "@/server/modules/identity_access/public/author
 import { ApiError } from "@/server/modules/runtime/public/http";
 import { canCompleteClearance, canReadClearanceEvidence } from "@/server/modules/people_payroll/public/retirement-clearance";
 import type { SqlDatabase, SqlStatement } from "@/server/modules/runtime/public/runtime/types";
-import type { AttachmentOperation, AttachmentPolicy } from "@/server/attachments/types";
+import type { AttachmentOperation, AttachmentPolicy } from "@/server/modules/files/public/attachments/types";
 import { createSensitiveAttachmentPolicy, type SensitiveAttachmentUnit } from "../../application/attachments/sensitive-policy";
 import { SensitiveAttachmentPeoplePayrollFacts } from "../../../people_payroll/public/attachments-sensitive-facts";
 import { SensitiveAttachmentTalentFacts } from "../../../talent/public/attachments-sensitive-facts";

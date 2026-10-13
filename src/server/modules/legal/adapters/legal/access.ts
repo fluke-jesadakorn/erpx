@@ -6,7 +6,7 @@ import { requirePermission } from "@/server/modules/identity_access/public/iam-p
 import { ApiError } from "@/server/modules/runtime/public/http";
 import { assertion } from "@/server/modules/workflow/public/commands";
 import type { LegalItem, LegalKind } from "@/server/modules/legal/public/rules/model";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { productionFeatureGuard } from "@/server/modules/pms/public/hospitality-rollout";
 export const tables: Record<LegalKind, string> = {
   request: "legal_requests",

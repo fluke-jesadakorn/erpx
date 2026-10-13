@@ -1,7 +1,7 @@
 import {BusinessRuleError} from '../../shared';
 import type {EmployeeRequest} from '../../records/public/employee-requests';
 import type {approvalView} from '../../workflow/public/approvals';
-import type {WorkItem} from '@/lib/work-item';
+import type {WorkItem} from "@/lib/work_projection/work-item";
 import {departmentOverrideInput,savedRequestApproval,overtimeOverrideAction,type DepartmentOverrideKind,type DepartmentOverrideInput,type OvertimeOverrideAction} from '../domain/department-decisions';
 type Approval=Awaited<ReturnType<typeof approvalView>>;
 export interface DepartmentOverridePorts<Result>{request(id:string):Promise<EmployeeRequest|null>;canOverrideRequest(row:EmployeeRequest):Promise<boolean>;approverName(id:string):Promise<string|null>;approval(kind:Exclude<DepartmentOverrideKind,'request'>,id:string):Promise<Approval>;recordVersion(kind:Exclude<DepartmentOverrideKind,'request'>,id:string):Promise<number|null>;receiptOperation(key:string):Promise<string|null>;overtimeState(id:string):Promise<string|null>;decideRequest(input:DepartmentOverrideInput,key:string):Promise<Result>;decideExpense(input:DepartmentOverrideInput,key:string):Promise<Result>;decideLeave(input:DepartmentOverrideInput,key:string):Promise<Result>;decideOvertime(input:DepartmentOverrideInput,action:OvertimeOverrideAction,key:string):Promise<Result>;pending():Promise<{kind:Exclude<DepartmentOverrideKind,'request'>;id:string;updated_at:number}[]>;pendingRequests():Promise<EmployeeRequest[]>;}

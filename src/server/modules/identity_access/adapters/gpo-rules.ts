@@ -14,7 +14,7 @@ import {organizationGuard} from '../../organization/public/organization';
 import type {WorkContext} from '../public/authorization';
 import type {ProviderConnection} from '../public/iam-providers';
 
-import type {GpoRuleTarget,GpoRulesOverview} from '@/lib/gpo-rules';
+import type {GpoRuleTarget,GpoRulesOverview} from "@/lib/organization/gpo-rules";
 
 import {type GpoRuleRow,type EffectiveRuleRow} from '../domain/gpo-rules';
 import {BusinessRuleError} from '../../shared';

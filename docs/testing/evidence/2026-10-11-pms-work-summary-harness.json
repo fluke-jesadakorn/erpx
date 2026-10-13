@@ -1,0 +1,394 @@
+{
+  "checkedAt": "2026-10-11T02:49:05.740181+00:00",
+  "scope": "Focused original shared.work.work-cards.e2e case, desktop/mobile, normal authenticated original work-cards fixture, isolated development. No aggregate acceptance.",
+  "candidate": {
+    "runtime": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+    "verification": "fe3d09dd8543aaf2424b5181c9caea8c21a8ffe454ccc16ecf9d5a36361e37be",
+    "mainRuntime": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+    "mainVerification": "fe3d09dd8543aaf2424b5181c9caea8c21a8ffe454ccc16ecf9d5a36361e37be",
+    "releaseDirectory": null
+  },
+  "wholePlanAccepted": false,
+  "originalAggregate": {
+    "passed": false,
+    "passedCases": 145,
+    "failedCases": 1,
+    "receiptSHA256": "c6c9268b433ec3e688a52fa27919d2d6ed812aa7dcfaa03b47ba57fe5db75cfe",
+    "cleanupFailures": [],
+    "interrupted": null,
+    "retained": true,
+    "failedIdentities": [
+      {
+        "suite": "shared.work.work-cards.e2e",
+        "file": "work-cards.spec.ts",
+        "project": "mobile",
+        "title": "focus refresh updates preferences and incomplete summaries keep other work usable",
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      }
+    ]
+  },
+  "failureDiagnosis": "Async route.fetch inside interceptor finished after closing drawer cancelled intercepted request; route.fulfill then reported route already handled.",
+  "change": "Read normal authenticated upstream work summary before installing the immediate response interceptor; keep same partial summary flags and all original behavior assertions.",
+  "sourcePreservation": {
+    "checkedAt": "2026-10-11T02:23:17.543Z",
+    "scope": "Test harness only; all original literal case titles and expect/expect.poll calls preserved; one real-summary response status assertion added. No browser acceptance claimed.",
+    "beforeSHA256": "502de73f298b04c6e477f3b46c21d1c5747ae3d63358f56bce6a9de1816a7b35",
+    "afterSHA256": "73bc8ff667c3b6d32c77dd6c01978f04765ebb2d82300b5b6899a0ffd0d1d720",
+    "titles": [
+      "members without profiles use cards to create drafts and preserve filters, refresh and Back",
+      "pin order syncs between devices and conflicts preserve the proposed arrangement",
+      "preference APIs reject forged authority and beta only offers supported actions",
+      "focus refresh updates preferences and incomplete summaries keep other work usable",
+      "an expense saved from a card appears once in the matching list and summary",
+      "team and inventory cards follow company, branch and department scope",
+      "cards fit 390, 768 and 1440px in both themes and retain keyboard focus"
+    ],
+    "originalAssertions": 92,
+    "addedAssertions": 1,
+    "syntaxErrors": 0,
+    "focusedExecuted": false,
+    "fullExpectCallExpressionsPreserved": 188,
+    "newExpectCallExpressions": 2,
+    "includesMatchersAndPoll": true
+  },
+  "mainSync": {
+    "mainFile": "/Users/fluke/Desktop/Work/erpx/tests/e2e/work-cards.spec.ts",
+    "onlyFileSynced": "tests/e2e/work-cards.spec.ts",
+    "beforeSHA256": "502de73f298b04c6e477f3b46c21d1c5747ae3d63358f56bce6a9de1816a7b35",
+    "afterSHA256": "73bc8ff667c3b6d32c77dd6c01978f04765ebb2d82300b5b6899a0ffd0d1d720",
+    "focusedReceiptSHA256": "80f3dedb0b5a14886ceddb7c9d0f309a295f01b52fdbb31534a5000abafe906b",
+    "bothProjectsPassed": true,
+    "ownedCleanupComplete": true,
+    "runtimeSourceChanged": false,
+    "aggregateAccepted": false
+  },
+  "focusedRun": {
+    "passed": true,
+    "runtimeFingerprint": "dae9ff8f263604e859a87b37c3a9b10a1a3ec35f25e7669ca81c53c5d34ae405",
+    "verificationFingerprint": "fe3d09dd8543aaf2424b5181c9caea8c21a8ffe454ccc16ecf9d5a36361e37be",
+    "receiptSHA256": "80f3dedb0b5a14886ceddb7c9d0f309a295f01b52fdbb31534a5000abafe906b",
+    "cleanupFailures": [],
+    "interrupted": null,
+    "cases": [
+      {
+        "suite": "shared.work.work-cards.e2e",
+        "title": "focus refresh updates preferences and incomplete summaries keep other work usable",
+        "project": "desktop",
+        "passed": true,
+        "stats": {
+          "startTime": "2026-10-11T02:45:47.622Z",
+          "duration": 23232.246000000003,
+          "expected": 1,
+          "skipped": 0,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "reportSHA256": "13ddfe3a18e97d1b31e871f4baed2219d340f67c1f8cff9e853a339fe7932976",
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      },
+      {
+        "suite": "shared.work.work-cards.e2e",
+        "title": "focus refresh updates preferences and incomplete summaries keep other work usable",
+        "project": "mobile",
+        "passed": true,
+        "stats": {
+          "startTime": "2026-10-11T02:46:54.848Z",
+          "duration": 19821.729,
+          "expected": 1,
+          "skipped": 0,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "reportSHA256": "f2eefbe39d5e4da8d051f164b8f27002f8940ab2380bfddfee9d2074dcf733c6",
+        "cleanup": {
+          "completed": true,
+          "ownedDirectoryAbsent": true
+        }
+      }
+    ]
+  },
+  "currentOriginalSelectionCheckpoint": {
+    "checkedAt": "2026-10-11T06:26:27.580664+00:00",
+    "candidate": {
+      "runtime": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+      "verification": "da3577cbc0866b9770ad0279a6a5b54fe7f71120501f1846d6d2cea38c2b43f5",
+      "mainRuntime": "f13ca97b1401ea244ae616242fcc873b16308d6dce04298c68dfa41918a484f7",
+      "mainVerification": "da3577cbc0866b9770ad0279a6a5b54fe7f71120501f1846d6d2cea38c2b43f5",
+      "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-11T03-48-34-786Z",
+      "releaseId": "2026-10-11T03-48-34-786Z"
+    },
+    "scope": "Exact original required shared.work.work-cards.e2e case, both projects, inside currently live178-case aggregate. Isolated development; not compiled business runtime. Original failed aggregate and earlier focused run retained separately.",
+    "assertionSourceSHA256": "73bc8ff667c3b6d32c77dd6c01978f04765ebb2d82300b5b6899a0ffd0d1d720",
+    "cases": [
+      {
+        "path": ".scratch/dev/test-suites/browser/2026-10-11T04-01-35-947Z/013903f79489/result.json",
+        "sha256": "6286cf089789fe84423fca8c852426f69d8d192218ad5c1f7628bfee4948fb6e",
+        "title": "focus refresh updates preferences and incomplete summaries keep other work usable",
+        "tests": [
+          {
+            "project": "desktop",
+            "status": "expected"
+          }
+        ],
+        "stats": {
+          "startTime": "2026-10-11T06:18:55.162Z",
+          "duration": 19501.683999999997,
+          "expected": 1,
+          "skipped": 0,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "errorsCount": 0
+      },
+      {
+        "path": ".scratch/dev/test-suites/browser/2026-10-11T04-01-35-947Z/4176c2b650a0/result.json",
+        "sha256": "58f9b1fab40fe7ab1c89e0e69f04bff9ae2c8f313250ae70f4242edfb507e257",
+        "title": "focus refresh updates preferences and incomplete summaries keep other work usable",
+        "tests": [
+          {
+            "project": "mobile",
+            "status": "expected"
+          }
+        ],
+        "stats": {
+          "startTime": "2026-10-11T06:25:20.181Z",
+          "duration": 20119.158,
+          "expected": 1,
+          "skipped": 0,
+          "unexpected": 0,
+          "flaky": 0
+        },
+        "errorsCount": 0
+      }
+    ],
+    "aggregateTerminal": false,
+    "aggregateAcceptance": false,
+    "originalAggregateExpectedCasesObserved": 146,
+    "cleanupAcceptance": "Pending original aggregate terminal cleanup evidence.",
+    "wholePlanAccepted": false,
+    "workCardsOriginalSelection": {
+      "checkedAt": "2026-10-11T06:27:55.219452+00:00",
+      "expectedCases": 13,
+      "matchedExactOriginalTitleProjectPairs": true,
+      "desktop": 7,
+      "mobile": 6,
+      "cases": [
+        {
+          "title": "members without profiles use cards to create drafts and preserve filters, refresh and Back",
+          "project": "desktop",
+          "status": "expected",
+          "path": ".scratch/dev/test-suites/browser/2026-10-11T04-01-35-947Z/c92c77d2c4f3/result.json",
+          "sha256": "64c6a67558a4a66e9382fa94358a4424d4d102078a4db7614cea4af5bb96059a",
+          "stats": {
+            "startTime": "2026-10-11T06:16:19.197Z",
+            "duration": 22049.002,
+            "expected": 1,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          "errorsCount": 0
+        },
+        {
+          "title": "an expense saved from a card appears once in the matching list and summary",
+          "project": "mobile",
+          "status": "expected",
+          "path": ".scratch/dev/test-suites/browser/2026-10-11T04-01-35-947Z/ec047cc9bbbd/result.json",
+          "sha256": "2121b48ec561b5e81d6ef9f170fde8464097883bee325a391a8271ae9edc0a03",
+          "stats": {
+            "startTime": "2026-10-11T06:26:09.325Z",
+            "duration": 25932.884000000002,
+            "expected": 1,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          "errorsCount": 0
+        },
+        {
+          "title": "team and inventory cards follow company, branch and department scope",
+          "project": "mobile",
+          "status": "expected",
+          "path": ".scratch/dev/test-suites/browser/2026-10-11T04-01-35-947Z/dd91b23c81e9/result.json",
+          "sha256": "c11955e04bb8ad9e1c125d3632d921e432b1c30fbb5de59e09f1846a964a9a8b",
+          "stats": {
+            "startTime": "2026-10-11T06:27:06.486Z",
+            "duration": 20424.952999999998,
+            "expected": 1,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          "errorsCount": 0
+        },
+        {
+          "title": "team and inventory cards follow company, branch and department scope",
+          "project": "desktop",
+          "status": "expected",
+          "path": ".scratch/dev/test-suites/browser/2026-10-11T04-01-35-947Z/49bf9b1635f7/result.json",
+          "sha256": "1e49f7f09873fb924401539a83772c6f27f4e803c05a65100dd656daec84e9e3",
+          "stats": {
+            "startTime": "2026-10-11T06:20:34.846Z",
+            "duration": 21803.989999999998,
+            "expected": 1,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          "errorsCount": 0
+        },
+        {
+          "title": "members without profiles use cards to create drafts and preserve filters, refresh and Back",
+          "project": "mobile",
+          "status": "expected",
+          "path": ".scratch/dev/test-suites/browser/2026-10-11T04-01-35-947Z/f7cfe2e14a9e/result.json",
+          "sha256": "5d83dded3f969416b4aa607ee3b207b2e04bdba3e5550e45c5ed6d55cc5e5a43",
+          "stats": {
+            "startTime": "2026-10-11T06:22:46.605Z",
+            "duration": 22492.654000000002,
+            "expected": 1,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          "errorsCount": 0
+        },
+        {
+          "title": "focus refresh updates preferences and incomplete summaries keep other work usable",
+          "project": "desktop",
+          "status": "expected",
+          "path": ".scratch/dev/test-suites/browser/2026-10-11T04-01-35-947Z/013903f79489/result.json",
+          "sha256": "6286cf089789fe84423fca8c852426f69d8d192218ad5c1f7628bfee4948fb6e",
+          "stats": {
+            "startTime": "2026-10-11T06:18:55.162Z",
+            "duration": 19501.683999999997,
+            "expected": 1,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          "errorsCount": 0
+        },
+        {
+          "title": "an expense saved from a card appears once in the matching list and summary",
+          "project": "desktop",
+          "status": "expected",
+          "path": ".scratch/dev/test-suites/browser/2026-10-11T04-01-35-947Z/ba4670a820c9/result.json",
+          "sha256": "5a04eec50fe507d90aff7cc38227424800e0e2a952d1cd66c389f806bef9febc",
+          "stats": {
+            "startTime": "2026-10-11T06:19:40.811Z",
+            "duration": 25974.518,
+            "expected": 1,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          "errorsCount": 0
+        },
+        {
+          "title": "cards fit 390, 768 and 1440px in both themes and retain keyboard focus",
+          "project": "desktop",
+          "status": "expected",
+          "path": ".scratch/dev/test-suites/browser/2026-10-11T04-01-35-947Z/d804c7ee4be7/result.json",
+          "sha256": "5b91fb88ca2153bee6433b76b8d938c43b5489c990a3a6e09720fda02718419f",
+          "stats": {
+            "startTime": "2026-10-11T06:21:32.175Z",
+            "duration": 26679.470999999998,
+            "expected": 1,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          "errorsCount": 0
+        },
+        {
+          "title": "preference APIs reject forged authority and beta only offers supported actions",
+          "project": "mobile",
+          "status": "expected",
+          "path": ".scratch/dev/test-suites/browser/2026-10-11T04-01-35-947Z/139e4e8c0e70/result.json",
+          "sha256": "31b9c83565d6317cd89669f6445ab9360d6d8a1bbbe0417f7d8ef7985b17a19a",
+          "stats": {
+            "startTime": "2026-10-11T06:24:27.966Z",
+            "duration": 18324.533,
+            "expected": 1,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          "errorsCount": 0
+        },
+        {
+          "title": "preference APIs reject forged authority and beta only offers supported actions",
+          "project": "desktop",
+          "status": "expected",
+          "path": ".scratch/dev/test-suites/browser/2026-10-11T04-01-35-947Z/b4e6aa9f991a/result.json",
+          "sha256": "efa550946d5e2a0b0754ad2d5c3de5b83d583c7792802477be511e847d5fe847",
+          "stats": {
+            "startTime": "2026-10-11T06:18:05.036Z",
+            "duration": 18391.875,
+            "expected": 1,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          "errorsCount": 0
+        },
+        {
+          "title": "pin order syncs between devices and conflicts preserve the proposed arrangement",
+          "project": "desktop",
+          "status": "expected",
+          "path": ".scratch/dev/test-suites/browser/2026-10-11T04-01-35-947Z/21b3f0ca1951/result.json",
+          "sha256": "95c6d034186704c4a05e9d42ec6a54bc5b060dd1ba5798c407b5442ee9deea21",
+          "stats": {
+            "startTime": "2026-10-11T06:17:09.660Z",
+            "duration": 23121.332,
+            "expected": 1,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          "errorsCount": 0
+        },
+        {
+          "title": "pin order syncs between devices and conflicts preserve the proposed arrangement",
+          "project": "mobile",
+          "status": "expected",
+          "path": ".scratch/dev/test-suites/browser/2026-10-11T04-01-35-947Z/21e26763b11a/result.json",
+          "sha256": "bc926004c29d59f75d769e6d4dfa7c6a46b1fc2300eb1f5e93c12ec077c05ce9",
+          "stats": {
+            "startTime": "2026-10-11T06:23:35.492Z",
+            "duration": 22857.314,
+            "expected": 1,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          "errorsCount": 0
+        },
+        {
+          "title": "focus refresh updates preferences and incomplete summaries keep other work usable",
+          "project": "mobile",
+          "status": "expected",
+          "path": ".scratch/dev/test-suites/browser/2026-10-11T04-01-35-947Z/4176c2b650a0/result.json",
+          "sha256": "58f9b1fab40fe7ab1c89e0e69f04bff9ae2c8f313250ae70f4242edfb507e257",
+          "stats": {
+            "startTime": "2026-10-11T06:25:20.181Z",
+            "duration": 20119.158,
+            "expected": 1,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          "errorsCount": 0
+        }
+      ],
+      "scope": "All13 original work-cards cases are expected in the current live selection; complete178aggregate and terminal cleanup still pending. No new narrower rerun."
+    }
+  }
+}

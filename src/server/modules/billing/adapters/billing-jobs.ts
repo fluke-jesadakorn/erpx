@@ -2,10 +2,10 @@ import "server-only";
 import type { PoolClient } from "pg";
 import type { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
 
-import { advanceBilling } from "@/server/billing";
-import {billingStripe,type BillingStripe} from "@/server/billing-stripe";
+import { advanceBilling } from "@/server/modules/billing/adapters/billing";
+import {billingStripe,type BillingStripe} from "@/server/modules/billing/adapters/billing-stripe";
 import type { BetaEnvironment } from "@/server/modules/manage_erpx/public/beta-config";
-import { applyLegacyStripeEvent } from "@/server/beta-billing";
+import { applyLegacyStripeEvent } from "@/server/modules/billing/adapters/beta-billing";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 
 import { syncBillingTestFinance } from "@/server/modules/commerce/public/billing-test-finance";

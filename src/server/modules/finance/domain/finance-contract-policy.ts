@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { allocateUnits, decimalToUnits, multiplyBps, unitsToDecimal, } from "@/lib/finance-money";
+import { allocateUnits, decimalToUnits, multiplyBps, unitsToDecimal, } from "@/lib/finance/finance-money";
 const money = z.string().regex(/^\d+(?:\.\d{1,2})?$/);
 export const businessContractSchema = z
     .object({

@@ -1,7 +1,7 @@
 import {z} from "zod";
-import type {WorkItem} from "@/lib/work-item";
-import {quantityMilli,lineAmounts} from "@/lib/commerce-math";
-import {decimalToMinor,minorToDecimal} from "@/lib/finance-money";
+import type {WorkItem} from "@/lib/work_projection/work-item";
+import {quantityMilli,lineAmounts} from "@/lib/commerce/commerce-math";
+import {decimalToMinor,minorToDecimal} from "@/lib/finance/finance-money";
 import {BusinessRuleError} from "../../shared";
 export type BillRow=Record<string,string|number|null>;
 export type BillJournalLine={accountId:string;debit:string;credit:string};

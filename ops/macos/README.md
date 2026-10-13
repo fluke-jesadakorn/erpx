@@ -1,6 +1,6 @@
 # ERPX on this Mac
 
-The active deployment follows ADR-024 and ADR-032: Node 24.20.0, Bun 1.2.17, shared PostgreSQL 18.6 and a dedicated Cloudflare Tunnel. The remaining Wrangler/D1 fixtures serve a historical E2E adapter, not deployment commands. Removed Workers/OpenNext tooling is recoverable through [CUTOVER.md](../../CUTOVER.md#2026-10-04-unused-legacy-code-cleanup).
+The current private production service follows ADR-024 and ADR-032 and still runs Node 24.20.0. New standalone releases target Node 26.11.1 and are built with Bun 1.4.3 and Next.js 16.4; deploying that target requires a separately reviewed release. The shared PostgreSQL 18.6 cluster and dedicated Cloudflare Tunnel remain in use. The remaining Wrangler/D1 fixtures serve a historical E2E adapter, not deployment commands. Removed Workers/OpenNext tooling is recoverable through [CUTOVER.md](../../README.md#recovery).
 
 ## Layout and ports
 

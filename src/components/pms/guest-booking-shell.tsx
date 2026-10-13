@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { FrontLanguageContext,FrontLocalizedTree,type FrontLanguage } from '@/components/front/front-language';
 import { AppearanceSwitcher } from '@/components/brand/appearance-switcher';
 import { Select } from '@/components/ui/foundation';
-import type { AppearancePreference } from '@/lib/appearance-preference';
+import type { AppearancePreference } from "@/lib/shared/appearance-preference";
 import styles from './booking.module.css';
 export function GuestBookingShell({slug,initialLanguage,initialTheme,children}:{slug:string;initialLanguage:FrontLanguage;initialTheme:AppearancePreference;children:ReactNode}){
  const [language,setLanguage]=useState(initialLanguage);

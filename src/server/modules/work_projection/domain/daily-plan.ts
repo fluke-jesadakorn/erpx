@@ -1,5 +1,5 @@
 import {z} from "zod";
-import type {WorkItem} from "@/lib/work-item";
+import type {WorkItem} from "@/lib/work_projection/work-item";
 import type {WorkSnapshot} from "./work-items";
 const referenceSchema = z.object({
   type: z.string().min(1).max(80),

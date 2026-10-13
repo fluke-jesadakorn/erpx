@@ -1,0 +1,156 @@
+{
+  "checkedAt": "2026-10-12T06:41:01.491530+00:00",
+  "candidate": {
+    "runtime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+    "verification": "baf2b73727a5106b9153f71c54c336dfc399f763c83607aa41290d0c7943cfbb",
+    "mainRuntime": "4e2b60dc9e36878d4b6353a1a08470ccde2c960eb272fb954875c282b91ee909",
+    "mainVerification": "baf2b73727a5106b9153f71c54c336dfc399f763c83607aa41290d0c7943cfbb",
+    "releaseDirectory": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.runtime/releases/2026-10-12T03-06-23-612Z",
+    "releaseId": "2026-10-12T03-06-23-612Z",
+    "fileManifestSha256": "9bd3aa57f8e6d8e4b2b89ce95f83b8779b83319b6d749207d052cec130ac09d4",
+    "releaseReusedForIdenticalRuntime": true,
+    "verificationAmendment": "Only three generated route-inventory metadata fields;227 entries, runtime, assertions and required identities unchanged; prior actual native/browser receipts retained at50bc with exact official inverse lineage"
+  },
+  "scope": "Actual normal authenticated public-development prototype A/B/C, Thai/English, desktop/mobile drawers and actual Console group-admin drawer; no business writes",
+  "passed": true,
+  "result": {
+    "startedAt": "2026-10-12T06:38:21.458Z",
+    "origin": "https://console-dev-erpx.jesadakorn.com",
+    "normalSignIn": true,
+    "credentialCopied": false,
+    "scope": "Normal public development prototype language interaction and drawer diagnostic; no business writes or settings changes",
+    "errors": [
+      {
+        "kind": "console",
+        "message": "Failed to load resource: the server responded with a status of 401 ()"
+      },
+      {
+        "kind": "console",
+        "message": "Failed to load resource: the server responded with a status of 401 ()"
+      }
+    ],
+    "failedResponses": [
+      {
+        "host": "console-dev-erpx.jesadakorn.com",
+        "path": "/api/v1/account/time-preference",
+        "status": 401,
+        "method": "GET",
+        "phase": "before-sign-in"
+      },
+      {
+        "host": "console-dev-erpx.jesadakorn.com",
+        "path": "/api/v1/account/time-preference",
+        "status": 401,
+        "method": "GET",
+        "phase": "before-sign-in"
+      }
+    ],
+    "initialStatus": 200,
+    "finalUrl": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms/reservations?property=property-62ad1a76f1449b00f99ab780d738847e&queue=groups",
+    "heading": [
+      "\u0e40\u0e2b\u0e47\u0e19\u0e17\u0e38\u0e01\u0e07\u0e32\u0e19\u0e02\u0e2d\u0e07\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49",
+      "\u0e20\u0e32\u0e1e\u0e23\u0e27\u0e21\u0e40\u0e04\u0e23\u0e37\u0e2d\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49",
+      "\u0e1b\u0e0f\u0e34\u0e17\u0e34\u0e19\u0e2b\u0e49\u0e2d\u0e07\u0e1e\u0e31\u0e01",
+      "\u0e01\u0e33\u0e25\u0e31\u0e07\u0e08\u0e30\u0e40\u0e02\u0e49\u0e32\u0e1e\u0e31\u0e018",
+      "\u0e2b\u0e49\u0e2d\u0e07\u0e17\u0e35\u0e48\u0e15\u0e49\u0e2d\u0e07\u0e14\u0e39\u0e41\u0e2511"
+    ],
+    "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-current4e2b-public-check/attempt4/desktop.png",
+    "visiblePrototype": true,
+    "passed": true,
+    "initialButtonState": {
+      "disabled": false,
+      "handlerAttached": true,
+      "readyState": "complete"
+    },
+    "drawer": {
+      "desktop": {
+        "x": 640,
+        "y": 0,
+        "width": 800,
+        "height": 1000
+      },
+      "mobile": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 844
+      },
+      "desktopScreenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-current4e2b-public-check/attempt4/desktop-drawer.png",
+      "mobileScreenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-current4e2b-public-check/attempt4/mobile-drawer.png",
+      "keyboardEscapeCloses": true,
+      "businessWrites": false
+    },
+    "languageInteractionPassed": true,
+    "variants": [
+      {
+        "variant": "B",
+        "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms?variant=B&prototype=1&screen=dashboard",
+        "visible": true
+      },
+      {
+        "variant": "C",
+        "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms?variant=C&prototype=1&screen=dashboard",
+        "visible": true
+      }
+    ],
+    "groupTriggerObservation": [
+      {
+        "text": "Create group block",
+        "visible": false,
+        "parentReady": "false"
+      },
+      {
+        "text": "Create group block",
+        "visible": false,
+        "parentReady": "false"
+      }
+    ],
+    "actualGroupAdministration": {
+      "property": "property-62ad1a76f1449b00f99ab780d738847e",
+      "drawer": {
+        "x": 640,
+        "y": 0,
+        "width": 800,
+        "height": 1000
+      },
+      "businessWrites": false,
+      "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/pms/reservations?property=property-62ad1a76f1449b00f99ab780d738847e&queue=groups"
+    },
+    "finishedAt": "2026-10-12T06:38:39.186Z"
+  },
+  "rawResultSHA256": "c2dff2a028f81a8bd20186602441679337a4c56e0de2a2dabf7d7fba635a7839",
+  "screenshotChecksums": [
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-current4e2b-public-check/attempt4/actual-group-drawer.png",
+      "sha256": "b70bfdfb85dd1dac31d6f99568b6cc29e55246624e4f9f25ad6837e2b9864ada"
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-current4e2b-public-check/attempt4/desktop-drawer.png",
+      "sha256": "fe7260e500f9ae8c822ce0bb3325ba76dcaed436f7fee58f84243bfcd9fb631f"
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-current4e2b-public-check/attempt4/desktop.png",
+      "sha256": "baba6e7ba4480dec530980e43a3dbc829a16fe44dc7d08dd794ec8eee8323e28"
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-current4e2b-public-check/attempt4/mobile-drawer.png",
+      "sha256": "d1c7e4d6523c7ada5b4550dce66f32566bc55606c44c2a8ca0d6a392c236be76"
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-current4e2b-public-check/attempt4/variant-B.png",
+      "sha256": "12b94d5ad75544a49b883c5dfe0ed757c3ec6951dd209e0372ed10c93712b714"
+    },
+    {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/pms-current4e2b-public-check/attempt4/variant-C.png",
+      "sha256": "90ddfb200d6876d7b59e37629395884f023c5f204bcca82da79ee8aa61e77a18"
+    }
+  ],
+  "earlierFailuresRetained": {
+    "rootAttempt": "Initial prototype drawer timeout, cause unproven",
+    "attempt2": "Prototype/lang/drawers passed; unscoped summary matched2 hidden streaming copies",
+    "attempt3": "Prototype initial click after fresh context passed; helper counted dialog before visible state",
+    "noRuntimeChangeForHelperRepairs": true
+  },
+  "wholePlanAccepted": false,
+  "stagingAccessed": false
+}

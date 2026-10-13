@@ -4,7 +4,7 @@ import {
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
-import { cn } from "@/lib/ui";
+import { cn } from "@/lib/shared/ui";
 import type { UiAppearance } from "./appearance";
 import type { UiSize } from "./button-variants";
 

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { WorkContext } from '../../identity_access/public/authorization';
-import type { WorkItem } from '@/lib/work-item';
-import { hasPermission } from '@/lib/permissions';
+import type { WorkItem } from "@/lib/work_projection/work-item";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { hasModuleAccess } from '@/data/module-access';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '../../shared';
 import { sourceType, reason, relationSchema, cardSchema, actionSchema, csvCell, type Row, type Source, type Card } from '../domain/collaboration-work';
@@ -84,9 +84,10 @@ export function createCollaborationWorkApplication<Effect>(ports: CollaborationW
             }
         }
         const visibleCards: Card[] = [];
-        for (const card of cards)
-            if (await visibleSource(a, sourceType.parse(card.source_type), String(card.source_id)))
-                visibleCards.push(card);
+        for (const card of cards) {
+            const record = await visibleSource(a, sourceType.parse(card.source_type), String(card.source_id));
+            if (record) visibleCards.push({ ...card, source_title: record.title, source_href: record.href });
+        }
         return {
             relations: visible,
             cards: visibleCards,

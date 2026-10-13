@@ -1,6 +1,6 @@
 import "server-only";
 import type { ReactNode } from "react";
-import type { RecordKind } from "@/lib/record-drawer";
+import type { RecordKind } from "@/lib/records/record-drawer";
 type OwnerPage = (props: {
     params: Promise<{
         holdingSlug: string;

@@ -1,5 +1,5 @@
 import type {WorkContext} from "../../identity_access/public/authorization";
-import type {WorkRow} from "@/lib/work-queue";
+import type {WorkRow} from "@/lib/work_projection/work-queue";
 import type {approvalView} from "../../workflow/public/approvals";
 import type {getLeave} from "../../people_payroll/public/leave";
 type WorkReadResult<Row>={results:Row[]};

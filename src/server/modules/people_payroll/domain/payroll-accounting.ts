@@ -1,6 +1,6 @@
 import {BusinessRuleError} from "../../shared";
 import type { JournalLineInput } from "@/server/modules/finance/public/finance";
-import { minorToDecimal } from "@/lib/finance-money";
+import { minorToDecimal } from "@/lib/finance/finance-money";
 
 export type PayrollAccounts = {
   expenseAccountId: string;

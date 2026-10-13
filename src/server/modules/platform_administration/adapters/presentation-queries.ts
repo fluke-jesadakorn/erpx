@@ -1,6 +1,6 @@
 import "server-only";
 import { runtimeEnv, holdingResources, activeHoldingBindings } from "@/server/modules/runtime/public/runtime";
-import { resourceSlots } from "@/lib/holding-registry";
+import { resourceSlots } from "@/lib/runtime/holding-registry";
 import { platformProvisioningSnapshot, summarizePlatformOperations } from "@/server/modules/platform_administration/public/platform-operations";
 import { platformExecutiveSnapshot } from "@/server/modules/platform_administration/public/platform-executive";
 export async function platformOperationsForPresentation(actor: Parameters<typeof summarizePlatformOperations>[0]) {

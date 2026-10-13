@@ -7,7 +7,7 @@ import { holdingResources, runtimeEnv } from "@/server/modules/runtime/public/ru
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { assertion, executeCommand, replayCommand } from "@/server/modules/workflow/public/commands";
 import { prepareJournal } from "@/server/modules/finance/public/finance";
-import { assertStatutoryRunReady } from "@/server/payroll-statutory";
+import { assertStatutoryRunReady } from "@/server/modules/people_payroll/adapters/payroll-statutory";
 import type { SqlStatement } from '../../runtime/public/runtime/types';
 import { BusinessRuleError } from '../../shared';
 import { payrollRemittanceSources } from '../../finance/public/payroll-remittance-sources';

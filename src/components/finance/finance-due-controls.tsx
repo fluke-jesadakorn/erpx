@@ -1,7 +1,7 @@
 "use client";
 import {useState} from "react";
 import {useRouter} from "next/navigation";
-import {financeCommandFetch as workFetch} from "@/lib/finance-command-fetch";
+import {financeCommandFetch as workFetch} from "@/lib/finance/finance-command-fetch";
 import {Button,Card,Field,FormLayout,TextArea,InlineNotice,ActionLink} from "@/components/ui/foundation";
 type Row=Record<string,string|number|null>;
 export function FinanceDueControls({base,rows,canWrite}:{base:string;rows:Row[];canWrite:boolean}){

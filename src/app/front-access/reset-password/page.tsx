@@ -1,4 +1,4 @@
-import { BetaAuthForm } from "@/components/beta/auth-form";
+import { BetaAuthForm } from "@/components/collaboration/auth-form";
 import styles from "../front-access.module.css";
 export default async function FrontResetPassword({searchParams}:{searchParams:Promise<{token?:string;error?:string}>}) {
   const query=await searchParams;

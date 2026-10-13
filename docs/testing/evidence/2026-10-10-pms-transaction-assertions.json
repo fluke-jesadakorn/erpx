@@ -1,0 +1,86 @@
+{
+  "complete": false,
+  "wholePlanAcceptance": false,
+  "status": "Focused native and build pass; full same-candidate load fails the unchanged reservation latency limit",
+  "source": {
+    "runtime": "66a137540044ec3b82cc6e0cc8373aaa56a0a4edc8d6fdc6e689c60cd1b56bff",
+    "verification": "42a6e98f84eb843c8e40bcd919ee3fa1433d76a7b256c99bd191d94a65a98800"
+  },
+  "worktree": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx",
+  "migration": "1039_transaction_local_command_assertions.sql",
+  "adr": "docs/adr/ADR-041-transaction-local-command-assertions.md",
+  "cause": {
+    "priorFullReservationP95Ms": 2268.892416999999,
+    "priorCoreP95Ms": 2171.4879999999976,
+    "ownedDiagnosticSsiErrors": 32,
+    "deleteCommandAssertionErrors": 24,
+    "redReproducesSqlstate": "40001"
+  },
+  "semantics": {
+    "guardPredicatesOmitted": false,
+    "propertyLockChanged": false,
+    "isolationChanged": false,
+    "receiptUniquenessChanged": false,
+    "authorityCaching": false,
+    "transactionLocal": true,
+    "originalAssertionRowsPreserved": true,
+    "legacyRowAdministrationRetained": true,
+    "sqlConstraintCodes": [
+      "23514",
+      "23505",
+      "23502"
+    ],
+    "savepointAndCommitRollbackClearProven": true,
+    "logicalGuardFixtureCleanup": "DELETE via original SQL name; other native TRUNCATE targets unchanged"
+  },
+  "proofs": {
+    "red": {
+      "reproduced": true,
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-transaction-assertions/red.log"
+    },
+    "green": {
+      "passed": true,
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-transaction-assertions/green.log"
+    },
+    "prototypeSemantics": {
+      "passed": true,
+      "checks": 11,
+      "countedAsRequiredNativeCases": false,
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-transaction-assertions/semantics.log"
+    },
+    "nativeFocused": {
+      "passed": true,
+      "cases": 164,
+      "files": 6,
+      "newRequiredCases": 8,
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-transaction-assertions/native-focused.log"
+    },
+    "fullLoad": {
+      "passed": false,
+      "runId": "69fd12024dd9",
+      "readP95Ms": 478.062792,
+      "coreP95Ms": 2028.660083,
+      "guestSaveP95Ms": 1876.510416,
+      "reservationCreateP95Ms": 2125.865166,
+      "reads": 840,
+      "writes": 843,
+      "invalidResponses": 0,
+      "databaseDeadlocks": 0,
+      "financialReconciliationPassed": true,
+      "historyRecords": 657000,
+      "allEightOwnedDatabasesDestroyed": true,
+      "artifact": "/Users/fluke/.codex/worktrees/pms-candidate-verification/erpx/.scratch/dev/pms-transaction-assertions/scale-confirmation/strict-acceptance.json"
+    }
+  },
+  "release": {
+    "id": "2026-10-10T06-24-02-563Z",
+    "built": true
+  },
+  "pending": [
+    "Strict full release load with all per-operation limits unchanged",
+    "Complete same-candidate native/security/static checks",
+    "178 required PMS browsers with development-only AI mock mapping",
+    "38 additional PMS route UAT cases",
+    "Feature/mock-pilot final engineering evidence and development availability"
+  ]
+}

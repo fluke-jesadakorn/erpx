@@ -2,10 +2,10 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { workFetch } from "@/lib/work-fetch";
+import { workFetch } from "@/lib/work_projection/work-fetch";
 import { Button } from "@/components/ui/button";
 import { RecordDrawer } from "./record-drawer";
-import { TimeText } from "@/components/time/time-preference-context";
+import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 
 export function CollectionRecordLink({kind,id,children,args}: {kind:string;id:string;children:ReactNode;args?:Record<string,string>}) {
  const query=useSearchParams(),q=new URLSearchParams(query.toString());

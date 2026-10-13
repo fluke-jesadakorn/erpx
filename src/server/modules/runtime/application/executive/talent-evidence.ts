@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { hasModuleAccess } from "@/data/module-access";
 import { filtersSchema } from "@/server/modules/runtime/public/rules/canvas-domain";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { talentEvidenceMetrics, type TalentEvidenceMetric, providerId, requisitionFields, applicationFields, inputSchema, type TalentEvidenceRow, parseCursor, safeVersion, safeTimestamp, utcRange, notFound } from '../../domain/executive/talent-evidence';
 import { BusinessRuleError, type Clock } from '../../../shared';

@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { samePerson } from '@/lib/iam';
-import { thaiFinanceTaxPack } from '@/lib/thai-finance-tax-pack';
+import { samePerson } from "@/lib/identity_access/iam";
+import { thaiFinanceTaxPack } from "@/lib/finance/thai-finance-tax-pack";
 import { taxIdentitySchema, taxIdentityDecisionSchema, type TaxIdentity, type IdentityInput, type IdentityDecision, type TaxSignature, type TaxSignatureMetadata, type TaxProjection } from '../domain/tax-identities';
 import type { WorkContext } from '@/server/modules/identity_access/public/authorization';
 import type { FinanceError } from '../domain/invoice-line-revision';

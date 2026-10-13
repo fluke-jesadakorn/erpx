@@ -1,3 +1,4 @@
+import { pendingHotelRoomChargeReversals } from "../../pos/public/pms-day-control-facts";
 import "server-only";
 import type { SqlDatabase } from "../../runtime/public/runtime/types";
 import { hospitalityDayControls as control, type HospitalityDayControlRepository, type Count } from "../application/hospitality-day-controls";
@@ -18,7 +19,7 @@ function repository(db: SqlDatabase): HospitalityDayControlRepository {
         pendingChargeCorrections: (facts: {
             companyId: string;
             propertyId: string;
-        }) => db.prepare("SELECT count(*) n FROM pms_charge_corrections WHERE company_id=? AND property_id=? AND status='pending'").bind(facts.companyId, facts.propertyId).first<Count>().then(row => Number(row?.n ?? 0)),
+        }) => db.prepare("SELECT count(*) n FROM pms_charge_corrections WHERE company_id=? AND property_id=? AND status='pending'").bind(facts.companyId, facts.propertyId).first<Count>().then(async row => Number(row?.n ?? 0) + await pendingHotelRoomChargeReversals(db,facts.companyId,facts.propertyId)),
         property: (facts: {
             propertyId: string;
             companyId: string;

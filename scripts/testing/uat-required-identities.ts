@@ -1,7 +1,7 @@
 import type { RequiredCaseIdentity } from "./required-case-inventory";
 
 type MatrixRoute = { template: string; area: string; signedOut: "public" | "login-or-explicit-denial"; workspaceScopes: readonly string[]; detailRoute: boolean };
-const matrixFile = "tests/e2e/uat-route-matrix.spec.ts";
+const matrixFile = "tests/uat/shared.ui/uat-route-matrix.spec.ts";
 
 /** A matching route count cannot hide a replaced or duplicated required source page. */
 export function assertUatRouteSources(inventory: { pageRouteCount: number; entries: readonly { source: string; template: string }[] }, currentSources: readonly string[]): void {

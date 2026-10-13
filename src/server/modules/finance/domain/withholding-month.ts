@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ThaiDocumentSnapshot } from '@/lib/finance-thai-document';
+import type { ThaiDocumentSnapshot } from "@/lib/finance/finance-thai-document";
 const reason = z.string().trim().min(10).max(2000), version = z.number().int().positive();
 export const withholdingPackageSchema = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), formKind: z.enum(["PND3", "PND53"]), reason }).strict();
 export const withholdingPackageDecisionSchema = z.object({ expectedVersion: version, action: z.enum(["approve", "reject", "cancel"]), reason }).strict();

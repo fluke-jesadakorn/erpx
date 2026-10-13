@@ -2,11 +2,11 @@ export const dynamic = "force-dynamic";
 import { cookies } from "next/headers";
 import { headers } from "next/headers";
 import type { Metadata } from "next";
-import { AttachmentFeatureProvider } from "@/components/attachments/attachment-feature-context";
-import { TimePreferenceProvider } from "@/components/time/time-preference-context";
+import { AttachmentFeatureProvider } from "@/components/files/attachment-feature-context";
+import { TimePreferenceProvider } from "@/components/people_payroll/time/time-preference-context";
 import { ContextSwitchProvider } from "@/components/workplace/context-switch-provider";
-import { marketingIsIndexable } from "@/lib/erpx-hosts";
-import { appearancePreference } from "@/lib/appearance-preference";
+import { marketingIsIndexable } from "@/lib/runtime/erpx-hosts";
+import { appearancePreference } from "@/lib/shared/appearance-preference";
 import {
   attachmentsV2Enabled,
   attachmentsV2ReadOnly,

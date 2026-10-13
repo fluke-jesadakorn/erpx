@@ -1,9 +1,9 @@
 import { peoplePayrollPresentationQueries } from "@/server/modules/people_payroll/public/presentation-queries";
 
 import { RecordLink as Link } from "@/components/records/record-link";
-import {FeaturePage} from "@/components/features/feature-page";
-import {HireHandoffConsole} from "@/components/modules/hire-handoff-console";
-import {workspaceBase} from "@/lib/workspace";
+import {FeaturePage} from "@/components/shared/features/feature-page";
+import {HireHandoffConsole} from "@/components/people_payroll/hire-handoff-console";
+import {workspaceBase} from "@/lib/work_projection/workspace";
 import {publicScope,requireWorkContext} from "@/server/modules/identity_access/public/authorization";
 import {hireHandoffQueue} from "@/server/modules/people_payroll/public/people-handoffs";
 

@@ -2,7 +2,7 @@ import {posStripeBindingFacts} from "../../runtime/public/pos-stripe-binding-fac
 import 'server-only';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { type PosAccounts } from "@/server/modules/pos/public/rules/pos";
-import { resourceSlots } from '@/lib/holding-registry';
+import { resourceSlots } from "@/lib/runtime/holding-registry";
 import { runtimeEnv, holdingResources } from "@/server/modules/runtime/public/runtime";
 import { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";

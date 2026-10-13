@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import type { DirectoryConfig, DirectoryProvider } from '@/lib/iam';
-import type { DirectoryHierarchy } from '@/lib/hierarchy';
+import type { DirectoryConfig, DirectoryProvider } from "@/lib/identity_access/iam";
+import type { DirectoryHierarchy } from "@/lib/organization/hierarchy";
 export type ProviderUser = {
     externalId: string;
     username: string;

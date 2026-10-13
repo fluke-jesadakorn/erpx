@@ -1,0 +1,33 @@
+import {beforeAll,it,expect,vi} from 'vitest';
+import {readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {applyMigrations,env} from "../../support/runtime-env";
+import {expenseFixture,expenseDb as db} from "../../support/helpers/expense-fixture";
+import {businessReadiness} from "../../../src/server/modules/runtime/public/business-readiness";
+import {businessAcceptanceManifest} from "../../../src/data/business-acceptance";
+import {validateAcceptanceEvidence} from "../../../src/data/acceptance-evidence";
+import moduleRegistry from "../../../src/data/module-registry.json";
+import snapshot from "../../../src/data/business-readiness.generated.json";
+vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB}),runtimeEnv:async()=>env}));
+beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
+it('bundles current validated evidence without promoting observations into capability sign-offs',async()=>{
+ const ledgerText=readFileSync('docs/status/business-acceptance-evidence.json','utf8');
+ expect(snapshot.evidenceLedgerSha256).toBe(createHash('sha256').update(ledgerText).digest('hex'));
+ expect(snapshot.capabilities).toEqual(businessAcceptanceManifest());
+ expect(snapshot.observations).toEqual(validateAcceptanceEvidence(JSON.parse(ledgerText)).records);
+ const f=await expenseFixture(),data=await businessReadiness(f.owner);
+ const registryCapabilityCount=moduleRegistry.reduce((count,module)=>count+module.sections.filter(section=>section.capability).length,0);
+ expect(data.capabilities).toHaveLength(registryCapabilityCount);expect(data.scenarios).toHaveLength(21);
+ expect(data.companySignOff).toBe(false);expect(data.scope).toBe('workspace_simulation');
+ expect(data.capabilities.every(row=>Object.values(row.gates).every(gate=>gate.state==='pending'))).toBe(true);
+ const superseded=new Set(snapshot.observations.flatMap(row=>row.supersedes?[row.supersedes]:[]));
+ expect(data.capabilities.flatMap(row=>row.observations).some(row=>superseded.has(row.id))).toBe(false);
+ expect(data.capabilities.find(row=>row.id==='inventory/reservations')?.observations.some(row=>row.id==='stock-expiry-simulation-20260920')).toBe(true);
+ expect(new Set(data.capabilities.map(row=>row.package))).toEqual(new Set('ABCDEFGHI'));
+});
+it('rejects branch, department, non-manager and revoked Company authority',async()=>{
+ const f=await expenseFixture();
+ for(const actor of [{...f.owner,branchId:f.branch},{...f.owner,departmentId:f.department},f.claimant])await expect(businessReadiness(actor)).rejects.toMatchObject({status:403});
+ await db.prepare('UPDATE assignments SET revoked_at=? WHERE id=?').bind(Date.now(),f.owner.assignmentId).run();
+ await expect(businessReadiness(f.owner)).rejects.toMatchObject({status:403});
+});

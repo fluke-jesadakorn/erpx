@@ -1,4 +1,4 @@
-import { currencyScale } from "@/lib/company-money";
+import { currencyScale } from "@/lib/finance/company-money";
 import type { FinanceError } from "../domain/invoice-line-revision";
 export function createRequireFinanceMoneyScale(ports: {
     scale(companyId: string, currency: string): Promise<number | null>;

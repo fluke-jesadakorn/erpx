@@ -1,7 +1,7 @@
 import {remainingOperationalAttachmentPolicies,ownedTargets,moduleScopedTargets} from "../../domain/attachments/remaining-operational-policy";
 import { hasModuleAccess } from "@/data/module-access";
-import { samePerson } from "@/lib/iam";
-import { hasPermission } from "@/lib/permissions";
+import { samePerson } from "@/lib/identity_access/iam";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import type { WorkContext } from "../../../identity_access/public/authorization";
 import type { Clock } from "../../../shared/application/ports";
 import type { AttachmentOperation, AttachmentPolicy, AttachmentTargetScope } from "../../domain/attachments/types";

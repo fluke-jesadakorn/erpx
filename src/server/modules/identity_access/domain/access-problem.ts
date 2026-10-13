@@ -1,4 +1,4 @@
-import type { AccessProblem } from '@/lib/access-problem';
+import type { AccessProblem } from "@/lib/shared/access-problem";
 /** Only application pages can be used as a return destination, never external URLs or API actions. */
 export function safeReturnPath(value: unknown): string | null {
     if (typeof value !== "string" || value.length > 2000 || /[\u0000-\u0020]/.test(value))

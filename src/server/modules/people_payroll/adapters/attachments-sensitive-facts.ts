@@ -90,7 +90,7 @@ readPeoplePreparationTasks1:(facts:{targetId:string;companyId:string;})=>db.prep
       status: string;
       assignee_id: string | null;
       completed_by: string | null;
-      clearance_type: import("@/lib/retirement").ClearanceKind;
+      clearance_type: import("@/lib/people_payroll/retirement").ClearanceKind;
       branch_id: string | null;
       department_id: string | null;
     }>(),
@@ -120,7 +120,7 @@ readHrPayrollFinalPayPreparations1:(facts:{targetId:string;companyId:string;})=>
       status: string;
       assignee_id: string | null;
       completed_by: string | null;
-      clearance_type: import("@/lib/retirement").ClearanceKind;
+      clearance_type: import("@/lib/people_payroll/retirement").ClearanceKind;
       branch_id: string | null;
       department_id: string | null;
     }>(),

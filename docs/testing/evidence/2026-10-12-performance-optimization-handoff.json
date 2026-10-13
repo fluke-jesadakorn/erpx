@@ -1,0 +1,193 @@
+{
+  "closedRoundAtUserRequest": "2026-10-12T11:27:45.314179+00:00",
+  "userInstruction": "แก้ goal ให้จบเลยจะ development ต่อแล้ว",
+  "deliveryState": "Implementation round handed back for continued development. Original performance acceptance is not complete.",
+  "originalPerformancePlanAccepted": false,
+  "goalStatusAwaitingExplicitPauseClarification": true,
+  "identity": {
+    "observedAt": "2026-10-12T11:00:58.549Z",
+    "runtime": "d67b653ef2a7616dee7c22e05fe8f632e257e62a4ffe3144852ceab71b820ffe",
+    "verification": "232075235dffed297ba3c7ed6b947d2e7afdc5f68c4a29a58cb3b7f380b9c67c",
+    "release": "/Users/fluke/Desktop/Work/erpx/.runtime/releases/2026-10-12T10-55-04-271Z",
+    "releaseId": "2026-10-12T10-55-04-271Z",
+    "fileManifestSha256": "6efcedfd3a458e9fa8b4b962bb80fe39c3188657b2c614c40e57aee665184146",
+    "filesHashed": 17614,
+    "mismatches": 0,
+    "sourceMatchesCurrentMain": true,
+    "pmsSealedCandidateChanged": false,
+    "wholePlanAccepted": false
+  },
+  "implemented": [
+    "Lazy record drawers with extracted POS detail and per-screen PMS/POS loading",
+    "Retained appropriate Server Components; isolated browser-only controls behind Client lazy wrappers",
+    "POS initial-read identity, stale-read guards and visible non-overlapping polling logic",
+    "Parallel authorized layout reads and company presentation facts reused within a Server render",
+    "Batch Expense authorization/workflow facts with legacy parity coverage",
+    "PMS pool, locking-statement-duration and serialization-retry diagnostics",
+    "POS recordOnly identity prevents outer Work filters contaminating detail reads",
+    "Expense and Finance lazy browser controls; pure page-layout view helpers avoid runtime schema/Zod imports"
+  ],
+  "latestValidation": {
+    "typecheck": "passed",
+    "fullLint": {
+      "exitCode": 0,
+      "warnings": 3,
+      "errors": 0,
+      "receipt": {
+        "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/optimization-expense-feature-boundary-2026-10-12/final-handoff-lint.log",
+        "sha256": "827c4aba480463caff85470227105c05ff46cd40693fc7c1b1f9f25d59f13231"
+      }
+    },
+    "isolatedReleaseBuild": "passed",
+    "releaseInventory": {
+      "filesHashed": 17614,
+      "mismatches": 0
+    },
+    "regressionScope": "20 relevant regressions passed on preceding fa7756 Expense/layout extraction. Final d67 Finance extraction typecheck/lint/build passed; no fresh entire backend/native suite claimed."
+  },
+  "latestPairedMeasurement": {
+    "browserNavigation": {
+      "before": 20,
+      "after": 20
+    },
+    "apiReads": {
+      "before": 400,
+      "after": 400,
+      "failed": 0,
+      "semanticGroupsEqual": 8,
+      "p95NonRegressingGroups": 2,
+      "p95RegressingGroups": 6
+    },
+    "javascript": {
+      "beforeMedianDecodedBytes": 3166980,
+      "afterMedianDecodedBytes": 1560461,
+      "reductionPercent": 50.72715962841571,
+      "scope": "Same-origin scripts completed by document load after controls readiness, before any Search click; browser decodedBodySize includes cache hits. Not every JavaScript asset the application could ever load."
+    },
+    "controls": {
+      "measurementAccepted": true,
+      "failures": [],
+      "invalidAttempts": 0,
+      "before": {
+        "attempts": 20,
+        "medianLowerMs": 259.30000001192093,
+        "medianUpperMs": 337.89999997615814,
+        "p95LowerMs": 324.5,
+        "p95UpperMs": 400.89999997615814
+      },
+      "after": {
+        "attempts": 20,
+        "medianLowerMs": 325.5999999642372,
+        "medianUpperMs": 393.39999997615814,
+        "p95LowerMs": 607,
+        "p95UpperMs": 683.7999999523163
+      },
+      "minimumMedianReductionPercent": -51.71615887314777,
+      "controlsThirtyPercentProven": false,
+      "p95NoRegressionProven": false,
+      "exactHydrationTimestampProven": false,
+      "wholePlanAccepted": false,
+      "scope": "Observed readiness intervals and normal UI confirmation; JavaScript, API, correctness and stability gates remain separate."
+    },
+    "receipt": {
+      "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/optimization-expense-feature-boundary-2026-10-12/comparison.json",
+      "sha256": "7709741619d4f2e260d13513ca7fc6884660908eb96535c2746e67a682ac083e"
+    }
+  },
+  "publicDevelopmentUI": {
+    "finalSource": {
+      "observedAt": "2026-10-12T11:26:56.062Z",
+      "source": "d67b653ef2a7616dee7c22e05fe8f632e257e62a4ffe3144852ceab71b820ffe",
+      "mode": "development",
+      "origin": "https://console-dev-erpx.jesadakorn.com",
+      "normalSignIn": true,
+      "role": "holding owner",
+      "company": "Acme Corporation",
+      "homeRendered": true,
+      "searchOpenedAndClosed": true,
+      "expenseSyntheticCancelledDrawerRendered": true,
+      "draftNotTested": true,
+      "businessSaveClicked": false,
+      "hiddenTabPollingNotTested": true,
+      "expenseDrawerCloseActionExecuted": true,
+      "expenseDrawerClosedStateIndependentlyConfirmed": false,
+      "ownedTabClosed": true
+    },
+    "precedingExpenseAndLayoutProof": {
+      "expense": {
+        "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/optimization-expense-feature-boundary-2026-10-12/public-expense-ui.json",
+        "sha256": "92185f0d6d70b4fe1bfe66ca87a3941a5f6285cd14125f318dbd0342ecc0384a"
+      },
+      "layout": {
+        "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/optimization-expense-feature-boundary-2026-10-12/public-layout-ui.json",
+        "sha256": "d7c277af2ccab14f22d01ecbbd6483c41867e5be2cfe146a344abebedb80813a"
+      }
+    },
+    "screenshots": [
+      {
+        "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/optimization-expense-feature-boundary-2026-10-12/final-public-search.png",
+        "sha256": "e6ce79b8dcf5414b4d07b28c893008d9d010a3eaddd0722e352ad03379556ea8"
+      },
+      {
+        "path": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/optimization-expense-feature-boundary-2026-10-12/final-public-expense.png",
+        "sha256": "3a4730afd1eb53b3f3936891c300e4ee590bedbda92162381d57b247f8db5b0f"
+      }
+    ]
+  },
+  "remainingAcceptance": [
+    "Controls readiness improvement >=30% failed in latest paired Home release cohort",
+    "Controls p95 and6of8 API p95 groups regressed in latest measurements; cause not established",
+    "Actual hidden-browser polling pause/resume remains unverified; native logic tests are separate evidence",
+    "Complete editable drawer draft, stale-response and company/role matrix not proven on final source",
+    "Sustained-load development stability and historical memory-threshold restarts remain unaccepted",
+    "Header timing includes server and network; passive uncorrelated page phases do not identify cause"
+  ],
+  "rejectedTrial": "Intake browser/domain split gave33decodedbytes reduction across20navigation; own trial was reverted exactly. Historical evidence retained.",
+  "environment": {
+    "observedAt": "2026-10-12T11:25:05.679400+00:00",
+    "localDev": {
+      "url": "http://127.0.0.1:3100/api/health",
+      "status": 200
+    },
+    "publicDev": {
+      "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+      "status": 200,
+      "method": "curl subsequent probe; earlier Python urllib probe returned403 and is preserved"
+    },
+    "privateProduction": {
+      "url": "http://127.0.0.1:3101/api/health",
+      "status": 200
+    },
+    "listener": {
+      "exitCode": 0,
+      "output": "COMMAND  PID  USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME\nnode    6521 fluke   13u  IPv6 0xc4d6f8978281bcb4      0t0  TCP *:3100 (LISTEN)"
+    },
+    "devCwd": {
+      "exitCode": 0,
+      "output": "COMMAND  PID  USER   FD   TYPE DEVICE SIZE/OFF      NODE NAME\nnode    6521 fluke  cwd    DIR   1,17     1888 403628787 /Users/fluke/Desktop/Work/erpx"
+    },
+    "devProcesses": {
+      "exitCode": 0,
+      "output": "PID  PPID COMM\n 6497     1 /Users/fluke/Desktop/Work/erpx/.runtime/bun-1.2.17/bun-darwin-aarch64/bun\n 6521  6520 next-server (v16.3.4)"
+    },
+    "postgres": {
+      "exitCode": 0,
+      "output": "127.0.0.1:5432 - accepting connections"
+    },
+    "publicDevPythonProbe": {
+      "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+      "error": "HTTP Error 403: Forbidden"
+    }
+  },
+  "cleanup": {
+    "ownedChromeTab": "1050192653 closed",
+    "ownedIabTab": "6 closed",
+    "businessSavePerformed": false,
+    "devDetachedLauncher": 6497,
+    "devListener": 6521,
+    "stagingTouched": false,
+    "productionChanged": false,
+    "sealedPmsCandidateChanged": false
+  },
+  "historicalEvidencePolicy": "Dated sealed PMS4e2b/native/browser/provider evidence remains immutable and is not relabelled as final d67 verification."
+}

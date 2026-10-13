@@ -1,5 +1,5 @@
-import { samePerson } from '@/lib/iam';
-import { hasPermission } from '@/lib/permissions';
+import { samePerson } from "@/lib/identity_access/iam";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { hasModuleAccess } from '@/data/module-access';
 import type { WorkContext } from '../../identity_access/public/authorization';
 import type { StaffPerson } from '../../operations/public/staff-policy';
@@ -8,7 +8,7 @@ import { buildProjectGraph, sourceCurrent, addCost, type Project, type GraphTask
 import { createProjectGraphApplication } from './graph';
 import { projectStructureCommandSchema, type ProjectHandoffView, type HandoffRow } from '../domain/structure';
 import type { ProjectMilestoneRow } from '../domain/milestones';
-import type { WorkItem } from '@/lib/work-item';
+import type { WorkItem } from "@/lib/work_projection/work-item";
 export interface ProjectStructureRepository<Effect> {
     currentProjectAuthority(assignmentId: string, companyId: string, userId: string, role: string, now: number, now2: number): Promise<Record<string, unknown> | null>;
     graphTasks(projectId: string, companyId: string): Promise<{

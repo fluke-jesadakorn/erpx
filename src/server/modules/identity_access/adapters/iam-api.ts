@@ -16,6 +16,7 @@ import {
   revokeEmergency,
 } from "@/server/modules/identity_access/public/iam-recovery";
 import "server-only";
+import { peopleAccessSnapshot, previewPeopleAccess, applyPeopleAccess } from "../public/people-access";
 import { z } from "zod";
 import { currentSession,requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import {bindIamReviewEvidence,bindIamMigrationEvidence} from "@/server/modules/platform_administration/public/system-evidence";
@@ -192,6 +193,7 @@ export async function iamApi(
       route = path.join("/"),
       key = request.headers.get("Idempotency-Key") ?? "";
     if (request.method === "GET") {
+      if (route === "people-access") return Response.json({ data: await peopleAccessSnapshot(db, actor) }, { headers: { "Cache-Control": "no-store" } });
       if (route === "audit") {
         const params = new URL(request.url).searchParams;
         return Response.json(
@@ -293,7 +295,9 @@ export async function iamApi(
     sameOrigin(request);
     const input = await request.json();
     let result: unknown;
-    if(holdingSlug&&path.length===3&&path[2]==='evidence'&&path[0]==='reviews')
+    if (route === "people-access/preview") result = await previewPeopleAccess(db, actor, input.change);
+    else if (route === "people-access/apply") result = await applyPeopleAccess(db, actor, z.string().uuid().parse(input.previewToken), key);
+    else if(holdingSlug&&path.length===3&&path[2]==='evidence'&&path[0]==='reviews')
       result=await bindIamReviewEvidence(db,await requireWorkContext(holdingSlug),path[1],input,key);
     else if(holdingSlug&&path.length===3&&path[2]==='evidence'&&path[0]==='migrations')
       result=await bindIamMigrationEvidence(db,await requireWorkContext(holdingSlug),path[1],input,key);

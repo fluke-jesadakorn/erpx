@@ -3,7 +3,7 @@ import { requireWorkContext } from "@/server/modules/identity_access/public/auth
 import { companyFeatureCatalogue } from "@/server/modules/pms/public/hospitality-rollout";
 import { requirePermission } from "@/server/modules/identity_access/public/iam-permissions";
 import { publicScope } from "@/server/modules/identity_access/public/authorization";
-import { workspaceBase } from '@/lib/workspace';
+import { workspaceBase } from "@/lib/work_projection/workspace";
 
 export const dynamic='force-dynamic';
 

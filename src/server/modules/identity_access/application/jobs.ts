@@ -1,4 +1,4 @@
-import type { PermissionActor } from '@/lib/iam';
+import type { PermissionActor } from "@/lib/identity_access/iam";
 import type { IdentityError } from './authorization';
 export type JobActor = PermissionActor & {
     userId: string;

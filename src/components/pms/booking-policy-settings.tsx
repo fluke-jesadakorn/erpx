@@ -3,10 +3,10 @@ import {FrontLocalizedTree} from '@/components/front/front-language';
 import { useEffect,useState } from 'react';
 import { FormDisclosure } from '@/components/ui/form-disclosure';
 import { Button,Field,Select,TextInput } from '@/components/ui/foundation';
-import { RecordDocumentPanel } from '@/components/attachments/record-document-panel';
-import { MediaPublicationPanel } from '@/components/attachments/media-publication-panel';
+import { RecordDocumentPanel } from "@/components/files/record-document-panel";
+import { MediaPublicationPanel } from "@/components/files/media-publication-panel";
 import Image from 'next/image';
-import { listMediaPublications,publicMediaPublicationUrl,type MediaPublicationDto } from '@/lib/attachment-client';
+import { listMediaPublications,publicMediaPublicationUrl,type MediaPublicationDto } from "@/lib/files/attachment-client";
 import type { Rate,Snapshot } from "@/server/modules/pms/public/rules/pms-model";
 type Save=(operation:string,input:unknown,version?:number)=>Promise<boolean>;
 export function BookingRatePolicy({id,rate,version,save}:{id:string;rate:Rate;version:number;save:Save}){

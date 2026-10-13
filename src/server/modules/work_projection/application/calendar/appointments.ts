@@ -1,8 +1,8 @@
 type CalendarReadResult<Row>={results:Row[]};
 import type { CalendarItem, CalendarQuery } from "@/server/modules/work_projection/public/rules/calendar-domain";
-import { hasPermission } from "@/lib/permissions";
-import { expandCalendarSeries, type RecurrenceRule } from "@/lib/calendar-recurrence";
-import { localDateTimeToInstant, localMinuteAt } from "@/lib/calendar-timeline";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { expandCalendarSeries, type RecurrenceRule } from "@/lib/work_projection/calendar-recurrence";
+import { localDateTimeToInstant, localMinuteAt } from "@/lib/work_projection/calendar-timeline";
 import {withinScope} from "../../domain/calendar/access";
 import type {CalendarAccess} from "../../domain/calendar/access";
 const idList=(ids:string[])=>JSON.stringify(ids);

@@ -1,1 +1,0 @@
-export {prepareManufacturingMaterialLots,prepareManufacturingOutputLots} from './modules/manufacturing/adapters/lots';export type {ManufacturingMaterialAllocation,ManufacturingOutputAllocation} from './modules/manufacturing/domain/lots';
