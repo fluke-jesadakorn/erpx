@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-13T23:52:12.869Z",
+  "generatedAt": "2026-10-14T02:16:08.665Z",
   "generatedDate": "2026-10-14",
-  "sourceFingerprint": "e7a2e9d04dfb9b6513716bcd47425e7166dff88e81e9c64612c918fe0e08b924",
-  "pageRouteCount": 227,
+  "sourceFingerprint": "32987ef399b993e496a2457737922d527a52f88947237bd2281dae74853c4427",
+  "pageRouteCount": 228,
   "workspaceScopePatterns": [
     "holding",
     "branch",
@@ -307,7 +307,9 @@
       ],
       "detailRoute": false,
       "sourceSignals": [
-        "error"
+        "empty",
+        "error",
+        "permission"
       ]
     },
     {
@@ -368,9 +370,7 @@
         "holdingSlug"
       ],
       "detailRoute": false,
-      "sourceSignals": [
-        "error"
-      ]
+      "sourceSignals": []
     },
     {
       "source": "src/app/holdings/[holdingSlug]/calendar/page.tsx",
@@ -1945,10 +1945,7 @@
         "holdingSlug"
       ],
       "detailRoute": false,
-      "sourceSignals": [
-        "empty",
-        "error"
-      ]
+      "sourceSignals": []
     },
     {
       "source": "src/app/holdings/[holdingSlug]/home/page.tsx",
@@ -2024,6 +2021,27 @@
       ],
       "detailRoute": false,
       "sourceSignals": [
+        "permission"
+      ]
+    },
+    {
+      "source": "src/app/holdings/[holdingSlug]/knowledge/page.tsx",
+      "template": "/holdings/[holdingSlug]/knowledge",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "holding_owner",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": [
+        "error",
         "permission"
       ]
     },
@@ -2109,10 +2127,7 @@
         "holdingSlug"
       ],
       "detailRoute": false,
-      "sourceSignals": [
-        "error",
-        "success"
-      ]
+      "sourceSignals": []
     },
     {
       "source": "src/app/holdings/[holdingSlug]/leave/new/page.tsx",
@@ -2232,10 +2247,7 @@
         "holdingSlug"
       ],
       "detailRoute": false,
-      "sourceSignals": [
-        "error",
-        "success"
-      ]
+      "sourceSignals": []
     },
     {
       "source": "src/app/holdings/[holdingSlug]/maintenance/plans/[id]/page.tsx",
@@ -3315,10 +3327,7 @@
         "holdingSlug"
       ],
       "detailRoute": false,
-      "sourceSignals": [
-        "empty",
-        "permission"
-      ]
+      "sourceSignals": []
     },
     {
       "source": "src/app/holdings/[holdingSlug]/quality/[id]/page.tsx",

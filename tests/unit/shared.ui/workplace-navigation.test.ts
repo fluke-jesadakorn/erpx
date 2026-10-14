@@ -647,7 +647,8 @@ describe("Services grouped by purpose", () => {
         const parent=nav.primary.find(entry=>entry.submodules?.some(child=>child.id===item.id));
         if(!item.id.startsWith("start-")) {
           const technologyParent = url.pathname.endsWith("/technology") && url.searchParams.get("section") ? (url.searchParams.get("view") === "settings" ? "technology-settings" : url.searchParams.get("view") === "directory" ? "technology-directory" : url.searchParams.get("view") === "resources" ? "technology-devices" : undefined) : undefined;
-          expect([resolveNavigation(nav, workspaceBase, url.pathname, url.searchParams).activeId, resolveNavigation(nav, workspaceBase, url.pathname, url.searchParams).sidebarId]).toContain(technologyParent ?? (item.id.startsWith("people-settings-") ? "people-settings" : parent?.id ?? item.id));
+          const workspaceParent=item.id.startsWith('workspace-administration-')?(url.searchParams.get('section')==='feedback'?'feedback':url.searchParams.get('section')==='approvals'&&!nav.search.some(entry=>entry.id==='administration-approvals')?'projects-routines':`administration-${url.searchParams.get('section')}`):item.id.startsWith('workspace-finance-')?'finance-setup':item.id.startsWith('workspace-benefits-')?'benefits':item.id.startsWith('workspace-assets-')?(url.searchParams.get('view')==='register'?'assets':'maintenance'):item.id.startsWith('workspace-knowledge-')?(url.searchParams.get('view')==='learning'?'learning':'handbook'):undefined;
+          expect([resolveNavigation(nav, workspaceBase, url.pathname, url.searchParams).activeId, resolveNavigation(nav, workspaceBase, url.pathname, url.searchParams).sidebarId]).toContain(workspaceParent ?? technologyParent ?? (item.id.startsWith("people-settings-") ? "people-settings" : parent?.id ?? item.id));
         }
       }
     }

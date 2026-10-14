@@ -1,20 +1,21 @@
+import {sectionWorkspaceTopics,workspaceTopicLinks} from "@/lib/work_projection/section-workspaces";
+import {SectionWorkspace} from "@/components/workplace/section-workspace";
+import {BrandIdentityConsole} from "@/components/brand/brand-identity-console";
+import {brandIdentityWorkspace} from "@/server/modules/brand/public/brand-identity";
+import {type RouteSearch} from "@/lib/shared/route-context";
 import { operationsPresentationQueries } from "@/server/modules/operations/public/presentation-queries";
 
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { BetaSettings } from "@/components/collaboration/settings";
 import {
-  FeatureTabBar,
-  FeaturePage,
   FeatureWidget,
   WidgetGrid,
 } from "@/components/shared/features/feature-page";
 import { AiProviders } from "@/components/platform_administration/ai-providers";
 import { ApprovalAdministration } from "@/components/workflow/approval-administration";
 import { BrandAdministration } from "@/components/brand/brand-administration";
-import { ServiceNavigation } from "@/components/field_service/service-navigation";
 import { StaffSettingsControls } from "@/components/people_payroll/staff-settings-controls";
-import { PageHeader } from "@/components/ui/primitives";
 import { FlowSettingsHub } from "@/components/workplace/flow-settings-hub";
 import { RequestAdministration } from "@/components/workplace/request-administration";
 import { ServiceTeams } from "@/components/workplace/service-teams";
@@ -30,7 +31,6 @@ import { accessPage } from "@/server/modules/work_projection/public/page-error";
 
 
 
-import { RecordLink as Link } from "@/components/records/record-link";
 import { notFound, redirect } from "next/navigation";
 import styles from "./settings.module.css";
 import { Card } from "@/components/ui/foundation";
@@ -39,16 +39,13 @@ export default async function Settings({
   searchParams,
 }: {
   params: Promise<{ holdingSlug: string }>;
-  searchParams: Promise<{ section?: string; kind?: string; record?: string; tab?: string }>;
+  searchParams: Promise<RouteSearch>;
 }) {
   const actor = await requireWorkContext((await params).holdingSlug),
     base = workspaceBase(publicScope(actor));
   const access = await administrationAccess(actor),
     query = await searchParams;
-  const section = (query.section ??
-    (access.managePeople || access.owner || access.manageAiProviders
-      ? access.sections[0]
-      : "feedback")) as AdminSection;
+  const section = (typeof query.section === "string" ? query.section : (actor.beta?access.sections[0]:sectionWorkspaceTopics.administration.find(topic=>access.sections.includes(topic.query.section as AdminSection))?.query.section)??"feedback") as AdminSection;
   if (!actor.beta && section === "organization")
     redirect(`${base}/people?company=${encodeURIComponent(actor.companyId)}&tab=settings`);
   if (!actor.beta && section === "people") redirect(peopleContextHref(base, query, { panel: "settings", section: null }));
@@ -61,7 +58,7 @@ export default async function Settings({
   if (
     section === "approvals" &&
     !access.manageOrganization &&
-    (query.record || query.kind)
+    ((typeof query.record==="string"?query.record:undefined) || (typeof query.kind==="string"?query.kind:undefined))
   )
     return accessPage("permission", actor.holdingSlug);
   const presentation = await operationsPresentationQueries(actor.holdingId);
@@ -77,85 +74,18 @@ export default async function Settings({
     !actor.departmentId &&
     (hasPermission(actor, "finance.approve") ||
       hasPermission(actor, "pos.payments.configure"));
+  const sharedTopics=sectionWorkspaceTopics.administration.filter(topic=>access.sections.includes(topic.query.section as AdminSection)&&(topic.id!=='brand:media'||access.manageOrganization||access.owner));
+  const topics=workspaceTopicLinks(base,query,sharedTopics);
+  if(actor.beta)for(const [id,title] of adminSections.filter(([id])=>access.sections.includes(id)&&['people','organization'].includes(id)))topics.push({id,title,description:undefined,href:`${base}/settings?section=${id}`});
+  const approvalTab=typeof query.tab==='string'&&['templates','issues','history'].includes(query.tab)?query.tab:'templates';
+  const brandTab=typeof query.tab==='string'?query.tab:'identity';
+  if(section==='brand'&&!['identity','media','history'].includes(brandTab))notFound();
+  if(section==='brand'&&!topics.some(topic=>topic.id===`brand:${brandTab}`))return accessPage('permission',actor.holdingSlug);
   return (
-    <FeaturePage className="ui-page-content" data-source="live">
-      <PageHeader appearance="standard"
-        eyebrow={
-          actor.beta || section === "feedback"
-            ? undefined
-            : section === "usage"
-              ? "Technology"
-              : section === "ai"
-                ? "Technology"
-                : "Projects & workflows"
-        }
-        title={
-          section === "feedback"
-            ? "Help & feedback"
-            : actor.beta
-              ? "Administration"
-              : section === "approvals"
-                ? access.manageOrganization
-                  ? "Approval routing"
-                  : "Routine templates"
-                : adminSections.find(([id]) => id === section)![1]
-        }
-        description={
-          section === "feedback"
-            ? "Get help or tell us what could work better."
-            : actor.beta
-              ? "Manage your workspace, one place at a time."
-              : section === "approvals"
-                ? "Review routes, resolve blocked work, and inspect recorded configuration changes."
-                : section === "usage"
-                  ? "Manage company usage and billing."
-                  : "Configure AI providers for your company."
-        }
-      />
-      {!actor.beta && section !== "feedback" && (
-        <ServiceNavigation
-          context={{
-            workspaceBase: base,
-            scopeKind: actor.scope.kind,
-            role: actor.role,
-            permissions: actor.iam?.permissions,
-            adminSections: access.sections,
-            canManageApprovals: access.manageOrganization,
-          }}
-          groupId={
-            section === "usage"
-              ? "technology"
-              : section === "ai"
-                ? "technology"
-                : "projects"
-          }
-          activeId={
-            section === "approvals" && !access.manageOrganization
-              ? "projects-routines"
-              : `administration-${section}`
-          }
-        />
-      )}
-      {actor.beta && section !== "feedback" && access.sections.length > 1 && (
-        <FeatureTabBar appearance="standard" aria-label="Administration sections">
-          {adminSections
-            .filter(
-              ([id]) =>
-                access.sections.includes(id) &&
-                id !== "feedback" &&
-                (actor.beta || !["people", "organization"].includes(id)),
-            )
-            .map(([id, label]) => (
-              <Link
-                key={id}
-                href={`${base}/settings?section=${id}`}
-                aria-current={id === section ? "page" : undefined}
-              >
-                {label}
-              </Link>
-            ))}
-        </FeatureTabBar>
-      )}
+    <SectionWorkspace title="Administration settings" items={topics} selected={section==='brand'?`brand:${brandTab}`:section==='approvals'?`approvals:${approvalTab}`:section} context={section==='brand'?topics.find(topic=>topic.id===`brand:${brandTab}`)?.title:adminSections.find(([id])=>id===section)?.[1]}>
+
+
+
       {(canOpenReadiness || canOpenStripe) && (
         <nav className={styles.shortcuts} aria-label="Related settings">
           {canOpenReadiness && (
@@ -173,7 +103,8 @@ export default async function Settings({
           )}
         </nav>
       )}
-      {section === "approvals" && !query.record && <FlowSettingsHub actor={actor} base={base} tab={["templates","issues","history"].includes(query.tab??"")?query.tab!:"templates"}/>}
+      {section === "approvals" && !(typeof query.record==="string"?query.record:undefined) && <FlowSettingsHub embedded actor={actor} base={base} tab={typeof query.tab==="string"&&["templates","issues","history"].includes(query.tab)?query.tab:"templates"}/>}
+      {section==='brand'&&(brandTab==='media'?<BrandAdministration appearance="standard" base={base} {...await presentation.listBrandProfiles(actor)} canHolding={access.owner} canBranches={access.manageOrganization} canStorefront={access.manageOrganization&&actor.scope.kind==='holding'} canReviewPublications={hasPermission(actor,'records.review')||hasPermission(actor,'commerce.approve')}/>:<BrandIdentityConsole base={base} data={await brandIdentityWorkspace(actor)} section={brandTab==='history'?'history':'identity'} embedded/>)}
       <WidgetGrid>
         {section === "people" && (
           <FeatureWidget
@@ -279,20 +210,20 @@ export default async function Settings({
             )}
           </>
         )}
-        {section === "approvals" && (query.record || query.tab === "issues" || !access.manageOrganization) &&
+        {section === "approvals" && ((typeof query.record==="string"?query.record:undefined) || query.tab === "issues" || !access.manageOrganization) &&
           (access.manageOrganization ? (
-            query.kind === "request" ? (
+            (typeof query.kind==="string"?query.kind:undefined) === "request" ? (
               <RequestAdministration
                 actor={actor}
                 base={base}
-                record={query.record}
+                record={(typeof query.record==="string"?query.record:undefined)}
               />
             ) : (
               <ApprovalAdministration
                 actor={actor}
                 base={base}
-                kind={query.kind}
-                record={query.record}
+                kind={(typeof query.kind==="string"?query.kind:undefined)}
+                record={(typeof query.record==="string"?query.record:undefined)}
               />
             )
           ) : (
@@ -307,7 +238,7 @@ export default async function Settings({
               </Card>
             </FeatureWidget>
           ))}
-        {section === "approvals" && access.owner && !query.record && query.tab === "issues" && (
+        {section === "approvals" && access.owner && !(typeof query.record==="string"?query.record:undefined) && query.tab === "issues" && (
           <RequestAdministration actor={actor} base={base} />
         )}
         {(section === "usage" ||
@@ -322,6 +253,6 @@ export default async function Settings({
           />
         )}
       </WidgetGrid>
-    </FeaturePage>
+    </SectionWorkspace>
   );
 }

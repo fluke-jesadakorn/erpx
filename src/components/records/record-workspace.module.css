@@ -1,0 +1,2 @@
+.host { display:none; min-width:0; }
+@media(min-width:1251px) { .host[data-open] {display:block;} .host>aside {top:84px;width:100%;} }

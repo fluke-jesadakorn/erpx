@@ -19,6 +19,7 @@ function useCommand(base: string) {
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   async function send(input: unknown) {
+    const form=document.activeElement?.closest("form"),formEditVersion=form?.getAttribute("data-erpx-edit-version");
     const body = JSON.stringify(input);
     if (last.current?.body !== body) last.current = { key: crypto.randomUUID(), body };
     setBusy(true);
@@ -38,9 +39,15 @@ function useCommand(base: string) {
         throw new Error(result.error?.message ?? "Unable to update learning.");
       }
       last.current = null;
+      if(form&&formEditVersion&&form.getAttribute('data-erpx-edit-version')===formEditVersion)window.dispatchEvent(new CustomEvent('erpx:record-command-saved',{detail:{form,formEditVersion}}));
+      const current=new URL(window.location.href);
+      const entity=input&&typeof input==='object'&&'entity' in input?String(input.entity):null;
+      if(current.pathname===`${base}/knowledge`){if(entity==='assignment'||entity===null){current.searchParams.set('detailKind','learning_assignment');current.searchParams.set('detailId',String(result.data.id));}router.push(current.pathname+current.search,{scroll:false});}
+      else {
       router.push(
         `${base}/learning${input && typeof input === "object" && "entity" in input && input.entity === "course" ? "" : `/${result.data.id}`}`,
       );
+      }
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Retry this action.");
@@ -50,11 +57,11 @@ function useCommand(base: string) {
   }
   return { send, busy, error };
 }
-export function LearningConsole({ recordOnly=false,
+export function LearningConsole({ recordOnly=false, section, embedded=false,
   base,
   data,
   detail,
-}: { recordOnly?:boolean;
+}: { recordOnly?:boolean; section?:"courses"|"assignments"; embedded?:boolean;
   base: string;
   data?: Awaited<ReturnType<typeof learningWorkspace>>;
   detail?: Awaited<ReturnType<typeof learningAssignmentDetail>>;
@@ -64,9 +71,9 @@ export function LearningConsole({ recordOnly=false,
     a = detail?.assignment,
     [completionFiles, setCompletionFiles] = useState<AttachmentPanelChange | null>(null);
   return (
-    <>
+    <div className="ui-stack" data-owner-embedded={embedded||undefined}>
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
-      {data?.canWrite && (
+      {section!=="assignments" && data?.canWrite && (
         (!recordOnly && <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Draft course</summary><FormLayout
           className="ui-panel ui-form-grid"
           onSubmit={(e) => {
@@ -106,7 +113,7 @@ export function LearningConsole({ recordOnly=false,
           </Button>
         </FormLayout></FormDisclosure>)
       )}
-      {data?.canReview &&
+      {section!=="assignments" && data?.canReview &&
         data.courses
           .filter((x) => x.status === "draft")
           .map((x) => (
@@ -141,8 +148,8 @@ export function LearningConsole({ recordOnly=false,
               </Button>
             </FormLayout>
           ))}
-      {data?.canReview && (
-        (!recordOnly && <FormLayout
+      {section!=="courses" && data?.canReview && (
+        (!recordOnly && <FormDisclosure appearance="standard" dismissDisabled={busy} error={error} drawerTitle="Assign course"><summary>Assign course</summary><FormLayout
           className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -185,7 +192,7 @@ export function LearningConsole({ recordOnly=false,
           <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Assign course
           </Button>
-        </FormLayout>)
+        </FormLayout></FormDisclosure>)
       )}
       {a && a.status === "assigned" && (
         (!recordOnly && <FormLayout
@@ -297,6 +304,6 @@ export function LearningConsole({ recordOnly=false,
           </Button>
         </FormLayout>)
       )}
-    </>
+    </div>
   );
 }

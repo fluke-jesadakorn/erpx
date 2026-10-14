@@ -32,8 +32,10 @@ const NavigationCounts = createContext<NavigationContext>({ attention: workAtten
 export const useNavigationState = () => useContext(NavigationCounts);
 export function useNavigationCounts() {
   const state = useNavigationState();
-  const initial = state.initialPending && state.initial ? use(state.initial) : null;
-  if (!initial) return state;
+  // A suspended badge must consume the same promise when React retries it,
+  // even if the provider's effect has already committed its resolved snapshot.
+  const initial = state.initial ? use(state.initial) : null;
+  if (!state.initialPending || !initial) return state;
   return { ...state, counts: {
     home: state.homeChanged ? state.counts.home : initial.home,
     work: state.workChanged ? state.counts.work : initial.work,

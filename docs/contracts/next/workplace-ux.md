@@ -8,6 +8,24 @@ Customers & sales has one Customers entry for relationship history, then Pipelin
 
 The App launcher, workspace search, Sidebar and shortcuts consume the same permission-filtered, URL-deduplicated navigation model. Search includes the six daily views and Start intents. Categories organize discovery and do not become domain parents or breadcrumb segments. Existing URLs, Company/workspace, hotel property, Finance chart and record filters remain valid. Shared commerce directories retain `?view=parties&kind=customer|supplier`; order details retain the actual `view=sales|quote|purchase`.
 
+## Shared section workspaces
+
+Administration settings, Assets & maintenance, Knowledge, Benefits, the Commerce catalogue, Finance setup and Projects use `sectionWorkspaceTopics` for topic links and discovery. Owners retain controlled query state, selected records, scoped search, tables, commands and authorization. Assets and Maintenance load only the selected owner; Maintenance-only roles enter the maintenance topic without reading Assets. Knowledge gates editorial topics separately from Learning. Brand settings require Brand module access and keep publication/media authority with Brand.
+
+| Workspace | Canonical topics |
+| --- | --- |
+| `/settings?section=…` | Approvals (routes/issues/history), Brand (identity/media/history), AI, usage, feedback |
+| `/assets?view=…` | register, maintenance, plans |
+| `/knowledge?view=…&section=…` | handbook: published/drafts/editors; learning: courses/assignments/mine |
+| `/benefits?view=…` | plans, enrollments, mine |
+| `/commerce?view=…` | products, warehouses, pricing; comparative tables retained |
+| `/finance/setup?step=…` | checklist, chart, profile, opening, books, tools, policy, ai; readiness and review retained |
+| `/projects/[id]?view=…` | overview, tasks, structure, actuals, handoff, documents; WBS and costs retained |
+
+Legacy Maintenance, Handbook, Learning and Brand list URLs redirect with repeated query values and record/return context preserved. Their record/editor/document routes remain full-page destinations. Saved shortcut IDs remain search aliases. Defaults select the first eligible topic; explicit forbidden topics keep the owner permission response. Finance fixed assets stay in Finance, and Benefits retains its independent approval and privacy boundaries.
+
+Navigation collapses at 1024px; details dock above 1250px, overlay at or below 1250px and fill the viewport at or below 650px. Owner editors use form drawers, with fixed headers, scrolling bodies and draft/command error recovery. Discovery consolidation changes no database, role grants, owner payloads, expected versions, idempotency or preview/confirmation rules.
+
 ## Today, My work and shortcuts
 
 My shortcuts shows at most four ordered entries in the full Sidebar. It reads the existing versioned Work-card preferences and recommends defaults by role for users without saved pins. Existing six-pin selections and their order are preserved across devices. Sidebar and Apps shortcuts do not expose Customize or the shortcut editor. Apps exposes the full shortcut cards, queue summaries, creation links and All actions in a two-column panel; phones initially show four cards and can expand to all six. An empty saved selection offers All actions rather than a customization prompt. Shortcuts in the Sidebar do not repeat queue counts. Incomplete summaries retain usable destinations while showing the limitation and Retry. Legacy navigation preference rows remain intact. Other QuickAccessShelf consumers retain customization unless explicitly disabled. Family tones identify People, commercial, service, supply, Finance and shared work, while status colors continue to carry separate outcome labels.

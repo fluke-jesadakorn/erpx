@@ -69,7 +69,7 @@ const subscribe = (listener: () => void) => {
 export function useWorkspaceDetailOverlay() {
   return useSyncExternalStore(subscribe, () => window.matchMedia("(max-width:1250px)").matches, () => false);
 }
-export function WorkspaceDetail({ open, title, onClose, children, "data-testid": testId, ...props }: HTMLAttributes<HTMLElement> & { open: boolean; title: string; onClose: () => void; "data-testid"?: string }) {
+export function WorkspaceDetail({ open, title, onClose, children, "data-testid": testId, suspended = false, ...props }: HTMLAttributes<HTMLElement> & { suspended?: boolean; open: boolean; title: string; onClose: () => void; "data-testid"?: string }) {
   const overlay = useWorkspaceDetailOverlay();
   const panel = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -79,6 +79,6 @@ export function WorkspaceDetail({ open, title, onClose, children, "data-testid":
     return () => { if(trigger?.isConnected) trigger.focus({preventScroll:true}); };
   }, [open, overlay]);
   if (!open) return null;
-  if (overlay) return <Dialog appearance="standard" open title={title} onClose={onClose} closeLabel="Close details" presentation="form-drawer" className={styles.overlay} data-testid={testId}>{children}</Dialog>;
-  return <WorkspaceDetailPanel {...props} ref={panel} tabIndex={-1} onKeyDown={event => {props.onKeyDown?.(event); if(event.key === "Escape") {event.stopPropagation();onClose();}}} data-testid={testId} className={cn(styles.detail, props.className)} aria-label={title}><header><h2>{title}</h2><Button appearance="standard" variant="plain" type="button" aria-label="Close details" onClick={onClose}><X size={20} /></Button></header><div className={styles.detailBody}>{children}</div></WorkspaceDetailPanel>;
+  if (overlay) return <Dialog workspaceRole="detail" suspended={suspended} appearance="standard" open title={title} onClose={onClose} closeLabel="Close details" presentation="form-drawer" className={styles.overlay} data-testid={testId}>{children}</Dialog>;
+  return <WorkspaceDetailPanel {...props} ref={panel} aria-hidden={suspended || undefined} data-suspended={suspended || undefined} tabIndex={-1} onKeyDown={event => {props.onKeyDown?.(event); if(event.key === "Escape") {event.stopPropagation();onClose();}}} data-testid={testId} className={cn(styles.detail, props.className)} aria-label={title}><header><h2>{title}</h2><Button appearance="standard" variant="plain" type="button" aria-label="Close details" onClick={onClose}><X size={20} /></Button></header><div className={styles.detailBody}>{children}</div></WorkspaceDetailPanel>;
 }

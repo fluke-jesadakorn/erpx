@@ -1,7 +1,9 @@
 import Link from "next/link";
+import {routeContextHref} from "@/lib/shared/route-context";
 import { Button, SearchField, Select, FilterBar, type UiAppearance } from "./foundation";
 export function ListFilters({
   action,
+  children,
   appearance = "legacy",
   query = "",
   placeholder = "Search",
@@ -10,19 +12,18 @@ export function ListFilters({
   preserve = {},
 }: {
   action: string;
+  children?: import("react").ReactNode;
   appearance?: UiAppearance;
   query?: string;
   placeholder?: string;
   status?: string;
   statuses?: readonly (readonly [string, string])[];
-  preserve?: Record<string, string>;
+  preserve?: Record<string, string | string[]>;
 }) {
   const Element = appearance === "standard" ? FilterBar : "form";
   return (
     <Element className={appearance === "standard" ? undefined : "work-filters"} action={action} role="search">
-      {Object.entries(preserve).map(([name, value]) => (
-        <input key={name} type="hidden" name={name} value={value} />
-      ))}
+      {Object.entries(preserve).flatMap(([name, value]) => (Array.isArray(value)?value:[value]).map((item,index)=><input key={`${name}:${index}`} type="hidden" name={name} value={item}/>))}
       <SearchField appearance={appearance}
         name="q"
         aria-label={placeholder}
@@ -38,6 +39,7 @@ export function ListFilters({
           ))}
         </Select>
       )}
+      {children}
       <Button appearance={appearance} type="submit" variant="secondary">
         Search
       </Button>
@@ -45,7 +47,7 @@ export function ListFilters({
         <Link
           className={appearance === "standard" ? "button ghost ui-standard-control" : "button ghost"}
           data-slot="button"
-          href={`${action}${Object.keys(preserve).length ? `?${new URLSearchParams(preserve)}` : ""}`}
+          href={routeContextHref(action,preserve)}
         >
           Clear filters
         </Link>

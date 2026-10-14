@@ -8,6 +8,7 @@ import { cn } from "@/lib/shared/ui";
 import { buttonVariants } from "./button-variants";
 import "./dialog.css";
 import { useEmbeddedRecord } from "@/components/records/record-context";
+import {useWorkspaceEditor,useWorkspaceOverlay} from "./workspace-overlay";
 import { Button } from "./button";
 
 export const DialogClose = DialogPrimitive.Close;
@@ -26,6 +27,8 @@ export function FormDrawer({ inline = false, ...props }: {
 
 export function Dialog({
   id,
+  workspaceRole = "editor",
+  suspended = false,
   open,
   onClose,
   title,
@@ -42,6 +45,8 @@ export function Dialog({
   "data-testid": testId,
 }: {
   id?: string;
+  workspaceRole?: "editor" | "detail";
+  suspended?: boolean;
   appearance?: UiAppearance;
   open: boolean;
   onClose: () => void;
@@ -60,11 +65,13 @@ export function Dialog({
 }) {
   const popup = useRef<HTMLDivElement>(null);
   const embedded = useEmbeddedRecord();
+  const workspace = useWorkspaceOverlay();
+  useWorkspaceEditor(open && presentation === "form-drawer" && workspaceRole === "editor");
   const [hasOpened, setHasOpened] = useState(retainFormContents && open);
   if (retainFormContents && open && !hasOpened) setHasOpened(true);
   const keepFormMounted = retainFormContents && presentation === "form-drawer" && hasOpened;
   // Embedded editors retain their existing explicit-discard behavior.
-  if (embedded && presentation === "form-drawer") return open ? <EmbeddedForm title={title} onClose={onClose} dismissDisabled={dismissDisabled}>{children}</EmbeddedForm> : null;
+  if (embedded && !workspace.active && presentation === "form-drawer") return open ? <EmbeddedForm title={title} onClose={onClose} dismissDisabled={dismissDisabled}>{children}</EmbeddedForm> : null;
   const panel = presentation !== "default";
   const positions = {
     default:
@@ -91,12 +98,14 @@ export function Dialog({
     >
       <DialogPrimitive.Portal keepMounted={keepFormMounted}>
         <DialogPrimitive.Backdrop
+          hidden={suspended || !open}
           data-slot="dialog-backdrop"
           className="fixed inset-0 z-[80] bg-slate-950/60"
         />
-        <DialogPrimitive.Viewport className="pointer-events-none fixed inset-0 z-[80] flex overflow-y-auto">
+        <DialogPrimitive.Viewport style={suspended || !open?{display:"none"}:undefined} hidden={suspended || !open} className="pointer-events-none fixed inset-0 z-[80] flex overflow-y-auto">
           <DialogPrimitive.Popup
             id={id}
+            aria-hidden={suspended || !open || undefined}
             ref={popup}
             data-slot="dialog"
             data-presentation={presentation}

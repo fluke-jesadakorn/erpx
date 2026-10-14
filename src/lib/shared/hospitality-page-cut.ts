@@ -31,6 +31,10 @@ export function productionPageCut(pathname:string,workspaceBase:string,search:Pi
     if(entries.some(entry=>!['Coming Soon','Prototype'].includes(entry.state)))return null;
     return entries.find(entry=>['Coming Soon','Prototype'].includes(entry.state))??null;
   }
+  if(segments.length===1&&(root==='knowledge'&&search.get('view')==='learning'||root==='assets'&&['maintenance','plans'].includes(search.get('view')??'')||root==='settings'&&search.get('section')==='brand')){
+    const owner=root==='knowledge'?'learning':root==='assets'?'maintenance':'brand',entry=catalogue.find(item=>item.id===owner);
+    return entry&&['Coming Soon','Prototype'].includes(entry.state)?entry:null;
+  }
   if(root==='finance'&&segments.length===2&&['engines','group'].includes(section??''))
     return {id:'advanced-finance',name:'Advanced Finance',state:'Coming Soon' as FeatureState};
   // The legacy Payroll entry redirects into its dedicated, read-safe workspace.
@@ -61,7 +65,7 @@ export function productionPageCut(pathname:string,workspaceBase:string,search:Pi
   } else if(root==='pos') {
     if(segments.length>1||search.get('sale')||search.get('movement'))return null;
   } else if(segments.length>1) {
-    if(root==='finance'&&segments.length===2)return entry;
+  if(root==='finance'&&segments.length===2)return entry;
     if(root==='people'&&peopleSectionOwner)return entry;
     // Detail pages may contain previously authorized records. Keep those readable.
     if(root!=='support'||!['sla','incidents','sessions'].includes(section??'')||segments.length>2)return null;

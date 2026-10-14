@@ -1,0 +1,11 @@
+.workspace { padding:24px; max-width:100%; min-width:0; color:var(--ui-ink); }
+.heading {display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px;}
+.heading h1 {font-size:28px;font-weight:700;margin:0;}
+.content {min-width:0;display:grid;gap:20px;}
+.content>section,.content>div {min-width:0;}
+.embedded {min-width:0;}
+@media(max-width:650px){.workspace{padding:16px 8px;}.heading h1{font-size:24px;}}
+
+.content [data-owner-embedded] > [data-slot="card"] {box-shadow:none;}
+
+.nested {padding:0;}

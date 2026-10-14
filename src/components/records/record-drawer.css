@@ -12,3 +12,6 @@ tbody tr:has([data-record-link="true"]):hover { background: var(--ui-brand-soft)
 
 .ui-record-open-action { white-space: nowrap; font-size: .8rem; }
 .ui-record-open-action a { display: inline-flex; padding: 6px 9px; border: 1px solid var(--ui-line); border-radius: var(--ui-radius-md); }
+
+/* The opt-in host already presents the owner title in its fixed header. */
+[data-workspace-record-title] { display:none; }

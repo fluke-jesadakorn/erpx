@@ -42,3 +42,5 @@
 .recordList .record small { display:block; margin-top:4px; color:var(--ui-muted); }
 .recordList button.record[data-slot]:hover { background:var(--ui-brand-soft); }
 .recordList button.record[data-slot][aria-pressed=true] { border-color:var(--ui-brand); background:var(--ui-brand-soft); }
+
+.detail[data-suspended] {visibility:hidden;}

@@ -1,4 +1,8 @@
 "use client";
+import { createPortal } from "react-dom";
+import { WorkspaceDetail } from "@/components/ui/workspace";
+import { useWorkspaceOverlay } from "@/components/ui/workspace-overlay";
+import { useRecordWorkspace } from "./record-workspace";
 import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Dialog } from "@/components/ui/dialog";
@@ -12,6 +16,7 @@ let originTrigger:HTMLElement|null=null;
 type HistoryNavigationEvent=Event & {navigationType?:string;destination?:{url:string}};
 export function RecordDrawer({ title, fullHref, children }: { title: string; fullHref: string; children: ReactNode }) {
   const router = useRouter(), query = useSearchParams();
+  const {host}=useRecordWorkspace(), {editors}=useWorkspaceOverlay();
   const [contentNode, setContentNode] = useState<HTMLDivElement | null>(null), [stale, setStale] = useState(false);
   const [dirty, setDirty] = useState(false), [confirming, setConfirming] = useState(false), [recordTitle, setRecordTitle] = useState(title);
   const destination = useRef<string | null>(null), latestUrl = useRef(""), trigger = useRef<HTMLElement | null>(null);
@@ -92,22 +97,23 @@ export function RecordDrawer({ title, fullHref, children }: { title: string; ful
   }, [contentNode]);
   useEffect(() => {
     const node = contentNode;
-    const observer = new MutationObserver(() => {
-      const heading = (node?.querySelector("h1")??node?.querySelector("[data-record-heading],strong,h2"))?.textContent?.trim();
-      if (heading) setRecordTitle(heading);
-    });
-    if (node) observer.observe(node, { subtree: true, childList: true });
-    const heading = (node?.querySelector("h1")??node?.querySelector("[data-record-heading],strong,h2"))?.textContent?.trim();
-    if (heading) queueMicrotask(() => setRecordTitle(heading));
-    return () => observer.disconnect();
-  }, [contentNode]);
+    function updateTitle(){
+      const heading=node?.querySelector<HTMLElement>('h1')??node?.querySelector<HTMLElement>('[data-record-heading],strong,h2');
+      const text=heading?.textContent?.trim();if(text)setRecordTitle(text);
+      if(host&&heading?.tagName==='H1')heading.setAttribute('data-workspace-record-title','');
+    }
+    const observer=new MutationObserver(updateTitle);
+    if(node)observer.observe(node,{subtree:true,childList:true});
+    queueMicrotask(updateTitle);
+    return ()=>{observer.disconnect();node?.querySelectorAll('[data-workspace-record-title]').forEach(heading=>heading.removeAttribute('data-workspace-record-title'));};
+  }, [contentNode,host]);
   useEffect(() => {
     const boundary = document.querySelector("[data-work-revision]");
     const observer = new MutationObserver(() => setStale(boundary?.getAttribute("data-work-stale") === "true"));
     if (boundary) observer.observe(boundary, { attributes: true, attributeFilter: ["data-work-stale"] });
     return () => observer.disconnect();
   }, []);
-  return <Dialog appearance="standard" open={open} title={recordTitle} onClose={close} finalFocus={focusTarget} presentation="form-drawer" data-testid="record-detail-drawer">
+  const body=<>
     <div className="record-drawer-toolbar"><a href={fullHref} onClick={event => { if (dirty && !event.metaKey && !event.ctrlKey) { event.preventDefault(); destination.current = fullHref; setConfirming(true); } }}>Open full page ↗</a><span role="status">{dirty ? "Unsaved changes" : ""}</span></div>
     {stale && <p role="alert">Your work role changed. Reload this page to review access to the record.</p>}
     <div ref={setContentNode} hidden={stale} inert={stale} data-record-drawer-content data-record-dirty={dirty}>
@@ -116,5 +122,7 @@ export function RecordDrawer({ title, fullHref, children }: { title: string; ful
     <Dialog appearance="standard" open={confirming} title="Discard unsaved changes?" onClose={() => setConfirming(false)}>
       <p>Your changes have not been saved.</p><div className="ui-form-actions"><Button appearance="standard" variant="secondary" onClick={() => setConfirming(false)}>Keep editing</Button><Button appearance="standard" variant="danger" onClick={() => { dirtyRef.current=false;setDirty(false); setConfirming(false); if (destination.current) router.push(destination.current, { scroll: false }); }}>Discard changes</Button></div>
     </Dialog>
-  </Dialog>;
+  </>;
+  if(host)return createPortal(<div data-record-workspace-detail data-editor-open={editors>0||undefined}><WorkspaceDetail suspended={editors>0} open={open} title={recordTitle} onClose={close} data-testid="record-detail-drawer">{body}</WorkspaceDetail></div>,host.node);
+  return <Dialog workspaceRole="detail" appearance="standard" open={open} title={recordTitle} onClose={close} finalFocus={focusTarget} presentation="form-drawer" data-testid="record-detail-drawer">{body}</Dialog>;
 }

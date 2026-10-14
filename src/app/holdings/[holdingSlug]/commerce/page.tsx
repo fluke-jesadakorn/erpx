@@ -1,3 +1,7 @@
+import catalogStyles from "./catalog.module.css";
+import {SectionWorkspace} from "@/components/workplace/section-workspace";
+import {sectionWorkspaceTopics,workspaceTopicLinks} from "@/lib/work_projection/section-workspaces";
+import type {RouteSearch} from "@/lib/shared/route-context";
 import { commercePresentationQueries } from "@/server/modules/commerce/public/presentation-queries";
 
 
@@ -93,7 +97,7 @@ export default async function CommercePage({
   }
   const destination = salesCustomerLegacyDestination(base, "commerce", { ...search, view, kind: partyKind });
   if (destination) redirect(destination);
-  if (view === "pricing") return <PriceListPage actor={actor} base={base} />;
+  if (view === "pricing") return <PriceListPage actor={actor} base={base} query={search} />;
   const data = await commercePage(actor, { ...search, view, kind: partyKind }).catch((error) =>
     pageError(error, holdingSlug),
   );
@@ -181,7 +185,7 @@ export default async function CommercePage({
           </UiActionLink>
         )}
       </header>
-      <FeatureTabs appearance="standard" />
+      {!["products","warehouses"].includes(view)&&<FeatureTabs appearance="standard" />}
       {["sales", "quote"].includes(view) && (
         <div className="ui-form-actions">
           <UiActionLink appearance="standard" variant="secondary" href={`${base}/crm`}>
@@ -197,6 +201,7 @@ export default async function CommercePage({
           Supplier quotations &amp; award reviews
         </UiActionLink>
       )}
+      <SectionWorkspace nested showHeading={false} embedded={!["products","warehouses"].includes(view)} title="Products, warehouses & pricing" selected={view} items={workspaceTopicLinks(base,search,sectionWorkspaceTopics.catalog.filter(topic=>topic.id!=='pricing'||permissions.sales&&!actor.branchId&&!actor.departmentId))} context={pageTitle}>
       <WidgetGrid>
         {requestData && (
           <FeatureWidget appearance="standard" id="operations-sales-approved-request" title="Approved request">
@@ -223,7 +228,7 @@ export default async function CommercePage({
 
         {["sales", "quote", "purchase"].includes(view) && (
           <>
-            <FeatureWidget appearance="standard" id="commerce-records" title={["sales", "quote", "purchase"].includes(view) ? "Document register" : pageTitle}>
+            <FeatureWidget className={view==='parties'?undefined:catalogStyles.embedded} appearance="standard" id="commerce-records" title={["sales", "quote", "purchase"].includes(view) ? "Document register" : pageTitle}>
               <FilterBar className="ui-filter-bar">
                 <TextInput appearance="standard" type="hidden" name="view" value={view} />
                 <Field appearance="standard">
@@ -504,7 +509,7 @@ export default async function CommercePage({
           </>
         )}
         {["products", "parties", "warehouses"].includes(view) && (
-          <FeatureWidget appearance="standard" id="commerce-records" title={["sales", "quote", "purchase"].includes(view) ? "Document register" : pageTitle}>
+          <FeatureWidget className={view==='parties'?undefined:catalogStyles.embedded} appearance="standard" id="commerce-records" title={["sales", "quote", "purchase"].includes(view) ? "Document register" : pageTitle}>
             {view === "parties" && permissions.approve && notificationSettings && (
               <CustomerNotificationSettingsForm base={base} settings={notificationSettings} />
             )}
@@ -527,7 +532,7 @@ export default async function CommercePage({
                   New entry
                 </UiActionLink>
               ))}
-            <TableFrame appearance="standard" label="Records" className="business-table-wrap">
+            <TableFrame appearance="standard" label="Records" className={view==='parties'?"business-table-wrap":`business-table-wrap ${catalogStyles.register}`}>
               <Table className="business-table">
                 <thead>
                   <tr>
@@ -630,12 +635,12 @@ export default async function CommercePage({
             <ListPagination {...data.page} query={search} count={data.page.items.length} />
           </FeatureWidget>
         )}
-      </WidgetGrid>
+      </WidgetGrid></SectionWorkspace>
     </FeaturePage>
   );
 }
 
-async function PriceListPage({ actor, base }: { actor: WorkContext; base: string }) {
+async function PriceListPage({ actor, base, query }: { actor: WorkContext; base: string; query:RouteSearch }) {
   const data = await pricingWorkspace(actor);
   return (
     <FeaturePage className="ui-page-content" data-source="live">
@@ -651,8 +656,7 @@ async function PriceListPage({ actor, base }: { actor: WorkContext; base: string
           Sales orders
         </UiActionLink>
       </header>
-      <FeatureTabs appearance="standard" />
-      <SalesPricingConsole base={base} data={data} />
+      <SectionWorkspace nested showHeading={false} title="Products, warehouses & pricing" selected="pricing" items={workspaceTopicLinks(base,query,sectionWorkspaceTopics.catalog)} context="Approved price lists and discounts"><SalesPricingConsole base={base} data={data} /></SectionWorkspace>
     </FeaturePage>
   );
 }

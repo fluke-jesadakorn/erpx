@@ -39,7 +39,7 @@ export function salesCustomerLegacyDestination(base: string, route: string, quer
   if (route !== "commerce") return null;
   const view = queryValue(q, "view", "sales");
   if (view === "parties" && queryValue(q, "kind", "customer") === "customer") return hubHref(base, "customers", q, { view: "directory", kind: undefined });
-  if (view === "pricing") return hubHref(base, "sales", q, { view: "pricing" });
+  if (view === "pricing") return null;
   if (view === "sales" || view === "quote") return hubHref(base, "sales", q, { view: "documents", type: view });
   return null;
 }

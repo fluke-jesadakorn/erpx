@@ -13,7 +13,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "brand": {
     "stage": 6,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/brand/page.tsx; src/components/brand/brand-identity-console.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/settings/page.tsx; src/components/brand/brand-identity-console.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/brand/route.ts",
     "service": "src/server/modules/brand/public/brand-identity.ts",
     "schema": "migrations/postgres/holding-write/0025_workspace_branding.sql; migrations/postgres/holding-write/0964_brand_identity_lifecycle.sql",

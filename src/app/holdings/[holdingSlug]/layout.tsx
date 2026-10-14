@@ -1,7 +1,9 @@
+import {collaborationPresentationQueries} from "@/server/modules/collaboration/public/presentation-queries";
 import { homeContextKey } from "@/server/modules/work_projection/public/home-cache";
 import { workspaceNavigation } from "@/server/modules/work_projection/public/navigation-snapshot";
 import { workProjectionPresentationQueries } from "@/server/modules/work_projection/public/presentation-queries";
 
+import { RecordWorkspaceProvider } from "@/components/records/record-workspace";
 import { RecordScopeProvider } from "@/components/records/record-context";
 import { MainContent } from "@/components/ui/main";
 import { Button } from "@/components/ui/foundation";
@@ -118,7 +120,9 @@ export default async function WorkplaceLayout({
     : undefined;
   const frontHref = (app: "pos" | "pms") =>
     frontBase ? `${frontBase}/${app}/${frontLocation}/` : undefined;
+  const handbookAccess=await (await collaborationPresentationQueries(context.holdingId)).handbookAccess(context).catch(()=>({editor:false,owner:false}));
   const navigation = {
+    handbookAccess,
     financeWorkspaceV2: financeWorkspaceV2Enabled(),
     manageErpxVisible:
       context.holdingId === "h003" &&
@@ -322,7 +326,7 @@ export default async function WorkplaceLayout({
                           : undefined
                       }
                     >
-                      <RecordScopeProvider base={base}>{children}{record}</RecordScopeProvider>
+                      <RecordWorkspaceProvider><RecordScopeProvider base={base}>{children}{record}</RecordScopeProvider></RecordWorkspaceProvider>
                     </FeatureEnvironment>
                   </MainContent>
                 </div>

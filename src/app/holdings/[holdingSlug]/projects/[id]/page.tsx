@@ -1,8 +1,12 @@
+import {SectionWorkspace} from "@/components/workplace/section-workspace";
+import {sectionWorkspaceTopics,workspaceTopicLinks} from "@/lib/work_projection/section-workspaces";
+import type {RouteSearch} from "@/lib/shared/route-context";
+import {notFound} from "next/navigation";
 import { staffPresentationQueries } from "@/server/modules/work_projection/public/presentation-context-queries";
 
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
-import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/shared/features/feature-page";
+import { FeatureWidget,WidgetGrid } from "@/components/shared/features/feature-page";
 import { ProjectEditor } from "@/components/records/loaders/modules--staff-work-controls";
 import { ProjectMilestoneConsole } from "@/components/records/loaders/modules--project-milestones";
 import { ProjectActualsConsole } from "@/components/records/loaders/modules--project-actuals";
@@ -19,38 +23,41 @@ import { RecordDocumentPanel } from "@/components/records/loaders/attachments--r
 import { RecordLink as Link } from "@/components/records/record-link";
 import { Card } from "@/components/ui/foundation";
 export default async function Project({
-  params,
+  params, searchParams,
 }: {
   params: Promise<{ holdingSlug: string; id: string }>;
+  searchParams?:Promise<RouteSearch>;
 }) {
+  const query=await searchParams??{},view=typeof query.view==="string"?query.view:"overview";
+  if(!sectionWorkspaceTopics.projects.some(topic=>topic.id===view))notFound();
   const { holdingSlug, id } = await params,
     { actor, queries, base, options } = await staffPresentationQueries(holdingSlug),
     project = await queries.getProject(actor, id).catch((e) => {
       return pageError(e, holdingSlug);
     }),
-    tasks = await queries.listTasks(actor, id),
-    milestones = await queries.listProjectMilestones(actor, id),
-    workLogs = await queries.listProjectWorkLogs(actor, id),
+    tasks = view==="tasks"?await queries.listTasks(actor, id):[],
+    milestones = view==="structure"?await queries.listProjectMilestones(actor, id):[],
+    workLogs = ["actuals","structure","handoff"].includes(view)?await queries.listProjectWorkLogs(actor, id):[],
     members = (
       await queries.projectMemberIds(id)
     ).results;
   const isProjectOwner = samePerson(actor, project.owner_user_id);
-  const active=project.lifecycle_status==='active',graph=await projectGraph(actor,id),handoffs=await projectHandoffs(actor,id);
+  const active=project.lifecycle_status==='active',graph=["structure","handoff"].includes(view)?await projectGraph(actor,id):null,handoffs=view==="handoff"?await projectHandoffs(actor,id):[];
   const canReadCosts = hasPermission(actor, "finance.read"),
     canWriteCosts = hasPermission(actor, "finance.write"),
     canApproveCosts = hasPermission(actor, "finance.approve"),
     [costs, costSources] = canReadCosts
-      ? await Promise.all([
+      &&["actuals","structure","handoff"].includes(view)? await Promise.all([
           listProjectCostAllocations(actor, id),
           canWriteCosts ? listProjectCostSources(actor, id) : Promise.resolve([]),
         ])
       : [[], []];
   return (
-    <FeaturePage className="ui-page-content" data-source="live">
+    <SectionWorkspace title={project.title} items={workspaceTopicLinks(base,query,sectionWorkspaceTopics.projects.map(topic=>({...topic,path:`projects/${id}`})))} selected={view} context={project.lifecycle_status}>
       <Link href={`${base}/projects`}>← Projects</Link>
-      <h1>{project.title}</h1><FeatureTabs/><WidgetGrid pageKey="projects-detail">
+      <WidgetGrid pageKey="projects-detail">
       <p>{project.description}</p>
-      {isProjectOwner && active && (
+      {view==="overview"&&isProjectOwner && active && (
         <ProjectEditor appearance="standard"
           base={base}
           options={options}
@@ -58,7 +65,7 @@ export default async function Project({
           members={members.map((m) => m.user_id)}
         />
       )}
-      {hasPermission(actor,"records.read") && <RecordDocumentPanel appearance="standard"
+      {view==="documents"&&hasPermission(actor,"records.read") && <RecordDocumentPanel appearance="standard"
         base={base}
         targetType="project"
         targetId={id}
@@ -71,7 +78,7 @@ export default async function Project({
           {key:"handoff",label:"Handoff",description:"Attach the final handoff, acceptance, or transition record."},
         ]}
       />}
-      <FeatureWidget appearance="standard" id="projects-detail-milestones" title="Project milestones"><ProjectMilestoneConsole
+      {view==="structure"&&<FeatureWidget appearance="standard" id="projects-detail-milestones" title="Project milestones"><ProjectMilestoneConsole
         base={base}
         projectId={id}
         projectOwnerId={project.owner_user_id}
@@ -79,9 +86,9 @@ export default async function Project({
         people={options.people}
         milestones={milestones}
         canManage={isProjectOwner&&active}
-      /></FeatureWidget>
-      <FeatureWidget appearance="standard" id="projects-detail-structure" title="Work structure and handoff"><ProjectStructureConsole base={base} graph={graph} handoffs={handoffs} actorId={actor.userId} people={options.people} members={members.map(member=>member.user_id)} workLogs={workLogs} costAllocations={costs} canWriteCosts={canWriteCosts&&active}/></FeatureWidget>
-      <FeatureWidget appearance="standard" id="projects-detail-actuals" title="Project actuals"><ProjectActualsConsole
+      /></FeatureWidget>}
+      {view==="structure"&&<FeatureWidget appearance="standard" id="projects-detail-structure" title="Work structure and handoff"><ProjectStructureConsole base={base} section="structure" graph={graph!} handoffs={[]} actorId={actor.userId} people={options.people} members={members.map(member=>member.user_id)} workLogs={workLogs} costAllocations={costs} canWriteCosts={canWriteCosts&&active}/></FeatureWidget>}
+      {view==="actuals"&&<FeatureWidget appearance="standard" id="projects-detail-actuals" title="Project actuals"><ProjectActualsConsole
         base={base}
         projectId={id}
         isProjectOwner={isProjectOwner&&active}
@@ -92,8 +99,8 @@ export default async function Project({
         canWriteCosts={canWriteCosts&&active}
         canApproveCosts={canApproveCosts&&active}
         editable={active}
-      /></FeatureWidget>
-      <FeatureWidget appearance="standard" id="projects-detail-project-tasks" title="Project tasks"><Card as="section" appearance="standard" className="ui-panel">
+      /></FeatureWidget>}
+      {view==="tasks"&&<FeatureWidget appearance="standard" id="projects-detail-project-tasks" title="Project tasks"><Card as="section" appearance="standard" className="ui-panel">
         
         {active&&<UiActionLink appearance="standard" variant="primary" href={`${base}/staff-tasks/new?projectId=${encodeURIComponent(id)}`}>
           Create a task
@@ -103,7 +110,8 @@ export default async function Project({
             {t.title} · {t.state.replaceAll("_", " ")} · {t.assignee_name}
           </Link>
         ))}
-      </Card></FeatureWidget>
-    </WidgetGrid></FeaturePage>
+      </Card></FeatureWidget>}
+    {view==="overview"&&<p>Select Tasks, Work structure, Actuals, Handoff or Documents to inspect the current project.</p>}{view==="handoff"&&graph&&<ProjectStructureConsole section="handoff" base={base} graph={graph} handoffs={handoffs} actorId={actor.userId} people={options.people} members={members.map(member=>member.user_id)} workLogs={workLogs} costAllocations={costs} canWriteCosts={canWriteCosts&&active}/> }
+    </WidgetGrid></SectionWorkspace>
   );
 }

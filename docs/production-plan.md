@@ -1,5 +1,12 @@
 # ERPX — ปิด engineering ทั้ง catalogue ก่อนนำเสนอ
 
+## Shared section workspaces — 2026-10-14
+
+- Implemented the approved shared navigation/list/detail foundation and opt-in record dock, with legacy drawer behavior retained elsewhere.
+- Combined Administration/Brand, Assets/Maintenance and Handbook/Learning; extended Benefits, Commerce catalogue, Finance setup and Projects. Owner authority, selected-topic reads, versions, idempotency, approvals and full-page record routes stay with their existing owners.
+- Active contracts and generated discovery, route, component and record-table inventories track the canonical destinations and legacy aliases. Global UI acceptance remains pending; `ui:guard` is a source guard, not a substitute for browser acceptance.
+- Delivery remains development-only. Verification results are recorded in the shared section workspace contract and task delivery; no staging or production deployment is included.
+
 ## Performance first pass — 2026-10-10 (implemented; acceptance open)
 
 - [x] Defer record detail Client modules, separate POS receipt controller from the POS console, and render the initial receipt summary as a Server Component.

@@ -1,8 +1,8 @@
 # ERPX UAT route inventory
 
-Generated from `src/app` page files on 2026-10-14. The route source fingerprint is `e7a2e9d04dfb9b6513716bcd47425e7166dff88e81e9c64612c918fe0e08b924`. This inventories implemented page files and is not a capability-catalog acceptance claim.
+Generated from `src/app` page files on 2026-10-14. The route source fingerprint is `32987ef399b993e496a2457737922d527a52f88947237bd2281dae74853c4427`. This inventories implemented page files and is not a capability-catalog acceptance claim.
 
-- 227 page routes in source (current source count)
+- 228 page routes in source (current source count)
 - Desktop Chrome and Pixel 7 emulation
 - Anonymous, intended-role and explicit-denial access checks are recorded separately in Playwright results.
 - Holding routes are exercised at holding, branch, department, and branch-plus-department scopes.
@@ -111,6 +111,7 @@ Generated from `src/app` page files on 2026-10-14. The route source fingerprint 
 | `/holdings/[holdingSlug]/hospitality/setup` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/iam/[[...section]]` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/inbox` | Holding workspace | login-or-explicit-denial | employee | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/knowledge` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/landed-costs/[id]` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | sample record + invalid ID |
 | `/holdings/[holdingSlug]/learn` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/learning/[id]` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | sample record + invalid ID |

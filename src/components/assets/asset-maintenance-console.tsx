@@ -17,6 +17,7 @@ function useCommand(base: string, path: string) {
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   async function send(input: unknown) {
+    const form=document.activeElement?.closest("form"),formEditVersion=form?.getAttribute("data-erpx-edit-version");
     if (busy) return;
     setBusy(true);
     setError("");
@@ -34,7 +35,9 @@ function useCommand(base: string, path: string) {
         throw new Error(result.error?.message ?? "Unable to record this action.");
       }
       last.current = null;
-      router.push(`${base}/${path}/${result.data.id}`);
+      if(form&&formEditVersion&&form.getAttribute('data-erpx-edit-version')===formEditVersion)window.dispatchEvent(new CustomEvent('erpx:record-command-saved',{detail:{form,formEditVersion}}));
+      const current=new URL(window.location.href);
+      if(current.pathname===`${base}/assets`&&current.searchParams.has('view')){current.searchParams.set('detailKind',path==='assets'?'asset':'maintenance');current.searchParams.set('detailId',String(result.data.id));router.push(current.pathname+current.search,{scroll:false});}else router.push(`${base}/${path}/${result.data.id}`);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Retry this action.");

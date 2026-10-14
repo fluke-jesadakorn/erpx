@@ -1,0 +1,6 @@
+.embedded[data-feature-widget] {border:0;background:transparent;box-shadow:none;}
+.embedded[data-feature-widget] > header {display:none;}
+.embedded[data-feature-widget] > [data-slot="widget-content"] {padding:0;}
+.register table {min-width:640px;}
+.register th,.register td {overflow-wrap:normal;}
+.register td:nth-child(4),.register td:nth-child(4) > * {white-space:nowrap;overflow-wrap:normal;}

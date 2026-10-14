@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Drive the real provider's state and request callbacks without a DOM or server.
 const hooks = vi.hoisted(() => ({
+  used: [] as unknown[],
+  resolved: null as unknown,
   slots: [] as { value: unknown }[],
   cursor: 0,
   context: null as unknown,
@@ -26,6 +28,7 @@ vi.mock("react", async (original) => ({
   },
   useCallback<T>(callback: T) { return callback; },
   useContext() { return hooks.context; },
+  use(value:unknown) {hooks.used.push(value);return hooks.resolved;},
   useEffect(effect: () => void | (() => void)) { hooks.effects.push(effect); },
 }));
 vi.mock("next/navigation", () => ({
@@ -47,6 +50,8 @@ function render() {
   return (provider as ReactElement<{ value: Navigation }>).props.value;
 }
 beforeEach(() => {
+  hooks.used = [];
+  hooks.resolved = null;
   hooks.slots = [];
   hooks.effects = [];
   hooks.cursor = 0;
@@ -137,4 +142,17 @@ it.each(["erpx:context-switch-started","erpx:work-context-changed"])("discards r
   expect(render().counts.work).toBeNull();
   expect(render().attention.total).toBe(0);
   if (cleanup) cleanup();
+});
+
+
+describe("streamed badge retry",()=>{
+ it("consumes its initial promise after the provider commits without replacing newer counts",()=>{
+  const initial=Promise.resolve(null),state=render();
+  hooks.resolved={home:3,work:4};
+  hooks.context={...state,initial,initialPending:true};
+  expect(useNavigationCounts().counts).toEqual({home:3,work:4});
+  hooks.context={...state,initial,initialPending:false,counts:{home:7,work:9}};
+  expect(useNavigationCounts().counts).toEqual({home:7,work:9});
+  expect(hooks.used).toEqual([initial,initial]);
+ });
 });

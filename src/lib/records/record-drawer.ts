@@ -135,7 +135,7 @@ export function recordTarget(href: string, base: string): RecordTarget | null {
   const url = new URL(href, "https://erpx.invalid");
   if (url.origin !== "https://erpx.invalid" || !url.pathname.startsWith(base + "/") || url.searchParams.get("print") === "1") return null;
   const destination = url.pathname.slice(base.length + 1);
-  const staticRoutes = new Set(["people/organization","people/payroll","people/payslips","people/settings","people/roster","people/access","people/hire-handoffs","people/clearance","support/incidents","support/sessions","support/sla","people/move","maintenance/plans","requests/new","expenses/new","staff-tasks/new"]);
+  const staticRoutes = new Set(["knowledge","assets","benefits","projects","people/organization","people/payroll","people/payslips","people/settings","people/roster","people/access","people/hire-handoffs","people/clearance","support/incidents","support/sessions","support/sla","people/move","maintenance/plans","requests/new","expenses/new","staff-tasks/new"]);
   if (staticRoutes.has(destination) || destination.endsWith("/new")) return null;
   const flow=destination.match(/^work\/(routing|department-approvals)\/([^/]+)\/([^/]+)$/);
   if(flow)return {kind:'work_flow',id:decodeURIComponent(flow[3]),args:{...Object.fromEntries(url.searchParams),kind:decodeURIComponent(flow[2]),view:flow[1]}};

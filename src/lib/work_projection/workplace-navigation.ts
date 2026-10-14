@@ -1,3 +1,5 @@
+import {hasModuleAccess} from "@/data/module-access";
+import {sectionWorkspaceTopics,legacyWorkspaceDestination} from "./section-workspaces";
 import { hrSettingsTopics } from "@/lib/people_payroll/hr-settings-navigation";
 import { technologySections } from "@/lib/identity_access/technology-navigation";
 import { workViews, workViewAvailable, type WorkViewAvailability } from "@/lib/work_projection/work-item";
@@ -18,6 +20,7 @@ export type NavigationScopeKind =
 export type NavigationContext = {
   workspaceBase: string;
   workViewAvailability?: WorkViewAvailability | null;
+  handbookAccess?: {editor:boolean;owner:boolean};
   /** Daily POS/PMS links are rendered in the separate staff Front surface. */
   frontPosHref?: string;
   frontPmsHref?: string;
@@ -159,6 +162,7 @@ export const commerceNavigationViews = [
 ] as const;
 
 const adminSectionIcons: Record<AdminSection, NavigationIconId> = {
+  brand: "settings",
   people: "admin-people",
   organization: "admin-organization",
   approvals: "admin-approvals",
@@ -205,7 +209,7 @@ export function workplaceNavigation(
     scopeKind === "holding" || platform
       ? allowedAdminSections
       : allowedAdminSections.filter((section) =>
-          ["people", "organization", "feedback"].includes(section),
+          ["people", "organization", "brand", "feedback"].includes(section),
         );
   const actor = { role, permissions: context.permissions, assignmentScope: scopeKind };
   const item = (
@@ -766,13 +770,16 @@ export function workplaceNavigation(
   };
   const hubAccess = salesCustomerAccess({ ...actor, branchId: scopeKind === "branch" ? "branch" : null, departmentId: scopeKind === "department" ? "department" : null }, context.availableAppIds);
   const movedDestination = (entry: NavigationItem) => {
-    if (beta || platform) return entry;
+    if (platform) return entry;
     const url = new URL(entry.href, "https://navigation.invalid");
     const route = url.pathname.slice(base.length + 1);
+    const legacy=legacyWorkspaceDestination(base,route,Object.fromEntries(url.searchParams));
+    if(legacy)return {...entry,href:legacy};
+    if(beta)return entry;
     const href = salesCustomerLegacyDestination(base, route, Object.fromEntries(url.searchParams));
     return href ? { ...entry, href } : entry;
   };
-  if (!beta && !platform) for (const app of apps) {
+  if (!platform) for (const app of apps) {
     app.items = app.items.filter(entry => entry.id !== "operations-pricing" || hubAccess.pricing).map(movedDestination);
     if (app.href) app.href = movedDestination({ id: app.id, label: app.label, href: app.href, group: app.label, icon: app.icon }).href;
   }
@@ -787,10 +794,12 @@ export function workplaceNavigation(
     ...(hubAccess.reports ? [{ ...item("crm-reports", "CRM reports", "sales?view=reports", "Sales", "commerce", ["analytics", "forecast"]), categoryId: "customers-sales" as const, ownerModuleId: "crm" }] : []),
   ];
   // One level of work entries; detailed views stay with their owning page.
-  const categoryEntries = [...appDestinations, ...standalone.map(entry => metadata(entry))]
+  const categoryEntries = [...appDestinations, ...standalone.map(entry => movedDestination(metadata(entry)))]
     .filter(entry => entry.id !== "crm-customers");
   const categories = workplaceCategories.flatMap(([id, label, icon]): NavigationCategory[] => {
     let entries = categoryEntries.filter(entry => entry.categoryId === id);
+    for(const [family,ids,label] of [['assets',['assets','maintenance'],'Assets & maintenance'],['knowledge',['handbook','learning'],'Knowledge']] as const){const matching=entries.filter(entry=>(ids as readonly string[]).includes(entry.id));if(matching.length){const preferred=matching.find(entry=>entry.id===ids[0])??matching[0];entries=entries.filter(entry=>!(ids as readonly string[]).includes(entry.id));entries.push({...preferred,label,href:family==='assets'?`${base}/assets${preferred.id==='maintenance'?'?view=maintenance':''}`:`${base}/knowledge${preferred.id==='learning'?'?view=learning&section=courses':''}`});}}
+
     if (id === "customers-sales") {
       const secondaryItems = entries.filter(entry => ["marketing", "ecommerce"].includes(entry.id));
       return hubEntries.length || secondaryItems.length ? [{ id, label, icon, apps: hubEntries, secondaryItems }] : [];
@@ -805,14 +814,15 @@ export function workplaceNavigation(
     .filter(topic => topic.id === "pay-groups" ? hasPermission(actor,"people.payroll.details") : ["leave","calendars"].includes(topic.id) ? hasPermission(actor,"leave.policy.manage") : hasPermission(actor,"people.manage") && hasPermission(actor,"organization.manage"))
     .map(topic => metadata(item(`people-settings-${topic.id}`, topic.title, `people/settings?section=${topic.id}`, "People", "settings", [topic.description]), "people")) : [];
 
+  const workspaceAliases=Object.entries(sectionWorkspaceTopics).filter(([family])=>family!=='projects').flatMap(([family,topics])=>topics.filter(topic=>{const moduleId=family==='administration'?null:family==='assets'?(topic.id==='register'?'assets':'maintenance'):family==='knowledge'?(topic.id.startsWith('learning:')?'learning':null):family==='catalog'?(topic.id==='pricing'?'sales':'inventory'):family;return !moduleId||context.availableAppIds===undefined||context.availableAppIds.includes(moduleId);}).filter(topic=>family==='administration'?visibleAdminSections.includes((topic.query as Record<string,string>).section as AdminSection)&&(topic.id!=='brand:media'||visibleAdminSections.includes('organization')):family==='assets'?hasPermission(actor,'records.read')&&hasModuleAccess(context.moduleIds??[],topic.id==='register'?'assets':'maintenance'):family==='knowledge'?(topic.id.startsWith('handbook:')?(topic.id==='handbook:published'||topic.id==='handbook:drafts'&&context.handbookAccess?.editor||topic.id==='handbook:editors'&&context.handbookAccess?.owner):hasPermission(actor,'records.read')&&hasModuleAccess(context.moduleIds??[],'learning')):family==='benefits'?hasPermission(actor,'records.read')&&hasModuleAccess(context.moduleIds??[],'benefits'):family==='finance'?hasPermission(actor,'finance.read'):hasPermission(actor,'commerce.read')&&(topic.id!=='pricing'||hubAccess.pricing)).map(topic=>({...item(family==='catalog'?`operations-${topic.id}`:`workspace-${family}-${topic.id}`,topic.title,`${topic.path}?${new URLSearchParams(topic.query)}`,family==='knowledge'?'Knowledge':family==='assets'?'Assets & maintenance':family,'settings'),categoryId:(family==='administration'?'administration':family==='knowledge'?'knowledge':family==='finance'?'finance':family==='catalog'?'inventory-quality':family==='benefits'?'people-organization':'services') as NavigationCategory["id"]})));
   return {
     primary,
     apps,
     categories,
-    standalone,
-    search: uniqueDestinations([...primary.map(entry => metadata(entry)), ...primary.flatMap(entry => entry.submodules ?? []).map(entry => ({...metadata(entry), categoryId: "daily" as const})), ...hubEntries, ...hubTools, ...appDestinations, ...technologyAliases, ...hrAliases, ...standalone.map(entry => metadata(entry)),
+    standalone:standalone.map(movedDestination),
+    search: uniqueDestinations([...primary.map(entry => metadata(entry)), ...primary.flatMap(entry => entry.submodules ?? []).map(entry => ({...metadata(entry), categoryId: "daily" as const})), ...hubEntries, ...hubTools, ...appDestinations, ...workspaceAliases, ...technologyAliases, ...hrAliases, ...standalone.map(entry => movedDestination(metadata(entry))),
       ...workplaceStartActions.map(action=>({...item(`start-${action.id}`,action.label,`${base}${action.path}`,"Start","work"),categoryId:"daily" as const,ownerModuleId:action.owner,objective:action.objective,aiSupport:"prepare" as const}))]),
-    settingsDefault: visibleAdminSections.some((section) => ["people", "usage", "ai"].includes(section)) ? visibleAdminSections[0] : "feedback",
+    settingsDefault: sectionWorkspaceTopics.administration.find(topic=>visibleAdminSections.includes(topic.query.section as AdminSection))?.query.section as AdminSection ?? "feedback",
   };
 }
 
@@ -1006,6 +1016,7 @@ export function resolveNavigation(
       return { activeId: "pms-approvals", groupId: "pms" };
     return { activeId: "pms-front", groupId: "pms" };
   }
+  if(route==='assets'&&!second&&['maintenance','plans'].includes(queryValue(searchParams,'view')))return {activeId:model.search.some(entry=>entry.id==='assets')?'assets':'maintenance',groupId:'technology',detailLabel:queryValue(searchParams,'view')==='plans'?'Preventive plans':'Maintenance work'};
   const extraRouteApps: Record<string, string> = {
     assets: "assets", maintenance: "maintenance", "field-service": "field_service", planning: "planning",
     manufacturing: "manufacturing", talent: "talent", benefits: "benefits", learning: "learning",
@@ -1064,6 +1075,8 @@ export function resolveNavigation(
       detailLabel: second ? "Expense claim" : undefined,
     };
   }
+  if(route==='knowledge')return {activeId:queryValue(searchParams,'view')==='learning'?'learning':'handbook',groupId:standard?'guides':'resources',detailLabel:queryValue(searchParams,'section')||undefined};
+  if(route==='settings'&&queryValue(searchParams,'section')==='brand')return {activeId:'administration-brand',groupId:'technology',detailLabel:'Brand & identity'};
   if (route === "projects")
     return {
       activeId: "projects-list",
@@ -1148,6 +1161,8 @@ export function navigationTrail(
     return [{ label: "Company Stripe" }];
   if (pathname.replace(/\/$/, "") === `${base}/settings/notifications`)
     return [{ label: "Notification settings" }];
+  if(pathname===`${base}/assets`){const view=queryValue(searchParams,'view')||'register',topic=sectionWorkspaceTopics.assets.find(item=>item.id===view);return [{label:'Assets & maintenance',href:`${base}/assets`},...(topic?[{label:topic.title}]:[])];}
+  if(pathname===`${base}/knowledge`){const view=queryValue(searchParams,'view')||'handbook',section=queryValue(searchParams,'section')||(view==='learning'?'courses':'published'),topic=sectionWorkspaceTopics.knowledge.find(item=>item.id===`${view}:${section}`);return [{label:'Knowledge',href:`${base}/knowledge`},...(topic?[{label:topic.title}]:[])];}
   const resolved = resolveNavigation(model, base, pathname, searchParams);
   if (!resolved.activeId || resolved.activeId === "home") return [];
   if (["sales-hub", "customers-hub"].includes(resolved.sidebarId ?? "")) {

@@ -20,6 +20,7 @@ function useCommand(base: string) {
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   async function send(input: unknown) {
+    const form=document.activeElement?.closest("form"),formEditVersion=form?.getAttribute("data-erpx-edit-version");
     const body = JSON.stringify(input);
     if (last.current?.body !== body) last.current = { key: crypto.randomUUID(), body };
     setBusy(true);
@@ -39,9 +40,15 @@ function useCommand(base: string) {
         throw new Error(j.error?.message ?? "Unable to update benefits.");
       }
       last.current = null;
+      if(form&&formEditVersion&&form.getAttribute('data-erpx-edit-version')===formEditVersion)window.dispatchEvent(new CustomEvent('erpx:record-command-saved',{detail:{form,formEditVersion}}));
+      const current=new URL(window.location.href);
+      const entity=input&&typeof input==='object'&&'entity' in input?String(input.entity):null;
+      if(current.pathname===`${base}/benefits`){if(entity==='election'||entity===null){current.searchParams.set('detailKind','benefit_enrollment');current.searchParams.set('detailId',String(j.data.id));}router.push(current.pathname+current.search,{scroll:false});}
+      else {
       router.push(
         `${base}/benefits${input && typeof input === "object" && "entity" in input && input.entity === "election" ? `/${j.data.id}` : ""}`,
       );
+      }
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Retry this action.");
@@ -51,11 +58,11 @@ function useCommand(base: string) {
   }
   return { send, busy, error };
 }
-export function BenefitsConsole({ recordOnly=false,
+export function BenefitsConsole({ recordOnly=false, section, embedded=false,
   base,
   data,
   detail,
-}: { recordOnly?:boolean;
+}: { recordOnly?:boolean; section?:"plans"|"enrollments"; embedded?:boolean;
   base: string;
   data?: Awaited<ReturnType<typeof benefitsWorkspace>>;
   detail?: Awaited<ReturnType<typeof benefitDetail>>;
@@ -65,9 +72,9 @@ export function BenefitsConsole({ recordOnly=false,
     [transitionFiles, setTransitionFiles] = useState<AttachmentPanelChange | null>(null),
     [dependentFiles, setDependentFiles] = useState<Record<string, AttachmentPanelChange>>({});
   return (
-    <>
+    <div className="ui-stack" data-owner-embedded={embedded||undefined}>
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
-      {data?.canReview && (
+      {section!=="enrollments" && data?.canReview && (
         <>
           {!recordOnly && <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Draft benefit plan</summary><FormLayout
             className="ui-panel ui-form-grid"
@@ -123,7 +130,7 @@ export function BenefitsConsole({ recordOnly=false,
               Draft plan
             </Button>
           </FormLayout></FormDisclosure>}
-          {!recordOnly && <FormLayout
+          {!recordOnly && <FormDisclosure appearance="standard" dismissDisabled={busy} error={error} drawerTitle="Draft enrollment window"><summary>Draft enrollment window</summary><FormLayout
             className="ui-panel ui-form-grid"
             onSubmit={(x) => {
               x.preventDefault();
@@ -153,7 +160,7 @@ export function BenefitsConsole({ recordOnly=false,
             <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Draft window
             </Button>
-          </FormLayout>}
+          </FormLayout></FormDisclosure>}
           {(
             [
               ...data.plans
@@ -190,8 +197,8 @@ export function BenefitsConsole({ recordOnly=false,
           ))}
         </>
       )}
-      {data?.canWrite && (
-        (!recordOnly && <FormLayout
+      {section!=="plans" && data?.canWrite && (
+        (!recordOnly && <FormDisclosure appearance="standard" dismissDisabled={busy} error={error} drawerTitle="Add dependent"><summary>Add dependent</summary><FormLayout
           className="ui-panel ui-form-grid"
           onSubmit={(x) => {
             x.preventDefault();
@@ -217,7 +224,7 @@ export function BenefitsConsole({ recordOnly=false,
           <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Submit dependent
           </Button>
-        </FormLayout>)
+        </FormLayout></FormDisclosure>)
       )}
       {data?.plans
         .filter((plan) => ["draft", "published", "retired"].includes(String(plan.status)))
@@ -316,8 +323,8 @@ export function BenefitsConsole({ recordOnly=false,
               </Button>
             </FormLayout>
           ))}
-      {data?.canWrite && (
-        (!recordOnly && <FormLayout
+      {section!=="plans" && data?.canWrite && (
+        (!recordOnly && <FormDisclosure appearance="standard" dismissDisabled={busy} error={error} drawerTitle="Elect coverage"><summary>Elect coverage</summary><FormLayout
           className="ui-panel ui-form-grid"
           onSubmit={(x) => {
             x.preventDefault();
@@ -373,7 +380,7 @@ export function BenefitsConsole({ recordOnly=false,
           <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Elect plan
           </Button>
-        </FormLayout>)
+        </FormLayout></FormDisclosure>)
       )}
       {e && !["released", "cancelled"].includes(String(e.status)) && (
         (!recordOnly && <FormLayout
@@ -455,6 +462,6 @@ export function BenefitsConsole({ recordOnly=false,
           </Button>
         </FormLayout>)
       )}
-    </>
+    </div>
   );
 }

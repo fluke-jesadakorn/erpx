@@ -1,3 +1,4 @@
+import {RecordWorkspaceDemo} from "@/components/records/record-workspace-demo";
 import { FormGrid } from "@/components/ui/foundation";
 import { UiStandardDemo } from "@/components/ui/ui-standard-demo";
 import { Table } from "@/components/ui/foundation";
@@ -172,6 +173,7 @@ export default function UiGalleryPage() {
           </Table>
         </TableFrame>
       </section>
+      <RecordWorkspaceDemo />
       <UiContractDemo />
       <UiStandardDemo />
       <ResponsiveActions>

@@ -1,4 +1,5 @@
 export const adminSections = [
+  ["brand", "Brand & identity"],
   ["people", "People & access"],
   ["organization", "Organization"],
   ["approvals", "Approvals & routines"],

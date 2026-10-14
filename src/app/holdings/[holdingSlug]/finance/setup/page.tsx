@@ -1,9 +1,10 @@
+import {SectionWorkspace} from "@/components/workplace/section-workspace";
+import {sectionWorkspaceTopics,workspaceTopicLinks} from "@/lib/work_projection/section-workspaces";
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { FinanceAiPolicyControls } from "@/components/finance/finance-ai-panel";
 import { AccountingProfileControls } from "@/components/finance/accounting-profile-controls";
 import { accountingProfiles } from "@/server/modules/finance/public/accounting-profiles";
-import { RecordLink as Link } from "@/components/records/record-link";
 import { FeaturePage } from "@/components/shared/features/feature-page";
 import { FinanceWorkspace, financeStyles as styles } from "@/components/finance/finance-workspace";
 import { FinanceChartControls, type FinanceChart, type FinanceAccount } from "@/components/finance/finance-chart-controls";
@@ -28,13 +29,11 @@ export default async function FinanceSetupPage({params,searchParams}:{params:Pro
   const step=typeof query.step==="string"&&["chart","profile","opening","policy","ai","books","tools"].includes(query.step)?query.step:"checklist";
   const books=step==="books"?await financeBookWorkspace(actor):null;
   const tools=step==="tools"?await financeCompanyTools(actor):null;
-  const steps=[["checklist","Readiness"],["chart","Charts & accounts"],["profile","Company accounting policy"],["opening","Opening balances"],["books","Books & dimensions"],["tools","Company tools"],["policy","Go-live review"],["ai","AI preparation"]];
-  const stepHref=(value:string)=>`${base}/finance/setup?${new URLSearchParams({step:value,...(ledger?{chart:String(ledger.chart.id)}:{})})}`;
   const complete=setup.checks.filter(check=>check.complete).length;
   const selectedChart=ledger?.chart as FinanceChart | undefined;
   const chartAccounts=ledger?.accounts as FinanceAccount[] | undefined;
   return <FeaturePage className="ui-page-content" data-source="live"><FinanceWorkspace base={base} context={ledger?{chartId:String(ledger.chart.id),chartName:String(ledger.chart.name),currency:String(ledger.chart.base_currency)}:undefined} active="setup" title="Finance setup" description="Prepare the company before receiving documents and posting">
-    <nav className={styles.setupSteps} aria-label="Finance setup steps">{steps.map(([key,label],index)=><Link key={key} href={stepHref(key)} aria-current={step===key?"step":undefined}><span>{index+1}</span>{label}</Link>)}</nav>
+    <SectionWorkspace nested showHeading={false} title="Finance setup" items={workspaceTopicLinks(base,query,sectionWorkspaceTopics.finance)} selected={step} context={ledger?`${ledger.chart.name} · ${ledger.chart.base_currency}`:"Company setup"}>
     {step==="checklist"&&<><section className={styles.hero}><div><p className="eyebrow">Readiness</p><strong>{complete}/{setup.checks.length}</strong><p>Key setup checks found by the system</p></div><aside><b>{complete===setup.checks.length?"Ready to test the workflow":"Setup still required"}</b><span className="muted">Go-live requires a close simulation and accountable data review.</span></aside></section>
     <section className={styles.panel}><h2>Getting-started checklist</h2>{setup.checks.map(check=><div className={styles.check} data-complete={check.complete} key={check.id}><span className={styles.checkMark}>{check.complete?"✓":"·"}</span><b>{check.label}</b><span className="muted">{check.detail}</span></div>)}</section></>}
     {["chart","opening"].includes(step)&&setup.charts.length>1&&<section className={styles.panel} aria-label="Finance chart selector"><h2>{step==="chart"?"Chart & account selection":"Opening balance chart"}</h2><p className="muted">The selected chart controls the accounts and periods shown below.</p><div className="ui-form-actions">{setup.charts.map(chart=><UiActionLink appearance="standard" variant="secondary" data-active={ledger?.chart.id===chart.id||undefined} href={`${base}/finance/setup?step=${step}&chart=${encodeURIComponent(String(chart.id))}`} key={String(chart.id)}>{String(chart.name)} · {String(chart.base_currency)}</UiActionLink>)}</div></section>}
@@ -48,5 +47,5 @@ export default async function FinanceSetupPage({params,searchParams}:{params:Pro
     {books&&<FinanceBookControls base={base} data={books} canWrite={hasPermission(actor,"finance.write")} canApprove={hasPermission(actor,"finance.approve")} userId={actor.userId}/>}
     {tools&&<FinanceToolControls base={base} rows={tools} canWrite={hasPermission(actor,"finance.write")}/>}
     {step==="policy"&&<section className={styles.panel}><h2>Go-live policy</h2><p className="muted">Define independent preparers and approvers, Thai tax settings, bank accounts, mappings from PMS, POS, service, and manufacturing systems, and close owners. A chart of accounts alone does not mean the company is ready for production.</p>{hasPermission(actor,'iam.read')&&<UiActionLink appearance="standard" href={`${base}/technology`}>Review Finance assignments in Organization &amp; Access</UiActionLink>}</section>}
-  </FinanceWorkspace></FeaturePage>;
+  </SectionWorkspace></FinanceWorkspace></FeaturePage>;
 }

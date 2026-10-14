@@ -39,7 +39,7 @@ export const workplaceStartActions = [
 
 /** All 33 catalogue modules have a home; this never enables a feature. */
 export const workplaceModuleDestinations: Record<string, WorkplaceModuleDestination> = {
-  brand: { categoryId: "administration", objective: "Draft, protect and publish the company's approved identity.", path: "brand", aiSupport: "guide" },
+  brand: { categoryId: "administration", objective: "Draft, protect and publish the company's approved identity.", path: "settings?section=brand&tab=identity", aiSupport: "guide" },
   commercial: { categoryId: "administration", objective: "Review this company's usage and subscription.", path: "settings?section=usage", aiSupport: "guide" },
   identity_access: { categoryId: "administration", objective: "Give the right people access for the right scope and dates.", path: "technology?view=organization", aiSupport: "guide" },
   organization: { categoryId: "people-organization", objective: "Find people, positions and the team responsible for work.", path: "people", aiSupport: "guide" },
@@ -52,7 +52,7 @@ export const workplaceModuleDestinations: Record<string, WorkplaceModuleDestinat
   sales: { categoryId: "customers-sales", objective: "Turn demand into quotations, orders and verified fulfilment.", path: "commerce", aiSupport: "guide" },
   assets: { categoryId: "services", objective: "Track asset custody, location, condition and return.", path: "assets", aiSupport: "guide" },
   inventory: { categoryId: "inventory-quality", objective: "Receive, issue, reserve, transfer and count stock.", path: "commerce?view=stock", aiSupport: "guide" },
-  maintenance: { categoryId: "services", objective: "Repair equipment and verify the result before closing work.", path: "maintenance", aiSupport: "guide" },
+  maintenance: { categoryId: "services", objective: "Repair equipment and verify the result before closing work.", path: "assets?view=maintenance", aiSupport: "guide" },
   operations: { categoryId: "projects-routines", objective: "Review exceptions, assign work and independently verify resolutions.", path: "operations", aiSupport: "guide" },
   procurement: { categoryId: "purchasing", objective: "Compare offers, order, track deliveries and match supplier invoices.", path: "commerce?view=purchase", aiSupport: "guide" },
   quality: { categoryId: "inventory-quality", objective: "Inspect, hold and independently release or dispose of stock.", path: "quality", aiSupport: "guide" },
@@ -65,7 +65,7 @@ export const workplaceModuleDestinations: Record<string, WorkplaceModuleDestinat
   projects: { categoryId: "projects-routines", objective: "Coordinate related tasks, dependencies and handoffs.", path: "projects", aiSupport: "guide" },
   ecommerce: { categoryId: "customers-sales", objective: "Manage channels and pass orders, deliveries and returns to their owners.", path: "ecommerce", aiSupport: "guide" },
   benefits: { categoryId: "people-organization", objective: "Manage plans, eligibility, enrollment and reviewed benefit elections.", path: "benefits", aiSupport: "guide" },
-  learning: { categoryId: "knowledge", objective: "Complete assigned courses and keep training results separate from reading guidance.", path: "learning", aiSupport: "guide" },
+  learning: { categoryId: "knowledge", objective: "Complete assigned courses and keep training results separate from reading guidance.", path: "knowledge?view=learning&section=courses", aiSupport: "guide" },
   talent: { categoryId: "people-organization", objective: "Recruit, review offers and hand selected candidates to onboarding.", path: "talent", aiSupport: "guide" },
   field_service: { categoryId: "services", objective: "Dispatch technicians, verify service evidence and release billing.", path: "field-service", aiSupport: "guide" },
   agent: { categoryId: "administration", objective: "Review AI providers, approved agents and invocation evidence.", path: "agents", aiSupport: "guide" },

@@ -1,6 +1,6 @@
 # ERPX shared UI standardization
 
-Status: implementation in progress, **not accepted as complete**. The [verification receipt](standard-verification.json) records passing checks, environment health and the deliberately failing completion gate. The generated [coverage manifest](standard-coverage.json) currently inventories 227 route files and 549 component files. Source inventory and browser smoke observations do not prove every permission, data, popup, print, and query state. The completion guard intentionally fails while those cases remain pending.
+Status: implementation in progress, **not accepted as complete**. The [verification receipt](standard-verification.json) records passing checks, environment health and the deliberately failing completion gate. The generated [coverage manifest](standard-coverage.json) currently inventories 228 route files and 554 component files. Source inventory and browser smoke observations do not prove every permission, data, popup, print, and query state. The completion guard intentionally fails while those cases remain pending.
 
 ## Shared presentation
 
@@ -62,3 +62,5 @@ The [guard regression suite](../../tests/unit/shared.ui/ui-standard-guard.test.t
 Remaining acceptance work includes every route/query/pagination view under the proper role, conditionally opened components, disabled/read-only/error/loading states, per-editor controlled draft reset contracts, actual specialized interaction regression checks, and invoice/payslip/Thai print inspection. Some registers still need page-specific pattern review. No staging access or production deployment is authorized for this work.
 
 Verification logs and source snapshots are retained under ignored `.scratch/ui-standard/`. The workspace contained extensive changes before this task; this migration preserves that starting snapshot rather than resetting unrelated work. The isolated release build uses `.runtime/releases/`, not the live dev output directory.
+
+The shared section workspace adds Administration/Brand, Assets/Maintenance, Knowledge, Benefits, Commerce catalogue, Finance setup and Projects. Its path-scoped record host opts into dock/overlay presentation without changing legacy consumers or frozen source fingerprints. The table inventory additionally records reviewed helper delegation, immutable history, comparison matrices and fictional prototypes discovered during regeneration; these classifications do not change deferred owner presentation or count as browser acceptance. Global pending acceptance remains unchanged.
